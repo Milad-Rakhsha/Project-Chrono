@@ -710,7 +710,7 @@ void ChMesh::IntLoadResidual_F(
 			local_off_v += vnodes[j]->Get_ndof_w();
 		}
 	}
-
+#pragma omp parallel for num_threads(4) schedule(static, 8)
 	// internal forces
 	for (unsigned int ie = 0; ie < this->velements.size(); ie++)
 	{
