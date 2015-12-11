@@ -26,7 +26,7 @@
 // ------------------------------------------------
 // ------------------------------------------------
 ///////////////////////////////////////////////////
-
+#include <immintrin.h>
 #include "core/ChCoordsys.h"
 #include "core/ChStream.h"
 #include "core/ChException.h"
@@ -543,22 +543,65 @@ class ChMatrix {
     }
 
     /// Multiplies two matrices, and stores the result in "this" matrix: [this]=[A]*[B].
-    template <class RealB, class RealC>
-    void MatrMultiply(const ChMatrix<RealB>& matra, const ChMatrix<RealC>& matrb) {
-        assert(matra.GetColumns() == matrb.GetRows());
-        assert(this->rows == matra.GetRows());
-        assert(this->columns == matrb.GetColumns());
-        int col, row, colres;
-        Real sum;
-        for (colres = 0; colres < matrb.GetColumns(); ++colres) {
-            for (row = 0; row < matra.GetRows(); ++row) {
-                sum = 0;
-                for (col = 0; col < matra.GetColumns(); ++col)
-                    sum += (Real)(matra.Element(row, col) * matrb.Element(col, colres));
-                SetElement(row, colres, sum);
+    void MatrMultiply(const ChMatrix<double>& matra, const ChMatrix<double>& matrb) {
+            assert(matra.GetColumns() == matrb.GetRows());
+            assert(this->rows == matra.GetRows());
+            assert(this->columns == matrb.GetColumns());
+
+            int elem, colB, rowA;
+            __m256d ymmA, ymmB, prod, sum;
+            double temp_sum;
+            int num_fat_col = matrb.GetColumns() / 4 + (matrb.GetColumns() % 4) ? 1 : 0;
+            for (rowA = 0; rowA < matra.GetRows(); rowA++) {
+                for (colB = 0; colB < matrb.GetColumns(); colB += 4) {
+                    sum = _mm256_setzero_pd();
+                    for (elem = 0; elem < matra.GetColumns(); elem++) {
+                        ymmA = _mm256_broadcast_sd(matra.GetAddress() + matra.GetColumns() * rowA + elem);
+                        ymmB = _mm256_loadu_pd(matrb.GetAddress() + elem * matrb.GetColumns() + colB);
+                        prod = _mm256_mul_pd(ymmA, ymmB);
+                        sum = _mm256_add_pd(sum, prod);
+                    }
+                    // if ((matrb.GetColumns() % 4) && (colB < (num_fat_col - 1) * 4) || num_fat_col == 1) {
+                    if (((matrb.GetColumns() >> 2) << 2) < colB) {
+                        __m128d high, low, temp;
+                        high = _mm256_extractf128_pd(sum, 1);
+                        low = _mm256_castpd256_pd128(sum);
+                        double* addr = this->GetAddress() + rowA * matra.GetColumns() + colB;
+                        switch ((matrb.GetColumns()) % 4) {
+                            case 3:
+                                _mm_movehl_ps(_mm_castpd_ps(temp), _mm_castpd_ps(low));
+                                _mm_store_sd(addr + 2, temp);
+                            case 2:
+                                _mm_store_sd(addr + 1, high);
+                            case 1:
+                                _mm_movehl_ps(_mm_castpd_ps(temp), _mm_castpd_ps(high));
+                                _mm_store_sd(addr, temp);
+                                break;
+                        }
+                    } else {
+                        _mm256_storeu_pd(this->GetAddress() + rowA * matrb.GetColumns() + colB, sum);
+                    }
+                }
             }
         }
-    }
+
+        template <class RealB, class RealC>
+        void MatrMultiply(const ChMatrix<RealB>& matra, const ChMatrix<RealC>& matrb) {
+            assert(matra.GetColumns() == matrb.GetRows());
+            assert(this->rows == matra.GetRows());
+            assert(this->columns == matrb.GetColumns());
+            int col, row, colres;
+            Real sum;
+            for (colres = 0; colres < matrb.GetColumns(); ++colres) {
+                for (row = 0; row < matra.GetRows(); ++row) {
+                    sum = 0;
+                    for (col = 0; col < matra.GetColumns(); ++col)
+                        sum += (Real)(matra.Element(row, col) * matrb.Element(col, colres));
+                    SetElement(row, colres, sum);
+                }
+            }
+        }
+
 
     /// Multiplies two matrices (the second is considered transposed): [this]=[A]*[B]'
     /// Faster than doing B.MatrTranspose(); result.MatrMultiply(A,B);
@@ -1031,6 +1074,8 @@ class ChMatrix {
                                int inscol) {
         for (int i = 0; i < nrows; ++i)
             for (int j = 0; j < ncolumns; ++j)
+            	//Using omp atomic here imposes less overhead
+#pragma omp atomic
                 Element(i + insrow, j + inscol) += (Real)matra->Element(i + cliprow, j + clipcol);
     }
 
