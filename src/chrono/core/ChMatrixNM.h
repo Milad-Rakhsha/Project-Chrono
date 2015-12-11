@@ -143,6 +143,14 @@ class ChMatrixNM : public ChMatrix<Real> {
         return result;
     }
 
+
+    //Specialized overload operator for AVX version
+    ChMatrixDynamic<Real> operator*(const ChMatrix<double>& matbis) const {
+        ChMatrixDynamic<Real> result(this->rows, matbis.GetColumns());
+        result.MatrMultiply(*this, matbis);
+        return result;
+    }
+
     /// Multiplies this matrix and another generic matrix.
     /// Returns a ChMatrixDynamic matrix, because size of matbis is not known at compile time.
     /// Performance warning: a new object is created.
