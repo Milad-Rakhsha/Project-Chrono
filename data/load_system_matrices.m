@@ -37,7 +37,7 @@ prefix_b = num2str(solvenumber,'%02d');
 
 prefix = ['solve_', prefix_a, '_', prefix_b, '_'];
 
-if (directory ~= '')
+if ~isempty(directory)
     prefix = [directory, '/', prefix];
 end
 
