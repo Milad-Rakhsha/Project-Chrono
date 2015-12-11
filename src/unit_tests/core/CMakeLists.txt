@@ -5,6 +5,7 @@ SET(TESTS
     test_ChVector
     test_coords
     test_math
+    test_AVX
     test_sharedptr
     #test_stream
 )
