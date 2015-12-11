@@ -31,7 +31,9 @@ void ChElementGeneric::EleIntLoadResidual_F(ChVectorDynamic<>& R, const double c
 		int nodedofs = GetNodeN(in)->Get_ndof_w();
 		//GetLog() << "  in=" << in << "  stride=" << stride << "  nodedofs=" << nodedofs << " offset=" <<  GetNodeN(in)->NodeGetOffset_w() << "\n";
 		if (!GetNodeN(in)->GetFixed()) {
-		#pragma omp critical
+			//Using omp atomic inside the lower level class is preferred instead of omp critical here
+			//Please look into the ChMatrix.h for to see how this is done in PasteSumClippedMatrix
+			//#pragma omp critical
 			R.PasteSumClippedMatrix(&mFi, stride, 0, nodedofs,1, GetNodeN(in)->NodeGetOffset_w(), 0);
 		}
 		stride += nodedofs;
