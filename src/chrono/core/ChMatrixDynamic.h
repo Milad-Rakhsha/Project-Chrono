@@ -101,7 +101,7 @@ class ChMatrixDynamic : public ChMatrix<Real> {
         assert(row >= 0 && col >= 0);
         this->rows = row;
         this->columns = col;
-        this->address = new Real[row * col];
+        this->address = new Real[row * col + 3];
         // SetZero(row*col);
         for (int i = 0; i < this->rows * this->columns; ++i)
             this->address[i] = 0;
