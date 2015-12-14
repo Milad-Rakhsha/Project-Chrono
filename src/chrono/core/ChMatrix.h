@@ -472,6 +472,13 @@ class ChMatrix {
             ElementN(nel) = (Real)(matra.ElementN(nel) + matrb.ElementN(nel));
     }
 
+	/// Add a scalar to every coefficient in the matrix.
+	template <class RealB>
+	void MatrAdd(const RealB factor) {
+		for (int nel = 0; nel < rows * columns; ++nel)
+			ElementN(nel) += (Real)factor;
+	}
+
     /// Subtract two matrices, and stores the result in "this" matrix: [this]=[A]-[B].
     template <class RealB, class RealC>
     void MatrSub(const ChMatrix<RealB>& matra, const ChMatrix<RealC>& matrb) {
