@@ -34,7 +34,7 @@ endif()
 # Collect all additional include directories necessary for the MKL module
 # ------------------------------------------------------------------------------
 SET(CH_MKLINC ${MKL_INCLUDE_DIRS})
-SET(CH_MKLINC PARENT_SCOPE)
+SET(CH_MKLINC ${MKL_INCLUDE_DIRS} PARENT_SCOPE)
 INCLUDE_DIRECTORIES(${CH_MKLINC})
 
 
@@ -47,12 +47,14 @@ SET(ChronoEngine_MKL_HEADERS
   ChLcpMklSolver.h
   ChMklEngine.h
   ChCSR3Matrix.h
+  ChInteriorPoint.h
 )
 
 SET(ChronoEngine_MKL_SOURCES
   ChLcpMklSolver.cpp
   ChMklEngine.cpp
   ChCSR3Matrix.cpp
+  ChInteriorPoint.cpp
 )
 
 SOURCE_GROUP("MKL" FILES ${ChronoEngine_MKL_HEADERS} ${ChronoEngine_MKL_SOURCES})
