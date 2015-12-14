@@ -3,12 +3,32 @@
 
 namespace chrono
 {
+	template <class matrix>
+	void ExportToFile(matrix mat, std::string filepath, int precision = 12)
+	{
+		std::ofstream ofile;
+		ofile.open(filepath);
+		ofile << std::scientific << std::setprecision(precision);
+
+		for (int row_sel = 0; row_sel < mat.GetRows(); row_sel++)
+		{
+			for (int col_sel = 0; col_sel < mat.GetColumns(); col_sel++)
+			{
+				ofile << mat.GetElement(row_sel, col_sel) << " , ";
+			}
+
+			ofile << std::endl;
+		}
+
+		ofile.close();
+	}
 
 	// | M  -Cq'|*|q|- | f|= |0|
     // | Cq  -E | |l|  |-b|  |c| 
 
 	void ChInteriorPoint::Initialize(ChLcpSystemDescriptor& sysd)
 	{
+		
 		// Initial resizing;
 		if (solver_call == 0)
 		{
@@ -19,6 +39,19 @@ namespace chrono
 			reset_dimensions();
 		}
 
+		srand(time(NULL));
+
+		for (int n_temp = 0; n_temp < n; n_temp++)
+		{
+ 			x(n_temp,0) = rand() % 10;
+		}
+
+		for (int m_temp = 0; m_temp < m; m_temp++)
+		{
+			y(m_temp, 0) = rand() % 10;
+			lam(m_temp, 0) = rand() % 10;
+		}
+
 		// load system matrix in BigMat and rhs
 		switch (qp_solve_type)
 		{
@@ -27,7 +60,7 @@ namespace chrono
 			break;
 		case AUGMENTED:
 			sysd.ConvertToMatrixForm(&BigMat, nullptr, false, true);
-			
+			makePositiveDefinite(&BigMat);
 			break;
 		case NORMAL:
 			std::cout << std::endl << "Perturbed KKT system cannot be loaded with 'NORMAL' method yet.";
@@ -37,30 +70,19 @@ namespace chrono
 		}
 
 		sysd.ConvertToMatrixForm(nullptr, nullptr, nullptr, &c, &b, nullptr, false, true);
-		c.MatrScale(-1);
-		b.MatrScale(-1);
+		c.MatrScale(-1); // adapt to InteriorPoint convention
+		b.MatrScale(-1); // adapt to InteriorPoint convention
 
-		mkl_engine.SetProblem(BigMat, rhs, sol);
-
-		// Starting Point (pag..484-485)
-		rpd_pred = y; rpd_pred.MatrScale(lam); // as (16.57 pag.481 suggests)
-
-		{
-			ChStreamOutAsciiFile mfileo("rpd_pred2.txt");
-			//ChArchiveAsciiDump marchiveout(mfileo);
-			mfileo << "inizio!!!! \n";
-			mfileo << rpd_pred;
-			mfileo << "fine!!!! \n";
-			//ChLcpSolver::ArchiveOUT(marchiveout);
-
-			//rpd_pred.StreamOUTdenseMatlabFormat(mfileo)
-		}
-
+		// Calculate the residual
+		fullupdate_residual();
+		
+		// Feasible starting Point (pag.484-485)
 		KKTsolve(0); // to obtain Dx, Dy, Dlam called "affine"
+
 		y += Dy; // calculate y0
 		lam += Dlam; // calculate lam0
 		// x0 is equal to x
-		
+
 		for (int row_sel = 0; row_sel < m; row_sel++)
 			if (abs(y(row_sel)) < 1)
 				y(row_sel) = 1;
@@ -69,43 +91,24 @@ namespace chrono
 			if (abs(lam(row_sel)) < 1)
 				lam(row_sel) = 1;
 
-		switch (qp_solve_type)
-		{
-		case STANDARD:
-			std::cout << std::endl << "rp and rd cannot be updated in 'STANDARD' method yet.";
-			break;
-		case AUGMENTED:
-			// Residual initialization (16.59 pag.482)
-			// rp initialization 
-			BigMat.MatMultiplyClipped(x, rp, n, n + m - 1, 0, n - 1, 0, 0);  // rp = A*x
-			vectm = y; // vectm = y;
-			vectm.MatrScale(-1); // vectm = -y;
-			vectm.PasteClippedMatrix(&rhs, n, 0, m, 1, 0, 0); // vectm = -y + (-b);
-			rp += vectm; // rp = (A*x) + (- y - b);
 
-			// rd initialization
-			BigMat.MatMultiplyClipped(x, rd, 0, n - 1, 0, n - 1, 0, 0); // rd = G*x
-			rd += c; // rd = G*x + c
-			BigMat.MatMultiplyClipped(lam, vectn, 0, n - 1, n, n + m - 1, 0, 0); // vectn = (-A^T)*lam
-			rd += vectn; // rd = (G*x + c) + (-A^T*lam)
-			break;
-		case NORMAL:
-			std::cout << std::endl << "rp and rd cannot be updated in 'NORMAL' method yet.";
-			break;
-		}
-
+		// Update the residual considering the new values of 'y' and 'lam'
+		fullupdate_residual();
 		
 	}
 
 	void ChInteriorPoint::InteriorPointIterate()
 	{
 		// Prediction phase
-		rpd_pred = y; rpd_pred.MatrScale(lam); // rpd_pred = y°lam; as (16.57 pag.481 suggests)
 		KKTsolve(0); // to obtain Dx, Dy, Dlam called "affine" aka "prediction"
+		
+		// CHECK OK
+		dump_all();
 
 		// from 16.60 pag.482 from 14.32 pag.408 (remember that y>=0!)
 		double alfa_pred_prim = findNewtonStepLength(y, Dy);
 		double alfa_pred_dual = findNewtonStepLength(lam, Dlam);
+		
 
 		if (EQUAL_STEP_LENGTH)
 		{
@@ -173,6 +176,7 @@ namespace chrono
 		switch (qp_solve_type)
 		{
 		case STANDARD:
+			rpd_pred = y; rpd_pred.MatrScale(lam); // as (16.57 pag.481 suggests)
 			std::cout << std::endl << "Perturbed KKT system cannot be solved with 'STANDARD' method yet.";
 			for (int diag_sel = 0; diag_sel < m; diag_sel++)
 			{
@@ -180,8 +184,6 @@ namespace chrono
 				BigMat.SetElement(n + m + diag_sel, n + m + diag_sel, y.GetElement(diag_sel, 0)); // write y diagonal submatrix
 			}
 			
-
-
 			break;
 		case AUGMENTED:
 			// update lambda°y diagonal submatrix
@@ -192,21 +194,32 @@ namespace chrono
 
 			BigMat.Compress();
 
+			// Fill 'rhs' with [-rd;-rp-y-sigma*mu/lam]
 			for (int row_sel = 0; row_sel < n; row_sel++)
 				rhs.SetElement(row_sel, 0, -rd.GetElement(row_sel, 0));
-			for (int row_sel = 0; row_sel < m; row_sel++)
-				rhs.SetElement(row_sel + n, 0, -rp(row_sel, 0) - y(row_sel,0) + perturbation/lam(row_sel,0) );
-
-			BigMat.ExportToDatFile("", 6);
-
+			if (perturbation != 0)
+			{
+				for (int row_sel = 0; row_sel < m; row_sel++)
+					rhs.SetElement(row_sel + n, 0, -rp(row_sel, 0) - y(row_sel, 0) + perturbation / lam(row_sel, 0));
+			}
+			else
+			{
+				for (int row_sel = 0; row_sel < m; row_sel++)
+					rhs.SetElement(row_sel + n, 0, -rp(row_sel, 0) - y(row_sel, 0));
+			}
 			
-			mkl_engine.PardisoCall(13, 0);
 
+			// Solve the KKT system
+			mkl_engine.SetProblem(BigMat, rhs, sol);
+			mkl_engine.PardisoCall(13, 1);
+
+			// Extract 'Dx' and 'Dlam' from 'sol'
 			for (int row_sel = 0; row_sel < n; row_sel++)
 				Dx.SetElement(row_sel, 0, sol.GetElement(row_sel, 0));
 			for (int row_sel = 0; row_sel < m; row_sel++)
 				Dlam.SetElement(row_sel, 0, sol.GetElement(row_sel + n, 0));
 
+			// Calc 'Dy'
 			BigMat.MatMultiplyClipped(Dx, Dy, n, n + m - 1, 0, n - 1, 0, 0);  // Dy = A*Dx
 			Dy += rp;
 
@@ -222,9 +235,9 @@ namespace chrono
 		double alpha = 1;
 		for (int row_sel = 0; row_sel < vect.GetRows(); row_sel++)
 		{
-			if (Dvect(row_sel)<0)
+			if (Dvect(row_sel,0)<0 && vect(row_sel,0)) // actually vect should be always >0 but it isn't..
 			{
-				double alfa_temp = -eta * vect(row_sel) / Dvect(row_sel);
+				double alfa_temp = -eta * vect(row_sel,0) / Dvect(row_sel,0);
 				if (alfa_temp < alpha)
 					alpha = alfa_temp;
 			}
@@ -285,6 +298,61 @@ namespace chrono
 	}
 
 
+	void ChInteriorPoint::dump_all(std::string suffix)
+	{
+		ExportToFile(y, "dump/y" + suffix + ".txt");
+		ExportToFile(x, "dump/x" + suffix + ".txt");
+		ExportToFile(lam, "dump/lam" + suffix + ".txt");
+		ExportToFile(Dx, "dump/Dx" + suffix + ".txt");
+		ExportToFile(Dy, "dump/Dy" + suffix + ".txt");
+		ExportToFile(Dlam, "dump/Dlam" + suffix + ".txt");
+		ExportToFile(rp, "dump/rp" + suffix + ".txt");
+		ExportToFile(rd, "dump/rd" + suffix + ".txt");
+		ExportToFile(sol, "dump/sol" + suffix + ".txt");
+		ExportToFile(rhs, "dump/rhs" + suffix + ".txt");
+		ExportToFile(b, "dump/b" + suffix + ".txt");
+		ExportToFile(c, "dump/c" + suffix + ".txt");
+
+		ExportToFile(vectm, "dump/vectm" + suffix + ".txt");
+		BigMat.ExportToDatFile("dump/", 8);
+	}
+
+	void ChInteriorPoint::makePositiveDefinite(ChCSR3Matrix* mat)
+	{
+		for (int col_sel = n; col_sel < n + m; col_sel++)
+		{
+			for (int row_sel = 0; row_sel < n; row_sel++)
+			{
+				mat->Element(row_sel, col_sel) *= -1;
+			}
+		}
+	}
+
+	void ChInteriorPoint::fullupdate_residual()
+	{
+		switch (qp_solve_type)
+		{
+		case STANDARD:
+			std::cout << std::endl << "rp and rd cannot be updated in 'STANDARD' method yet.";
+			break;
+		case AUGMENTED:
+			// Residual initialization (16.59 pag.482)
+			// rp initialization 
+			BigMat.MatMultiplyClipped(x, rp, n, n + m - 1, 0, n - 1, 0, 0);  // rp = A*x
+			rp -= y + b;
+
+			// rd initialization
+			BigMat.MatMultiplyClipped(x, rd, 0, n - 1, 0, n - 1, 0, 0); // rd = G*x
+			rd += c; // rd = G*x + c
+			BigMat.MatMultiplyClipped(lam, vectn, 0, n - 1, n, n + m - 1, 0, 0); // vectn = (-A^T)*lam
+			rd += vectn; // rd = (G*x + c) + (-A^T*lam)
+			break;
+		case NORMAL:
+			std::cout << std::endl << "rp and rd cannot be updated in 'NORMAL' method yet.";
+			break;
+		}
+	}
+
 	ChInteriorPoint::ChInteriorPoint(QP_SOLUTION_TECHNIQUE qp_solve_type_selection):
 		qp_solve_type(qp_solve_type_selection),
 		solver_call(0),
@@ -309,5 +377,6 @@ namespace chrono
 
 		return 0;
 	}
+
 
 }

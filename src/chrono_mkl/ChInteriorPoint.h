@@ -122,8 +122,11 @@ namespace chrono
 		void KKTsolve(double sigma_dot_mu = 0);
 		double findNewtonStepLength(ChMatrix<double>& vect, ChMatrix<double>& Dvect, double eta = 1);
 		void reset_dimensions();
-		void update_rp();
-		void update_rd();
+
+		void dump_all(std::string suffix = "");
+
+		void makePositiveDefinite(ChCSR3Matrix* mat);
+		void fullupdate_residual();
 
 
 	public:
