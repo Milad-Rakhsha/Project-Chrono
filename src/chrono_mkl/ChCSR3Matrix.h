@@ -139,9 +139,28 @@ namespace chrono{
 		// Import/Export functions
 		void ImportFromDatFile(std::string filepath);
 		void ExportToDatFile(std::string filepath, int precision = 12);
+		
+		// Math functions
+		ChCSR3Matrix& operator=(const ChCSR3Matrix& mat_source);
+		ChCSR3Matrix& operator+=(const ChCSR3Matrix& mat_source);
+		ChCSR3Matrix& operator-=(const ChCSR3Matrix& mat_source);
+		ChCSR3Matrix& operator*=(const double coeff);
+		void MatMultiply(const ChMatrix<double>& mat_in, ChMatrix<double>& mat_out, bool mat_sparse_transposed = false) const;
+		void ChCSR3Matrix::MatMultiplyClipped(const ChMatrix<double>& vect_in, ChMatrix<double>& vect_out,
+			int start_row_mat, int end_row_mat, int start_col_mat, int end_col_mat, int offset_vect_in, int offset_vect_out) const;
 
 
+		bool operator==(const ChCSR3Matrix& mat_source) const;
+		bool operator!=(const ChCSR3Matrix& mat_source) const;
 	};
+
+	ChApiMkl ChCSR3Matrix& operator+(const ChCSR3Matrix& mat_add1, const ChCSR3Matrix& mat_add2);
+	ChApiMkl ChCSR3Matrix& operator-(const ChCSR3Matrix& mat_add1, const ChCSR3Matrix& mat_add2);
+	ChApiMkl ChCSR3Matrix& operator*(const double coeff, const ChCSR3Matrix& mat_source);
+	ChApiMkl ChCSR3Matrix& operator*(const ChCSR3Matrix& mat_source, const double coeff);
+
+	
+
 
 }; // END namespace chrono
 

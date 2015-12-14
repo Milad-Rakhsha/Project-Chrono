@@ -1,6 +1,7 @@
 #include "ChCSR3Matrix.h"
 #include <algorithm>
 #include <mkl.h>
+#include <chrono/core/ChMatrixDynamic.h>
 
 namespace chrono {
 
@@ -963,6 +964,233 @@ namespace chrono {
 		ia_file.close();
 	}
 
+	ChCSR3Matrix& ChCSR3Matrix::operator=(const ChCSR3Matrix& mat_source)
+	{
+		Reset(mat_source.GetRows(), mat_source.GetColumns(), mat_source.GetColIndexLength());
+
+		for (int row_sel = 0; row_sel <= mat_source.GetRows(); row_sel++)
+			rowIndex[row_sel] = mat_source.rowIndex[row_sel];
+
+		for (int col_sel = 0; col_sel < mat_source.GetColIndexLength(); col_sel++)
+		{
+			colIndex[col_sel] = mat_source.colIndex[col_sel];
+			values[col_sel] = mat_source.values[col_sel];
+		}
+
+		isCompressed = mat_source.IsCompressed();
+		symmetry = mat_source.GetSymmetry();
+
+		return *this;
+	}
 
 
+	ChCSR3Matrix& ChCSR3Matrix::operator+=(const ChCSR3Matrix& mat_source)
+	{
+		assert(mat_source.GetRows() == rows && mat_source.GetColumns() == columns);
+
+		double* mat_source_values = mat_source.GetValuesAddress();
+		int* mat_source_rowIndex = mat_source.GetRowIndexAddress();
+		int* mat_source_colIndex = mat_source.GetColIndexAddress();
+
+		for (int row_sel = 0; row_sel < mat_source.GetRows(); row_sel++)
+			for (int col_sel = mat_source_rowIndex[row_sel]; col_sel < mat_source_rowIndex[row_sel + 1]; col_sel++)
+				if (mat_source_colIndex[col_sel] >= 0)
+				{
+					if (mat_source_colIndex[col_sel] < 0)
+						break;
+					SetElement(row_sel, mat_source_colIndex[col_sel], +mat_source_values[col_sel], false);
+				}
+
+		return *this;
+	}
+
+	ChCSR3Matrix& ChCSR3Matrix::operator-=(const ChCSR3Matrix& mat_source)
+	{
+		assert(mat_source.GetRows() == rows && mat_source.GetColumns() == columns);
+
+		double* mat_source_values = mat_source.GetValuesAddress();
+		int* mat_source_rowIndex = mat_source.GetRowIndexAddress();
+		int* mat_source_colIndex = mat_source.GetColIndexAddress();
+
+		for (int row_sel = 0; row_sel < mat_source.GetRows(); row_sel++)
+			for (int col_sel = mat_source_rowIndex[row_sel]; col_sel < mat_source_rowIndex[row_sel + 1]; col_sel++)
+				if (mat_source_colIndex[col_sel] >= 0)
+				{
+					if (mat_source_colIndex[col_sel] < 0)
+						break;
+					SetElement(row_sel, mat_source_colIndex[col_sel], -mat_source_values[col_sel], false);
+				}
+
+		return *this;
+	}
+
+	ChCSR3Matrix& ChCSR3Matrix::operator*=(const double coeff)
+	{
+		assert(coeff != 0);
+
+		for (int col_sel = 0; col_sel < GetColIndexLength(); col_sel++)
+			values[col_sel] *= coeff;
+
+		return *this;
+	}
+
+
+	bool ChCSR3Matrix::operator==(const ChCSR3Matrix& mat_source) const
+	{
+		if (mat_source.GetRows() != rows || mat_source.GetColumns() != columns)
+			return false;
+
+		int col_sel_source = 0;
+		int col_sel = 0;
+		int shift = 0;
+		int shift_source = 0;
+
+		for (int row_sel = 0; row_sel < rows; row_sel++)
+		{
+			if (rowIndex[row_sel] + shift != mat_source.GetRowIndexAddress()[row_sel] + shift_source)
+				return false;
+
+			while (1)
+			{
+				if (col_sel_source < mat_source.GetRowIndexAddress()[row_sel + 1])
+				{
+					if (mat_source.GetColIndexAddress()[col_sel_source] == -1)
+					{
+						shift_source++;
+						col_sel_source++;
+						continue;
+					}
+				}
+				else
+				{
+					while (col_sel<rowIndex[row_sel + 1])
+					{
+						shift++;
+						if (colIndex[col_sel] != -1)
+							return false;
+					}
+					break;
+				}
+
+				if (col_sel < rowIndex[row_sel + 1])
+				{
+					if (colIndex[col_sel] == -1)
+					{
+						shift++;
+						col_sel++;
+						continue;
+					}
+				}
+				else
+				{
+					while (col_sel_source<mat_source.GetRowIndexAddress()[row_sel + 1])
+					{
+						shift_source++;
+						if (mat_source.GetColIndexAddress()[col_sel_source] != -1)
+							return false;
+					}
+					break;
+				}
+
+
+				if (values[col_sel] != mat_source.GetValuesAddress()[col_sel_source] ||
+					colIndex[col_sel] != mat_source.GetColIndexAddress()[col_sel_source])
+					return false;
+
+				shift = 0;
+				shift_source = 0;
+
+			} // end while
+
+		} // end for
+
+		return true;
+	}
+
+	bool ChCSR3Matrix::operator!=(const ChCSR3Matrix& mat_source) const
+	{
+		return !(*this == mat_source);
+	}
+
+	ChCSR3Matrix& operator+(const ChCSR3Matrix& mat_add1, const ChCSR3Matrix& mat_add2)
+	{
+		assert(mat_add1.GetRows() == mat_add2.GetRows() && mat_add1.GetColumns() == mat_add2.GetColumns());
+
+		ChCSR3Matrix mat_dest(mat_add1);
+
+		mat_dest += mat_add2;
+		return mat_dest;
+	}
+
+	ChCSR3Matrix& operator-(const ChCSR3Matrix& mat_add1, const ChCSR3Matrix& mat_add2)
+	{
+		assert(mat_add1.GetRows() == mat_add2.GetRows() && mat_add1.GetColumns() == mat_add2.GetColumns());
+
+		ChCSR3Matrix mat_dest(mat_add1);
+
+		double* mat_source_values = mat_add2.GetValuesAddress();
+		int* mat_source_rowIndex = mat_add2.GetRowIndexAddress();
+		int* mat_source_colIndex = mat_add2.GetColIndexAddress();
+
+		for (int row_sel = 0; row_sel < mat_add2.GetRows(); row_sel++)
+			for (int col_sel = mat_source_rowIndex[row_sel]; col_sel < mat_source_rowIndex[row_sel + 1]; col_sel++)
+				if (mat_source_colIndex[col_sel] >= 0)
+				{
+					if (mat_source_colIndex[col_sel] < 0)
+						break;
+					mat_dest.SetElement(row_sel, mat_source_colIndex[col_sel], -mat_source_values[col_sel], false);
+				}
+
+		return mat_dest;
+	}
+
+	ChCSR3Matrix& operator*(const double coeff, const ChCSR3Matrix& mat_source)
+	{
+		ChCSR3Matrix mat_dest(mat_source);
+		mat_dest *= coeff;
+		return mat_dest;
+	}
+
+	ChCSR3Matrix& operator*(const ChCSR3Matrix& mat_source, const double coeff)
+	{
+		return (coeff*mat_source);
+	}
+
+	void ChCSR3Matrix::MatMultiply(const ChMatrix<double>& mat_in, ChMatrix<double>& mat_out, bool mat_sparse_transposed) const
+	{
+		char transp = mat_sparse_transposed ? 'T' : 'N';
+		assert(mat_in.GetRows() == GetColumns(), GetRows() == mat_out.GetRows());
+		if (mat_in.GetColumns() == 1)
+		{
+			mkl_cspblas_dcsrgemv(&transp, &rows, values, rowIndex, colIndex, mat_in.GetAddress(), mat_out.GetAddress());
+		}
+		else
+		{
+			for (int col_sel = 0; col_sel < mat_in.GetColumns(); col_sel++)
+			{
+				ChMatrixDynamic<double> temp( mat_in.GetRows(), 1);
+				mkl_cspblas_dcsrgemv(&transp, &rows, values, rowIndex, colIndex, mat_in.GetAddress(), temp.GetAddress());
+				mat_out.PasteMatrix(&temp, 0, col_sel);
+			}
+		}
+	}
+
+	void ChCSR3Matrix::MatMultiplyClipped(const ChMatrix<double>& vect_in, ChMatrix<double>& vect_out,
+		int start_row_mat, int end_row_mat, int start_col_mat, int end_col_mat, int start_row_vect_in, int start_row_vect_out) const
+	{
+		for (int row_sel = 0; row_sel <= end_row_mat - start_row_mat; row_sel++)
+		{
+			int mat_row_sel = row_sel + start_row_mat;
+			int vect_out_row_sel = row_sel + start_row_vect_out;
+			vect_out(vect_out_row_sel, 0) = 0;
+
+			for (int col_sel = rowIndex[mat_row_sel]; col_sel < rowIndex[mat_row_sel + 1]; col_sel++)
+			{
+				if (colIndex[col_sel] >= start_col_mat && colIndex[col_sel] <= end_col_mat)
+				{
+					vect_out(vect_out_row_sel, 0) += values[col_sel] * vect_in( colIndex[col_sel] - start_col_mat + start_row_vect_in, 0 );
+				}
+			}
+		}
+	}
 }  // end namespace chrono
