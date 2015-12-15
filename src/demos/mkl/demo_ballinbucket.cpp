@@ -99,7 +99,7 @@ void create_bucket(ChSystem& mphysicalSystem) {
 		mtexture->SetTextureFilename(GetChronoDataFile("cubetexture_borders.png"));
 		wall->AddAsset(mtexture);
 
-		int ball_arrays = 1;
+		int ball_arrays = 3;
 		for (int ball_set = 0; ball_set < ball_arrays; ball_set++)
 		{
 			// Create a ball that will collide with wall
@@ -156,7 +156,7 @@ int main(int argc, char* argv[]) {
     ChIrrWizard::add_typical_Logo(application.GetDevice());
     ChIrrWizard::add_typical_Sky(application.GetDevice());
     ChIrrWizard::add_typical_Lights(application.GetDevice(), core::vector3df(70.f, 120.f, -90.f), core::vector3df(30.f, 80.f, 60.f), 290, 190);
-    ChIrrWizard::add_typical_Camera(application.GetDevice(), core::vector3df(0, 1, 0), core::vector3df(0, 0, 0));
+	ChIrrWizard::add_typical_Camera(application.GetDevice(), core::vector3df(-0.5, 0.5, -0.5), core::vector3df(0, 0, 0));
     //ChIrrWizard::add_typical_Camera(application.GetDevice(), core::vector3df(-15, 14, -30), core::vector3df(0, 5, 0));
 
     //
@@ -187,10 +187,18 @@ int main(int argc, char* argv[]) {
     mphysicalSystem.SetIterLCPwarmStarting(true);
     mphysicalSystem.SetParallelThreadNumber(4);
 
-	// Change solver to MKL
-	ChInteriorPoint* ip_solver = new ChInteriorPoint;
-	mphysicalSystem.ChangeLcpSolverStab(ip_solver);
-	mphysicalSystem.ChangeLcpSolverSpeed(ip_solver);
+	//// Change solver to MKL
+	//ChLcpMklSolver* mkl_solver_stab = new ChLcpMklSolver;
+	//ChLcpMklSolver* mkl_solver_speed = new ChLcpMklSolver;
+	//mphysicalSystem.ChangeLcpSolverStab(mkl_solver_stab);
+	//mphysicalSystem.ChangeLcpSolverSpeed(mkl_solver_speed);
+	//application.GetSystem()->Update();
+	
+	// Change solver to IP
+	ChInteriorPoint* ip_solver_stab = new ChInteriorPoint;
+	ChInteriorPoint* ip_solver_speed = new ChInteriorPoint;
+	mphysicalSystem.ChangeLcpSolverStab(ip_solver_stab);
+	mphysicalSystem.ChangeLcpSolverSpeed(ip_solver_speed);
 	application.GetSystem()->Update();
 
 	//// Change solver to Matlab external linear solver, for max precision in benchmarks
