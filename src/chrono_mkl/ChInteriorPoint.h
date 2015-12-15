@@ -62,6 +62,7 @@ namespace chrono
 		size_t n; // size of x, y, G
 		size_t iteration_count_max;
 		size_t solver_call;
+		size_t iterate_count;
 
 
 		bool EQUAL_STEP_LENGTH;
@@ -102,8 +103,7 @@ namespace chrono
 		// residuals: TODO do not use this intermediate values, but operate directly on 'rhs'
 		ChMatrixDynamic<double> rp; // primal constraint A*x - y - b = 0
 		ChMatrixDynamic<double> rd; // dual constraint G*x - AT*lam + c = 0
-		ChMatrixDynamic<double> rpd_pred; // primal-dual constraints used in the predictor phase
-		ChMatrixDynamic<double> rpd_corr; // primal-dual constraints used in the corrector phase
+		ChMatrixDynamic<double> rpd; // primal-dual constraints
 
 		// problem matrices and vectors
 		ChMatrixDynamic<double> rhs;
@@ -120,22 +120,27 @@ namespace chrono
 
 
 		void KKTsolve(double sigma_dot_mu = 0);
-		double findNewtonStepLength(ChMatrix<double>& vect, ChMatrix<double>& Dvect, double eta = 1);
+		double find_Newton_step_length(ChMatrix<double>& vect, ChMatrix<double>& Dvect, double eta = 1);
 		void reset_dimensions();
 
 		void dump_all(std::string suffix = "");
 
-		void makePositiveDefinite(ChCSR3Matrix* mat);
+		void make_positive_definite(ChCSR3Matrix* mat);
 		void fullupdate_residual();
 
+		ChMatrixDynamic<double> sol_chrono;
+		void generate_solution();
+		
 
 	public:
 
 		ChInteriorPoint(QP_SOLUTION_TECHNIQUE qp_solve_type_selection = AUGMENTED);
 
+		
 		virtual double Solve(ChLcpSystemDescriptor& sysd) override;
+		void TestAugmentedMatrix();
 		void Initialize(ChLcpSystemDescriptor& sysd);
-		void InteriorPointIterate();
+		double Iterate();
 		
 	};
 
