@@ -59,7 +59,7 @@ namespace chrono {
 template <class Real = double, int preall_rows = 3, int preall_columns = 3>
 class ChMatrixNM : public ChMatrix<Real> {
   protected:
-    Real buffer[preall_rows * preall_columns];
+    Real buffer[preall_rows * preall_columns+3];
 
   public:
     //
