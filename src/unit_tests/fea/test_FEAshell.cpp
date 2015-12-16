@@ -276,8 +276,8 @@ int main(int argc, char* argv[]) {
 	// Switch off mesh class gravity
 	my_mesh->SetAutomaticGravity(false);
 	// This is mandatory
-	my_mesh->SetupInitial();
-	// Remember to add the mesh to the system!
+    my_system.SetupInitial();
+    // Remember to add the mesh to the system!
 	my_system.Add(my_mesh);
 	// Perform a dynamic time integration:
 	my_system.SetLcpSolverType(ChSystem::LCP_ITERATIVE_MINRES); // <- NEEDED because other solvers can't

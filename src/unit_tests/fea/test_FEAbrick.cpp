@@ -214,7 +214,7 @@ int main(int argc, char* argv[]) {
     }
 
     // This is mandatory
-    my_mesh->SetupInitial();
+    my_system.SetupInitial();
 
     // Remember to add the mesh to the system!
     my_system.Add(my_mesh);
