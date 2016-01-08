@@ -186,13 +186,6 @@ int main(int argc, char* argv[]) {
     mphysicalSystem.SetIterLCPmaxItersStab(20);  // unuseful for Anitescu, only Tasora uses this
     mphysicalSystem.SetIterLCPwarmStarting(true);
     mphysicalSystem.SetParallelThreadNumber(4);
-
-	//// Change solver to MKL
-	//ChLcpMklSolver* mkl_solver_stab = new ChLcpMklSolver;
-	//ChLcpMklSolver* mkl_solver_speed = new ChLcpMklSolver;
-	//mphysicalSystem.ChangeLcpSolverStab(mkl_solver_stab);
-	//mphysicalSystem.ChangeLcpSolverSpeed(mkl_solver_speed);
-	//application.GetSystem()->Update();
 	
 	// Change solver to IP
 	ChInteriorPoint* ip_solver_stab = new ChInteriorPoint;
