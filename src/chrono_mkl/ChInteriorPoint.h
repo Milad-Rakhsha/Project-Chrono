@@ -74,7 +74,6 @@ namespace chrono
 		bool EQUAL_STEP_LENGTH;
 		bool ADAPTIVE_ETA;
 		bool ONLY_PREDICT;
-		bool warm_start;
 
 		struct IPresidual_t
 		{
@@ -131,6 +130,8 @@ namespace chrono
 		// temporary vectors
 		ChMatrixDynamic<double> vectn; // temporary variable that has always size (n,1)
 		ChMatrixDynamic<double> vectm; // temporary variable that has always size (m,1)
+		//double x_mean; // TODO: to reinitialize the vector with a value that have more or less the same magnitude as the previous
+		//double lam_mean; // TODO: to reinitialize the vector with a value that have more or less the same magnitude as the previous
 
 		// IP specific functions
 		void KKTsolve(double sigma = 0.0);
@@ -162,7 +163,6 @@ namespace chrono
 		void VerifyKKTconditions(bool print = false);
 		void SetKKTSolutionMethod(KKT_SOLUTION_METHOD qp_solve_type_selection) { KKT_solve_method = qp_solve_type_selection; }
 		void SetMaxIterations(size_t max_iter){ iteration_count_max = max_iter; }
-		void SetWarmStart(bool on_off) { warm_start = on_off; }
 		void SetTolerances(double rp_tol, double rd_tol, double rpd_tol, double complementarity_tol)
 		{
 			IPtolerances.rp_nnorm = rp_tol;
@@ -172,7 +172,6 @@ namespace chrono
 		}
 
 		// Test
-		void TestAugmentedMatrix();
 		void DumpProblem(std::string suffix = "");
 		void DumpIPStatus(std::string suffix = "");
 	};

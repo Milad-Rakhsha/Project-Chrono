@@ -1,7 +1,7 @@
 ﻿#include "ChInteriorPoint.h"
 #include <algorithm>
 
-#define TEST_MATRIX false
+#define DEBUG_MODE true
 #define SKIP_CONTACTS_UV true
 
 namespace chrono
@@ -71,16 +71,12 @@ namespace chrono
 	{
 		IPresiduals.rp_nnorm = rp.NormTwo()/n;
 		IPresiduals.rd_nnorm = rd.NormTwo()/m;
-		rpd = y;
-		rpd.MatrScale(lam);
-		IPresiduals.rpd_nnorm = rpd.NormTwo()/m;
 			
 		if (print)
 		{
 			std::cout << std::scientific << std::setprecision(1);
 			std::cout << "|rp|/n: " << IPresiduals.rp_nnorm
 					  << "; |rd|/m: " << IPresiduals.rd_nnorm
-					  << "; |rpd|/m: " << IPresiduals.rpd_nnorm
 					  << "; mu: " << mu << std::endl;
 
 			bool neg_y = false;
@@ -102,7 +98,9 @@ namespace chrono
 		}
 	}
 
-	// 
+	// The problem to be solved is loaded into the main matrix that will be used to solve the various step of the IP method
+	// The initial guess is modified in order to be feasible
+	// The residuals are computed
 	void ChInteriorPoint::initialize(ChLcpSystemDescriptor& sysd)
 	{
 		verbose = true;
@@ -135,33 +133,31 @@ namespace chrono
 		c.MatrScale(-1); // adapt to InteriorPoint convention
 		b.MatrScale(-1); // adapt to InteriorPoint convention
 
-		if (TEST_MATRIX)
-			TestAugmentedMatrix();
 
 		/********** Initialize IP algorithm **********/
 		if (solver_call == 0 || m_old != m)
 		{
 			// Initial guess
 			x.FillElem(0); // TIP: every ChMatrix is initialized with zeros by default
-			lam.FillElem(1); // each element of lam will be at the denominator; avoid zeros!
+			lam.FillElem(0.1); // each element of lam will be at the denominator; avoid zeros!
 		}
-
 
 		// since A is generally changed between calls, also with warm_start,
 		// all the residuals and feasibility check must be redone
 		multiplyA(x, y);  // y = A*x
 		y -= b;
-			
+
 		// Calculate the residual
 		fullupdate_residual();
 
 		// Feasible starting Point (pag.484-485)
 		KKTsolve(); // to obtain Dx, Dy, Dlam called "affine"
+		
 
+		// x is accepted as it is
 		y += Dy; // calculate y0
 		lam += Dlam; // calculate lam0
-		// x0 is equal to x
-
+		
 		for (size_t row_sel = 0; row_sel < m; row_sel++)
 			y(row_sel) = abs(y(row_sel)) < 1 ? 1 : abs(y(row_sel));
 
@@ -311,7 +307,7 @@ namespace chrono
 
 			break;
 		case AUGMENTED:
-			// update lambda°y diagonal submatrix
+			// update y/lambda diagonal submatrix
 			for (size_t diag_sel = 0; diag_sel < m; diag_sel++)
 			{
 				BigMat.SetElement(n + diag_sel, n + diag_sel, y.GetElement(diag_sel, 0) / lam.GetElement(diag_sel, 0));
@@ -339,11 +335,15 @@ namespace chrono
 			mkl_engine.SetProblem(BigMat, rhs, sol);
 			mkl_engine.PardisoCall(13, 0);
 
-			//// TODO: used for testing; delete
-			//res.Reset(BigMat.GetRows(), 1);
-			//mkl_engine.GetResidual(res);
-			//res_norm = mkl_engine.GetResidualNorm(res);
-			//std::cout << res_norm << std::endl;
+			if (verbose)
+			{
+				// TODO: used for testing; delete
+				res.Reset(BigMat.GetRows(), 1);
+				mkl_engine.GetResidual(res);
+				res_norm = mkl_engine.GetResidualNorm(res);
+				std::cout << "Residual norm of MKL call: " << res_norm << std::endl;
+			}
+			
 
 			// Extract 'Dx' and 'Dlam' from 'sol'
 			for (size_t row_sel = 0; row_sel < n; row_sel++)
@@ -467,6 +467,9 @@ namespace chrono
 		ExportToFile(Dx, "dump/Dx" + suffix + ".txt");
 		ExportToFile(Dy, "dump/Dy" + suffix + ".txt");
 		ExportToFile(Dlam, "dump/Dlam" + suffix + ".txt");
+
+		ExportToFile(rhs, "dump/rhs" + suffix + ".txt");
+		ExportToFile(sol, "dump/sol" + suffix + ".txt");
 	}
 
 	void ChInteriorPoint::make_positive_definite()
@@ -552,8 +555,7 @@ namespace chrono
 			VerifyKKTconditions();
 			if (
 				IPresiduals.rp_nnorm < IPtolerances.rp_nnorm &&
-				IPresiduals.rd_nnorm < IPtolerances.rd_nnorm &&
-				IPresiduals.rpd_nnorm < IPtolerances.rpd_nnorm
+				IPresiduals.rd_nnorm < IPtolerances.rd_nnorm
 				)
 				return true;
 		}
@@ -565,8 +567,7 @@ namespace chrono
 	{
 		VerifyKKTconditions();
 		if (IPresiduals.rp_nnorm < tolerance &&
-			IPresiduals.rd_nnorm < tolerance &&
-			IPresiduals.rpd_nnorm < tolerance)
+			IPresiduals.rd_nnorm < tolerance )
 			return true;
 
 		return false;
@@ -616,56 +617,17 @@ namespace chrono
 		solver_call(0),
 		iteration_count_max(25),
 		EQUAL_STEP_LENGTH(false),
-		ADAPTIVE_ETA(true),
+		ADAPTIVE_ETA(false),
 		ONLY_PREDICT(false),
-		warm_start(false),
 		IPtolerances(1e-12),
 		mu_tolerance(1e-12),
 		KKT_solve_method(AUGMENTED),
 		mu(0)
+		//x_mean(0),
+		//lam_mean(1)
 	{
 		mkl_engine.SetProblem(BigMat, rhs, sol);
 	}
 
-
-	void ChInteriorPoint::TestAugmentedMatrix()
-	{
-
-		n = 3;
-		m = 3;
-
-		reset_dimensions();
-
-		// M matrix
-		BigMat(0, 0) = 1;
-		BigMat(1, 1) = 1;
-		BigMat(2, 2) = 1;
-
-		// A matrix
-		BigMat(3, 0) = 1;
-		BigMat(3, 1) = -1;
-		BigMat(4, 1) = 1;
-		BigMat(4, 2) = -1;
-		BigMat(5, 2) = 1;
-
-		// -A'
-		BigMat(0, 3) = -1;
-		BigMat(1, 3) = 1;
-		BigMat(1, 4) = -1;
-		BigMat(2, 4) = 1;
-		BigMat(2, 5) = -1;
-
-		// b
-		b.Resize(m, 1);
-		b(0,0) = 0;
-		b(1,0) = 0;
-		b(2,0) = 0;
-
-		// c
-		c.Resize(n, 1);
-		c(0, 0) = -10;
-		c(1, 0) = +10;
-		c(2, 0) = 0;
-	}
 
 }

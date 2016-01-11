@@ -251,8 +251,8 @@ int main(int argc, char* argv[]) {
 	ChInteriorPoint* ip_solver_speed = new ChInteriorPoint;
 	mphysicalSystem.ChangeLcpSolverStab(ip_solver_stab);
 	mphysicalSystem.ChangeLcpSolverSpeed(ip_solver_speed);
-	ip_solver_stab->SetMaxIterations(10);
-	ip_solver_speed->SetMaxIterations(10);
+	//ip_solver_stab->SetMaxIterations(10);
+	//ip_solver_speed->SetMaxIterations(10);
 	application.GetSystem()->Update();
 
 	//
