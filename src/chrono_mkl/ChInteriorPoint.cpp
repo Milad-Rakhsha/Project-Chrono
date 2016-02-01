@@ -762,9 +762,9 @@ namespace chrono
 		{
 			for (size_t row_sel = 0; row_sel < m; row_sel++)
 			{
-				sol_chrono(row_sel + n, 0) = -lam(row_sel,0); // there will be an inversion inside FromVectorToUnknowns()
-				sol_chrono(row_sel + n + 1, 0) = 0;
-				sol_chrono(row_sel + n + 2, 0) = 0;
+				sol_chrono(n + row_sel*3, 0) = -lam(row_sel,0); // there will be an inversion inside FromVectorToUnknowns()
+				sol_chrono(n + row_sel*3 + 1, 0) = 0;
+				sol_chrono(n + row_sel*3 + 2, 0) = 0;
 			}
 		}
 		else
