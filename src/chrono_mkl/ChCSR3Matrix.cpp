@@ -1165,8 +1165,10 @@ namespace chrono {
 		return (coeff*mat_source);
 	}
 
-	void ChCSR3Matrix::MatMultiply(const ChMatrix<double>& mat_in, ChMatrix<double>& mat_out, bool mat_sparse_transposed) const
+	void ChCSR3Matrix::MatMultiply(const ChMatrix<double>& mat_in, ChMatrix<double>& mat_out, bool mat_sparse_transposed)
 	{
+		Compress(); // the matrix has to be compressed since the multiplication is done on native arrays
+
 		char transp = mat_sparse_transposed ? 'T' : 'N';
 		assert(mat_in.GetRows() == GetColumns(), GetRows() == mat_out.GetRows());
 		if (mat_in.GetColumns() == 1)

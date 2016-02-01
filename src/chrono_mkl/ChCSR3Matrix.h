@@ -145,7 +145,7 @@ namespace chrono{
 		ChCSR3Matrix& operator+=(const ChCSR3Matrix& mat_source);
 		ChCSR3Matrix& operator-=(const ChCSR3Matrix& mat_source);
 		ChCSR3Matrix& operator*=(const double coeff);
-		void MatMultiply(const ChMatrix<double>& mat_in, ChMatrix<double>& mat_out, bool mat_sparse_transposed = false) const;
+		void MatMultiply(const ChMatrix<double>& mat_in, ChMatrix<double>& mat_out, bool mat_sparse_transposed = false);
 		void ChCSR3Matrix::MatMultiplyClipped(const ChMatrix<double>& vect_in, ChMatrix<double>& vect_out,
 			int start_row_mat, int end_row_mat, int start_col_mat, int end_col_mat, int offset_vect_in, int offset_vect_out) const;
 
