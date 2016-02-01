@@ -5,6 +5,7 @@ SET(DEMOS
   demo_ballinbucket
   demo_MklEngine
   demo_bricksIP
+  demo_convergenceIP
 )
 
 #--------------------------------------------------------------
