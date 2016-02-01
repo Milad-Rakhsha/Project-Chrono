@@ -3,6 +3,7 @@
 
 #define DEBUG_MODE true
 #define SKIP_CONTACTS_UV true
+#define ADD_COMPLIANCE true
 
 namespace chrono
 {
@@ -43,13 +44,16 @@ namespace chrono
 	{
 		initialize(sysd);
 
-		SetTolerances(1e-14, 1e-14, 1e-14, 1e-14);
+		SetTolerances(1e-9, 1e-10, 1e-10);
 
 		size_t iteration_count = 0;
 		for (; iteration_count < iteration_count_max; iteration_count++)
 		{
 			if (check_exit_conditions())
+			{
 				break;
+			}
+				
 			iterate();
 		}
  		solver_call++;
@@ -129,18 +133,85 @@ namespace chrono
 			break;
 		}
 
+		if (ADD_COMPLIANCE)
+		{
+			sysd.ConvertToMatrixForm(nullptr, nullptr, &E, nullptr, nullptr, nullptr, false, SKIP_CONTACTS_UV);
+			E *= -1;
+		}
+
 		sysd.ConvertToMatrixForm(nullptr, nullptr, nullptr, &c, &b, nullptr, false, SKIP_CONTACTS_UV);
 		c.MatrScale(-1); // adapt to InteriorPoint convention
 		b.MatrScale(-1); // adapt to InteriorPoint convention
 
+		//starting_point_Nocedal(n_old, m_old);
+		//starting_point_STP1();
+		starting_point_STP2();
+		
+
+	}
+
+	void ChInteriorPoint::starting_point_STP1() // from [2]
+	{
+		double infeas_dual_ratio = 0.1; // TODO: dependant on n
+		
+		x.FillElem(1);
+		y.FillElem(1);
+		lam.FillElem(1);
+		
+		double duality_gap_calc = y.MatrDot(&y, &lam); // [2] pag. 132
+		double duality_gap = m; // [2] pag. 132
+		assert(duality_gap_calc == duality_gap);
+
+		
+		// norm of all residuals; [2] pag. 132
+		fullupdate_residual();
+		double res_norm = rp.MatrDot(&rp, &rp); 
+		res_norm += rp.MatrDot(&rd, &rd);
+		res_norm = sqrt(res_norm);
+
+		if (res_norm / duality_gap > infeas_dual_ratio)
+		{
+			double coeff = res_norm / (duality_gap * infeas_dual_ratio);
+			x.MatrScale(coeff);
+			y.MatrScale(coeff);
+			lam.MatrScale(coeff);
+
+			fullupdate_residual();
+		}
+
+	}
+
+	void ChInteriorPoint::starting_point_STP2()
+	{
+		double threshold = 1; // 'epsilon' in [2]
+		x.FillElem(1);
+		vectm.Resize(m, 1);
+		multiplyA(x, vectm);
+		vectm -= b;
+
+		for (size_t cont = 0; cont < m; cont++)
+		{
+			if (vectm(cont, 0) > threshold)
+				y(cont, 0) = vectm(cont, 0);
+			else
+				y(cont, 0) = threshold;
+			
+			lam(cont, 0) = 1 / y(cont, 0);
+		}
+		
+		fullupdate_residual();
+
+	}
+
+	void ChInteriorPoint::starting_point_Nocedal(int n_old, int m_old)
+	{
 
 		/********** Initialize IP algorithm **********/
-		if (solver_call == 0 || m_old != m)
-		{
-			// Initial guess
+		// Initial guess
+		if (n_old != n || solver_call == 0)
 			x.FillElem(0); // TIP: every ChMatrix is initialized with zeros by default
-			lam.FillElem(0.1); // each element of lam will be at the denominator; avoid zeros!
-		}
+		if (m_old != m || solver_call == 0)
+			lam.FillElem(1); // each element of lam will be at the denominator; avoid zeros!
 
 		// since A is generally changed between calls, also with warm_start,
 		// all the residuals and feasibility check must be redone
@@ -152,12 +223,11 @@ namespace chrono
 
 		// Feasible starting Point (pag.484-485)
 		KKTsolve(); // to obtain Dx, Dy, Dlam called "affine"
-		
 
 		// x is accepted as it is
 		y += Dy; // calculate y0
 		lam += Dlam; // calculate lam0
-		
+
 		for (size_t row_sel = 0; row_sel < m; row_sel++)
 			y(row_sel) = abs(y(row_sel)) < 1 ? 1 : abs(y(row_sel));
 
@@ -167,10 +237,7 @@ namespace chrono
 		// Update the residual considering the new values of 'y' and 'lam'
 		fullupdate_residual();
 
-		
-
 	}
-
 
 	// Iterating function
 	// output: (x, y, lam) are computed
@@ -250,6 +317,7 @@ namespace chrono
 
 	void ChInteriorPoint::KKTsolve(double sigma)
 	{
+		// TODO: only for test purpose
 		ChMatrixDynamic<double> res(BigMat.GetRows(), 1);
 		double res_norm;
 
@@ -308,10 +376,16 @@ namespace chrono
 			break;
 		case AUGMENTED:
 			// update y/lambda diagonal submatrix
-			for (size_t diag_sel = 0; diag_sel < m; diag_sel++)
-			{
-				BigMat.SetElement(n + diag_sel, n + diag_sel, y.GetElement(diag_sel, 0) / lam.GetElement(diag_sel, 0));
-			}
+			if (ADD_COMPLIANCE)
+				for (size_t diag_sel = 0; diag_sel < m; diag_sel++)
+				{
+					BigMat.SetElement(n + diag_sel, n + diag_sel, y.GetElement(diag_sel, 0) / lam.GetElement(diag_sel, 0) + E.GetElement(diag_sel, diag_sel));
+				}
+			else
+				for (size_t diag_sel = 0; diag_sel < m; diag_sel++)
+				{
+					BigMat.SetElement(n + diag_sel, n + diag_sel, y.GetElement(diag_sel, 0) / lam.GetElement(diag_sel, 0));
+				}
 
 
 			// Fill 'rhs' with [-rd;-rp-y-sigma*mu/lam]
@@ -351,9 +425,15 @@ namespace chrono
 			for (size_t row_sel = 0; row_sel < m; row_sel++)
 				Dlam.SetElement(row_sel, 0, sol.GetElement(row_sel + n, 0));
 
-			// Calc 'Dy'
+			// Calc 'Dy' (it is also possible to evaluate Dy as Dy=(-lam°y+sigma*mu*e-y°Dlam)./lam )
 			multiplyA(Dx, Dy);  // Dy = A*Dx
 			Dy += rp;
+			if (ADD_COMPLIANCE)
+			{
+				E.MatMultiply(Dlam, vectm);
+				Dy += vectm;
+			}
+				
 
 			break;
 		case NORMAL:
@@ -391,6 +471,15 @@ namespace chrono
 		}
 
 		return (alpha>0) ? alpha : 0;
+	}
+
+	double ChInteriorPoint::evaluate_objective_function()
+	{
+		multiplyG(x, vectn);
+		double obj_value = vectn.MatrDot(&x, &vectn);
+		obj_value += c.MatrDot(&x, &c);
+
+		return obj_value;
 	}
 
 	void ChInteriorPoint::reset_dimensions()
@@ -544,21 +633,79 @@ namespace chrono
 		}
 	}
 
+	void ChInteriorPoint::normalize_Arows()
+	{
+		
+		int offset_AT_cols = 0;
+		switch (KKT_solve_method)
+		{
+		case STANDARD:
+			offset_AT_cols = n;
+			break;
+		case AUGMENTED:
+			offset_AT_cols = n + m;
+			break;
+		case NORMAL:
+			std::cout << std::endl << "G multiplication is not implemented in 'NORMAL' method yet.";
+			break;
+		}
+
+		double row_norm;
+
+		double* a_mat = BigMat.GetValuesAddress();
+		int* ia_mat = BigMat.GetRowIndexAddress();
+		int* ja_mat = BigMat.GetColIndexAddress();
+
+		for (size_t row_sel = n; row_sel < n + m; row_sel++)
+		{
+			// Calc row norm from A in BigMat
+			row_norm = 0;
+			for (size_t col_sel = ia_mat[row_sel]; ja_mat[col_sel] < n && col_sel < ia_mat[row_sel + 1]; col_sel++)
+			{
+				row_norm += a_mat[col_sel] * a_mat[col_sel];
+			}
+			row_norm = sqrt(row_norm);
+
+			// Normalize A and rewrite -AT
+			for (size_t col_sel = ia_mat[row_sel]; ja_mat[col_sel] < n && col_sel < ia_mat[row_sel + 1]; col_sel++)
+			{
+				a_mat[col_sel] = a_mat[col_sel] / row_norm;
+				BigMat.SetElement( ja_mat[col_sel], row_sel, -a_mat[col_sel] );
+			}
+		}
+	}
+
 	bool ChInteriorPoint::check_exit_conditions(bool only_mu)
 	{
-
-		if (mu < mu_tolerance)
+		if (false)
 		{
-			if (only_mu)
-				return true;
+			if (mu < mu_tolerance)
+			{
+				if (only_mu)
+					return true;
+
+				VerifyKKTconditions();
+				if (
+					IPresiduals.rp_nnorm < IPtolerances.rp_nnorm &&
+					IPresiduals.rd_nnorm < IPtolerances.rd_nnorm
+					)
+					return true;
+			}
+		}
+
+		if (true)
+		{
+			double relative_duality_gap = y.MatrDot(&y, &lam); // TODO: you can recycle 'mu'
 			
 			VerifyKKTconditions();
-			if (
+			if (relative_duality_gap < mu_tolerance &&
 				IPresiduals.rp_nnorm < IPtolerances.rp_nnorm &&
 				IPresiduals.rd_nnorm < IPtolerances.rd_nnorm
 				)
 				return true;
+
 		}
+		
 
 		return false;
 	}
@@ -573,12 +720,28 @@ namespace chrono
 		return false;
 	}
 
+	//void ChInteriorPoint::save_lam_mean()
+	//{
+	//	lam_mean = 0;
+	//	for (size_t row_sel = 0; row_sel < m; row_sel++)
+	//	{
+	//		lam_mean += lam.GetElement(row_sel, 0);
+	//	}
+	//	lam_mean = lam_mean / m;
+	//}
+
 	void ChInteriorPoint::fullupdate_residual()
 	{
 			// Residual initialization (16.59 pag.482)
 			// rp initialization 
 			multiplyA(x, rp);  // rp = A*x
 			rp -= y + b;
+			if (ADD_COMPLIANCE)
+			{
+				E.MatMultiply(Dlam, vectm);
+				rp += vectm;
+			}
+				
 
 			// rd initialization
 			multiplyG(x, rd); // rd = G*x
@@ -615,7 +778,7 @@ namespace chrono
 		m(0),
 		n(0),
 		solver_call(0),
-		iteration_count_max(25),
+		iteration_count_max(50),
 		EQUAL_STEP_LENGTH(false),
 		ADAPTIVE_ETA(false),
 		ONLY_PREDICT(false),
@@ -623,8 +786,6 @@ namespace chrono
 		mu_tolerance(1e-12),
 		KKT_solve_method(AUGMENTED),
 		mu(0)
-		//x_mean(0),
-		//lam_mean(1)
 	{
 		mkl_engine.SetProblem(BigMat, rhs, sol);
 	}

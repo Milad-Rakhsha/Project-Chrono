@@ -44,6 +44,25 @@
 // Interior point methdon based on Numerical Optimization by Nocedal, Wright
 // minimize 0.5*xT*G*x + xT*x while Ax>=b (16.54 pag.480)
 // WARNING: FOR THE MOMNET THE CONSTRAINTS MUST BE INEQUALITIES
+// Further references: (all pages number refers to [1] if not otherwise specified)
+// [1] Nocedal&Wright, Numerical Optimization 2nd edition
+// [2] D'Apuzzo et al., Starting-point strategies for an infeasible potential reduction method
+
+// Symbol conversion table from [1] to [2]
+// [2] | [1]
+//  z  |  y
+//  y  | lam
+//  Q  |  G
+// lam |  -
+//  b  |  b
+//  s  |  -
+//  u  |  -
+//  v  |  -
+//  d  |  -
+//  t  |  -
+//  G  |  -
+
+
 
 // KKT conditions (16.55 pag.481)
 // G*x-AT*lam+c = 0; (dual)
@@ -79,10 +98,9 @@ namespace chrono
 		{
 			double rp_nnorm;
 			double rd_nnorm;
-			double rpd_nnorm;
 
-			IPresidual_t() : rp_nnorm(0), rd_nnorm(0), rpd_nnorm(0) {};
-			explicit IPresidual_t(double tol) : rp_nnorm(tol), rd_nnorm(tol), rpd_nnorm(tol) {};
+			IPresidual_t() : rp_nnorm(0), rd_nnorm(0) {};
+			explicit IPresidual_t(double tol) : rp_nnorm(tol), rd_nnorm(tol) {};
 		} IPtolerances, IPresiduals;
 
 		double mu_tolerance; // stop iterations if mu under this threshold
@@ -123,6 +141,7 @@ namespace chrono
 		ChMatrixDynamic<double> sol;
 		ChCSR3Matrix BigMat;
 		ChCSR3Matrix SmallMat;
+		ChCSR3Matrix E; // compliance matrix
 		
 		// MKL engine
 		ChMklEngine mkl_engine;
@@ -130,14 +149,17 @@ namespace chrono
 		// temporary vectors
 		ChMatrixDynamic<double> vectn; // temporary variable that has always size (n,1)
 		ChMatrixDynamic<double> vectm; // temporary variable that has always size (m,1)
-		//double x_mean; // TODO: to reinitialize the vector with a value that have more or less the same magnitude as the previous
-		//double lam_mean; // TODO: to reinitialize the vector with a value that have more or less the same magnitude as the previous
+		double lam_mean; // TODO: to reinitialize the vector with a value that have more or less the same magnitude as the previous
 
 		// IP specific functions
 		void KKTsolve(double sigma = 0.0);
 		void initialize(ChLcpSystemDescriptor& sysd);
+		void starting_point_STP1();
+		void starting_point_STP2();
+		void starting_point_Nocedal(int n_old, int m_old);
 		void iterate();
 		double find_Newton_step_length(ChMatrix<double>& vect, ChMatrix<double>& Dvect, double eta = 1) const;
+		double evaluate_objective_function();
 
 		// Auxiliary
 		void reset_dimensions();
@@ -146,8 +168,11 @@ namespace chrono
 		void multiplyA(ChMatrix<double>& vect_in, ChMatrix<double>& vect_out) const;
 		void multiplyNegAT(ChMatrix<double>& vect_in, ChMatrix<double>& vect_out) const;
 		void multiplyG(ChMatrix<double>& vect_in, ChMatrix<double>& vect_out) const;
+		void normalize_Arows();
 		bool check_exit_conditions(bool only_mu = true);
 		bool check_feasibility(double tolerance);
+		std::ofstream history_file;
+		void PrintHistory(bool on_off, std::string filepath = "");
 		
 		// Test
 		ChMatrixDynamic<double> sol_chrono;
@@ -156,18 +181,16 @@ namespace chrono
 	public:
 
 		ChInteriorPoint();
-
 		virtual double Solve(ChLcpSystemDescriptor& sysd) override;
 		
 		// Auxiliary
 		void VerifyKKTconditions(bool print = false);
 		void SetKKTSolutionMethod(KKT_SOLUTION_METHOD qp_solve_type_selection) { KKT_solve_method = qp_solve_type_selection; }
 		void SetMaxIterations(size_t max_iter){ iteration_count_max = max_iter; }
-		void SetTolerances(double rp_tol, double rd_tol, double rpd_tol, double complementarity_tol)
+		void SetTolerances(double rp_tol, double rd_tol, double complementarity_tol)
 		{
 			IPtolerances.rp_nnorm = rp_tol;
 			IPtolerances.rd_nnorm = rd_tol;
-			IPtolerances.rpd_nnorm = rpd_tol;
 			mu_tolerance = complementarity_tol;
 		}
 
