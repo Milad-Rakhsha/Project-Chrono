@@ -46,8 +46,7 @@ namespace chrono
 
 		SetTolerances(1e-9, 1e-10, 1e-10);
 
-		size_t iteration_count = 0;
-		for (; iteration_count < iteration_count_max; iteration_count++)
+		for (iteration_count = 0; iteration_count < iteration_count_max; iteration_count++)
 		{
 			if (check_exit_conditions())
 			{
@@ -55,6 +54,7 @@ namespace chrono
 			}
 				
 			iterate();
+			update_history();
 		}
  		solver_call++;
 
@@ -65,8 +65,8 @@ namespace chrono
 		}
 
 		generate_solution();
-
 		sysd.FromVectorToUnknowns(sol_chrono);
+
 
 		return 0;
 	}
@@ -415,7 +415,7 @@ namespace chrono
 				res.Reset(BigMat.GetRows(), 1);
 				mkl_engine.GetResidual(res);
 				res_norm = mkl_engine.GetResidualNorm(res);
-				std::cout << "Residual norm of MKL call: " << res_norm << std::endl;
+				if (res_norm > 1e-5) std::cout << "Residual norm of MKL call: " << res_norm << std::endl;
 			}
 			
 
@@ -720,6 +720,20 @@ namespace chrono
 		return false;
 	}
 
+	void ChInteriorPoint::PrintHistory(bool on_off, std::string filepath)
+	{
+		if (!history_file.is_open())
+		{
+			history_file.open(filepath);
+		}
+		
+		history_file << std::scientific << std::setprecision(3);
+		history_file << std::endl << "SolverCall" << ", " << "Iteration" << ", " << "rp_nnorm" << ", " << "rd_nnorm" << ", " << "mu";
+
+		print_history = true;
+
+	}
+
 	//void ChInteriorPoint::save_lam_mean()
 	//{
 	//	lam_mean = 0;
@@ -752,6 +766,15 @@ namespace chrono
 			mu = y.MatrDot(&y, &lam) / m;
 	}
 
+	void ChInteriorPoint::update_history()
+	{
+		if (history_file.is_open())
+		{
+			history_file << std::endl << solver_call << ", " << iteration_count << ", " << IPresiduals.rp_nnorm << ", " << IPresiduals.rd_nnorm << ", " << mu;
+		}
+			
+	}
+
 	void ChInteriorPoint::generate_solution()
 	{
 
@@ -778,6 +801,7 @@ namespace chrono
 		m(0),
 		n(0),
 		solver_call(0),
+		iteration_count(0),
 		iteration_count_max(50),
 		EQUAL_STEP_LENGTH(false),
 		ADAPTIVE_ETA(false),
@@ -788,7 +812,12 @@ namespace chrono
 		mu(0)
 	{
 		mkl_engine.SetProblem(BigMat, rhs, sol);
+		PrintHistory(true);
 	}
 
-
+	ChInteriorPoint::~ChInteriorPoint()
+	{
+		if (history_file.is_open())
+			history_file.close();
+	}
 }

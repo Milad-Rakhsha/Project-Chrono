@@ -88,6 +88,7 @@ namespace chrono
 		size_t m; // size of lam, y, A rows
 		size_t n; // size of x, G, A columns
 		size_t solver_call;
+		size_t iteration_count;
 		size_t iteration_count_max;
 
 		bool EQUAL_STEP_LENGTH;
@@ -149,7 +150,6 @@ namespace chrono
 		// temporary vectors
 		ChMatrixDynamic<double> vectn; // temporary variable that has always size (n,1)
 		ChMatrixDynamic<double> vectm; // temporary variable that has always size (m,1)
-		double lam_mean; // TODO: to reinitialize the vector with a value that have more or less the same magnitude as the previous
 
 		// IP specific functions
 		void KKTsolve(double sigma = 0.0);
@@ -171,16 +171,18 @@ namespace chrono
 		void normalize_Arows();
 		bool check_exit_conditions(bool only_mu = true);
 		bool check_feasibility(double tolerance);
-		std::ofstream history_file;
-		void PrintHistory(bool on_off, std::string filepath = "");
 		
 		// Test
+		std::ofstream history_file;
+		bool print_history;
+		void update_history();
 		ChMatrixDynamic<double> sol_chrono;
 		void generate_solution();
 
 	public:
 
 		ChInteriorPoint();
+		~ChInteriorPoint();
 		virtual double Solve(ChLcpSystemDescriptor& sysd) override;
 		
 		// Auxiliary
@@ -197,6 +199,7 @@ namespace chrono
 		// Test
 		void DumpProblem(std::string suffix = "");
 		void DumpIPStatus(std::string suffix = "");
+		void PrintHistory(bool on_off, std::string filepath = "history_file.txt");
 	};
 
 } // end of namespace chrono
