@@ -68,11 +68,11 @@ void create_bucket(ChSystem& mphysicalSystem) {
 	double s = 0.01;
 	double apothem = 0.15;
 	double height = 0.25;
-	double ball_radius = 0.05;
+	double ball_radius = 0.035;
 
 	
 	double alfa = 2*PI/edges;
-	double width = 2*apothem*tan(alfa/2);
+	double width = 2*apothem*tan(alfa/2); // width bricks
 	double ball_pos_radius = 0.5*apothem / cos(alfa / 2);
 
 
@@ -99,7 +99,7 @@ void create_bucket(ChSystem& mphysicalSystem) {
 		mtexture->SetTextureFilename(GetChronoDataFile("cubetexture_borders.png"));
 		wall->AddAsset(mtexture);
 
-		int ball_arrays = 3;
+		int ball_arrays = 10;
 		for (int ball_set = 0; ball_set < ball_arrays; ball_set++)
 		{
 			// Create a ball that will collide with wall
@@ -108,7 +108,7 @@ void create_bucket(ChSystem& mphysicalSystem) {
 				true,    // collide enable?
 				true));  // visualization?
 			mrigidBall->SetMaterialSurface(mmaterial);
-			mrigidBall->SetPos(ChVector<>(ball_pos_radius*sin(alfa_k + alfa / 2), (ball_set+1)*height / ball_arrays, ball_pos_radius*cos(alfa_k + alfa / 2)));
+			mrigidBall->SetPos(ChVector<>(ball_pos_radius*sin(alfa_k + alfa / 2), 2*ball_radius * (ball_set + 1), ball_pos_radius*cos(alfa_k + alfa / 2)));
 			mrigidBall->SetPos_dtdt(ChVector<>(0, -3, 0));          // set initial acceleration
 			mrigidBall->GetMaterialSurface()->SetFriction(0.4f);  // use own (not shared) matrial properties
 			mrigidBall->GetMaterialSurface()->SetCompliance(0.0);
@@ -209,6 +209,7 @@ int main(int argc, char* argv[]) {
 
     application.SetStepManage(true);
     application.SetTimestep(0.02);
+	application.SetPaused(true);
 
     while (application.GetDevice()->run()) {
         application.GetVideoDriver()->beginScene(true, true, SColor(255, 140, 161, 192));

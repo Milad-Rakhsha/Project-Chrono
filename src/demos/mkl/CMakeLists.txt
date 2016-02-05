@@ -2,10 +2,11 @@
 # List of all Irrlicht demos
 
 SET(DEMOS
-  demo_ballinbucket
+  demo_IPballinbucket
+  demo_IPtrivial
   demo_MklEngine
-  demo_bricksIP
-  demo_convergenceIP
+  demo_IPbricks
+  demo_IPconvergence
 )
 
 #--------------------------------------------------------------
