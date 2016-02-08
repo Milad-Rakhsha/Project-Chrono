@@ -537,7 +537,7 @@ class ChMatrix {
         for (int nel = 0; nel < rows * columns; ++nel)
             ElementN(nel) /= (Real)matra.ElementN(nel);
     }
-
+#ifdef CHRONO_HAS_AVX
     /// Multiplies two matrices, and stores the result in "this" matrix: [this]=[A]*[B].
     void MatrMultiply(const ChMatrix<double>& matra, const ChMatrix<double>& matrb) {
             assert(matra.GetColumns() == matrb.GetRows());
@@ -580,6 +580,7 @@ class ChMatrix {
                 }
             }
         }
+#endif
 
         template <class RealB, class RealC>
         void MatrMultiply(const ChMatrix<RealB>& matra, const ChMatrix<RealC>& matrb) {
