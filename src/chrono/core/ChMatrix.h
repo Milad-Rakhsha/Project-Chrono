@@ -26,10 +26,12 @@
 // ------------------------------------------------
 // ------------------------------------------------
 ///////////////////////////////////////////////////
-#include <immintrin.h>
+
 #include "core/ChCoordsys.h"
 #include "core/ChStream.h"
 #include "core/ChException.h"
+#include "chrono/ChConfig.h"
+#include <immintrin.h>
 
 namespace chrono {
 
@@ -182,12 +184,12 @@ class ChMatrix {
     // virtual void PasteClippedMatrix(const ChMatrix<double>* matra, int cliprow, int clipcol, int nrows, int ncolumns,
     // int insrow, int inscol)
     //{
-    //	PasteClippedMatrix(matra, cliprow, clipcol, nrows, ncolumns, insrow, inscol)
+    //  PasteClippedMatrix(matra, cliprow, clipcol, nrows, ncolumns, insrow, inscol)
     //}
     // virtual void PasteSumClippedMatrix(const ChMatrix<double>* matra, int cliprow, int clipcol, int nrows, int
     // ncolumns, int insrow, int inscol)
     //{
-    //	PasteSumClippedMatrix(matra, cliprow, clipcol, nrows, ncolumns, insrow, inscol)
+    //  PasteSumClippedMatrix(matra, cliprow, clipcol, nrows, ncolumns, insrow, inscol)
     //}
 
     //
@@ -475,6 +477,186 @@ class ChMatrix {
             ElementN(nel) = -ElementN(nel);
     }
 
+#ifdef CHRONO_HAS_AVX
+    //
+    /// Sum two matrices, and stores the result in "this" matrix: [this]=[A]+[B].
+    // AVX implementation
+    void MatrAddAVX(const ChMatrix<double>& matra, const ChMatrix<double>& matrb) {
+        assert(matra.GetColumns() == matrb.GetColumns() && matra.rows == matrb.GetRows());
+        assert(this->columns == matrb.GetColumns() && this->rows == matrb.GetRows());
+
+        __m256d ymmA, ymmB, sum;
+        int extra = matra.GetColumns() * matra.GetRows() % 4 ? 1 : 0;
+        int num_fat_col = matra.GetColumns() * matra.GetRows() / 4 + extra;
+
+        for (int nel = 0; nel < num_fat_col; ++nel) {
+            ymmA = _mm256_loadu_pd(matra.GetAddress() + 4 * nel);
+            ymmB = _mm256_loadu_pd(matrb.GetAddress() + 4 * nel);
+            sum = _mm256_add_pd(ymmA, ymmB);
+            _mm256_storeu_pd(this->GetAddress() + 4 * nel, sum);
+        }
+    }
+    /// Subtract two matrices, and stores the result in "this" matrix: [this]=[A]-[B].
+    // AVX implementation
+    void MatrSubAVX(const ChMatrix<double>& matra, const ChMatrix<double>& matrb) {
+        assert(matra.GetColumns() == matrb.GetColumns() && matra.rows == matrb.GetRows());
+        assert(this->columns == matrb.GetColumns() && this->rows == matrb.GetRows());
+
+        __m256d ymmA, ymmB, sum;
+        int extra = matra.GetColumns() * matra.GetRows() % 4 ? 1 : 0;
+        int num_fat_col = matra.GetColumns() * matra.GetRows() / 4 + extra;
+
+        for (int nel = 0; nel < num_fat_col; ++nel) {
+            ymmA = _mm256_loadu_pd(matra.GetAddress() + 4 * nel);
+            ymmB = _mm256_loadu_pd(matrb.GetAddress() + 4 * nel);
+            sum = _mm256_sub_pd(ymmA, ymmB);
+            _mm256_storeu_pd(this->GetAddress() + 4 * nel, sum);
+        }
+    }
+    /// Increments this matrix with another matrix A, as: [this]+=[A]
+    // AVX implementation
+    void MatrIncAVX(const ChMatrix<double>& matra) {
+        assert(matra.GetColumns() == columns && matra.GetRows() == rows);
+        __m256d ymmA, ymmB, sum;
+        int extra = matra.GetColumns() * matra.GetRows() % 4 ? 1 : 0;
+        int num_fat_col = matra.GetColumns() * matra.GetRows() / 4 + extra;
+
+        for (int nel = 0; nel < num_fat_col; ++nel) {
+            ymmA = _mm256_loadu_pd(matra.GetAddress() + 4 * nel);
+            ymmB = _mm256_loadu_pd(this->GetAddress() + 4 * nel);
+            sum = _mm256_add_pd(ymmA, ymmB);
+            _mm256_storeu_pd(this->GetAddress() + 4 * nel, sum);
+        }
+    }
+
+    /// Decrements this matrix with another matrix A, as: [this]-=[A]
+    // AVX implementation
+    void MatrDecAVX(const ChMatrix<double>& matra) {
+        assert(matra.GetColumns() == columns && matra.GetRows() == rows);
+        __m256d ymmA, ymmB, sum;
+        int extra = matra.GetColumns() * matra.GetRows() % 4 ? 1 : 0;
+        int num_fat_col = matra.GetColumns() * matra.GetRows() / 4 + extra;
+
+        for (int nel = 0; nel < num_fat_col; ++nel) {
+            ymmA = _mm256_loadu_pd(this->GetAddress() + 4 * nel);
+            ymmB = _mm256_loadu_pd(matra.GetAddress() + 4 * nel);
+            sum = _mm256_sub_pd(ymmA, ymmB);
+            _mm256_storeu_pd(this->GetAddress() + 4 * nel, sum);
+        }
+    }
+
+    /// Scales a matrix, multiplying all elements by a constant value: [this]*=f
+    // AVX implementation
+    void MatrScaleAVX(double factor) {
+        __m256d ymmA, ymmB, sum;
+        int extra = this->GetColumns() * this->GetRows() % 4 ? 1 : 0;
+        int num_fat_col = this->GetColumns() * this->GetRows() / 4 + extra;
+
+        for (int nel = 0; nel < num_fat_col; ++nel) {
+            ymmA = _mm256_loadu_pd(this->GetAddress() + 4 * nel);
+            ymmB = _mm256_broadcast_sd(&factor);
+            sum = _mm256_mul_pd(ymmA, ymmB);
+            _mm256_storeu_pd(this->GetAddress() + 4 * nel, sum);
+        }
+    }
+
+    /// Scales a matrix, multiplying all element by all other elements of
+    /// matra (it is not the classical matrix multiplication!)
+    // AVX implementation
+    void MatrScaleAVX(const ChMatrix<double>& matra) {
+        assert(matra.GetColumns() == columns && matra.GetRows() == rows);
+        __m256d ymmA, ymmB, sum;
+        int extra = matra.GetColumns() * matra.GetRows() % 4 ? 1 : 0;
+        int num_fat_col = matra.GetColumns() * matra.GetRows() / 4 + extra;
+
+        for (int nel = 0; nel < num_fat_col; ++nel) {
+            ymmA = _mm256_loadu_pd(matra.GetAddress() + 4 * nel);
+            ymmB = _mm256_loadu_pd(this->GetAddress() + 4 * nel);
+            sum = _mm256_mul_pd(ymmA, ymmB);
+            _mm256_storeu_pd(this->GetAddress() + 4 * nel, sum);
+        }
+    }
+
+    /// Scales a matrix, dividing all elements by a constant value: [this]/=f
+    // AVX implementation
+    void MatrDivScaleAVX(double factor) {
+        __m256d ymmA, ymmB, sum;
+        int extra = this->GetColumns() * this->GetRows() % 4 ? 1 : 0;
+        int num_fat_col = this->GetColumns() * this->GetRows() / 4 + extra;
+
+        for (int nel = 0; nel < num_fat_col; ++nel) {
+            ymmA = _mm256_loadu_pd(this->GetAddress() + 4 * nel);
+            ymmB = _mm256_broadcast_sd(&factor);
+            sum = _mm256_div_pd(ymmA, ymmB);
+            _mm256_storeu_pd(this->GetAddress() + 4 * nel, sum);
+        }
+    }
+
+    /// Scales a matrix, dividing all element by all other elements of
+    /// matra (it is not the classical matrix multiplication!)
+    // AVX implementation
+    void MatrDivScaleAVX(const ChMatrix<double>& matra) {
+        assert(matra.GetColumns() == columns && matra.GetRows() == rows);
+        __m256d ymmA, ymmB, sum;
+        int extra = matra.GetColumns() * matra.GetRows() % 4 ? 1 : 0;
+        int num_fat_col = matra.GetColumns() * matra.GetRows() / 4 + extra;
+
+        for (int nel = 0; nel < num_fat_col; ++nel) {
+            ymmA = _mm256_loadu_pd(this->GetAddress() + 4 * nel);
+            ymmB = _mm256_loadu_pd(matra.GetAddress() + 4 * nel);
+            sum = _mm256_mul_pd(ymmA, ymmB);
+            _mm256_storeu_pd(this->GetAddress() + 4 * nel, sum);
+        }
+    }
+
+    //////////////////////////////////////////////////////////
+    /// Multiplies two matrices, and stores the result in "this" matrix: [this]=[A]*[B].
+    // AVX implementation
+    void MatrMultiplyAVX(const ChMatrix<double>& matra, const ChMatrix<double>& matrb) {
+        assert(matra.GetColumns() == matrb.GetRows());
+        assert(this->rows == matra.GetRows());
+        assert(this->columns == matrb.GetColumns());
+
+        int elem, colB, rowA;
+        __m256d ymmA, ymmB, prod, sum;
+        double temp_sum;
+        int num_fat_col = matrb.GetColumns() / 4 + (matrb.GetColumns() % 4) ? 1 : 0;
+        for (rowA = 0; rowA < matra.GetRows(); rowA++) {
+            for (colB = 0; colB < matrb.GetColumns(); colB += 4) {
+                sum = _mm256_setzero_pd();
+                for (elem = 0; elem < matra.GetColumns(); elem++) {
+                    ymmA = _mm256_broadcast_sd(matra.GetAddress() + matra.GetColumns() * rowA + elem);
+                    ymmB = _mm256_loadu_pd(matrb.GetAddress() + elem * matrb.GetColumns() + colB);
+                    prod = _mm256_mul_pd(ymmA, ymmB);
+                    sum = _mm256_add_pd(sum, prod);
+                }
+                // if ((matrb.GetColumns() % 4) && (colB < (num_fat_col - 1) * 4) || num_fat_col == 1) {
+                if (((matrb.GetColumns() >> 2) << 2) < colB) {
+                    __m128d high, low, temp;
+                    high = _mm256_extractf128_pd(sum, 1);
+                    low = _mm256_castpd256_pd128(sum);
+                    double* addr = this->GetAddress() + rowA * matra.GetColumns() + colB;
+                    switch ((matrb.GetColumns()) % 4) {
+                        case 3:
+                            _mm_movehl_ps(_mm_castpd_ps(temp), _mm_castpd_ps(low));
+                            _mm_store_sd(addr + 2, temp);
+                        case 2:
+                            _mm_store_sd(addr + 1, high);
+                        case 1:
+                            _mm_movehl_ps(_mm_castpd_ps(temp), _mm_castpd_ps(high));
+                            _mm_store_sd(addr, temp);
+                            break;
+                    }
+                } else {
+                    _mm256_storeu_pd(this->GetAddress() + rowA * matrb.GetColumns() + colB, sum);
+                }
+            }
+        }
+    }
+
+#else
+#endif
+
     /// Sum two matrices, and stores the result in "this" matrix: [this]=[A]+[B].
     template <class RealB, class RealC>
     void MatrAdd(const ChMatrix<RealB>& matra, const ChMatrix<RealC>& matrb) {
@@ -537,69 +719,24 @@ class ChMatrix {
         for (int nel = 0; nel < rows * columns; ++nel)
             ElementN(nel) /= (Real)matra.ElementN(nel);
     }
-#ifdef CHRONO_HAS_AVX
+
     /// Multiplies two matrices, and stores the result in "this" matrix: [this]=[A]*[B].
-    void MatrMultiply(const ChMatrix<double>& matra, const ChMatrix<double>& matrb) {
-            assert(matra.GetColumns() == matrb.GetRows());
-            assert(this->rows == matra.GetRows());
-            assert(this->columns == matrb.GetColumns());
-
-            int elem, colB, rowA;
-            __m256d ymmA, ymmB, prod, sum;
-            double temp_sum;
-            int num_fat_col = matrb.GetColumns() / 4 + (matrb.GetColumns() % 4) ? 1 : 0;
-            for (rowA = 0; rowA < matra.GetRows(); rowA++) {
-                for (colB = 0; colB < matrb.GetColumns(); colB += 4) {
-                    sum = _mm256_setzero_pd();
-                    for (elem = 0; elem < matra.GetColumns(); elem++) {
-                        ymmA = _mm256_broadcast_sd(matra.GetAddress() + matra.GetColumns() * rowA + elem);
-                        ymmB = _mm256_loadu_pd(matrb.GetAddress() + elem * matrb.GetColumns() + colB);
-                        prod = _mm256_mul_pd(ymmA, ymmB);
-                        sum = _mm256_add_pd(sum, prod);
-                    }
-                    // if ((matrb.GetColumns() % 4) && (colB < (num_fat_col - 1) * 4) || num_fat_col == 1) {
-                    if (((matrb.GetColumns() >> 2) << 2) < colB) {
-                        __m128d high, low, temp;
-                        high = _mm256_extractf128_pd(sum, 1);
-                        low = _mm256_castpd256_pd128(sum);
-                        double* addr = this->GetAddress() + rowA * matra.GetColumns() + colB;
-                        switch ((matrb.GetColumns()) % 4) {
-                            case 3:
-                                _mm_movehl_ps(_mm_castpd_ps(temp), _mm_castpd_ps(low));
-                                _mm_store_sd(addr + 2, temp);
-                            case 2:
-                                _mm_store_sd(addr + 1, high);
-                            case 1:
-                                _mm_movehl_ps(_mm_castpd_ps(temp), _mm_castpd_ps(high));
-                                _mm_store_sd(addr, temp);
-                                break;
-                        }
-                    } else {
-                        _mm256_storeu_pd(this->GetAddress() + rowA * matrb.GetColumns() + colB, sum);
-                    }
-                }
+    template <class RealB, class RealC>
+    void MatrMultiply(const ChMatrix<RealB>& matra, const ChMatrix<RealC>& matrb) {
+        assert(matra.GetColumns() == matrb.GetRows());
+        assert(this->rows == matra.GetRows());
+        assert(this->columns == matrb.GetColumns());
+        int col, row, colres;
+        Real sum;
+        for (colres = 0; colres < matrb.GetColumns(); ++colres) {
+            for (row = 0; row < matra.GetRows(); ++row) {
+                sum = 0;
+                for (col = 0; col < matra.GetColumns(); ++col)
+                    sum += (Real)(matra.Element(row, col) * matrb.Element(col, colres));
+                SetElement(row, colres, sum);
             }
         }
-#endif
-
-        template <class RealB, class RealC>
-        void MatrMultiply(const ChMatrix<RealB>& matra, const ChMatrix<RealC>& matrb) {
-            assert(matra.GetColumns() == matrb.GetRows());
-            assert(this->rows == matra.GetRows());
-            assert(this->columns == matrb.GetColumns());
-            int col, row, colres;
-            Real sum;
-            for (colres = 0; colres < matrb.GetColumns(); ++colres) {
-                for (row = 0; row < matra.GetRows(); ++row) {
-                    sum = 0;
-                    for (col = 0; col < matra.GetColumns(); ++col)
-                        sum += (Real)(matra.Element(row, col) * matrb.Element(col, colres));
-                    SetElement(row, colres, sum);
-                }
-            }
-        }
-
-
+    }
     /// Multiplies two matrices (the second is considered transposed): [this]=[A]*[B]'
     /// Faster than doing B.MatrTranspose(); result.MatrMultiply(A,B);
     /// Note: no check on mistaken size of this!
@@ -1098,7 +1235,6 @@ class ChMatrix {
                                int inscol) {
         for (int i = 0; i < nrows; ++i)
             for (int j = 0; j < ncolumns; ++j)
-            	//Using omp atomic here imposes less overhead
 #pragma omp atomic
                 Element(i + insrow, j + inscol) += (Real)matra->Element(i + cliprow, j + clipcol);
     }
