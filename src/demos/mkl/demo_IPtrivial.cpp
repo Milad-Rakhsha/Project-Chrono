@@ -54,62 +54,80 @@ using namespace gui;
 // Create a bunch of ChronoENGINE rigid bodies that
 // represent bricks in a large wall.
 void create_system(ChSystem& mphysicalSystem) {
+
 	// Create a material that will be shared between bricks
 	ChSharedPtr<ChMaterialSurface> mmaterial(new ChMaterialSurface);
 	mmaterial->SetFriction(0.4f);
-	mmaterial->SetCompliance(0.0000005f);
-	mmaterial->SetComplianceT(0.0000005f);
-	mmaterial->SetDampingF(0.2f);
-
-	// Create bricks
-	ChSharedPtr<ChBodyEasyBox> mrigidBody(new ChBodyEasyBox(4, 2, 2,  // x,y,z size
-		100,         // density
-		true,        // collide enable?
-		true));      // visualization?
-	mrigidBody->SetPos(ChVector<>(0, 4, 0));
-	mrigidBody->SetMaterialSurface(mmaterial);  // use shared surface properties
-
-	mphysicalSystem.Add(mrigidBody);
-
-	// optional, attach a texture for better visualization
-	ChSharedPtr<ChTexture> mtexture(new ChTexture());
-	mtexture->SetTextureFilename(GetChronoDataFile("cubetexture_borders.png"));
-	mrigidBody->AddAsset(mtexture);
+	
+	if (false) // material selector
+	{
+		mmaterial->SetCompliance(0.0000005f);
+		mmaterial->SetComplianceT(0.0000005f);
+		mmaterial->SetDampingF(0.5f);
+	}
+	else
+	{
+		mmaterial->SetCompliance(0.0f);
+		mmaterial->SetComplianceT(0.0f);
+		mmaterial->SetDampingF(0.0f);
+	}
 
 	// Create the floor using
 	// fixed rigid body of 'box' type:
-
 	ChSharedPtr<ChBodyEasyBox> mrigidFloor(new ChBodyEasyBox(250, 4, 250,  // x,y,z size
 		1000,         // density
 		true,         // collide enable?
 		true));       // visualization?
-	mrigidFloor->SetPos(ChVector<>(0, 0, 0));
+	mrigidFloor->SetPos(ChVector<>(0, -2, 0));
 	mrigidFloor->SetMaterialSurface(mmaterial);
 	mrigidFloor->SetBodyFixed(true);
 
 	mphysicalSystem.Add(mrigidFloor);
 
-	//// Create a ball that will collide with wall
-	//ChSharedPtr<ChBodyEasySphere> mrigidBall(new ChBodyEasySphere(4,       // radius
-	//	8000,    // density
-	//	true,    // collide enable?
-	//	true));  // visualization?
-	//mrigidBall->SetPos(ChVector<>(0, -2, 0));
-	//mrigidBall->SetMaterialSurface(mmaterial);
-	//mrigidBall->SetPos(ChVector<>(0, 3, -8));
-	//mrigidBall->SetPos_dt(ChVector<>(0, 0, 16));          // set initial speed
-	//mrigidBall->GetMaterialSurface()->SetFriction(0.4f);  // use own (not shared) matrial properties
-	//mrigidBall->GetMaterialSurface()->SetCompliance(0.0);
-	//mrigidBall->GetMaterialSurface()->SetComplianceT(0.0);
-	//mrigidBall->GetMaterialSurface()->SetDampingF(0.2f);
+	
+	
+	if (true)
+	{
+		// Create bricks
+		ChSharedPtr<ChBodyEasyBox> mrigidBody(new ChBodyEasyBox(4, 2, 2,  // x,y,z size
+			100,         // density
+			true,        // collide enable?
+			true));      // visualization?
+		mrigidBody->SetPos(ChVector<>(0, 4, 0));
+		mrigidBody->SetMaterialSurface(mmaterial);  // use shared surface properties
 
-	//mphysicalSystem.Add(mrigidBall);
+		mphysicalSystem.Add(mrigidBody);
 
-	//// optional, attach a texture for better visualization
-	//ChSharedPtr<ChTexture> mtextureball(new ChTexture());
-	//mtextureball->SetTextureFilename(GetChronoDataFile("bluwhite.png"));
-	//mrigidBall->AddAsset(mtextureball);
+		// optional, attach a texture for better visualization
+		ChSharedPtr<ChTexture> mtexture(new ChTexture());
+		mtexture->SetTextureFilename(GetChronoDataFile("cubetexture_borders.png"));
+		mrigidBody->AddAsset(mtexture);
+	}
+	
+
+	if (false)
+	{
+		// Create a ball that will collide with wall
+		ChSharedPtr<ChBodyEasySphere> mrigidBall(new ChBodyEasySphere(1,       // radius
+			8000,    // density
+			true,    // collide enable?
+			true));  // visualization?
+		mrigidBall->SetMaterialSurface(mmaterial);
+		mrigidBall->SetPos(ChVector<>(0, 3, 0));
+		mrigidBall->SetPos_dt(ChVector<>(0, -1, 0));          // set initial speed
+
+		mphysicalSystem.Add(mrigidBall);
+
+		// optional, attach a texture for better visualization
+		ChSharedPtr<ChTexture> mtextureball(new ChTexture());
+		mtextureball->SetTextureFilename(GetChronoDataFile("bluwhite.png"));
+		mrigidBall->AddAsset(mtextureball);
+	}
+
+	
 }
+
+
 int main(int argc, char* argv[]) {
     // Create a ChronoENGINE physical system
     ChSystem mphysicalSystem;
@@ -122,7 +140,7 @@ int main(int argc, char* argv[]) {
     ChIrrWizard::add_typical_Logo(application.GetDevice());
     ChIrrWizard::add_typical_Sky(application.GetDevice());
     ChIrrWizard::add_typical_Lights(application.GetDevice(), core::vector3df(70.f, 120.f, -90.f), core::vector3df(30.f, 80.f, 60.f), 290, 190);
-	ChIrrWizard::add_typical_Camera(application.GetDevice(), core::vector3df(-0.5, 0.5, -0.5), core::vector3df(0, 0, 0));
+	ChIrrWizard::add_typical_Camera(application.GetDevice(), core::vector3df(-5, 5, -5), core::vector3df(0, 0, 0));
     //ChIrrWizard::add_typical_Camera(application.GetDevice(), core::vector3df(-15, 14, -30), core::vector3df(0, 5, 0));
 
     //

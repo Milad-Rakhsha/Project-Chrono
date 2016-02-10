@@ -105,9 +105,8 @@ void create_wall_bodies(ChSystem& mphysicalSystem) {
                                                                   8000,    // density
                                                                   true,    // collide enable?
                                                                   true));  // visualization?
-    mrigidBall->SetPos(ChVector<>(0, -2, 0));
     mrigidBall->SetMaterialSurface(mmaterial);
-    mrigidBall->SetPos(ChVector<>(0, 3, -8));
+    mrigidBall->SetPos(ChVector<>(0, 5, -8));
     mrigidBall->SetPos_dt(ChVector<>(0, 0, 16));          // set initial speed
     mrigidBall->GetMaterialSurface()->SetFriction(0.4f);  // use own (not shared) matrial properties
     mrigidBall->GetMaterialSurface()->SetCompliance(0.0);
