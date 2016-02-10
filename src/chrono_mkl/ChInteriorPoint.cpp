@@ -1,14 +1,27 @@
 ﻿#include "ChInteriorPoint.h"
 #include <algorithm>
 
+
 #define DEBUG_MODE true
 #define SKIP_CONTACTS_UV true
-#define ADD_COMPLIANCE true
+#define ADD_COMPLIANCE false
+#define REUSE_OLD_SOLUTIONS false
 
 namespace chrono
 {
+
+	template<class ChMatrixIN>
+	void PrintMatrix(ChMatrixIN& matrice){
+		for (size_t i = 0; i < matrice.GetRows(); i++){
+			for (size_t j = 0; j < matrice.GetColumns(); j++){
+				printf("%.1f ", matrice.GetElement(i, j));
+			}
+			printf("\n");
+		}
+	}
+
 	template <class matrix>
-	void ExportToFile(matrix mat, std::string filepath, int precision = 12)
+	void ExportArrayToFile(matrix mat, std::string filepath, int precision = 12)
 	{
 		std::ofstream ofile;
 		ofile.open(filepath);
@@ -27,36 +40,44 @@ namespace chrono
 		ofile.close();
 	}
 
-	template<class ChMatrixIN>
-	void PrintMatrix(ChMatrixIN& matrice){
-		for (size_t i = 0; i < matrice.GetRows(); i++){
-			for (size_t j = 0; j < matrice.GetColumns(); j++){
-				printf("%.1f ", matrice.GetElement(i, j));
-			}
-			printf("\n");
+	void ImportArrayFromFile(ChMatrix<>& output_mat, std::string filename)
+	{
+		std::ifstream my_file;
+		my_file.open(filename);
+
+		double temp;
+		int row_sel = -1;
+		for (row_sel = 0; row_sel < output_mat.GetRows(); row_sel++)
+		{
+			my_file >> temp;
+			output_mat.SetElement(row_sel, 0, temp);
 		}
+		my_file.close();
 	}
 
 	// | M  -Cq'|*|q|- | f|= |0|
-    // | Cq  -E | |l|  |-b|  |c| 
+	// | Cq  -E | |l|  |-b|  |c| 
 
 	double ChInteriorPoint::Solve(ChLcpSystemDescriptor& sysd)
 	{
+		solver_call++;
 		initialize(sysd);
 
-		SetTolerances(1e-9, 1e-10, 1e-10);
-
-		for (iteration_count = 0; iteration_count < iteration_count_max; iteration_count++)
+		if (m == 0) // if no contraints are active, MKL has been called in initialize() and has written the solution directly in sol;
 		{
-			if (check_exit_conditions())
-			{
-				break;
-			}
-				
+			std::cout << "IP call: " << solver_call << "; Switched to MKL because no constraints found" << std::endl;
+			sysd.FromVectorToUnknowns(sol);
+			return 0;
+		}
+
+		SetTolerances(1e-7, 1e-8, 1e-8);
+
+		for (iteration_count = 1; iteration_count < iteration_count_max && !check_exit_conditions(); iteration_count++)
+		{
 			iterate();
 			update_history();
 		}
- 		solver_call++;
+
 
 		if (verbose)
 		{
@@ -64,42 +85,12 @@ namespace chrono
 			VerifyKKTconditions(true);
 		}
 
+
 		generate_solution();
-		sysd.FromVectorToUnknowns(sol_chrono);
+		sysd.FromVectorToUnknowns(sol_chrono); // the function expects [x;-l]
 
 
 		return 0;
-	}
-
-	void ChInteriorPoint::VerifyKKTconditions(bool print)
-	{
-		IPresiduals.rp_nnorm = rp.NormTwo()/n;
-		IPresiduals.rd_nnorm = rd.NormTwo()/m;
-			
-		if (print)
-		{
-			std::cout << std::scientific << std::setprecision(1);
-			std::cout << "|rp|/n: " << IPresiduals.rp_nnorm
-					  << "; |rd|/m: " << IPresiduals.rd_nnorm
-					  << "; mu: " << mu << std::endl;
-
-			bool neg_y = false;
-			bool neg_lam = false;
-			for (int cont = 0; cont < m; cont++)
-			{
-				if (y(cont, 0) < 0)
-					neg_y = true;
-				if (lam(cont, 0) < 0)
-					neg_lam = true;
-			}
-
-			if (neg_y)
-				std::cout << "y has negative elements" << std::endl;
-
-			if (neg_lam)
-				std::cout << "lam has negative elements" << std::endl;
-
-		}
 	}
 
 	// The problem to be solved is loaded into the main matrix that will be used to solve the various step of the IP method
@@ -115,7 +106,8 @@ namespace chrono
 		int m_old = m;
 		n = sysd.CountActiveVariables();
 		m = sysd.CountActiveConstraints(false, SKIP_CONTACTS_UV);
-		reset_dimensions();
+
+		reset_dimensions(n_old, m_old);
 
 		// load system matrix in 'BigMat', 'rhs', 'b' and 'c'
 		switch (KKT_solve_method)
@@ -133,21 +125,63 @@ namespace chrono
 			break;
 		}
 
-		if (ADD_COMPLIANCE)
+		sysd.ConvertToMatrixForm(nullptr, nullptr, nullptr, &c, &b, nullptr, false, SKIP_CONTACTS_UV); // load f->c and b->b
+		c.MatrScale(-1); // adapt to InteriorPoint convention
+		b.MatrScale(-1); // adapt to InteriorPoint convention
+
+		//if (solver_call == 200)
+		//{
+		//	DumpProblem();
+		//}
+
+		//if (solver_call == 201)
+		//{
+		//	DumpProblem();
+		//}
+		//
+
+		//if (solver_call > 190 && solver_call <= 230)
+		//{
+		//	LoadProblem();
+		//}
+
+		/********** Check if constraints are found **********/
+		if (m == 0)
+		{
+			// Fill 'rhs' with [-rd;-rp-y-sigma*mu/lam]
+			for (size_t row_sel = 0; row_sel < n; row_sel++)
+				rhs.SetElement(row_sel, 0, -c.GetElement(row_sel, 0));
+
+			// Solve the KKT system
+			BigMat.Compress();
+			BigMat.Trim();
+			ChMklEngine mkl_test; // TODO: the program crashes if we use the same solver of IP!!!!
+			mkl_test.SetProblem(BigMat, rhs, sol);
+			mkl_test.PardisoCall(13, 1);
+
+			if (verbose)
+			{
+				ChMatrixDynamic<double> res(n,1);
+				double res_norm;
+				// TODO: used for testing; delete
+				mkl_test.GetResidual(res);
+				res_norm = mkl_test.GetResidualNorm(res);
+				if (res_norm > 1e-5) std::cout << "Residual norm of MKL call: " << res_norm << std::endl;
+			}
+
+			return;
+		}
+
+		if (ADD_COMPLIANCE && m>0)
 		{
 			sysd.ConvertToMatrixForm(nullptr, nullptr, &E, nullptr, nullptr, nullptr, false, SKIP_CONTACTS_UV);
 			E *= -1;
 		}
 
-		sysd.ConvertToMatrixForm(nullptr, nullptr, nullptr, &c, &b, nullptr, false, SKIP_CONTACTS_UV);
-		c.MatrScale(-1); // adapt to InteriorPoint convention
-		b.MatrScale(-1); // adapt to InteriorPoint convention
-
-		//starting_point_Nocedal(n_old, m_old);
+		starting_point_Nocedal(n_old, m_old);
 		//starting_point_STP1();
-		starting_point_STP2();
+		//starting_point_STP2(n_old);
 		
-
 	}
 
 	void ChInteriorPoint::starting_point_STP1() // from [2]
@@ -181,21 +215,23 @@ namespace chrono
 
 	}
 
-	void ChInteriorPoint::starting_point_STP2()
+	void ChInteriorPoint::starting_point_STP2(int n_old)
 	{
 		double threshold = 1; // 'epsilon' in [2]
-		x.FillElem(1);
-		vectm.Resize(m, 1);
+
+		if (n != n_old && !REUSE_OLD_SOLUTIONS)
+		{
+			// initialize x
+			x.FillElem(1);
+		}
+		
+
+		// initialize y and then lam
 		multiplyA(x, vectm);
 		vectm -= b;
-
 		for (size_t cont = 0; cont < m; cont++)
 		{
-			if (vectm(cont, 0) > threshold)
-				y(cont, 0) = vectm(cont, 0);
-			else
-				y(cont, 0) = threshold;
-			
+			y(cont, 0) = (vectm(cont, 0) > threshold) ? vectm(cont, 0) : threshold;
 			lam(cont, 0) = 1 / y(cont, 0);
 		}
 		
@@ -203,13 +239,21 @@ namespace chrono
 
 	}
 
-	void ChInteriorPoint::starting_point_Nocedal(int n_old, int m_old)
+	void ChInteriorPoint::starting_point_Nocedal_WS(int n_old, int m_old)
 	{
+		/*Backup vectors*/
+		ChMatrixDynamic<double> x_bkp(x);
+		ChMatrixDynamic<double> y_bkp(y);
+		ChMatrixDynamic<double> lam_bkp(lam);
+		fullupdate_residual();
+		VerifyKKTconditions();
+		double residual_value_bkp = IPres.rp_nnorm*m + IPres.rd_nnorm*n + mu*m;
+		
 
 		/********** Initialize IP algorithm **********/
 		// Initial guess
 		if (n_old != n || solver_call == 0)
-			x.FillElem(0); // TIP: every ChMatrix is initialized with zeros by default
+			x.FillElem(1); // TIP: every ChMatrix is initialized with zeros by default
 		if (m_old != m || solver_call == 0)
 			lam.FillElem(1); // each element of lam will be at the denominator; avoid zeros!
 
@@ -237,11 +281,68 @@ namespace chrono
 		// Update the residual considering the new values of 'y' and 'lam'
 		fullupdate_residual();
 
+
+		/* Check if restoring previous values would be better */
+		VerifyKKTconditions();
+		double residual_value_new = IPres.rp_nnorm*m + IPres.rd_nnorm*n + mu*m;
+
+		if (residual_value_bkp<residual_value_new)
+		{
+			x = x_bkp;
+			y = y_bkp;
+			lam = lam_bkp;
+			fullupdate_residual();
+			VerifyKKTconditions();
+			double residual_value_final = IPres.rp_nnorm*m + IPres.rd_nnorm*n + mu*m;
+		}
+		else
+		{
+			std::cout << "Not WS\n";
+		}
+
+	}
+
+	void ChInteriorPoint::starting_point_Nocedal(int n_old, int m_old)
+	{
+
+		/********** Initialize IP algorithm **********/
+		// Initial guess
+		if (n_old != n || solver_call == 0 || !REUSE_OLD_SOLUTIONS)
+			x.FillElem(1); // TIP: every ChMatrix is initialized with zeros by default
+		if (m_old != m || solver_call == 0 || !REUSE_OLD_SOLUTIONS)
+			lam.FillElem(1); // each element of lam will be at the denominator; avoid zeros!
+
+		// since A is generally changed between calls, also with warm_start,
+		// all the residuals and feasibility check must be redone
+		multiplyA(x, y);  // y = A*x
+		y -= b;
+
+		// Calculate the residual
+ 		fullupdate_residual();
+
+		// Feasible starting Point (pag.484-485)
+		KKTsolve(); // to obtain Dx, Dy, Dlam called "affine"
+
+		// x is accepted as it is
+		y += Dy; // calculate y0
+		lam += Dlam; // calculate lam0
+
+		for (size_t row_sel = 0; row_sel < m; row_sel++)
+			y(row_sel) = abs(y(row_sel)) < 1 ? 1 : abs(y(row_sel));
+
+		for (size_t row_sel = 0; row_sel < m; row_sel++)
+			lam(row_sel) = abs(lam(row_sel)) < 1 ? 1 : abs(lam(row_sel));
+
+		// Update the residual considering the new values of 'y' and 'lam'
+		fullupdate_residual();
+
 	}
 
 	// Iterating function
 	// output: (x, y, lam) are computed
 	// (rp, rd, mu) are updated based on most recent (x, y, lam)
+
+	// rp, rd, mu, x, y, lam are taken as they are
 	void ChInteriorPoint::iterate()
 	{
 		/********** Prediction phase **********/
@@ -315,6 +416,7 @@ namespace chrono
 		}
 	}
 
+	// Solve the KKT system in different modes: rp, rd, mu, x, y, lam must be updated before calling this function
 	void ChInteriorPoint::KKTsolve(double sigma)
 	{
 		// TODO: only for test purpose
@@ -404,10 +506,34 @@ namespace chrono
 			}
 
 
+
 			// Solve the KKT system
 			BigMat.Compress();
 			mkl_engine.SetProblem(BigMat, rhs, sol);
 			mkl_engine.PardisoCall(13, 0);
+
+			//if (!sol.is_valid())
+			//{
+			//	double perturb = -1e-18;
+			//	
+			//	double* vect_address;
+			//	vect_address = BigMat.GetValuesAddress();
+			//	for (size_t sel = 0; sel< BigMat.GetColIndexLength(); sel++)
+			//	{
+			//		if (!is_valid(vect_address[sel]))
+			//			vect_address[sel] = perturb;
+			//	}
+			//	
+			//	vect_address = rhs.GetAddress();
+			//	for (size_t sel = 0; sel < rhs.GetColumns()*rhs.GetRows(); sel++)
+			//	{
+			//		if (!is_valid(vect_address[sel]))
+			//			vect_address[sel] = perturb;
+			//	}
+
+			//	mkl_engine.SetProblem(BigMat, rhs, sol);
+			//	mkl_engine.PardisoCall(13, 0);
+			//}
 
 			if (verbose)
 			{
@@ -415,7 +541,22 @@ namespace chrono
 				res.Reset(BigMat.GetRows(), 1);
 				mkl_engine.GetResidual(res);
 				res_norm = mkl_engine.GetResidualNorm(res);
-				if (res_norm > 1e-5) std::cout << "Residual norm of MKL call: " << res_norm << std::endl;
+				if (res_norm > 1e3)
+				{
+					std::cout << "KKT solve res norm: " << res_norm << std::endl;
+
+					ChMklEngine mkl_test; // TODO: the program crashes if we use the same solver of IP!!!!
+					mkl_test.SetProblem(BigMat, rhs, sol);
+					mkl_test.PardisoCall(13, 1);
+
+					res.Reset(BigMat.GetRows(), 1);
+					mkl_test.GetResidual(res);
+					res_norm = mkl_test.GetResidualNorm(res);
+					std::cout << "KKT solve res norm 2nd: " << res_norm << std::endl;
+					DumpProblem();
+					DumpIPStatus();
+					system("pause");
+				}
 			}
 			
 
@@ -482,36 +623,35 @@ namespace chrono
 		return obj_value;
 	}
 
-	void ChInteriorPoint::reset_dimensions()
+	void ChInteriorPoint::reset_dimensions(int n_old, int m_old)
 	{
-		// variables: (x,y) primal variables; lam dual
-		x.Resize(n, 1);
-		y.Resize(m, 1);
-		lam.Resize(m, 1);
-        
-		x_pred.Resize(n, 1);
-		y_pred.Resize(m, 1);
-		lam_pred.Resize(m, 1);
-        
-		x_corr.Resize(n, 1);
-		y_corr.Resize(m, 1);
-		lam_corr.Resize(m, 1);
-        
-		Dx.Resize(n, 1);
-		Dy.Resize(m, 1);
-		Dlam.Resize(m, 1);
+		if (n_old != n)
+		{
+			x.Resize(n, 1);
+			x_pred.Resize(n, 1);
+			x_corr.Resize(n, 1);
+			Dx.Resize(n, 1);
+			c.Resize(n, 1);
+			rd.Resize(n, 1);
+			vectn.Resize(n, 1);
+		}
 
-		// vectors
-		b.Resize(m, 1);
-		c.Resize(n, 1);
-        
-		// residuals
-		rp.Resize(m, 1);
-		rd.Resize(n, 1);
-		rpd.Resize(m, 1);
-
-		// temporary vectors
-		vectn.Resize(n, 1);
+		if (m_old != m)
+		{
+			y.Resize(m, 1);
+			lam.Resize(m, 1);
+			y_pred.Resize(m, 1);
+			lam_pred.Resize(m, 1);
+			y_corr.Resize(m, 1);
+			lam_corr.Resize(m, 1);
+			Dy.Resize(m, 1);
+			Dlam.Resize(m, 1);
+			b.Resize(m, 1);
+			rp.Resize(m, 1);
+			rpd.Resize(m, 1);
+			vectm.Resize(m, 1);
+		}
+		
 		SKIP_CONTACTS_UV ? sol_chrono.Resize(n + 3 * m, 1) : sol_chrono.Resize(n + m, 1);
 
 		// BigMat and sol
@@ -531,37 +671,50 @@ namespace chrono
 			std::cout << std::endl << "Perturbed KKT system cannot be stored with 'NORMAL' method yet.";
 			break;
 		}
+
 	}
 
 
 	void ChInteriorPoint::DumpProblem(std::string suffix)
 	{
-		ExportToFile(y, "dump/y" + suffix + ".txt");
-		ExportToFile(x, "dump/x" + suffix + ".txt");
-		ExportToFile(lam, "dump/lam" + suffix + ".txt");
+		ExportArrayToFile(y, "dump/y" + suffix + ".txt");
+		ExportArrayToFile(x, "dump/x" + suffix + ".txt");
+		ExportArrayToFile(lam, "dump/lam" + suffix + ".txt");
 
-		ExportToFile(b, "dump/b" + suffix + ".txt");
-		ExportToFile(c, "dump/c" + suffix + ".txt");
+		ExportArrayToFile(b, "dump/b" + suffix + ".txt");
+		ExportArrayToFile(c, "dump/c" + suffix + ".txt");
 
 		BigMat.Compress();
 		BigMat.ExportToDatFile("dump/", 8);
 	}
 
-	void ChInteriorPoint::DumpIPStatus(std::string suffix)
+	void ChInteriorPoint::LoadProblem()
 	{
-		ExportToFile(y, "dump/y" + suffix + ".txt");
-		ExportToFile(x, "dump/x" + suffix + ".txt");
-		ExportToFile(lam, "dump/lam" + suffix + ".txt");
+		//ImportArrayFromFile(y, "dump/y.txt");
+		//ImportArrayFromFile(x, "dump/x.txt");
+		//ImportArrayFromFile(lam, "dump/lam.txt");
 
-		ExportToFile(Dx, "dump/Dx" + suffix + ".txt");
-		ExportToFile(Dy, "dump/Dy" + suffix + ".txt");
-		ExportToFile(Dlam, "dump/Dlam" + suffix + ".txt");
+		ImportArrayFromFile(b, "dump/b.txt");
+		ImportArrayFromFile(c, "dump/c.txt");
 
-		ExportToFile(rhs, "dump/rhs" + suffix + ".txt");
-		ExportToFile(sol, "dump/sol" + suffix + ".txt");
+		BigMat.ImportFromDatFile("dump/");
 	}
 
-	void ChInteriorPoint::make_positive_definite()
+	void ChInteriorPoint::DumpIPStatus(std::string suffix)
+	{
+		ExportArrayToFile(y, "dump/y" + suffix + ".txt");
+		ExportArrayToFile(x, "dump/x" + suffix + ".txt");
+		ExportArrayToFile(lam, "dump/lam" + suffix + ".txt");
+
+		ExportArrayToFile(Dx, "dump/Dx" + suffix + ".txt");
+		ExportArrayToFile(Dy, "dump/Dy" + suffix + ".txt");
+		ExportArrayToFile(Dlam, "dump/Dlam" + suffix + ".txt");
+
+		ExportArrayToFile(rhs, "dump/rhs" + suffix + ".txt");
+		ExportArrayToFile(sol, "dump/sol" + suffix + ".txt");
+	}
+
+	void ChInteriorPoint::make_positive_definite() // cannot be const!
 	{
 		double* values = BigMat.GetValuesAddress();
 		int* colIndex = BigMat.GetColIndexAddress();
@@ -677,6 +830,7 @@ namespace chrono
 
 	bool ChInteriorPoint::check_exit_conditions(bool only_mu)
 	{
+
 		if (false)
 		{
 			if (mu < mu_tolerance)
@@ -686,8 +840,8 @@ namespace chrono
 
 				VerifyKKTconditions();
 				if (
-					IPresiduals.rp_nnorm < IPtolerances.rp_nnorm &&
-					IPresiduals.rd_nnorm < IPtolerances.rd_nnorm
+					IPres.rp_nnorm < IPtolerances.rp_nnorm &&
+					IPres.rd_nnorm < IPtolerances.rd_nnorm
 					)
 					return true;
 			}
@@ -699,8 +853,8 @@ namespace chrono
 			
 			VerifyKKTconditions();
 			if (relative_duality_gap < mu_tolerance &&
-				IPresiduals.rp_nnorm < IPtolerances.rp_nnorm &&
-				IPresiduals.rd_nnorm < IPtolerances.rd_nnorm
+				IPres.rp_nnorm < IPtolerances.rp_nnorm &&
+				IPres.rd_nnorm < IPtolerances.rd_nnorm
 				)
 				return true;
 
@@ -708,30 +862,6 @@ namespace chrono
 		
 
 		return false;
-	}
-
-	bool ChInteriorPoint::check_feasibility(double tolerance)
-	{
-		VerifyKKTconditions();
-		if (IPresiduals.rp_nnorm < tolerance &&
-			IPresiduals.rd_nnorm < tolerance )
-			return true;
-
-		return false;
-	}
-
-	void ChInteriorPoint::PrintHistory(bool on_off, std::string filepath)
-	{
-		if (!history_file.is_open())
-		{
-			history_file.open(filepath);
-		}
-		
-		history_file << std::scientific << std::setprecision(3);
-		history_file << std::endl << "SolverCall" << ", " << "Iteration" << ", " << "rp_nnorm" << ", " << "rd_nnorm" << ", " << "mu";
-
-		print_history = true;
-
 	}
 
 	//void ChInteriorPoint::save_lam_mean()
@@ -744,12 +874,14 @@ namespace chrono
 	//	lam_mean = lam_mean / m;
 	//}
 
+	/// Update rp, rd, and mu from x,y,lam and the problem matrices G, A and E
 	void ChInteriorPoint::fullupdate_residual()
 	{
 			// Residual initialization (16.59 pag.482)
-			// rp initialization 
+			// rp initialization; rp = A*x - y - b
 			multiplyA(x, rp);  // rp = A*x
-			rp -= y + b;
+			rp -= y;
+			rp -= b;
 			if (ADD_COMPLIANCE)
 			{
 				E.MatMultiply(Dlam, vectm);
@@ -757,7 +889,7 @@ namespace chrono
 			}
 				
 
-			// rd initialization
+			// rd initialization; rd = G*x - A^T*lam + c
 			multiplyG(x, rd); // rd = G*x
 			rd += c; // rd = G*x + c
 			multiplyNegAT(lam, vectn); // vectn = (-A^T)*lam
@@ -770,17 +902,19 @@ namespace chrono
 	{
 		if (history_file.is_open())
 		{
-			history_file << std::endl << solver_call << ", " << iteration_count << ", " << IPresiduals.rp_nnorm << ", " << IPresiduals.rd_nnorm << ", " << mu;
+			history_file << std::endl << solver_call << ", " << iteration_count << ", " << IPres.rp_nnorm << ", " << IPres.rd_nnorm << ", " << mu;
 		}
 			
 	}
 
+	// copy solution from the variables used for IP to Chrono variables
 	void ChInteriorPoint::generate_solution()
 	{
-
+		// copy 'x'
 		for (size_t row_sel = 0; row_sel < n; row_sel++)
 			sol_chrono(row_sel, 0) = x(row_sel,0);
 
+		// copy Lagrangian multipliers; skip tangential forces if needed
 		if (SKIP_CONTACTS_UV)
 		{
 			for (size_t row_sel = 0; row_sel < m; row_sel++)
@@ -797,6 +931,62 @@ namespace chrono
 		}
 	}
 
+
+	bool ChInteriorPoint::check_feasibility(double tolerance)
+	{
+		VerifyKKTconditions();
+		if (IPres.rp_nnorm < tolerance &&
+			IPres.rd_nnorm < tolerance)
+			return true;
+
+		return false;
+	}
+
+	void ChInteriorPoint::PrintHistory(bool on_off, std::string filepath)
+	{
+		if (!history_file.is_open())
+		{
+			history_file.open(filepath);
+		}
+
+		history_file << std::scientific << std::setprecision(3);
+		history_file << std::endl << "SolverCall" << ", " << "Iteration" << ", " << "rp_nnorm" << ", " << "rd_nnorm" << ", " << "mu";
+
+		print_history = true;
+
+	}
+
+	void ChInteriorPoint::VerifyKKTconditions(bool print)
+	{
+		IPres.rp_nnorm = rp.NormTwo() / m;
+		IPres.rd_nnorm = rd.NormTwo() / n;
+
+		if (print)
+		{
+			std::cout << std::scientific << std::setprecision(1);
+			std::cout << "|rp|/n: " << IPres.rp_nnorm
+				<< "; |rd|/m: " << IPres.rd_nnorm
+				<< "; mu: " << mu << std::endl;
+
+			bool neg_y = false;
+			bool neg_lam = false;
+			for (int cont = 0; cont < m; cont++)
+			{
+				if (y(cont, 0) < 0)
+					neg_y = true;
+				if (lam(cont, 0) < 0)
+					neg_lam = true;
+			}
+
+			if (neg_y)
+				std::cout << "y has negative elements" << std::endl;
+
+			if (neg_lam)
+				std::cout << "lam has negative elements" << std::endl;
+
+		}
+	}
+
 	ChInteriorPoint::ChInteriorPoint():
 		m(0),
 		n(0),
@@ -804,8 +994,10 @@ namespace chrono
 		iteration_count(0),
 		iteration_count_max(50),
 		EQUAL_STEP_LENGTH(false),
-		ADAPTIVE_ETA(false),
+		ADAPTIVE_ETA(true),
 		ONLY_PREDICT(false),
+		warm_start(true),
+		warm_start_broken(false),
 		IPtolerances(1e-12),
 		mu_tolerance(1e-12),
 		KKT_solve_method(AUGMENTED),

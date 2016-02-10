@@ -62,6 +62,17 @@
 //  t  |  -
 //  G  |  -
 
+// Symbol conversion table from [1] to Chrono
+// Chr | [1]
+//  M  |  G
+//  q  |  x
+// Cq  |  A
+//  l  | lam
+//  f  |  -c
+//  E  |  E (+ o - ?)
+//  c  |  y
+//  b  |  -b
+
 
 
 // KKT conditions (16.55 pag.481)
@@ -94,6 +105,8 @@ namespace chrono
 		bool EQUAL_STEP_LENGTH;
 		bool ADAPTIVE_ETA;
 		bool ONLY_PREDICT;
+		bool warm_start_broken;
+		bool warm_start;
 
 		struct IPresidual_t
 		{
@@ -102,7 +115,7 @@ namespace chrono
 
 			IPresidual_t() : rp_nnorm(0), rd_nnorm(0) {};
 			explicit IPresidual_t(double tol) : rp_nnorm(tol), rd_nnorm(tol) {};
-		} IPtolerances, IPresiduals;
+		} IPtolerances, IPres;
 
 		double mu_tolerance; // stop iterations if mu under this threshold
 
@@ -155,14 +168,15 @@ namespace chrono
 		void KKTsolve(double sigma = 0.0);
 		void initialize(ChLcpSystemDescriptor& sysd);
 		void starting_point_STP1();
-		void starting_point_STP2();
+		void starting_point_STP2(int n_old);
+		void starting_point_Nocedal_WS(int n_old, int m_old); // warm_start; try to reuse solution from previous cycles
 		void starting_point_Nocedal(int n_old, int m_old);
 		void iterate();
 		double find_Newton_step_length(ChMatrix<double>& vect, ChMatrix<double>& Dvect, double eta = 1) const;
 		double evaluate_objective_function();
 
 		// Auxiliary
-		void reset_dimensions();
+		void reset_dimensions(int n_old, int m_old);
 		void fullupdate_residual();
 		void make_positive_definite();
 		void multiplyA(ChMatrix<double>& vect_in, ChMatrix<double>& vect_out) const;
@@ -178,6 +192,7 @@ namespace chrono
 		void update_history();
 		ChMatrixDynamic<double> sol_chrono;
 		void generate_solution();
+		void LoadProblem();
 
 	public:
 
