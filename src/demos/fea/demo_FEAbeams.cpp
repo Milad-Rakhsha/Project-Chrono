@@ -34,14 +34,16 @@
 
 #include "chrono_irrlicht/ChIrrApp.h"
 
-#include "chrono_matlab/ChMatlabEngine.h"
-#include "chrono_matlab/ChLcpMatlabSolver.h"
+//#include "chrono_matlab/ChMatlabEngine.h"
+//#include "chrono_matlab/ChLcpMatlabSolver.h"
 
 // Remember to use the namespace 'chrono' because all classes 
 // of Chrono::Engine belong to this namespace and its children...
 
 using namespace chrono;
-using namespace fea;
+using namespace chrono::fea;
+using namespace chrono::irrlicht;
+
 using namespace irr;
 
 
@@ -190,9 +192,7 @@ int main(int argc, char* argv[])
 	//
 	// Final touches..
 	// 
-				// This is necessary in order to precompute the 
-				// stiffness matrices for all inserted elements in mesh
-	my_mesh->SetupInitial();
+
 
                 // We do not want gravity effect on FEA elements in this demo
     my_mesh->SetAutomaticGravity(false);
@@ -247,6 +247,9 @@ int main(int argc, char* argv[])
 
 	application.AssetUpdateAll();
 
+            // Mark completion of system construction
+    my_system.SetupInitial();
+
 
 	// 
 	// THE SOFT-REAL-TIME CYCLE
@@ -260,16 +263,16 @@ int main(int argc, char* argv[])
 	msolver->SetVerbose(false);
 	msolver->SetDiagonalPreconditioning(true);
 	
-
-	// TEST: The Matlab external linear solver, for max precision in benchmarks
-ChMatlabEngine matlab_engine;
-ChLcpMatlabSolver* matlab_solver_stab  = new ChLcpMatlabSolver(matlab_engine);
-ChLcpMatlabSolver* matlab_solver_speed = new ChLcpMatlabSolver(matlab_engine);
-my_system.ChangeLcpSolverStab (matlab_solver_stab);
-my_system.ChangeLcpSolverSpeed(matlab_solver_speed);
-application.GetSystem()->Update();
-application.SetPaused(true);
-
+    /*
+	    // TEST: The Matlab external linear solver, for max precision in benchmarks
+    ChMatlabEngine matlab_engine;
+    ChLcpMatlabSolver* matlab_solver_stab  = new ChLcpMatlabSolver(matlab_engine);
+    ChLcpMatlabSolver* matlab_solver_speed = new ChLcpMatlabSolver(matlab_engine);
+    my_system.ChangeLcpSolverStab (matlab_solver_stab);
+    my_system.ChangeLcpSolverSpeed(matlab_solver_speed);
+    application.GetSystem()->Update();
+    application.SetPaused(true);
+    */
 
 	
 	// Change type of integrator: 
@@ -280,8 +283,11 @@ application.SetPaused(true);
 	{
 		mystepper->SetAlpha(-0.2);
 		mystepper->SetMaxiters(6);
-		mystepper->SetTolerance(1e-12);
+		mystepper->SetAbsTolerances(1e-12);
+        mystepper->SetVerbose(true);
+        mystepper->SetStepControl(false);
 	}
+
 	my_system.SetIntegrationType(chrono::ChSystem::INT_EULER_IMPLICIT_LINEARIZED); 
 
 	application.SetTimestep(0.001);
@@ -289,7 +295,7 @@ application.SetPaused(true);
 
 
 
-
+    
 
 
 
@@ -341,7 +347,7 @@ application.SetPaused(true);
 		application.EndScene();
 	}
 
-
+    
 	return 0;
 }
 

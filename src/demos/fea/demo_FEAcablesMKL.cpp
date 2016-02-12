@@ -46,10 +46,6 @@ int main(int argc, char* argv[]) {
     // Create the model (defined in FEAcables.h)
     model3(my_system, my_mesh);
 
-    // This is necessary in order to precompute the stiffness matrices for all
-    // inserted elements in mesh
-    my_mesh->SetupInitial();
-
     // Remember to add the mesh to the system!
     my_system.Add(my_mesh);
 
@@ -86,6 +82,9 @@ int main(int argc, char* argv[]) {
     // that you added to the bodies into 3D shapes, they can be visualized by Irrlicht!
     application.AssetUpdateAll();
 
+    // Mark completion of system construction
+    my_system.SetupInitial();
+
     // Change solver to MKL
     ChLcpMklSolver* mkl_solver_stab = new ChLcpMklSolver;
     ChLcpMklSolver* mkl_solver_speed = new ChLcpMklSolver;
@@ -103,7 +102,7 @@ int main(int argc, char* argv[]) {
     if (ChSharedPtr<ChTimestepperHHT> mystepper = my_system.GetTimestepper().DynamicCastTo<ChTimestepperHHT>()) {
         mystepper->SetAlpha(-0.2);
         mystepper->SetMaxiters(2);
-        mystepper->SetTolerance(1e-6);
+        mystepper->SetAbsTolerances(1e-6);
     }
 
     //

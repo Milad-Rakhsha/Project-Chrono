@@ -31,8 +31,8 @@
 #include "chrono_irrlicht/ChIrrApp.h"
 
 #include "chrono_vehicle/ChApiVehicle.h"
-#include "chrono_vehicle/ChVehicle.h"
 #include "chrono_vehicle/ChPowertrain.h"
+#include "chrono_vehicle/ChVehicle.h"
 
 #ifdef CHRONO_IRRKLANG
 #include <irrKlang.h>
@@ -41,13 +41,19 @@
 namespace chrono {
 namespace vehicle {
 
+/// @addtogroup vehicle_utils
+/// @{
+
 // Forward declaration
 class ChCameraEventReceiver;  ///< custom event receiver for chase-cam control
 
-///
 /// Customized Chrono Irrlicht application for vehicle visualization.
-///
-class CH_VEHICLE_API ChVehicleIrrApp : public irr::ChIrrApp {
+/// This class implements an Irrlicht-based visualization wrapper for vehicles.
+/// This class is a wrapper around a ChIrrApp object and provides the following functionality:
+///   - rendering of the entire Irrlicht scene
+///   - implements a custom chase-camera (which can be controlled with keyboard)
+///   - optional rendering of links, springs, stats, etc.
+class CH_VEHICLE_API ChVehicleIrrApp : public irrlicht::ChIrrApp {
   public:
     /// Construct a vehicle Irrlicht application.
     ChVehicleIrrApp(
@@ -106,6 +112,10 @@ class CH_VEHICLE_API ChVehicleIrrApp : public irr::ChIrrApp {
     /// The integration of the underlying ODEs is performed using as many steps as needed to advance
     /// by the specified duration.
     void Advance(double step);
+
+    /// Save a snapshot of the last rendered frame to file.
+    /// The file name extension determines the image format.
+    void WriteImageToFile(const std::string& filename);
 
   protected:
     /// Render additional graphics
@@ -166,6 +176,8 @@ class CH_VEHICLE_API ChVehicleIrrApp : public irr::ChIrrApp {
     friend class ChCameraEventReceiver;
     friend class ChIrrGuiDriver;
 };
+
+// @} vehicle_utils
 
 }  // end namespace vehicle
 }  // end namespace chrono

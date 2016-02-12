@@ -24,14 +24,27 @@
 #include "ChContactSurface.h"
 #include "ChMeshSurface.h"
 
+/**
+    @defgroup fea Chrono::FEA
+    @brief Finite Element Analysis
+    @{
+        @defgroup fea_nodes Nodes
+        @defgroup fea_elements Elements
+        @defgroup fea_constraints Constraints
+        @defgroup fea_math Mathematical support
+    @}
+*/
+
 namespace chrono {
 
-/// Namespace with classes for the FEA unit.
+/// Namespace with classes for the Chrono::FEA module.
 namespace fea {
+
+/// @addtogroup fea
+/// @{
 
 /// Class which defines a mesh of finite elements of class ChFelem,
 /// between nodes of class  ChFnode.
-
 class ChApiFea ChMesh : public ChIndexedNodes {
     // Chrono simulation of RTTI, needed for serialization
     CH_RTTI(ChMesh, ChIndexedNodes);
@@ -102,11 +115,6 @@ class ChApiFea ChMesh : public ChIndexedNodes {
     void ClearMeshSurfaces() { vmeshsurfaces.clear(); }
 
 
-
-    /// - Computes the total number of degrees of freedom
-    /// - Precompute auxiliary data, such as (local) stiffness matrices Kl, if any, for each element.
-    void SetupInitial();
-
     /// Set reference position of nodes as current position, for all nodes.
     void Relax();
 
@@ -132,31 +140,6 @@ class ChApiFea ChMesh : public ChIndexedNodes {
 	void SetAutomaticGravity(bool mg, int num_points = 1) { automatic_gravity_load = mg; num_points_gravity = num_points; }
     /// Tell if this mesh will add automatically a gravity load to all contained elements 
     bool GetAutomaticGravity() {return automatic_gravity_load;} 
-
-    /// Load tetahedrons from .node and .ele files as saved by TetGen.
-    /// The file format for .node (with point# starting from 1) is:
-    ///   [# of points] [dimension (only 3)] [# of attributes (only 0)] [markers (only 0)]
-    ///   [node #] [x] [y] [z]
-    ///   [node #] [x] [y] [z]   etc.
-    /// The file format for .ele (with tet# starting from 1) is:
-    ///   [# of tetahedrons] [dimension (only 4 supported)] [# of attributes (only 0)]
-    ///   [tet #] [node #] [node #] [node #] [node #]
-    ///   [tet #] [node #] [node #] [node #] [node #]   etc.
-    /// If you pass a material inherited by ChContinuumElastic, nodes with 3D motion are used, and corotational
-    /// elements.
-    /// If you pass a material inherited by ChContinuumPoisson3D, nodes with scalar field are used (ex. thermal,
-    /// electrostatics, etc)
-    void LoadFromTetGenFile(const char* filename_node,                      ///< name of the .node file
-                            const char* filename_ele,                       ///< name of the .ele  file
-                            ChSharedPtr<ChContinuumMaterial> my_material);  ///< material for the created tetahedrons
-
-    /// Load tetahedrons, if any, saved in a .inp file for Abaqus.
-    void LoadFromAbaqusFile(const char* filename,
-                            ChSharedPtr<ChContinuumMaterial> my_material,
-                            std::vector<std::vector<ChSharedPtr<ChNodeFEAbase> > >& node_sets,  ///< vect of vectors of 'marked'nodes 
-                            ChVector<> pos_transform = VNULL,               ///< optional displacement of imported mesh
-                            ChMatrix33<> rot_transform = ChMatrix33<>(1),   ///< optional rotation/scaling of imported mesh
-                            bool discard_unused_nodes = true);              ///< if true, Abaqus nodes that are not used in elements or sets are not imported in C::E
 
     //
     // STATE FUNCTIONS
@@ -242,7 +225,17 @@ class ChApiFea ChMesh : public ChIndexedNodes {
     /// ChLcpVariables in this object (for further passing it to a LCP solver)
     /// Basically does nothing, but maybe that inherited classes may specialize this.
     virtual void InjectVariables(ChLcpSystemDescriptor& mdescriptor);
+
+  private:
+    /// Initial setup (before analysis).
+    /// This function is called from ChSystem::SetupInitial, marking a point where system
+    /// construction is completed.
+    /// - Computes the total number of degrees of freedom
+    /// - Precompute auxiliary data, such as (local) stiffness matrices Kl, if any, for each element.
+    virtual void SetupInitial() override;
 };
+
+/// @} fea
 
 }  // END_OF_NAMESPACE____
 }  // END_OF_NAMESPACE____

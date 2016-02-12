@@ -23,11 +23,13 @@
 namespace chrono {
 namespace fea {
 
+/// @addtogroup fea_elements
+/// @{
+
 /// Simple beam element with two nodes and Euler-Bernoulli
 /// formulation.
 /// For this 'basic' implementation, constant section and
 /// constant material are assumed.
-
 class ChApiFea ChElementBeamEuler : public ChElementBeam,
                                     public ChLoadableU,
                                     public ChLoadableUVW,
@@ -422,7 +424,7 @@ class ChApiFea ChElementBeamEuler : public ChElementBeam,
     /// Setup. Precompute mass and matrices that do not change during the
     /// simulation, such as the local tangent stiffness Kl of each element, if needed, etc.
 
-    virtual void SetupInitial() {
+    virtual void SetupInitial(ChSystem* system) override {
         assert(!section.IsNull());
 
         // Compute rest length, mass:
@@ -1121,6 +1123,8 @@ class ChApiFea ChElementBeamEuler : public ChElementBeam,
     /// This is needed so that it can be accessed by ChLoaderVolumeGravity
     virtual double GetDensity() { return this->section->Area * this->section->density; }
 };
+
+/// @} fea_elements
 
 }  // END_OF_NAMESPACE____
 }  // END_OF_NAMESPACE____

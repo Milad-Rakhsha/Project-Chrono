@@ -28,6 +28,7 @@
 #include "chrono_fea/ChContinuumElectrostatics.h"
 #include "chrono_fea/ChNodeFEAxyzP.h"
 #include "chrono_fea/ChMesh.h"
+#include "chrono_fea/ChMeshFileLoader.h"
 #include "chrono_fea/ChLinkPointFrame.h"
 #include "chrono_fea/ChVisualizationFEAmesh.h"
 
@@ -37,7 +38,8 @@
 // of Chrono::Engine belong to this namespace and its children...
 
 using namespace chrono;
-using namespace fea;
+using namespace chrono::fea;
+using namespace chrono::irrlicht;
 
 using namespace irr;
 
@@ -79,7 +81,8 @@ int main(int argc, char* argv[]) {
     std::vector<std::vector<ChSharedPtr<ChNodeFEAbase> > > node_sets;
 
     try {
-        my_mesh->LoadFromAbaqusFile(GetChronoDataFile("fea/electrostatics.INP").c_str(), mmaterial, node_sets);
+        ChMeshFileLoader::FromAbaqusFile(my_mesh, GetChronoDataFile("fea/electrostatics.INP").c_str(), mmaterial,
+                                         node_sets);
     } catch (ChException myerr) {
         GetLog() << myerr.what();
         return 0;
@@ -107,10 +110,6 @@ int main(int argc, char* argv[]) {
             mnode->SetP(21);  // field: potential [V]
         }
     }
-
-    // This is necessary in order to precompute the
-    // stiffness matrices for all inserted elements in mesh
-    my_mesh->SetupInitial();
 
     // Remember to add the mesh to the system!
     my_system.Add(my_mesh);
@@ -158,6 +157,9 @@ int main(int argc, char* argv[]) {
     // that you added to the bodies into 3D shapes, they can be visualized by Irrlicht!
 
     application.AssetUpdateAll();
+
+    // Mark completion of system construction
+    my_system.SetupInitial();
 
     //
     // THE SOFT-REAL-TIME CYCLE

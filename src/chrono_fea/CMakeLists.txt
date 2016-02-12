@@ -30,7 +30,8 @@ SET(ChronoEngine_FEA_SOURCES
     ChNodeFEAxyz.cpp
     ChGaussIntegrationRule.cpp
     ChGaussPoint.cpp
-    ChMesh.cpp  
+    ChMesh.cpp
+    ChMeshFileLoader.cpp
     ChMatterMeshless.cpp 
     ChProximityContainerMeshless.cpp
     ChPolarDecomposition.cpp
@@ -40,7 +41,10 @@ SET(ChronoEngine_FEA_SOURCES
     ChLinkDirFrame.cpp
     ChLinkPointPoint.cpp
     ChContactSurface.cpp
-	ChMeshSurface.cpp
+	  ChContactSurfaceNodeCloud.cpp
+	  ChContactSurfaceMesh.cpp
+	  ChMeshSurface.cpp
+	  ChLoadContactSurfaceMesh.cpp
 )
 
 SET(ChronoEngine_FEA_HEADERS
@@ -74,11 +78,12 @@ SET(ChronoEngine_FEA_HEADERS
     ChElementHexa_20.h
     ChElementShell.h
     ChElementShellANCF.h
-	ChFaceTetra_4.h
-	ChLoadsBeam.h
+	  ChFaceTetra_4.h
+	  ChLoadsBeam.h
     ChGaussIntegrationRule.h
     ChGaussPoint.h
-    ChMesh.h 
+    ChMesh.h
+    ChMeshFileLoader.h
     ChMatterMeshless.h 
     ChProximityContainerMeshless.h
     ChPolarDecomposition.h
@@ -88,8 +93,11 @@ SET(ChronoEngine_FEA_HEADERS
     ChLinkDirFrame.h
     ChLinkPointPoint.h
     ChContactSurface.h
-	ChMeshSurface.h
+	  ChContactSurfaceNodeCloud.h
+	  ChContactSurfaceMesh.h
+	  ChMeshSurface.h
     ChUtilsFEA.h
+	  ChLoadContactSurfaceMesh.h
 )
 
 SOURCE_GROUP("" FILES 

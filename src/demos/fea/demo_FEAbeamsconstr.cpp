@@ -28,8 +28,8 @@
 
 #include "chrono_irrlicht/ChIrrApp.h"
 
-#include "chrono_matlab/ChMatlabEngine.h"
-#include "chrono_matlab/ChLcpMatlabSolver.h"
+//#include "chrono_matlab/ChMatlabEngine.h"
+//#include "chrono_matlab/ChLcpMatlabSolver.h"
 
 #include "chrono_mkl/ChLcpMklSolver.h"
 
@@ -37,7 +37,8 @@
 // of Chrono::Engine belong to this namespace and its children...
 
 using namespace chrono;
-using namespace fea;
+using namespace chrono::fea;
+using namespace chrono::irrlicht;
 using namespace irr;
 
 int main(int argc, char* argv[]) {
@@ -232,9 +233,6 @@ int main(int argc, char* argv[]) {
         //
         // Final touches..
         //
-        // This is necessary in order to precompute the
-        // stiffness matrices for all inserted elements in mesh
-        my_mesh->SetupInitial();
 
         // We do not want gravity effect on FEA elements in this demo
         my_mesh->SetAutomaticGravity(false);
@@ -277,6 +275,10 @@ int main(int argc, char* argv[]) {
 
         application.AssetUpdateAll();
 
+
+        // Mark completion of system construction
+        my_system.SetupInitial();
+
         //
         // THE SOFT-REAL-TIME CYCLE
         //
@@ -314,6 +316,10 @@ int main(int argc, char* argv[]) {
         
         // Use the following for less numerical damping, 2nd order accuracy (but slower)
         //my_system.SetIntegrationType(ChSystem::INT_HHT);
+        if (ChSharedPtr<ChTimestepperHHT> mystepper = my_system.GetTimestepper().DynamicCastTo<ChTimestepperHHT>()) {
+            mystepper->SetVerbose(true);
+            mystepper->SetStepControl(false);
+        }
 
         // Output data
         chrono::ChStreamOutAsciiFile file_out1("benchmark_CE_buckling_mid.dat");
@@ -441,9 +447,7 @@ int main(int argc, char* argv[]) {
         //
         // Final touches..
         //
-        // This is necessary in order to precompute the
-        // stiffness matrices for all inserted elements in mesh
-        my_mesh->SetupInitial();
+
 
         // note, this benchmark not using gravity.. use my_system.Set_G_acc(VNULL); or..
         my_mesh->SetAutomaticGravity(false);
@@ -485,6 +489,10 @@ int main(int argc, char* argv[]) {
         // that you added to the bodies into 3D shapes, they can be visualized by Irrlicht!
 
         application.AssetUpdateAll();
+
+        // Mark completion of system construction
+        my_system.SetupInitial();
+
 
         //
         // THE SOFT-REAL-TIME CYCLE

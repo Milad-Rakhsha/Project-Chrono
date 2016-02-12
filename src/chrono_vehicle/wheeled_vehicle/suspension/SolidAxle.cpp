@@ -111,8 +111,6 @@ void SolidAxle::Create(const rapidjson::Document& d) {
     m_ULRadius = d["Upper Link"]["Radius"].GetDouble();
     m_points[UL_A] = loadVector(d["Upper Link"]["Location Axle"]);
     m_points[UL_C] = loadVector(d["Upper Link"]["Location Chassis"]);
-    m_directions[UNIV_AXIS_LINK_U] = loadVector(d["Upper Link"]["Universal Joint Axis Link"]);
-    m_directions[UNIV_AXIS_CHASSIS_U] = loadVector(d["Upper Link"]["Universal Joint Axis Chassis"]);
 
     // Read LL data
     assert(d.HasMember("Lower Link"));
@@ -124,8 +122,6 @@ void SolidAxle::Create(const rapidjson::Document& d) {
     m_LLRadius = d["Lower Link"]["Radius"].GetDouble();
     m_points[LL_A] = loadVector(d["Lower Link"]["Location Axle"]);
     m_points[LL_C] = loadVector(d["Lower Link"]["Location Chassis"]);
-    m_directions[UNIV_AXIS_LINK_L] = loadVector(d["Lower Link"]["Universal Joint Axis Link"]);
-    m_directions[UNIV_AXIS_CHASSIS_L] = loadVector(d["Lower Link"]["Universal Joint Axis Chassis"]);
 
     // Read Axle Tube data
     assert(d.HasMember("Axle Tube"));
@@ -140,8 +136,30 @@ void SolidAxle::Create(const rapidjson::Document& d) {
     assert(d.HasMember("Tierod"));
     assert(d["Tierod"].IsObject());
 
-    m_points[TIEROD_C] = loadVector(d["Tierod"]["Location Chassis"]);
+    m_tierodMass = d["Tierod"]["Mass"].GetDouble();
+    m_tierodInertia = loadVector(d["Tierod"]["Inertia"]);
     m_points[TIEROD_K] = loadVector(d["Tierod"]["Location Knuckle"]);
+    m_tierodRadius = d["Tierod"]["Radius"].GetDouble();
+
+    // Read Draglink data
+    assert(d.HasMember("Draglink"));
+    assert(d["Draglink"].IsObject());
+
+    m_draglinkMass = d["Draglink"]["Mass"].GetDouble();
+    m_draglinkInertia = loadVector(d["Draglink"]["Inertia"]);
+    m_points[DRAGLINK_C] = loadVector(d["Draglink"]["Location Chassis"]);
+    m_points[BELLCRANK_DRAGLINK] = loadVector(d["Draglink"]["Location Bell Crank"]);
+    m_draglinkRadius = d["Draglink"]["Radius"].GetDouble();
+
+    // Read Bell Crank data
+    assert(d.HasMember("Bell Crank"));
+    assert(d["Bell Crank"].IsObject());
+
+    m_bellCrankMass = d["Bell Crank"]["Mass"].GetDouble();
+    m_bellCrankInertia = loadVector(d["Bell Crank"]["Inertia"]);
+    m_points[BELLCRANK_TIEROD] = loadVector(d["Bell Crank"]["Location Tierod"]);
+    m_points[BELLCRANK_AXLE] = loadVector(d["Bell Crank"]["Location Axle"]);
+    m_bellCrankRadius = d["Bell Crank"]["Radius"].GetDouble();
 
     // Read spring data and create force callback
     assert(d.HasMember("Spring"));

@@ -218,8 +218,6 @@ int main(int argc, char* argv[]) {
         elemcount++;
     }
 
-    // This is mandatory
-    my_mesh->SetupInitial();
     // Deactivate automatic gravity in mesh
     my_mesh->SetAutomaticGravity(false);
     // Remember to add the mesh to the system!
@@ -237,9 +235,12 @@ int main(int argc, char* argv[]) {
     ChSharedPtr<ChTimestepperHHT> mystepper = my_system.GetTimestepper().DynamicCastTo<ChTimestepperHHT>();
     mystepper->SetAlpha(-0.2);
     mystepper->SetMaxiters(10000);
-    mystepper->SetTolerance(1e-09);
+    mystepper->SetAbsTolerances(1e-09);
     mystepper->SetMode(ChTimestepperHHT::POSITION);
     mystepper->SetScaling(true);
+
+    // Mark completion of system construction
+    my_system.SetupInitial();
 
     // Simulation loop
     double T_F = 10;

@@ -29,7 +29,9 @@
 // of Chrono::Engine belong to this namespace and its children...
 
 using namespace chrono;
-using namespace fea;
+using namespace chrono::fea;
+using namespace chrono::irrlicht;
+
 using namespace irr;
 
 int main(int argc, char* argv[]) {
@@ -208,9 +210,6 @@ int main(int argc, char* argv[]) {
         elemcount++;
     }
 
-    // This is mandatory
-    my_mesh->SetupInitial();
-
     // Remember to add the mesh to the system!
     my_system.Add(my_mesh);
 
@@ -247,6 +246,9 @@ int main(int argc, char* argv[]) {
     application.AssetBindAll();
     application.AssetUpdateAll();
 
+    // Mark completion of system construction
+    my_system.SetupInitial();
+
     // Perform a dynamic time integration:
     my_system.SetLcpSolverType(
         ChSystem::LCP_ITERATIVE_MINRES);  // <- NEEDED because other solvers can't handle stiffness matrices
@@ -259,7 +261,7 @@ int main(int argc, char* argv[]) {
     ChSharedPtr<ChTimestepperHHT> mystepper = my_system.GetTimestepper().DynamicCastTo<ChTimestepperHHT>();
     mystepper->SetAlpha(-0.2);
     mystepper->SetMaxiters(100);
-    mystepper->SetTolerance(1e-5);
+    mystepper->SetAbsTolerances(1e-5);
     mystepper->SetMode(ChTimestepperHHT::POSITION);
     mystepper->SetScaling(true);
     application.SetTimestep(0.001);
