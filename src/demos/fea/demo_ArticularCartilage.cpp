@@ -53,15 +53,17 @@ using namespace chrono::fea;
 using namespace chrono::irrlicht;
 using namespace irr;
 
-bool addConstrain = false;
-bool addForce = false;
-bool addGravity = true;
+// bool addConstrain = true;
+// bool addForce = true;
+bool addGravity = false;
 bool addPressure = false;
-bool showBone = true;
-bool addFixed = false;
-double time_step = 0.004;
-int scaleFactor = 35;
-double dz = 0.01;
+bool showTibia = true;
+bool showFemur = true;
+// bool addFixed = false;
+double time_step = 0.0001;
+int scaleFactor = 1;
+double dz = 0.0003;
+double MeterToInch = 0.02539998628;
 
 int main(int argc, char* argv[]) {
     ChSystemDEM my_system;
@@ -80,17 +82,20 @@ int main(int argc, char* argv[]) {
 
     // collision::ChCollisionModel::SetDefaultSuggestedEnvelope(0.0); // not needed, already 0 when using
     collision::ChCollisionModel::SetDefaultSuggestedMargin(
-        0.0005);  // max inside penetration - if not enough stiffness in material: troubles
+        0);  // max inside penetration - if not enough stiffness in material: troubles
     // Use this value for an outward additional layer around meshes, that can improve
     // robustness of mesh-mesh collision detection (at the cost of having unnatural inflate effect)
-    double sphere_swept_thickness = 0.0008;
+    double sphere_swept_thickness = 1 * dz / 2 * 1.5;
 
+    double rho = 1000;  ///< material density
+    double E = 5e5;     ///< Young's modulus
+    double nu = 0.3;    ///< Poisson ratio
     // Create the surface material, containing information
     // about friction etc.
     // It is a DEM-p (penalty) material that we will assign to
     // all surfaces that might generate contacts.
     ChSharedPtr<ChMaterialSurfaceDEM> mysurfmaterial(new ChMaterialSurfaceDEM);
-    mysurfmaterial->SetYoungModulus(6e4);
+    mysurfmaterial->SetYoungModulus(6e5);
     mysurfmaterial->SetFriction(0.3);
     mysurfmaterial->SetRestitution(0.2);
     mysurfmaterial->SetAdhesion(0);
@@ -99,69 +104,57 @@ int main(int argc, char* argv[]) {
     GetLog() << "-----------------------------------------------------------\n";
     GetLog() << "   		Articular Cartilage Modeling   \n";
     GetLog() << "-----------------------------------------------------------\n\n";
+    ChVector<> Center_Femur(0, 0.001, 0);
 
     // Creating Rigid body
-    GetLog() << "	Adding the Bone as a Rigid Body ...\n";
-    ChSharedPtr<ChBody> Body_Bone;  // Bone
-    Body_Bone = ChSharedPtr<ChBody>(new ChBody);
-    Body_Bone->SetPos(ChVector<>(0, 0, 0));
-    Body_Bone->SetBodyFixed(true);
-    Body_Bone->SetMaterialSurface(mysurfmaterial);
-    my_system.Add(Body_Bone);
-    Body_Bone->SetIdentifier(1);
-    Body_Bone->SetMass(1);
-    Body_Bone->SetInertiaXX(ChVector<>(1, 0.2, 1));
-
-    ChSharedPtr<ChObjShapeFile> mobjmesh(new ChObjShapeFile);
-    mobjmesh->SetFilename(GetChronoDataFile("fea/bone10.obj"));
-    if (showBone) {
-        Body_Bone->AddAsset(mobjmesh);
+    GetLog() << "	Adding the Tibia as a Rigid Body ...\n";
+    ChSharedPtr<ChBody> Tibia;  // Bone
+                                //    auto Tibia = std::make_shared<ChBody>;
+    Tibia = ChSharedPtr<ChBody>(new ChBody);
+    Tibia->SetPos(ChVector<>(0, 0, 0));
+    Tibia->SetBodyFixed(true);
+    Tibia->SetMaterialSurface(mysurfmaterial);
+    my_system.Add(Tibia);
+    Tibia->SetMass(0);
+    Tibia->SetInertiaXX(ChVector<>(1, 0.2, 1));
+    ChSharedPtr<ChObjShapeFile> mobjmesh1(new ChObjShapeFile);
+    mobjmesh1->SetFilename(GetChronoDataFile("fea/tibia.obj"));
+    if (showTibia) {
+        Tibia->AddAsset(mobjmesh1);
     }
-    //    ChSharedPtr<ChTriangleMeshShape> masset_meshbox(new ChTriangleMeshShape());
-    //    Body_Bone->AddAsset(masset_meshbox);
-    //
-    //    ChSharedPtr<ChTexture> masset_texture(new ChTexture());
-    //    masset_texture->SetTextureFilename(GetChronoDataFile("concrete.jpg"));
-    //    Body_Bone->AddAsset(masset_texture);
-    //
-    //    Body_Bone->GetCollisionModel()->ClearModel();
-    //    Body_Bone->GetCollisionModel()->AddTriangleMesh(masset_meshbox, false, false, VNULL, ChMatrix33<>(1),
-    //                                                    sphere_swept_thickness);
-    //    Body_Bone->GetCollisionModel()->BuildModel();
-    //    Body_Bone->SetCollide(true);
 
-    ///////To do collision with bone as well.
-    //    ChMatrix33<> rot_transform_bone(1);
-    //    ChBodySceneNode* poly = (ChBodySceneNode*)addChBodySceneNode_easyGenericMesh(
-    //        &my_system, application.GetSceneManager(), 1, ChVector<>(0, 0, 0), chrono::ChQuaternion<>(1, 0, 0, 0),
-    //        GetChronoDataFile("fea/bone35.obj").c_str(),
-    //        false,  // not static
-    //        true);  // true=convex; false=concave(do convex decomposition of concave mesh
-    //    poly->GetBody()->SetBodyFixed(true);
-    //    poly->GetBody()->SetCollide(true);
-    //    poly->GetBody()->SetMaterialSurface(mysurfmaterial);
-
+    GetLog() << "	Adding the Femur as a Rigid Body ...\n";
+    ChSharedPtr<ChBody> Femur;  // Bone
+    Femur = ChSharedPtr<ChBody>(new ChBody);
+    Femur->SetPos(Center_Femur);
+    Femur->SetBodyFixed(false);
+    Femur->SetMaterialSurface(mysurfmaterial);
+    my_system.Add(Femur);
+    Femur->SetMass(0.0);
+    Femur->Set_Scr_force(ChVector<>(0, -0.5, 0));
+    Femur->SetInertiaXX(ChVector<>(1, 0.2, 1));
+    ChSharedPtr<ChObjShapeFile> mobjmesh2(new ChObjShapeFile);
+    mobjmesh2->SetFilename(GetChronoDataFile("fea/femur.obj"));
+    if (showFemur) {
+        Femur->AddAsset(mobjmesh2);
+    }
+    // Constraining the motion of the Fumer to y direction for now
+    if (true) {
+        // Prismatic joint between hub and suspended mass
+        ChSharedPtr<ChLinkLockPrismatic> primsJoint(new ChLinkLockPrismatic);
+        my_system.AddLink(primsJoint);
+        primsJoint->Initialize(Femur, Tibia, ChCoordsys<>(ChVector<>(0, 0, 0), Q_from_AngX(-CH_C_PI_2)));
+    }
     GetLog() << "-----------------------------------------------------------\n\n";
 
-    // Adding the ground
-    if (false) {
-        ChSharedPtr<ChBodyEasyBox> mfloor(new ChBodyEasyBox(2, 2, 0.1, 2700, true));
-        mfloor->SetBodyFixed(true);
-        mfloor->SetMaterialSurface(mysurfmaterial);
-        my_system.Add(mfloor);
-
-        ChSharedPtr<ChTexture> masset_texture(new ChTexture());
-        masset_texture->SetTextureFilename(GetChronoDataFile("concrete.jpg"));
-        mfloor->AddAsset(masset_texture);
-    }
-
     int TotalNumNodes, TotalNumElements, TottalNumBEdges;
+    std::vector<int> BC_NODES;
     std::vector<int> BC_NODES1;
     std::vector<int> BC_NODES2;
 
     GetLog() << "	Adding the Membrane Using ANCF Shell Elements...  \n\n";
     // Creating the membrane shell
-    ChSharedPtr<ChMaterialShellANCF> material(new ChMaterialShellANCF(200, 5e7, 0.3));
+    ChSharedPtr<ChMaterialShellANCF> material(new ChMaterialShellANCF(rho, E, nu));
     ChSharedPtr<ChMesh> my_mesh(new ChMesh);
     //    ChMatrix33<> rot_transform(0);
     //    rot_transform.SetElement(0, 0, 1);
@@ -170,42 +163,64 @@ int main(int argc, char* argv[]) {
     //    ChVector<> Center(-1, 0, 0.2);
 
     ChMatrix33<> rot_transform(1);
-    ChVector<> Center(0, 0, 0);
-
     // Import the Torus
     try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Mesh_3.mesh").c_str(), material,
-                                               BC_NODES1, Center, rot_transform, 10, true, true, true);
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/FemurFine.mesh").c_str(), material,
+                                               BC_NODES, Center_Femur, rot_transform, MeterToInch, false, false, false);
     } catch (ChException myerr) {
         GetLog() << myerr.what();
         return 0;
     }
 
+    if (true) {
+        for (int node = 0; node < BC_NODES.size(); node++) {
+            ChSharedPtr<ChLinkPointFrame> NodePosBone;
+            ChSharedPtr<ChLinkDirFrame> NodeDirBone;
+            ChSharedPtr<ChNodeFEAxyzD> ConstrainedNode;
+            ConstrainedNode =
+                ChSharedPtr<ChNodeFEAxyzD>(my_mesh->GetNode(BC_NODES[node]).DynamicCastTo<ChNodeFEAxyzD>());
+            NodePosBone = ChSharedPtr<ChLinkPointFrame>(new ChLinkPointFrame);
+            NodePosBone->Initialize(ConstrainedNode, Femur);
+            my_system.Add(NodePosBone);
+
+            NodeDirBone = ChSharedPtr<ChLinkDirFrame>(new ChLinkDirFrame);
+            NodeDirBone->Initialize(ConstrainedNode, Femur);
+            NodeDirBone->SetDirectionInAbsoluteCoords(ConstrainedNode->D);
+            my_system.Add(NodeDirBone);
+        }
+    }
+
+    //    ChMatrix33<> rot_transform_2(1);
+    //    rot_transform_2.SetElement(0, 0, 1);
+    //    rot_transform_2.SetElement(1, 1, -1);
+    //    rot_transform_2.SetElement(2, 2, -1);
+    //    Center = ChVector<>(0, -0.2, 0.4);
+    ChVector<> Center(0, 0.0, 0);
+    // Import the mesh
+    try {
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Tibia-1Low.mesh").c_str(), material,
+                                               BC_NODES1, Center, rot_transform, MeterToInch, false, false, false);
+    } catch (ChException myerr) {
+        GetLog() << myerr.what();
+        return 0;
+    }
     for (int node = 0; node < BC_NODES1.size(); node++) {
         ChSharedPtr<ChNodeFEAxyzD> FixedNode(my_mesh->GetNode(BC_NODES1[node]).DynamicCastTo<ChNodeFEAxyzD>());
         FixedNode->SetFixed(true);
     }
 
-    ChMatrix33<> rot_transform_2(0);
-    rot_transform_2.SetElement(0, 0, 1);
-    rot_transform_2.SetElement(1, 1, -1);
-    rot_transform_2.SetElement(2, 2, -1);
-    Center = ChVector<>(0, -0.2, 0.4);
-
     // Import the mesh
     try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Mesh_3.mesh").c_str(), material,
-                                               BC_NODES2, Center, rot_transform_2, 10, true, true, true);
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Tibia-2Low.mesh").c_str(), material,
+                                               BC_NODES2, Center, rot_transform, MeterToInch, false, false, false);
     } catch (ChException myerr) {
         GetLog() << myerr.what();
         return 0;
     }
-    //    for (int node = 0; node < BC_NODES2.size(); node++) {
-    //        ChSharedPtr<ChNodeFEAxyzD> FixedNode(my_mesh->GetNode(BC_NODES2[node]).DynamicCastTo<ChNodeFEAxyzD>());
-    //        if (FixedNode->GetPos().x < 0.01 * scaleFactor)
-    //            FixedNode->SetFixed(true);
-    //    }
-
+    for (int node = 0; node < BC_NODES2.size(); node++) {
+        ChSharedPtr<ChNodeFEAxyzD> FixedNode(my_mesh->GetNode(BC_NODES2[node]).DynamicCastTo<ChNodeFEAxyzD>());
+        FixedNode->SetFixed(true);
+    }
     ChSharedPtr<ChContactSurfaceMesh> mcontactsurf(new ChContactSurfaceMesh);
     my_mesh->AddContactSurface(mcontactsurf);
     mcontactsurf->AddFacesFromBoundary(sphere_swept_thickness);  // do this after my_mesh->AddContactSurface
@@ -216,11 +231,10 @@ int main(int argc, char* argv[]) {
 
     for (int ele = 0; ele < TotalNumElements; ele++) {
         ChSharedPtr<ChElementShellANCF> element(my_mesh->GetElement(ele).DynamicCastTo<ChElementShellANCF>());
-
         // Add a single layers with a fiber angle of 0 degrees.
         element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, material);
         // Set other element properties
-        element->SetAlphaDamp(0.08);   // Structural damping for this element
+        element->SetAlphaDamp(0.01);   // Structural damping for this element
         element->SetGravityOn(false);  // gravitational forces
     }
 
@@ -237,28 +251,6 @@ int main(int argc, char* argv[]) {
     //        }
     //    }
 
-    //    if (addConstrain) {
-    //        for (int node = 0; node < BC_NODES.size(); node++) {
-    //            ChSharedPtr<ChLinkPointFrame> NodePosBone;
-    //            ChSharedPtr<ChLinkDirFrame> NodeDirBone;
-    //            ChSharedPtr<ChNodeFEAxyzD> ConstrainedNode;
-    //            ConstrainedNode =
-    //                ChSharedPtr<ChNodeFEAxyzD>(my_mesh->GetNode(BC_NODES[node]).DynamicCastTo<ChNodeFEAxyzD>());
-    //            NodePosBone = ChSharedPtr<ChLinkPointFrame>(new ChLinkPointFrame);
-    //            NodePosBone->Initialize(ConstrainedNode, Body_Bone);
-    //            my_system.Add(NodePosBone);
-    //
-    //            NodeDirBone = ChSharedPtr<ChLinkDirFrame>(new ChLinkDirFrame);
-    //            NodeDirBone->Initialize(ConstrainedNode, Body_Bone);
-    //            NodeDirBone->SetDirectionInAbsoluteCoords(ConstrainedNode->D);
-    //            my_system.Add(NodeDirBone);
-    //        }
-    //}
-
-    //    if (addForce) {
-    //        ChSharedPtr<ChNodeFEAxyzD> forceNode(my_mesh->GetNode(0).DynamicCastTo<ChNodeFEAxyzD>());
-    //        forceNode->SetForce(ChVector<>(0.0, 1, 0.0));
-    //    }
     //    if (addPressure) {
     //        // First: loads must be added to "load containers",
     //        // and load containers must be added to your ChSystem
@@ -277,9 +269,13 @@ int main(int argc, char* argv[]) {
     //    }
 
     // Switch off mesh class gravity
+    addGravity = false;
     my_mesh->SetAutomaticGravity(addGravity);
-    my_system.Set_G_acc(ChVector<>(0, -9.8, 0));
-
+    if (addGravity) {
+        my_system.Set_G_acc(ChVector<>(0, -9.8, 0));
+    } else {
+        my_system.Set_G_acc(ChVector<>(0, 0, 0));
+    }
     // Add the mesh to the system
     my_system.Add(my_mesh);
 
@@ -304,7 +300,7 @@ int main(int argc, char* argv[]) {
     ChSharedPtr<ChVisualizationFEAmesh> mvisualizemeshC(new ChVisualizationFEAmesh(*(my_mesh.get_ptr())));
     mvisualizemeshC->SetFEMglyphType(ChVisualizationFEAmesh::E_GLYPH_NODE_DOT_POS);
     mvisualizemeshC->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_NONE);
-    mvisualizemeshC->SetSymbolsThickness(0.0004 * scaleFactor);
+    mvisualizemeshC->SetSymbolsThickness(1e-5 * scaleFactor);
     my_mesh->AddAsset(mvisualizemeshC);
 
     ChSharedPtr<ChVisualizationFEAmesh> mvisualizemeshD(new ChVisualizationFEAmesh(*(my_mesh.get_ptr())));
@@ -353,26 +349,27 @@ int main(int argc, char* argv[]) {
     //    my_system.SetTolForce(1e-10);
     //    msolver->SetVerbose(false);
     //
-    //    //    ChLcpMklSolver* mkl_solver_stab = new ChLcpMklSolver;  // MKL Solver option
-    //    //    ChLcpMklSolver* mkl_solver_speed = new ChLcpMklSolver;
-    //    //    my_system.ChangeLcpSolverStab(mkl_solver_stab);
-    //    //    my_system.ChangeLcpSolverSpeed(mkl_solver_speed);
-    //    //    mkl_solver_speed->SetSparsityPatternLock(true);
-    //    //    mkl_solver_stab->SetSparsityPatternLock(true);
+    //    ChLcpMklSolver* mkl_solver_stab = new ChLcpMklSolver;  // MKL Solver option
+    //    ChLcpMklSolver* mkl_solver_speed = new ChLcpMklSolver;
+    //    my_system.ChangeLcpSolverStab(mkl_solver_stab);
+    //    my_system.ChangeLcpSolverSpeed(mkl_solver_speed);
+    //    mkl_solver_speed->SetSparsityPatternLock(true);
+    //    mkl_solver_stab->SetSparsityPatternLock(true);
     //
+    //    // INT_HHT or INT_EULER_IMPLICIT
     //    my_system.SetIntegrationType(ChSystem::INT_HHT);
     //    ChSharedPtr<ChTimestepperHHT> mystepper = my_system.GetTimestepper().DynamicCastTo<ChTimestepperHHT>();
-    //    mystepper->SetAlpha(-0.2);
-    //    mystepper->SetMaxiters(200);
-    //    mystepper->SetTolerance(1e-06);
+    //    mystepper->SetAlpha(-0.3);  // Important for convergence
+    //    mystepper->SetMaxiters(10);
+    //    mystepper->SetAbsTolerances(1e-6, 1e-3);
     //    mystepper->SetMode(ChTimestepperHHT::POSITION);
     //    mystepper->SetScaling(true);
-    //    mystepper->SetVerbose(false);
+    //    mystepper->SetVerbose(true);
 
     my_system.SetLcpSolverType(ChSystem::LCP_ITERATIVE_MINRES);
     my_system.SetIterLCPwarmStarting(true);  // this helps a lot to speedup convergence in this class of problems
-    my_system.SetIterLCPmaxItersSpeed(40);
-    my_system.SetTolForce(1e-10);
+    my_system.SetIterLCPmaxItersSpeed(40000);
+    my_system.SetTolForce(1e-6);
     my_system.SetIntegrationType(ChSystem::INT_EULER_IMPLICIT_LINEARIZED);
 
     application.SetTimestep(time_step);
@@ -381,7 +378,7 @@ int main(int argc, char* argv[]) {
     while (application.GetDevice()->run()) {
         application.BeginScene();
         application.DrawAll();
-        //        std::cout << "Time t = " << my_system.GetChTime() << "s \t";
+        std::cout << "Time t = " << my_system.GetChTime() << "\n";
         //        std::cout << "pos.y = " << sampleNode->pos.y - y0 << "vs. " << -0.5 * 9.8 *
         //        pow(my_system.GetChTime(),
         //        2)
@@ -394,3 +391,4 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+
