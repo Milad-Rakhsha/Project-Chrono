@@ -59,7 +59,7 @@ bool addGravity = true;
 bool addPressure = false;
 bool showBone = true;
 bool addFixed = false;
-double time_step = 0.0005;
+double time_step = 0.0015;
 int scaleFactor = 35;
 double dz = 0.01;
 
@@ -188,7 +188,7 @@ int main(int argc, char* argv[]) {
     auto mvisualizemeshbeamnodes = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh.get()));
     mvisualizemeshbeamnodes->SetFEMglyphType(ChVisualizationFEAmesh::E_GLYPH_NODE_DOT_POS);
     mvisualizemeshbeamnodes->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_NONE);
-    mvisualizemeshbeamnodes->SetSymbolsThickness(0.0005);
+    mvisualizemeshbeamnodes->SetSymbolsThickness(0.0008);
     my_mesh->AddAsset(mvisualizemeshbeamnodes);
     application.AssetBindAll();
     application.AssetUpdateAll();
@@ -211,31 +211,6 @@ int main(int argc, char* argv[]) {
     // Simulation loop
     // ---------------
 
-    // Setup solver
-    //    my_system.SetLcpSolverType(ChSystem::LCP_ITERATIVE_MINRES);
-    //    ChLcpIterativeMINRES* msolver = (ChLcpIterativeMINRES*)my_system.GetLcpSolverSpeed();
-    //    msolver->SetDiagonalPreconditioning(true);
-    //    my_system.SetIterLCPwarmStarting(true);  // this helps a lot to speedup convergence in this class of
-    //    my_system.SetIterLCPmaxItersSpeed(40);
-    //    //    my_system.SetIterLCPmaxItersStab(1000);
-    //    my_system.SetTolForce(1e-10);
-    //    msolver->SetVerbose(false);
-    //
-    //    //    ChLcpMklSolver* mkl_solver_stab = new ChLcpMklSolver;  // MKL Solver option
-    //    //    ChLcpMklSolver* mkl_solver_speed = new ChLcpMklSolver;
-    //    //    my_system.ChangeLcpSolverStab(mkl_solver_stab);
-    //    //    my_system.ChangeLcpSolverSpeed(mkl_solver_speed);
-    //    //    mkl_solver_speed->SetSparsityPatternLock(true);
-    //    //    mkl_solver_stab->SetSparsityPatternLock(true);
-    //
-    //    my_system.SetIntegrationType(ChSystem::INT_HHT);
-    //    ChSharedPtr<ChTimestepperHHT> mystepper = my_system.GetTimestepper().DynamicCastTo<ChTimestepperHHT>();
-    //    mystepper->SetAlpha(-0.2);
-    //    mystepper->SetMaxiters(200);
-    //    mystepper->SetTolerance(1e-06);
-    //    mystepper->SetMode(ChTimestepperHHT::POSITION);
-    //    mystepper->SetScaling(true);
-    //    mystepper->SetVerbose(false);
     ChLcpMklSolver* mkl_solver_stab = new ChLcpMklSolver;
     ChLcpMklSolver* mkl_solver_speed = new ChLcpMklSolver;
     my_system.ChangeLcpSolverStab(mkl_solver_stab);
@@ -254,13 +229,18 @@ int main(int argc, char* argv[]) {
     //    msolver->SetVerbose(false);
     //
     // INT_HHT or INT_EULER_IMPLICIT
-
-    my_system.SetIntegrationType(ChSystem::INT_EULER_IMPLICIT_LINEARIZED);  // fast, less precise
+    my_system.SetIntegrationType(ChSystem::INT_HHT);
     auto mystepper = std::dynamic_pointer_cast<ChTimestepperHHT>(my_system.GetTimestepper());
+    mystepper->SetAlpha(-0.2);
+    mystepper->SetMaxiters(200);
+    mystepper->SetAbsTolerances(1e-06);
+    mystepper->SetMode(ChTimestepperHHT::POSITION);
+    mystepper->SetScaling(true);
+    mystepper->SetVerbose(false);
+    //    my_system.SetIntegrationType(ChSystem::INT_EULER_IMPLICIT_LINEARIZED);  // fast, less precise
 
     application.SetTimestep(time_step);
-    //    ChSharedPtr<ChNodeFEAxyzD> sampleNode(my_mesh->GetNode(89).DynamicCastTo<ChNodeFEAxyzD>());
-    //    double y0 = sampleNode->pos.y;
+
     while (application.GetDevice()->run()) {
         application.BeginScene();
         application.DrawAll();
@@ -277,3 +257,4 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+
