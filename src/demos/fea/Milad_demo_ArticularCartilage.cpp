@@ -56,14 +56,14 @@ using namespace std;
 
 // bool addConstrain = true;
 // bool addForce = true;
-bool addGravity = false;
+bool addGravity = true;
 bool addPressure = false;
-bool showTibia = true;
+bool showTibia = false;
 bool showFemur = true;
 // bool addFixed = false;
-double time_step = 0.001;
+double time_step = 0.0001;
 int scaleFactor = 1;
-double dz = 0.0003;
+double dz = 0.001;
 double MeterToInch = 0.02539998628;
 
 int main(int argc, char* argv[]) {
@@ -77,19 +77,19 @@ int main(int argc, char* argv[]) {
     application.AddTypicalLogo();
     application.AddTypicalSky();
     application.AddTypicalLights();
-    application.AddTypicalCamera(core::vector3df(-0.5f, 0.f, -0.0f),  // camera location
-                                 core::vector3df(0.0f, 0.f, 0.f));    // "look at" location
+    application.AddTypicalCamera(core::vector3df(-0.08f, -0.01f, 0.005f),  // camera location
+                                 core::vector3df(0.0f, 0.f, 0.f));         // "look at" location
     application.SetContactsDrawMode(ChIrrTools::CONTACT_DISTANCES);
 
     // collision::ChCollisionModel::SetDefaultSuggestedEnvelope(0.0); // not needed, already 0 when using
-    collision::ChCollisionModel::SetDefaultSuggestedMargin(
-        0);  // max inside penetration - if not enough stiffness in material: troubles
+    collision::ChCollisionModel::SetDefaultSuggestedMargin(1.5);  // max inside penetration - if not enough stiffness in
+                                                                  // material: troubles
     // Use this value for an outward additional layer around meshes, that can improve
     // robustness of mesh-mesh collision detection (at the cost of having unnatural inflate effect)
-    double sphere_swept_thickness = 1 * dz / 2 * 1.5;
+    double sphere_swept_thickness = dz / 2;
 
     double rho = 1000;  ///< material density
-    double E = 5e5;     ///< Young's modulus
+    double E = 1e5;     ///< Young's modulus
     double nu = 0.3;    ///< Poisson ratio
     // Create the surface material, containing information
     // about friction etc.
@@ -97,26 +97,24 @@ int main(int argc, char* argv[]) {
     // all surfaces that might generate contacts.
 
     auto mysurfmaterial = std::make_shared<ChMaterialSurfaceDEM>();
-    mysurfmaterial->SetYoungModulus(6e4);
+    mysurfmaterial->SetYoungModulus(6e3);
     mysurfmaterial->SetFriction(0.3f);
-    mysurfmaterial->SetRestitution(0.2f);
+    mysurfmaterial->SetRestitution(0.5f);
     mysurfmaterial->SetAdhesion(0);
 
     GetLog() << "-----------------------------------------------------------\n";
     GetLog() << "-----------------------------------------------------------\n";
     GetLog() << "   		Articular Cartilage Modeling   \n";
     GetLog() << "-----------------------------------------------------------\n\n";
-    ChVector<> Center_Femur(0, 0.001, 0);
-
     // Creating Rigid body
     GetLog() << "	Adding the Tibia as a Rigid Body ...\n";
     auto Tibia = std::make_shared<ChBody>();
     Tibia->SetPos(ChVector<>(0, 0, 0));
     Tibia->SetBodyFixed(true);
     Tibia->SetMaterialSurface(mysurfmaterial);
-    my_system.Add(Tibia);
-    Tibia->SetMass(0);
-    Tibia->SetInertiaXX(ChVector<>(1, 0.2, 1));
+    //    my_system.Add(Tibia);
+    Tibia->SetMass(0.1);
+    Tibia->SetInertiaXX(ChVector<>(0.004, 0.8e-4, 0.004));
     auto mobjmesh1 = std::make_shared<ChObjShapeFile>();
     mobjmesh1->SetFilename(GetChronoDataFile("fea/tibia.obj"));
     if (showTibia) {
@@ -124,27 +122,40 @@ int main(int argc, char* argv[]) {
     }
 
     GetLog() << "	Adding the Femur as a Rigid Body ...\n";
-
+    ChVector<> Center_Femur(0, 0.04, 0);
     auto Femur = std::make_shared<ChBody>();
     Femur->SetPos(Center_Femur);
-    Femur->SetBodyFixed(false);
+    Femur->SetBodyFixed(true);
     Femur->SetMaterialSurface(mysurfmaterial);
     my_system.Add(Femur);
-    Femur->SetMass(0.0);
-    Femur->Set_Scr_force(ChVector<>(0, -0.5, 0));
-    Femur->SetInertiaXX(ChVector<>(1, 0.2, 1));
+    Femur->SetMass(0.2);
+    Femur->Set_Scr_force(ChVector<>(0, -0.1, 0));
+    Femur->SetInertiaXX(ChVector<>(0.004, 0.8e-4, 0.004));
     auto mobjmesh2 = std::make_shared<ChObjShapeFile>();
     mobjmesh2->SetFilename(GetChronoDataFile("fea/femur.obj"));
     if (showFemur) {
         Femur->AddAsset(mobjmesh2);
     }
     // Constraining the motion of the Fumer to y direction for now
+    //    if (true) {
+    //        // Prismatic joint between hub and suspended mass
+    //        auto primsJoint = std::make_shared<ChLinkLockPrismatic>();
+    //        my_system.AddLink(primsJoint);
+    //        primsJoint->Initialize(Femur, Tibia, ChCoordsys<>(ChVector<>(0, 0, 0), Q_from_AngX(-CH_C_PI_2)));
+    //    }
+
+    // Adding the ground
     if (true) {
-        // Prismatic joint between hub and suspended mass
-        auto primsJoint = std::make_shared<ChLinkLockPrismatic>();
-        my_system.AddLink(primsJoint);
-        primsJoint->Initialize(Femur, Tibia, ChCoordsys<>(ChVector<>(0, 0, 0), Q_from_AngX(-CH_C_PI_2)));
+        auto mfloor = std::make_shared<ChBodyEasyBox>(0.5, 0.01, 0.5, 8000, true);
+
+        mfloor->SetBodyFixed(true);
+        mfloor->SetMaterialSurface(mysurfmaterial);
+        my_system.Add(mfloor);
+        auto masset_texture = std::make_shared<ChTexture>();
+        masset_texture->SetTextureFilename(GetChronoDataFile("concrete.jpg"));
+        mfloor->AddAsset(masset_texture);
     }
+
     GetLog() << "-----------------------------------------------------------\n\n";
 
     int TotalNumNodes, TotalNumElements, TottalNumBEdges;
@@ -158,14 +169,13 @@ int main(int argc, char* argv[]) {
     auto my_mesh = std::make_shared<ChMesh>();
     //    ChMatrix33<> rot_transform(0);
     //    rot_transform.SetElement(0, 0, 1);
-    //    rot_transform.SetElement(1, 2, -1);
-    //    rot_transform.SetElement(2, 1, 1);
-    //    ChVector<> Center(-1, 0, 0.2);
+    //    rot_transform.SetElement(1, 1, -1);
+    //    rot_transform.SetElement(2, 2, 1);
 
     ChMatrix33<> rot_transform(1);
     // Import the Torus
     try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/FemurFine.mesh").c_str(), material,
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/FemurCoarse.mesh").c_str(), material,
                                                BC_NODES, Center_Femur, rot_transform, MeterToInch, false, false, false);
     } catch (ChException myerr) {
         GetLog() << myerr.what();
@@ -193,34 +203,38 @@ int main(int argc, char* argv[]) {
     //    rot_transform_2.SetElement(1, 1, -1);
     //    rot_transform_2.SetElement(2, 2, -1);
     //    Center = ChVector<>(0, -0.2, 0.4);
-    ChVector<> Center(0, 0.0, 0);
-    // Import the mesh
-    try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Tibia-1Low.mesh").c_str(), material,
-                                               BC_NODES1, Center, rot_transform, MeterToInch, false, false, false);
-    } catch (ChException myerr) {
-        GetLog() << myerr.what();
-        return 0;
-    }
-    for (int node = 0; node < BC_NODES1.size(); node++) {
-        auto FixedNode = std::make_shared<ChNodeFEAxyzD>();
-        FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(BC_NODES1[node]));
-        FixedNode->SetFixed(true);
-    }
-
-    // Import the mesh
-    try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Tibia-2Low.mesh").c_str(), material,
-                                               BC_NODES2, Center, rot_transform, MeterToInch, false, false, false);
-    } catch (ChException myerr) {
-        GetLog() << myerr.what();
-        return 0;
-    }
-    for (int node = 0; node < BC_NODES2.size(); node++) {
-        auto FixedNode = std::make_shared<ChNodeFEAxyzD>();
-        FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(BC_NODES2[node]));
-        FixedNode->SetFixed(true);
-    }
+    //    ChVector<> Center(0, 0.0, 0);
+    //    // Import the mesh
+    //    try {
+    //        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Tibia-1Low.mesh").c_str(),
+    //        material,
+    //                                               BC_NODES1, Center, rot_transform, MeterToInch, false, false,
+    //                                               false);
+    //    } catch (ChException myerr) {
+    //        GetLog() << myerr.what();
+    //        return 0;
+    //    }
+    //    for (int node = 0; node < BC_NODES1.size(); node++) {
+    //        auto FixedNode = std::make_shared<ChNodeFEAxyzD>();
+    //        FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(BC_NODES1[node]));
+    //        FixedNode->SetFixed(true);
+    //    }
+    //
+    //    // Import the mesh
+    //    try {
+    //        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Tibia-2Low.mesh").c_str(),
+    //        material,
+    //                                               BC_NODES2, Center, rot_transform, MeterToInch, false, false,
+    //                                               false);
+    //    } catch (ChException myerr) {
+    //        GetLog() << myerr.what();
+    //        return 0;
+    //    }
+    //    for (int node = 0; node < BC_NODES2.size(); node++) {
+    //        auto FixedNode = std::make_shared<ChNodeFEAxyzD>();
+    //        FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(BC_NODES2[node]));
+    //        FixedNode->SetFixed(true);
+    //    }
 
     // Create the contact surface(s).
     // In this case it is a ChContactSurfaceMesh, that allows mesh-mesh collsions.
@@ -238,7 +252,7 @@ int main(int argc, char* argv[]) {
         // Add a single layers with a fiber angle of 0 degrees.
         element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, material);
         // Set other element properties
-        element->SetAlphaDamp(0.01);   // Structural damping for this element
+        element->SetAlphaDamp(0.03);   // Structural damping for this element
         element->SetGravityOn(false);  // gravitational forces
     }
 
@@ -273,7 +287,6 @@ int main(int argc, char* argv[]) {
     //    }
 
     // Switch off mesh class gravity
-    addGravity = false;
     my_mesh->SetAutomaticGravity(addGravity);
     if (addGravity) {
         my_system.Set_G_acc(ChVector<>(0, -9.8, 0));
@@ -332,6 +345,13 @@ int main(int argc, char* argv[]) {
     // ---------------
     // Simulation loop
     // ---------------
+    ChLcpMklSolver* mkl_solver_stab = new ChLcpMklSolver;
+    ChLcpMklSolver* mkl_solver_speed = new ChLcpMklSolver;
+    my_system.ChangeLcpSolverStab(mkl_solver_stab);
+    my_system.ChangeLcpSolverSpeed(mkl_solver_speed);
+    mkl_solver_stab->SetSparsityPatternLock(true);
+    mkl_solver_speed->SetSparsityPatternLock(true);
+    application.GetSystem()->Update();
 
     // Setup solver
     //    my_system.SetLcpSolverType(ChSystem::LCP_ITERATIVE_MINRES);
@@ -339,46 +359,26 @@ int main(int argc, char* argv[]) {
     //    msolver->SetDiagonalPreconditioning(true);
     //    my_system.SetIterLCPwarmStarting(true);  // this helps a lot to speedup convergence in this class of
     //    my_system.SetIterLCPmaxItersSpeed(40);
-    //    //    my_system.SetIterLCPmaxItersStab(1000);
-    //    my_system.SetTolForce(1e-10);
+    //    my_system.SetTolForce(1e-6);
     //    msolver->SetVerbose(false);
     //
     // INT_HHT or INT_EULER_IMPLICIT
-    my_system.SetIntegrationType(ChSystem::INT_HHT);
-    auto mystepper = std::dynamic_pointer_cast<ChTimestepperHHT>(my_system.GetTimestepper());
-    mystepper->SetAlpha(-0.2);  // Important for convergence
-    mystepper->SetMaxiters(20);
-    mystepper->SetAbsTolerances(5e-05, 5e-03);
-    mystepper->SetMode(ChTimestepperHHT::POSITION);
-    mystepper->SetScaling(true);  //
-    mystepper->SetVerbose(true);
+    my_system.SetIntegrationType(ChSystem::INT_EULER_IMPLICIT_LINEARIZED);  // fast, less precise
 
-    //    ChLcpMklSolver* mkl_solver_stab = new ChLcpMklSolver;  // MKL Solver option
-    //    ChLcpMklSolver* mkl_solver_speed = new ChLcpMklSolver;
-    //    my_system.ChangeLcpSolverStab(mkl_solver_stab);
-    //    my_system.ChangeLcpSolverSpeed(mkl_solver_speed);
-    //    mkl_solver_speed->SetSparsityPatternLock(false);
-    //    mkl_solver_stab->SetSparsityPatternLock(false);
-    //
-    my_system.SetLcpSolverType(ChSystem::LCP_ITERATIVE_MINRES);
-    my_system.SetIterLCPwarmStarting(true);  // this helps a lot to speedup convergence in this class of problems
-    my_system.SetIterLCPmaxItersSpeed(4000);
-    my_system.SetTolForce(1e-6);
-    my_system.SetIntegrationType(ChSystem::INT_EULER_IMPLICIT_LINEARIZED);
+    //    my_system.SetIntegrationType(ChSystem::INT_HHT);
+    //    auto mystepper = std::dynamic_pointer_cast<ChTimestepperHHT>(my_system.GetTimestepper());
+    //    mystepper->SetAlpha(-0.2);
+    //    mystepper->SetMaxiters(200);
+    //    mystepper->SetAbsTolerances(1e-06);
+    //    mystepper->SetMode(ChTimestepperHHT::POSITION);
+    //    mystepper->SetScaling(true);
+    //    mystepper->SetVerbose(false);
 
     application.SetTimestep(time_step);
-    //    ChSharedPtr<ChNodeFEAxyzD> sampleNode(my_mesh->GetNode(89).DynamicCastTo<ChNodeFEAxyzD>());
-    //    double y0 = sampleNode->pos.y;
     while (application.GetDevice()->run()) {
         application.BeginScene();
         application.DrawAll();
         std::cout << "Time t = " << my_system.GetChTime() << "\n";
-        //        std::cout << "pos.y = " << sampleNode->pos.y - y0 << "vs. " << -0.5 * 9.8 *
-        //        pow(my_system.GetChTime(),
-        //        2)
-        //                  << "\n";
-        double t_s = my_system.GetChTime();
-
         application.DoStep();
         application.EndScene();
     }
