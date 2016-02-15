@@ -61,7 +61,7 @@ bool addPressure = false;
 bool showTibia = false;
 bool showFemur = true;
 // bool addFixed = false;
-double time_step = 0.0001;
+double time_step = 0.00005;
 int scaleFactor = 1;
 double dz = 0.001;
 double MeterToInch = 0.02539998628;
@@ -82,11 +82,12 @@ int main(int argc, char* argv[]) {
     application.SetContactsDrawMode(ChIrrTools::CONTACT_DISTANCES);
 
     // collision::ChCollisionModel::SetDefaultSuggestedEnvelope(0.0); // not needed, already 0 when using
-    collision::ChCollisionModel::SetDefaultSuggestedMargin(1.5);  // max inside penetration - if not enough stiffness in
-                                                                  // material: troubles
+    collision::ChCollisionModel::SetDefaultSuggestedMargin(dz /
+                                                           10);  // max inside penetration - if not enough stiffness in
+                                                                 // material: troubles
     // Use this value for an outward additional layer around meshes, that can improve
     // robustness of mesh-mesh collision detection (at the cost of having unnatural inflate effect)
-    double sphere_swept_thickness = dz / 2;
+    double sphere_swept_thickness = dz / 10;
 
     double rho = 1000;  ///< material density
     double E = 1e5;     ///< Young's modulus
@@ -97,7 +98,7 @@ int main(int argc, char* argv[]) {
     // all surfaces that might generate contacts.
 
     auto mysurfmaterial = std::make_shared<ChMaterialSurfaceDEM>();
-    mysurfmaterial->SetYoungModulus(6e3);
+    mysurfmaterial->SetYoungModulus(1e5);
     mysurfmaterial->SetFriction(0.3f);
     mysurfmaterial->SetRestitution(0.5f);
     mysurfmaterial->SetAdhesion(0);
@@ -122,14 +123,14 @@ int main(int argc, char* argv[]) {
     }
 
     GetLog() << "	Adding the Femur as a Rigid Body ...\n";
-    ChVector<> Center_Femur(0, 0.04, 0);
+    ChVector<> Center_Femur(0, 0.002, 0);
     auto Femur = std::make_shared<ChBody>();
     Femur->SetPos(Center_Femur);
     Femur->SetBodyFixed(true);
     Femur->SetMaterialSurface(mysurfmaterial);
-    my_system.Add(Femur);
+    // my_system.Add(Femur);
     Femur->SetMass(0.2);
-    Femur->Set_Scr_force(ChVector<>(0, -0.1, 0));
+    Femur->Set_Scr_force(ChVector<>(0, -0.001, 0));
     Femur->SetInertiaXX(ChVector<>(0.004, 0.8e-4, 0.004));
     auto mobjmesh2 = std::make_shared<ChObjShapeFile>();
     mobjmesh2->SetFilename(GetChronoDataFile("fea/femur.obj"));
@@ -143,19 +144,6 @@ int main(int argc, char* argv[]) {
     //        my_system.AddLink(primsJoint);
     //        primsJoint->Initialize(Femur, Tibia, ChCoordsys<>(ChVector<>(0, 0, 0), Q_from_AngX(-CH_C_PI_2)));
     //    }
-
-    // Adding the ground
-    if (true) {
-        auto mfloor = std::make_shared<ChBodyEasyBox>(0.5, 0.01, 0.5, 8000, true);
-
-        mfloor->SetBodyFixed(true);
-        mfloor->SetMaterialSurface(mysurfmaterial);
-        my_system.Add(mfloor);
-        auto masset_texture = std::make_shared<ChTexture>();
-        masset_texture->SetTextureFilename(GetChronoDataFile("concrete.jpg"));
-        mfloor->AddAsset(masset_texture);
-    }
-
     GetLog() << "-----------------------------------------------------------\n\n";
 
     int TotalNumNodes, TotalNumElements, TottalNumBEdges;
@@ -176,13 +164,13 @@ int main(int argc, char* argv[]) {
     // Import the Torus
     try {
         ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/FemurCoarse.mesh").c_str(), material,
-                                               BC_NODES, Center_Femur, rot_transform, MeterToInch, false, false, false);
+                                               BC_NODES, Center_Femur, rot_transform, MeterToInch, false, false);
     } catch (ChException myerr) {
         GetLog() << myerr.what();
         return 0;
     }
-
-    if (true) {
+    //
+    if (false) {
         for (int node = 0; node < BC_NODES.size(); node++) {
             auto NodePosBone = std::make_shared<ChLinkPointFrame>();
             auto NodeDirBone = std::make_shared<ChLinkDirFrame>();
@@ -203,38 +191,34 @@ int main(int argc, char* argv[]) {
     //    rot_transform_2.SetElement(1, 1, -1);
     //    rot_transform_2.SetElement(2, 2, -1);
     //    Center = ChVector<>(0, -0.2, 0.4);
-    //    ChVector<> Center(0, 0.0, 0);
-    //    // Import the mesh
-    //    try {
-    //        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Tibia-1Low.mesh").c_str(),
-    //        material,
-    //                                               BC_NODES1, Center, rot_transform, MeterToInch, false, false,
-    //                                               false);
-    //    } catch (ChException myerr) {
-    //        GetLog() << myerr.what();
-    //        return 0;
-    //    }
-    //    for (int node = 0; node < BC_NODES1.size(); node++) {
-    //        auto FixedNode = std::make_shared<ChNodeFEAxyzD>();
-    //        FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(BC_NODES1[node]));
-    //        FixedNode->SetFixed(true);
-    //    }
-    //
-    //    // Import the mesh
-    //    try {
-    //        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Tibia-2Low.mesh").c_str(),
-    //        material,
-    //                                               BC_NODES2, Center, rot_transform, MeterToInch, false, false,
-    //                                               false);
-    //    } catch (ChException myerr) {
-    //        GetLog() << myerr.what();
-    //        return 0;
-    //    }
-    //    for (int node = 0; node < BC_NODES2.size(); node++) {
-    //        auto FixedNode = std::make_shared<ChNodeFEAxyzD>();
-    //        FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(BC_NODES2[node]));
-    //        FixedNode->SetFixed(true);
-    //    }
+    ChVector<> Center(0, 0.0, 0);
+    // Import the mesh
+    try {
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Tibia-1Low.mesh").c_str(), material,
+                                               BC_NODES1, Center, rot_transform, MeterToInch, false, false);
+    } catch (ChException myerr) {
+        GetLog() << myerr.what();
+        return 0;
+    }
+    for (int node = 0; node < BC_NODES1.size(); node++) {
+        auto FixedNode = std::make_shared<ChNodeFEAxyzD>();
+        FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(BC_NODES1[node]));
+        FixedNode->SetFixed(true);
+    }
+
+    // Import the mesh
+    try {
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Tibia-2Low.mesh").c_str(), material,
+                                               BC_NODES2, Center, rot_transform, MeterToInch, false, false);
+    } catch (ChException myerr) {
+        GetLog() << myerr.what();
+        return 0;
+    }
+    for (int node = 0; node < BC_NODES2.size(); node++) {
+        auto FixedNode = std::make_shared<ChNodeFEAxyzD>();
+        FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(BC_NODES2[node]));
+        FixedNode->SetFixed(true);
+    }
 
     // Create the contact surface(s).
     // In this case it is a ChContactSurfaceMesh, that allows mesh-mesh collsions.
@@ -252,7 +236,7 @@ int main(int argc, char* argv[]) {
         // Add a single layers with a fiber angle of 0 degrees.
         element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, material);
         // Set other element properties
-        element->SetAlphaDamp(0.03);   // Structural damping for this element
+        element->SetAlphaDamp(0.04);   // Structural damping for this element
         element->SetGravityOn(false);  // gravitational forces
     }
 
@@ -269,22 +253,21 @@ int main(int argc, char* argv[]) {
     //        }
     //    }
 
-    //    if (addPressure) {
-    //        // First: loads must be added to "load containers",
-    //        // and load containers must be added to your ChSystem
-    //        ChSharedPtr<ChLoadContainer> Mloadcontainer(new ChLoadContainer);
-    //        // Add constant pressure using ChLoaderPressure (preferred for simple, constant pressure)
-    //        for (int NoElmPre = 0; NoElmPre < TotalNumElements; NoElmPre++) {
-    //            ChSharedPtr<ChLoad<ChLoaderPressure>> faceload(
-    //                new
-    //                ChLoad<ChLoaderPressure>(my_mesh->GetElement(NoElmPre).StaticCastTo<ChElementShellANCF>()));
-    //            faceload->loader.SetPressure(350);
-    //            faceload->loader.SetStiff(false);
-    //            faceload->loader.SetIntegrationPoints(2);
-    //            Mloadcontainer->Add(faceload);
-    //        }
-    //        my_system.Add(Mloadcontainer);
-    //    }
+    if (addPressure) {
+        // First: loads must be added to "load containers",
+        // and load containers must be added to your ChSystem
+        auto Mloadcontainer = std::make_shared<ChLoadContainer>();
+        // Add constant pressure using ChLoaderPressure (preferred for simple, constant pressure)
+        for (int NoElmPre = 0; NoElmPre < TotalNumElements; NoElmPre++) {
+            auto faceload = std::make_shared<ChLoad<ChLoaderPressure>>(
+                std::static_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(NoElmPre)));
+            faceload->loader.SetPressure(-10);
+            faceload->loader.SetStiff(false);
+            faceload->loader.SetIntegrationPoints(2);
+            Mloadcontainer->Add(faceload);
+        }
+        my_system.Add(Mloadcontainer);
+    }
 
     // Switch off mesh class gravity
     my_mesh->SetAutomaticGravity(addGravity);
@@ -322,7 +305,7 @@ int main(int argc, char* argv[]) {
     auto mvisualizemeshbeamnodes = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh.get()));
     mvisualizemeshbeamnodes->SetFEMglyphType(ChVisualizationFEAmesh::E_GLYPH_NODE_DOT_POS);
     mvisualizemeshbeamnodes->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_NONE);
-    mvisualizemeshbeamnodes->SetSymbolsThickness(0.0005);
+    mvisualizemeshbeamnodes->SetSymbolsThickness(0.0002);
     my_mesh->AddAsset(mvisualizemeshbeamnodes);
 
     application.AssetBindAll();
@@ -363,16 +346,16 @@ int main(int argc, char* argv[]) {
     //    msolver->SetVerbose(false);
     //
     // INT_HHT or INT_EULER_IMPLICIT
-    my_system.SetIntegrationType(ChSystem::INT_EULER_IMPLICIT_LINEARIZED);  // fast, less precise
+    //    my_system.SetIntegrationType(ChSystem::INT_EULER_IMPLICIT_LINEARIZED);  // fast, less precise
 
-    //    my_system.SetIntegrationType(ChSystem::INT_HHT);
-    //    auto mystepper = std::dynamic_pointer_cast<ChTimestepperHHT>(my_system.GetTimestepper());
-    //    mystepper->SetAlpha(-0.2);
-    //    mystepper->SetMaxiters(200);
-    //    mystepper->SetAbsTolerances(1e-06);
-    //    mystepper->SetMode(ChTimestepperHHT::POSITION);
-    //    mystepper->SetScaling(true);
-    //    mystepper->SetVerbose(false);
+    my_system.SetIntegrationType(ChSystem::INT_HHT);
+    auto mystepper = std::dynamic_pointer_cast<ChTimestepperHHT>(my_system.GetTimestepper());
+    mystepper->SetAlpha(-0.2);
+    mystepper->SetMaxiters(200);
+    mystepper->SetAbsTolerances(1e-06);
+    mystepper->SetMode(ChTimestepperHHT::POSITION);
+    mystepper->SetScaling(true);
+    mystepper->SetVerbose(true);
 
     application.SetTimestep(time_step);
     while (application.GetDevice()->run()) {
@@ -385,4 +368,3 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-
