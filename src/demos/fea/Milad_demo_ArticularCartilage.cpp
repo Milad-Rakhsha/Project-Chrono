@@ -61,9 +61,9 @@ bool addPressure = false;
 bool showTibia = false;
 bool showFemur = true;
 // bool addFixed = false;
-double time_step = 0.00005;
+double time_step = 0.00004;
 int scaleFactor = 1;
-double dz = 0.001;
+double dz = 0.0005;
 double MeterToInch = 0.02539998628;
 
 int main(int argc, char* argv[]) {
@@ -82,12 +82,11 @@ int main(int argc, char* argv[]) {
     application.SetContactsDrawMode(ChIrrTools::CONTACT_DISTANCES);
 
     // collision::ChCollisionModel::SetDefaultSuggestedEnvelope(0.0); // not needed, already 0 when using
-    collision::ChCollisionModel::SetDefaultSuggestedMargin(dz /
-                                                           10);  // max inside penetration - if not enough stiffness in
+    collision::ChCollisionModel::SetDefaultSuggestedMargin(1.5);  // max inside penetration - if not enough stiffness in
                                                                  // material: troubles
     // Use this value for an outward additional layer around meshes, that can improve
     // robustness of mesh-mesh collision detection (at the cost of having unnatural inflate effect)
-    double sphere_swept_thickness = dz / 10;
+    double sphere_swept_thickness = dz*0.02;
 
     double rho = 1000;  ///< material density
     double E = 1e5;     ///< Young's modulus
@@ -98,7 +97,7 @@ int main(int argc, char* argv[]) {
     // all surfaces that might generate contacts.
 
     auto mysurfmaterial = std::make_shared<ChMaterialSurfaceDEM>();
-    mysurfmaterial->SetYoungModulus(1e5);
+    mysurfmaterial->SetYoungModulus(1e2);
     mysurfmaterial->SetFriction(0.3f);
     mysurfmaterial->SetRestitution(0.5f);
     mysurfmaterial->SetAdhesion(0);
@@ -130,7 +129,6 @@ int main(int argc, char* argv[]) {
     Femur->SetMaterialSurface(mysurfmaterial);
     // my_system.Add(Femur);
     Femur->SetMass(0.2);
-    Femur->Set_Scr_force(ChVector<>(0, -0.001, 0));
     Femur->SetInertiaXX(ChVector<>(0.004, 0.8e-4, 0.004));
     auto mobjmesh2 = std::make_shared<ChObjShapeFile>();
     mobjmesh2->SetFilename(GetChronoDataFile("fea/femur.obj"));
@@ -163,7 +161,7 @@ int main(int argc, char* argv[]) {
     ChMatrix33<> rot_transform(1);
     // Import the Torus
     try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/FemurCoarse.mesh").c_str(), material,
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/FemurFine.mesh").c_str(), material,
                                                BC_NODES, Center_Femur, rot_transform, MeterToInch, false, false);
     } catch (ChException myerr) {
         GetLog() << myerr.what();
@@ -346,16 +344,17 @@ int main(int argc, char* argv[]) {
     //    msolver->SetVerbose(false);
     //
     // INT_HHT or INT_EULER_IMPLICIT
-    //    my_system.SetIntegrationType(ChSystem::INT_EULER_IMPLICIT_LINEARIZED);  // fast, less precise
+    //my_system.SetIntegrationType(ChSystem::INT_EULER_IMPLICIT_LINEARIZED);  // fast, less precise
 
-    my_system.SetIntegrationType(ChSystem::INT_HHT);
+    /*my_system.SetIntegrationType(ChSystem::INT_HHT);
     auto mystepper = std::dynamic_pointer_cast<ChTimestepperHHT>(my_system.GetTimestepper());
-    mystepper->SetAlpha(-0.2);
+    mystepper->SetAlpha(-0.0);
     mystepper->SetMaxiters(200);
-    mystepper->SetAbsTolerances(1e-06);
+    mystepper->SetAbsTolerances(1e-06, 1e-03);
     mystepper->SetMode(ChTimestepperHHT::POSITION);
     mystepper->SetScaling(true);
     mystepper->SetVerbose(true);
+    mystepper->SetMaxiters(20);*/
 
     application.SetTimestep(time_step);
     while (application.GetDevice()->run()) {
