@@ -56,12 +56,12 @@ using namespace std;
 
 // bool addConstrain = true;
 // bool addForce = true;
-bool addGravity = true;
+bool addGravity = false;
 bool addPressure = false;
 bool showTibia = false;
 bool showFemur = true;
 // bool addFixed = false;
-double time_step = 0.00004;
+double time_step = 0.0005;
 int scaleFactor = 1;
 double dz = 0.0005;
 double MeterToInch = 0.02539998628;
@@ -83,13 +83,13 @@ int main(int argc, char* argv[]) {
 
     // collision::ChCollisionModel::SetDefaultSuggestedEnvelope(0.0); // not needed, already 0 when using
     collision::ChCollisionModel::SetDefaultSuggestedMargin(1.5);  // max inside penetration - if not enough stiffness in
-                                                                 // material: troubles
+                                                                  // material: troubles
     // Use this value for an outward additional layer around meshes, that can improve
     // robustness of mesh-mesh collision detection (at the cost of having unnatural inflate effect)
-    double sphere_swept_thickness = dz*0.02;
+    double sphere_swept_thickness = dz * 0.01;
 
     double rho = 1000;  ///< material density
-    double E = 1e5;     ///< Young's modulus
+    double E = 1e6;     ///< Young's modulus
     double nu = 0.3;    ///< Poisson ratio
     // Create the surface material, containing information
     // about friction etc.
@@ -97,7 +97,7 @@ int main(int argc, char* argv[]) {
     // all surfaces that might generate contacts.
 
     auto mysurfmaterial = std::make_shared<ChMaterialSurfaceDEM>();
-    mysurfmaterial->SetYoungModulus(1e2);
+    mysurfmaterial->SetYoungModulus(1e3);
     mysurfmaterial->SetFriction(0.3f);
     mysurfmaterial->SetRestitution(0.5f);
     mysurfmaterial->SetAdhesion(0);
@@ -112,7 +112,7 @@ int main(int argc, char* argv[]) {
     Tibia->SetPos(ChVector<>(0, 0, 0));
     Tibia->SetBodyFixed(true);
     Tibia->SetMaterialSurface(mysurfmaterial);
-    //    my_system.Add(Tibia);
+    my_system.Add(Tibia);
     Tibia->SetMass(0.1);
     Tibia->SetInertiaXX(ChVector<>(0.004, 0.8e-4, 0.004));
     auto mobjmesh1 = std::make_shared<ChObjShapeFile>();
@@ -125,10 +125,11 @@ int main(int argc, char* argv[]) {
     ChVector<> Center_Femur(0, 0.002, 0);
     auto Femur = std::make_shared<ChBody>();
     Femur->SetPos(Center_Femur);
-    Femur->SetBodyFixed(true);
+    Femur->SetBodyFixed(false);
     Femur->SetMaterialSurface(mysurfmaterial);
-    // my_system.Add(Femur);
+    my_system.Add(Femur);
     Femur->SetMass(0.2);
+    Femur->Set_Scr_force(ChVector<>(0, -0.001, 0));
     Femur->SetInertiaXX(ChVector<>(0.004, 0.8e-4, 0.004));
     auto mobjmesh2 = std::make_shared<ChObjShapeFile>();
     mobjmesh2->SetFilename(GetChronoDataFile("fea/femur.obj"));
@@ -168,7 +169,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
     //
-    if (false) {
+    if (true) {
         for (int node = 0; node < BC_NODES.size(); node++) {
             auto NodePosBone = std::make_shared<ChLinkPointFrame>();
             auto NodeDirBone = std::make_shared<ChLinkDirFrame>();
@@ -192,7 +193,7 @@ int main(int argc, char* argv[]) {
     ChVector<> Center(0, 0.0, 0);
     // Import the mesh
     try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Tibia-1Low.mesh").c_str(), material,
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Tibia-1.mesh").c_str(), material,
                                                BC_NODES1, Center, rot_transform, MeterToInch, false, false);
     } catch (ChException myerr) {
         GetLog() << myerr.what();
@@ -206,7 +207,7 @@ int main(int argc, char* argv[]) {
 
     // Import the mesh
     try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Tibia-2Low.mesh").c_str(), material,
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Tibia-2.mesh").c_str(), material,
                                                BC_NODES2, Center, rot_transform, MeterToInch, false, false);
     } catch (ChException myerr) {
         GetLog() << myerr.what();
@@ -237,19 +238,6 @@ int main(int argc, char* argv[]) {
         element->SetAlphaDamp(0.04);   // Structural damping for this element
         element->SetGravityOn(false);  // gravitational forces
     }
-
-    //    if (addFixed) {
-    //        for (int node = 0; node < BC_NODES.size(); node++) {
-    //            ChSharedPtr<ChNodeFEAxyzD>
-    //            FixedNode(my_mesh->GetNode(BC_NODES[node]).DynamicCastTo<ChNodeFEAxyzD>());
-    //            FixedNode->SetFixed(true);
-    //
-    //            //            if (FixedNode->GetPos().x < -0.65)
-    //            //                FixedNode->SetFixed(true);
-    //            //            if (FixedNode->GetPos().x > 0.68)
-    //            //                FixedNode->SetForce(ChVector<>(10, 0, 0));
-    //        }
-    //    }
 
     if (addPressure) {
         // First: loads must be added to "load containers",
@@ -291,7 +279,7 @@ int main(int argc, char* argv[]) {
     auto mvisualizemeshcoll = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh.get()));
     mvisualizemeshcoll->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_CONTACTSURFACES);
     mvisualizemeshcoll->SetWireframe(true);
-    mvisualizemeshcoll->SetDefaultMeshColor(ChColor(1, 0.5, 0));
+    mvisualizemeshcoll->SetDefaultMeshColor(ChColor(1, 0.7, 0));
     my_mesh->AddAsset(mvisualizemeshcoll);
 
     auto mvisualizemeshbeam = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh.get()));
@@ -344,17 +332,16 @@ int main(int argc, char* argv[]) {
     //    msolver->SetVerbose(false);
     //
     // INT_HHT or INT_EULER_IMPLICIT
-    //my_system.SetIntegrationType(ChSystem::INT_EULER_IMPLICIT_LINEARIZED);  // fast, less precise
+    //    my_system.SetIntegrationType(ChSystem::INT_EULER_IMPLICIT_LINEARIZED);  // fast, less precise
 
-    /*my_system.SetIntegrationType(ChSystem::INT_HHT);
+    my_system.SetIntegrationType(ChSystem::INT_HHT);
     auto mystepper = std::dynamic_pointer_cast<ChTimestepperHHT>(my_system.GetTimestepper());
-    mystepper->SetAlpha(-0.0);
+    mystepper->SetAlpha(-0.2);
     mystepper->SetMaxiters(200);
-    mystepper->SetAbsTolerances(1e-06, 1e-03);
+    mystepper->SetAbsTolerances(1e-06);
     mystepper->SetMode(ChTimestepperHHT::POSITION);
     mystepper->SetScaling(true);
-    mystepper->SetVerbose(true);
-    mystepper->SetMaxiters(20);*/
+    mystepper->SetVerbose(false);
 
     application.SetTimestep(time_step);
     while (application.GetDevice()->run()) {
@@ -367,3 +354,4 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+
