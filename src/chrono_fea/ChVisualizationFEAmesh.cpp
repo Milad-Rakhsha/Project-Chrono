@@ -4,12 +4,12 @@
 // Copyright (c) 2012 Alessandro Tasora
 // All rights reserved.
 //
-// Use of this source code is governed by a BSD-style license that can be 
+// Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file at the top level of the distribution
 // and at http://projectchrono.org/license-chrono.txt.
 //
 // File author: A. Tasora
-  
+
 #include "chrono_fea/ChVisualizationFEAmesh.h"
 #include "chrono_fea/ChElementTetra_4.h"
 #include "chrono_fea/ChElementTetra_10.h"
@@ -28,78 +28,78 @@ namespace chrono {
 namespace fea {
 
 ChVisualizationFEAmesh::ChVisualizationFEAmesh(ChMesh& mymesh) {
-	FEMmesh = &mymesh;
-	fem_data_type = E_PLOT_NODE_DISP_NORM;
-	fem_glyph = E_GLYPH_NONE;
+    FEMmesh = &mymesh;
+    fem_data_type = E_PLOT_NODE_DISP_NORM;
+    fem_glyph = E_GLYPH_NONE;
 
-	colorscale_min= 0;
-	colorscale_max= 1;
+    colorscale_min = 0;
+    colorscale_max = 1;
 
-	shrink_elements = false;
-	shrink_factor = 0.9;
+    shrink_elements = false;
+    shrink_factor = 0.9;
 
-	symbols_scale = 1.0;
-	symbols_thickness = 0.002;
+    symbols_scale = 1.0;
+    symbols_thickness = 0.002;
 
-	wireframe = false;
+    wireframe = false;
 
-	zbuffer_hide = true;
+    zbuffer_hide = true;
 
-	smooth_faces = false;
+    smooth_faces = false;
 
     beam_resolution = 8;
     beam_resolution_section = 10;
     shell_resolution = 3;
 
-	meshcolor = ChColor(1,1,1,0);
-	symbolscolor = ChColor(0,0.5,0.5,0);
+    meshcolor = ChColor(1, 1, 1, 0);
+    symbolscolor = ChColor(0, 0.5, 0.5, 0);
 
-	undeformed_reference = false;
+    undeformed_reference = false;
 
     auto new_mesh_asset = std::make_shared<ChTriangleMeshShape>();
-	this->AddAsset(new_mesh_asset);
+    this->AddAsset(new_mesh_asset);
 
     auto new_glyphs_asset = std::make_shared<ChGlyphs>();
-	this->AddAsset(new_glyphs_asset);
+    this->AddAsset(new_glyphs_asset);
 }
 
 ChColor ChVisualizationFEAmesh::ComputeFalseColor2(double mv) {
-	ChVector<float> mcol = ComputeFalseColor(mv);
-	return ChColor(mcol.x, mcol.y, mcol.z);
+    ChVector<float> mcol = ComputeFalseColor(mv);
+    return ChColor(mcol.x, mcol.y, mcol.z);
 }
 
 ChVector<float> ChVisualizationFEAmesh::ComputeFalseColor(double mv) {
-	if (mv < this->colorscale_min)
-		return ChVector<float> (0,0,0) ;
-	if (mv > this->colorscale_max)
-		return ChVector<float> (1,1,1) ;
+    if (mv < this->colorscale_min)
+        return ChVector<float>(0, 0, 0);
+    if (mv > this->colorscale_max)
+        return ChVector<float>(1, 1, 1);
 
-	ChVector<float> c(1,1,1);
-	float dv;
-	float v = (float)mv;
-	float vmax = (float)this->colorscale_max;
-	float vmin = (float)this->colorscale_min;
+    ChVector<float> c(1, 1, 1);
+    float dv;
+    float v = (float)mv;
+    float vmax = (float)this->colorscale_max;
+    float vmin = (float)this->colorscale_min;
 
-	dv = vmax - vmin;
+    dv = vmax - vmin;
 
-	if (v < (vmin + 0.25 * dv)) {
-		c.x = 0.f;
-		c.y = 4.f * (v - vmin) / dv;
-	} else if (v < (vmin + 0.5 * dv)) {
-		c.x = 0;
-		c.z = 1.f + 4.f * (vmin + 0.25f * dv - v) / dv;
-	} else if (v < (vmin + 0.75f * dv)) {
-		c.x = 4.f * (v - vmin - 0.5f * dv) / dv;
-		c.z = 0;
-	} else {
-		c.y = 1.f + 4.f * (vmin + 0.75f * dv - v) / dv;
-		c.z = 0;
-	}
+    if (v < (vmin + 0.25 * dv)) {
+        c.x = 0.f;
+        c.y = 4.f * (v - vmin) / dv;
+    } else if (v < (vmin + 0.5 * dv)) {
+        c.x = 0;
+        c.z = 1.f + 4.f * (vmin + 0.25f * dv - v) / dv;
+    } else if (v < (vmin + 0.75f * dv)) {
+        c.x = 4.f * (v - vmin - 0.5f * dv) / dv;
+        c.z = 0;
+    } else {
+        c.y = 1.f + 4.f * (vmin + 0.75f * dv - v) / dv;
+        c.z = 0;
+    }
 
-	if (this->fem_data_type == E_PLOT_SURFACE)
-		c = ChVector<float>(meshcolor.R, meshcolor.G, meshcolor.B);
+    if (this->fem_data_type == E_PLOT_SURFACE)
+        c = ChVector<float>(meshcolor.R, meshcolor.G, meshcolor.B);
 
-	return(c);
+    return (c);
 }
 
 double ChVisualizationFEAmesh::ComputeScalarOutput(std::shared_ptr<ChNodeFEAxyz> mnode,
@@ -159,99 +159,96 @@ double ChVisualizationFEAmesh::ComputeScalarOutput(std::shared_ptr<ChNodeFEAxyzP
                                                    int nodeID,
                                                    std::shared_ptr<ChElementBase> melement) {
     switch (this->fem_data_type) {
-	case E_PLOT_SURFACE:
-		return 1e30; // to force 'white' in false color scale. Hack, to be improved.
-	case E_PLOT_NODE_P:
-		return (mnode->GetP());
-	default:
-		return 1e30;
-	}
-	//***TO DO*** other types of scalar outputs
-	return 0;
+        case E_PLOT_SURFACE:
+            return 1e30;  // to force 'white' in false color scale. Hack, to be improved.
+        case E_PLOT_NODE_P:
+            return (mnode->GetP());
+        default:
+            return 1e30;
+    }
+    //***TO DO*** other types of scalar outputs
+    return 0;
 }
 
-ChVector<float>& FetchOrAllocate(std::vector<ChVector<float> >& mvector, unsigned int& id) {
+ChVector<float>& FetchOrAllocate(std::vector<ChVector<float>>& mvector, unsigned int& id) {
     if (id > mvector.size()) {
-		id = 0;
-		return mvector[0]; // error
-	}
+        id = 0;
+        return mvector[0];  // error
+    }
     if (id == mvector.size()) {
-		mvector.push_back( ChVector<float>(0,0,0) );
-	}
-	++id;
-	return mvector[id-1];
+        mvector.push_back(ChVector<float>(0, 0, 0));
+    }
+    ++id;
+    return mvector[id - 1];
 }
 
-void TriangleNormalsReset(std::vector<ChVector<> >& normals, std::vector<int>& accumul) {
+void TriangleNormalsReset(std::vector<ChVector<>>& normals, std::vector<int>& accumul) {
     for (unsigned int nn = 0; nn < normals.size(); ++nn) {
-		normals[nn] = ChVector<>(0,0,0);
-		accumul[nn] = 0;
-	}
+        normals[nn] = ChVector<>(0, 0, 0);
+        accumul[nn] = 0;
+    }
 }
 void TriangleNormalsCompute(ChVector<int> norm_indexes,
                             ChVector<int> vert_indexes,
-                            std::vector<ChVector<> >& vertexes,
-                            std::vector<ChVector<> >& normals,
+                            std::vector<ChVector<>>& vertexes,
+                            std::vector<ChVector<>>& normals,
                             std::vector<int>& accumul) {
     ChVector<> tnorm =
         Vcross(vertexes[vert_indexes.y] - vertexes[vert_indexes.x], vertexes[vert_indexes.z] - vertexes[vert_indexes.x])
             .GetNormalized();
-	normals[norm_indexes.x] += tnorm;
-	normals[norm_indexes.y] += tnorm;
-	normals[norm_indexes.z] += tnorm;
-	accumul[norm_indexes.x] +=1;
-	accumul[norm_indexes.y] +=1;
-	accumul[norm_indexes.z] +=1;
+    normals[norm_indexes.x] += tnorm;
+    normals[norm_indexes.y] += tnorm;
+    normals[norm_indexes.z] += tnorm;
+    accumul[norm_indexes.x] += 1;
+    accumul[norm_indexes.y] += 1;
+    accumul[norm_indexes.z] += 1;
 }
-void TriangleNormalsSmooth(std::vector<ChVector<> >& normals, std::vector<int>& accumul) {
+void TriangleNormalsSmooth(std::vector<ChVector<>>& normals, std::vector<int>& accumul) {
     for (unsigned int nn = 0; nn < normals.size(); ++nn) {
-		normals[nn] = normals[nn] * (1.0 / (double)accumul[nn]);
-	}
+        normals[nn] = normals[nn] * (1.0 / (double)accumul[nn]);
+    }
 }
 
 void ChVisualizationFEAmesh::Update(ChPhysicsItem* updater, const ChCoordsys<>& coords) {
-	if (!this->FEMmesh) 
-		return;
+    if (!this->FEMmesh)
+        return;
 
-	std::shared_ptr<ChTriangleMeshShape> mesh_asset;
-	std::shared_ptr<ChGlyphs>			 glyphs_asset;
+    std::shared_ptr<ChTriangleMeshShape> mesh_asset;
+    std::shared_ptr<ChGlyphs> glyphs_asset;
 
-	// try to retrieve previously added mesh asset and glyhs asset in sublevel..
+    // try to retrieve previously added mesh asset and glyhs asset in sublevel..
     if (this->GetAssets().size() == 2) {
         mesh_asset = std::dynamic_pointer_cast<ChTriangleMeshShape>(GetAssets()[0]);
         glyphs_asset = std::dynamic_pointer_cast<ChGlyphs>(GetAssets()[1]);
     }
 
-	// if not available, create ...
+    // if not available, create ...
     if (!mesh_asset) {
-		this->GetAssets().resize(0); // this to delete other sub assets that are not in mesh & glyphs, if any
+        this->GetAssets().resize(0);  // this to delete other sub assets that are not in mesh & glyphs, if any
 
         auto new_mesh_asset = std::make_shared<ChTriangleMeshShape>();
-		this->AddAsset(new_mesh_asset);
-		mesh_asset = new_mesh_asset;
+        this->AddAsset(new_mesh_asset);
+        mesh_asset = new_mesh_asset;
 
         auto new_glyphs_asset = std::make_shared<ChGlyphs>();
-		this->AddAsset(new_glyphs_asset);
-		glyphs_asset = new_glyphs_asset;
-	}
-	geometry::ChTriangleMeshConnected& trianglemesh = mesh_asset->GetMesh();
+        this->AddAsset(new_glyphs_asset);
+        glyphs_asset = new_glyphs_asset;
+    }
+    geometry::ChTriangleMeshConnected& trianglemesh = mesh_asset->GetMesh();
 
-	size_t n_verts = 0;
-	size_t n_vcols = 0;
-	size_t n_vnorms = 0;
-	size_t n_triangles = 0;
+    size_t n_verts = 0;
+    size_t n_vcols = 0;
+    size_t n_vnorms = 0;
+    size_t n_triangles = 0;
 
-	//
-	// A - Count the needed vertexes and faces
-	//
+    //
+    // A - Count the needed vertexes and faces
+    //
 
     //   In case of colormap drawing:
     //
-    if (this->fem_data_type != E_PLOT_NONE &&
-        this->fem_data_type != E_PLOT_LOADSURFACES && 
+    if (this->fem_data_type != E_PLOT_NONE && this->fem_data_type != E_PLOT_LOADSURFACES &&
         this->fem_data_type != E_PLOT_CONTACTSURFACES) {
-
-        
         for (unsigned int iel = 0; iel < this->FEMmesh->GetNelements(); ++iel) {
             if (std::dynamic_pointer_cast<ChElementTetra_4>(this->FEMmesh->GetElement(iel))) {
                 // ELEMENT IS A TETRAHEDRON
@@ -278,7 +275,8 @@ void ChVisualizationFEAmesh::Update(ChPhysicsItem* updater, const ChCoordsys<>& 
                 if (auto mybeameuler = std::dynamic_pointer_cast<ChElementBeamEuler>(this->FEMmesh->GetElement(iel))) {
                     if (mybeameuler->GetSection()->IsCircular())
                         m_circular = true;
-                } else if (auto mybeamancf = std::dynamic_pointer_cast<ChElementBeamANCF>(this->FEMmesh->GetElement(iel))) {
+                } else if (auto mybeamancf =
+                               std::dynamic_pointer_cast<ChElementBeamANCF>(this->FEMmesh->GetElement(iel))) {
                     if (mybeamancf->GetSection()->IsCircular())
                         m_circular = true;
                 }
@@ -332,55 +330,53 @@ void ChVisualizationFEAmesh::Update(ChPhysicsItem* updater, const ChCoordsys<>& 
     //   In case of contact surfaces:
     //
     if (this->fem_data_type == E_PLOT_CONTACTSURFACES) {
-
-        for (unsigned int isu=0; isu < this->FEMmesh->GetNcontactSurfaces(); ++isu) {
-            if (auto msurface = std::dynamic_pointer_cast<ChContactSurfaceMesh>(this->FEMmesh->GetContactSurface(isu))) {
-                n_verts +=  3* msurface->GetTriangleList().size();
-			    n_vcols +=  3* msurface->GetTriangleList().size();
-			    n_vnorms +=    msurface->GetTriangleList().size(); // flat faces
-			    n_triangles += msurface->GetTriangleList().size(); // n. triangle faces
+        for (unsigned int isu = 0; isu < this->FEMmesh->GetNcontactSurfaces(); ++isu) {
+            if (auto msurface =
+                    std::dynamic_pointer_cast<ChContactSurfaceMesh>(this->FEMmesh->GetContactSurface(isu))) {
+                n_verts += 3 * msurface->GetTriangleList().size();
+                n_vcols += 3 * msurface->GetTriangleList().size();
+                n_vnorms += msurface->GetTriangleList().size();     // flat faces
+                n_triangles += msurface->GetTriangleList().size();  // n. triangle faces
             }
-        } 
-    } 
+        }
+    }
 
+    //
+    // B - resize mesh buffers if needed
+    //
 
-	//
-	// B - resize mesh buffers if needed
-	//
-
-	if (trianglemesh.getCoordsVertices().size() != n_verts)
-		trianglemesh.getCoordsVertices().resize(n_verts);
-	if (trianglemesh.getCoordsColors().size() != n_vcols)
-		trianglemesh.getCoordsColors().resize(n_vcols);
-	if (trianglemesh.getIndicesVertexes().size() != n_triangles)
-		trianglemesh.getIndicesVertexes().resize(n_triangles);
+    if (trianglemesh.getCoordsVertices().size() != n_verts)
+        trianglemesh.getCoordsVertices().resize(n_verts);
+    if (trianglemesh.getCoordsColors().size() != n_vcols)
+        trianglemesh.getCoordsColors().resize(n_vcols);
+    if (trianglemesh.getIndicesVertexes().size() != n_triangles)
+        trianglemesh.getIndicesVertexes().resize(n_triangles);
 
     if (this->smooth_faces) {
-		if (trianglemesh.getCoordsNormals().size() != n_vnorms)
-			trianglemesh.getCoordsNormals().resize(n_vnorms);
-		if (trianglemesh.getIndicesNormals().size() != n_triangles)
-			trianglemesh.getIndicesNormals().resize(n_triangles);
-		if (normal_accumulators.size() != n_vnorms)
-			normal_accumulators.resize(n_vnorms);
-			
-		TriangleNormalsReset(trianglemesh.getCoordsNormals(), normal_accumulators); 
-	}
+        if (trianglemesh.getCoordsNormals().size() != n_vnorms)
+            trianglemesh.getCoordsNormals().resize(n_vnorms);
+        if (trianglemesh.getIndicesNormals().size() != n_triangles)
+            trianglemesh.getIndicesNormals().resize(n_triangles);
+        if (normal_accumulators.size() != n_vnorms)
+            normal_accumulators.resize(n_vnorms);
 
-	//
-	// C - update mesh buffers 
-	//
+        TriangleNormalsReset(trianglemesh.getCoordsNormals(), normal_accumulators);
+    }
+
+    //
+    // C - update mesh buffers
+    //
 
     bool need_automatic_smoothing = this->smooth_faces;
 
-	unsigned int i_verts = 0;
-	unsigned int i_vcols = 0;
-	unsigned int i_vnorms = 0;
-	unsigned int i_triindex = 0;
-	unsigned int i_normindex = 0;
+    unsigned int i_verts = 0;
+    unsigned int i_vcols = 0;
+    unsigned int i_vnorms = 0;
+    unsigned int i_triindex = 0;
+    unsigned int i_normindex = 0;
 
     //   In case of colormap drawing:
-	if (this->fem_data_type != E_PLOT_NONE &&
-        this->fem_data_type != E_PLOT_LOADSURFACES && 
+    if (this->fem_data_type != E_PLOT_NONE && this->fem_data_type != E_PLOT_LOADSURFACES &&
         this->fem_data_type != E_PLOT_CONTACTSURFACES) {
         for (unsigned int iel = 0; iel < this->FEMmesh->GetNelements(); ++iel) {
             // ------------ELEMENT IS A TETRAHEDRON 4 NODES?
@@ -543,7 +539,7 @@ void ChVisualizationFEAmesh::Update(ChPhysicsItem* updater, const ChCoordsys<>& 
                         pt[in] = nodes[in]->GetX0();
                 }
 
-                // vertexes
+                // vertexesChElementShellANCF
 
                 if (this->shrink_elements) {
                     ChVector<> vc(0, 0, 0);
@@ -812,7 +808,7 @@ void ChVisualizationFEAmesh::Update(ChPhysicsItem* updater, const ChCoordsys<>& 
             }
 
             // ------------ELEMENT IS A SHELL?
-            if (auto myshell = std::dynamic_pointer_cast<ChElementShell>(this->FEMmesh->GetElement(iel))) {
+            if (auto myshell = std::dynamic_pointer_cast<ChElementShellANCF>(this->FEMmesh->GetElement(iel))) {
                 unsigned int ivert_el = i_verts;
                 unsigned int inorm_el = i_vnorms;
 
@@ -829,20 +825,15 @@ void ChVisualizationFEAmesh::Update(ChPhysicsItem* updater, const ChCoordsys<>& 
                         myshell->EvaluateSectionPoint(u, v, displ, P);  // compute abs. pos and rot of section plane
 
                         ChVector<float> mcol(1, 1, 1);
-                        /*
-                        ChVector<> vresult;
-                        ChVector<> vresultB;
+                        double strainVec = 0.0;
                         double sresult = 0;
-                        switch(this->fem_data_type)
-                        {
-                            case E_PLOT_ELEM_SHELL_blabla:
-                                myshell->EvaluateSectionForceTorque(eta, displ, vresult, vresultB);
-                                sresult = vresultB.x;
+                        switch (this->fem_data_type) {
+                            case E_PLOT_ELEM_STRAIN_VONMISES:
+                                myshell->EvaluateVonMises(strainVec);
+                                sresult = strainVec;
                                 break;
-
                         }
-                        ChVector<float> mcol = ComputeFalseColor(sresult);
-                        */
+                        mcol = ComputeFalseColor(sresult);
 
                         trianglemesh.getCoordsVertices()[i_verts] = P;
                         ++i_verts;
@@ -951,7 +942,8 @@ void ChVisualizationFEAmesh::Update(ChPhysicsItem* updater, const ChCoordsys<>& 
     //
     if (this->fem_data_type == E_PLOT_CONTACTSURFACES) {
         for (unsigned int isu = 0; isu < this->FEMmesh->GetNcontactSurfaces(); ++isu) {
-            if (auto msurface = std::dynamic_pointer_cast<ChContactSurfaceMesh>(this->FEMmesh->GetContactSurface(isu))) {
+            if (auto msurface =
+                    std::dynamic_pointer_cast<ChContactSurfaceMesh>(this->FEMmesh->GetContactSurface(isu))) {
                 for (unsigned int ifa = 0; ifa < msurface->GetTriangleList().size(); ++ifa) {
                     std::shared_ptr<ChContactTriangleXYZ> mface = msurface->GetTriangleList()[ifa];
 
@@ -994,32 +986,31 @@ void ChVisualizationFEAmesh::Update(ChPhysicsItem* updater, const ChCoordsys<>& 
         }  // end loop on contact surfaces
     }      // End of case of contact surfaces
 
-    if (need_automatic_smoothing)
-	{
-		for (unsigned int itri = 0; itri < trianglemesh.getIndicesVertexes().size(); ++itri)
+    if (need_automatic_smoothing) {
+        for (unsigned int itri = 0; itri < trianglemesh.getIndicesVertexes().size(); ++itri)
             TriangleNormalsCompute(trianglemesh.getIndicesNormals()[itri], trianglemesh.getIndicesVertexes()[itri],
                                    trianglemesh.getCoordsVertices(), trianglemesh.getCoordsNormals(),
                                    normal_accumulators);
 
-		TriangleNormalsSmooth( trianglemesh.getCoordsNormals(), normal_accumulators);
-	}
+        TriangleNormalsSmooth(trianglemesh.getCoordsNormals(), normal_accumulators);
+    }
 
-	// other flags
-	mesh_asset->SetWireframe( this->wireframe );
+    // other flags
+    mesh_asset->SetWireframe(this->wireframe);
 
-	//
-	// GLYPHS
-	//
+    //
+    // GLYPHS
+    //
 
-	//***TEST***
-	glyphs_asset->Reserve(0); // unoptimal, should reuse buffers as much as possible
-	
-	glyphs_asset->SetGlyphsSize(this->symbols_thickness);
+    //***TEST***
+    glyphs_asset->Reserve(0);  // unoptimal, should reuse buffers as much as possible
 
-	glyphs_asset->SetZbufferHide(this->zbuffer_hide);
+    glyphs_asset->SetGlyphsSize(this->symbols_thickness);
+
+    glyphs_asset->SetZbufferHide(this->zbuffer_hide);
 
     if (this->fem_glyph == ChVisualizationFEAmesh::E_GLYPH_NODE_DOT_POS) {
-		glyphs_asset->SetDrawMode(ChGlyphs::GLYPH_POINT);
+        glyphs_asset->SetDrawMode(ChGlyphs::GLYPH_POINT);
         for (unsigned int inode = 0; inode < this->FEMmesh->GetNnodes(); ++inode) {
             if (auto mynode = std::dynamic_pointer_cast<ChNodeFEAxyz>(this->FEMmesh->GetNode(inode))) {
                 glyphs_asset->SetGlyphPoint(inode, mynode->GetPos(), this->symbolscolor);
@@ -1031,16 +1022,17 @@ void ChVisualizationFEAmesh::Update(ChPhysicsItem* updater, const ChCoordsys<>& 
         }
     }
     if (this->fem_glyph == ChVisualizationFEAmesh::E_GLYPH_NODE_CSYS) {
-		glyphs_asset->SetDrawMode(ChGlyphs::GLYPH_COORDSYS);
+        glyphs_asset->SetDrawMode(ChGlyphs::GLYPH_COORDSYS);
         for (unsigned int inode = 0; inode < this->FEMmesh->GetNnodes(); ++inode) {
             if (auto mynode = std::dynamic_pointer_cast<ChNodeFEAxyzrot>(this->FEMmesh->GetNode(inode))) {
-				glyphs_asset->SetGlyphCoordsys(inode,  mynode->Frame().GetCoord());
-			}
-            //else if (auto mynode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(this->FEMmesh->GetNode(inode))) {
-            //	glyphs_asset->SetGlyphVector(inode, mynode->GetPos(), mynode->GetD() * this->symbols_scale, this->symbolscolor );
-			//}
-		}
-	}
+                glyphs_asset->SetGlyphCoordsys(inode, mynode->Frame().GetCoord());
+            }
+            // else if (auto mynode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(this->FEMmesh->GetNode(inode))) {
+            //	glyphs_asset->SetGlyphVector(inode, mynode->GetPos(), mynode->GetD() * this->symbols_scale,
+            // this->symbolscolor );
+            //}
+        }
+    }
     if (this->fem_glyph == ChVisualizationFEAmesh::E_GLYPH_NODE_VECT_SPEED) {
         glyphs_asset->SetDrawMode(ChGlyphs::GLYPH_VECTOR);
         for (unsigned int inode = 0; inode < this->FEMmesh->GetNnodes(); ++inode)
@@ -1104,19 +1096,19 @@ void ChVisualizationFEAmesh::Update(ChPhysicsItem* updater, const ChCoordsys<>& 
             }
     }
     if (this->fem_glyph == ChVisualizationFEAmesh::E_GLYPH_ELEM_TENS_STRESS) {
-		glyphs_asset->SetDrawMode(ChGlyphs::GLYPH_VECTOR);
-		int nglyvect = 0;
-		for (unsigned int iel=0; iel < this->FEMmesh->GetNelements(); ++iel)
+        glyphs_asset->SetDrawMode(ChGlyphs::GLYPH_VECTOR);
+        int nglyvect = 0;
+        for (unsigned int iel = 0; iel < this->FEMmesh->GetNelements(); ++iel)
             if (auto myelement = std::dynamic_pointer_cast<ChElementTetra_4>(this->FEMmesh->GetElement(iel))) {
-				ChStressTensor<> mstress = myelement->GetStress();
-				mstress.Rotate(myelement->Rotation());
-				double e1,e2,e3;
-				ChVector<> v1,v2,v3;
-				mstress.ComputePrincipalStresses(e1,e2,e3);
-				mstress.ComputePrincipalStressesDirections(e1,e2,e3, v1,v2,v3);
-				v1.Normalize();
-				v2.Normalize();
-				v3.Normalize();
+                ChStressTensor<> mstress = myelement->GetStress();
+                mstress.Rotate(myelement->Rotation());
+                double e1, e2, e3;
+                ChVector<> v1, v2, v3;
+                mstress.ComputePrincipalStresses(e1, e2, e3);
+                mstress.ComputePrincipalStressesDirections(e1, e2, e3, v1, v2, v3);
+                v1.Normalize();
+                v2.Normalize();
+                v3.Normalize();
                 auto n0 = std::static_pointer_cast<ChNodeFEAxyz>(myelement->GetNodeN(0));
                 auto n1 = std::static_pointer_cast<ChNodeFEAxyz>(myelement->GetNodeN(1));
                 auto n2 = std::static_pointer_cast<ChNodeFEAxyz>(myelement->GetNodeN(2));
@@ -1128,17 +1120,18 @@ void ChVisualizationFEAmesh::Update(ChPhysicsItem* updater, const ChCoordsys<>& 
                 ++nglyvect;
                 glyphs_asset->SetGlyphVector(nglyvect, mPoint, myelement->Rotation() * v2 * e2 * this->symbols_scale,
                                              ComputeFalseColor2(e2));
-				++nglyvect;
+                ++nglyvect;
                 glyphs_asset->SetGlyphVector(nglyvect, mPoint, myelement->Rotation() * v3 * e3 * this->symbols_scale,
                                              ComputeFalseColor2(e3));
-				++nglyvect;
-			}
-	}
-	
-	// Finally, update also the children, in case they implemented Update(), 
-	// and do this by calling the parent class implementation of ChAssetLevel
-	ChAssetLevel::Update(updater, coords);
+                ++nglyvect;
+            }
+    }
+
+    // Finally, update also the children, in case they implemented Update(),
+    // and do this by calling the parent class implementation of ChAssetLevel
+    ChAssetLevel::Update(updater, coords);
 }
 
-} // END_OF_NAMESPACE____
-} // END_OF_NAMESPACE____
+}  // END_OF_NAMESPACE____
+}  // END_OF_NAMESPACE____
+
