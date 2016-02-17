@@ -197,6 +197,32 @@ class ChApiFea ChElementShellANCF : public ChElementShell, public ChLoadableUV, 
     /// it stores only the four values in a 1 row, 8 columns matrix!
     void ShapeFunctionsDerivativeZ(ChMatrix<>& Nz, double x, double y, double z);
 
+    void EvaluateVonMises(double& strainvec) { strainvec = std::abs(strainXplot) + std::abs(strainYplot); };
+    // Interface to ChElementShell base class
+    // --------------------------------------
+
+    virtual void EvaluateSectionDisplacement(const double u,
+                                             const double v,
+                                             const ChMatrix<>& displ,
+                                             ChVector<>& u_displ,
+                                             ChVector<>& u_rotaz) override;
+
+    virtual void EvaluateSectionFrame(const double u,
+                                      const double v,
+                                      const ChMatrix<>& displ,
+                                      ChVector<>& point,
+                                      ChQuaternion<>& rot) override;
+
+    virtual void EvaluateSectionPoint(const double u,
+                                      const double v,
+                                      const ChMatrix<>& displ,
+                                      ChVector<>& point) override;
+    // Fill the D vector (column matrix) with the current field values at the
+    // nodes of the element, with proper ordering.
+    // If the D vector has not the size of this->GetNdofs(), it will be resized.
+    //  {x_a y_a z_a Dx_a Dx_a Dx_a x_b y_b z_b Dx_b Dy_b Dz_b}
+    virtual void GetStateBlock(ChMatrixDynamic<>& mD) override;
+
   private:
     std::vector<std::shared_ptr<ChNodeFEAxyzD> > m_nodes;  ///< element nodes
     std::vector<Layer> m_layers;                           ///< element layers
@@ -220,18 +246,13 @@ class ChApiFea ChElementShellANCF : public ChElementShell, public ChLoadableUV, 
     ChMatrixNM<double, 8, 24> m_strainANS_D;               ///< ANS strain derivatives
     std::vector<ChMatrixNM<double, 5, 1> > m_alphaEAS;     ///< EAS parameters (5 per layer)
     std::vector<ChMatrixNM<double, 5, 5> > m_KalphaEAS;    ///< EAS Jacobians (a 5x5 matrix per layer)
-
+    double strainXplot;
+    double strainYplot;
     static const double m_toleranceEAS;   ///< tolerance for nonlinear EAS solver (on residual)
     static const int m_maxIterationsEAS;  ///< maximum number of nonlinear EAS iterations
 
     // Interface to ChElementBase base class
     // -------------------------------------
-
-    // Fill the D vector (column matrix) with the current field values at the
-    // nodes of the element, with proper ordering.
-    // If the D vector has not the size of this->GetNdofs(), it will be resized.
-    //  {x_a y_a z_a Dx_a Dx_a Dx_a x_b y_b z_b Dx_b Dy_b Dz_b}
-    virtual void GetStateBlock(ChMatrixDynamic<>& mD) override;
 
     // Set H as a linear combination of M, K, and R.
     //   H = Mfactor * [M] + Kfactor * [K] + Rfactor * [R],
@@ -256,26 +277,6 @@ class ChApiFea ChElementShellANCF : public ChElementShell, public ChLoadableUV, 
 
     /// Update the state of this element.
     virtual void Update() override;
-
-    // Interface to ChElementShell base class
-    // --------------------------------------
-
-    virtual void EvaluateSectionDisplacement(const double u,
-                                             const double v,
-                                             const ChMatrix<>& displ,
-                                             ChVector<>& u_displ,
-                                             ChVector<>& u_rotaz) override;
-
-    virtual void EvaluateSectionFrame(const double u,
-                                      const double v,
-                                      const ChMatrix<>& displ,
-                                      ChVector<>& point,
-                                      ChQuaternion<>& rot) override;
-
-    virtual void EvaluateSectionPoint(const double u,
-                                      const double v,
-                                      const ChMatrix<>& displ,
-                                      ChVector<>& point) override;
 
     // Internal computations
     // ---------------------
