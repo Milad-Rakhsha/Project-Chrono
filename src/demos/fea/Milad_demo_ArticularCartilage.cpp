@@ -58,10 +58,11 @@ using namespace std;
 // bool addForce = true;
 bool addGravity = false;
 bool addPressure = false;
+bool addForce = true;
 bool showTibia = false;
 bool showFemur = true;
 // bool addFixed = false;
-double time_step = 0.0005;
+double time_step = 0.0001;
 int scaleFactor = 1;
 double dz = 0.0005;
 double MeterToInch = 0.02539998628;
@@ -71,14 +72,14 @@ int main(int argc, char* argv[]) {
 
     // Create the Irrlicht visualization (open the Irrlicht device,
     // bind a simple user interface, etc. etc.)
-    ChIrrApp application(&my_system, L"ANCF Shells", core::dimension2d<u32>(800, 600), false, true);
+    ChIrrApp application(&my_system, L"Articular Cartilage", core::dimension2d<u32>(1200, 800), false, true);
 
     // Easy shortcuts to add camera, lights, logo and sky in Irrlicht scene:
     application.AddTypicalLogo();
     application.AddTypicalSky();
     application.AddTypicalLights();
-    application.AddTypicalCamera(core::vector3df(-0.08f, -0.01f, 0.005f),  // camera location
-                                 core::vector3df(0.0f, 0.f, 0.f));         // "look at" location
+    application.AddTypicalCamera(core::vector3df(-0.08f, -0.001f, 0.005f),  // camera location
+                                 core::vector3df(0.0f, 0.f, 0.f));          // "look at" location
     application.SetContactsDrawMode(ChIrrTools::CONTACT_DISTANCES);
 
     // collision::ChCollisionModel::SetDefaultSuggestedEnvelope(0.0); // not needed, already 0 when using
@@ -89,7 +90,7 @@ int main(int argc, char* argv[]) {
     double sphere_swept_thickness = dz * 0.01;
 
     double rho = 1000;  ///< material density
-    double E = 1e6;     ///< Young's modulus
+    double E = 5e6;     ///< Young's modulus
     double nu = 0.3;    ///< Poisson ratio
     // Create the surface material, containing information
     // about friction etc.
@@ -97,7 +98,7 @@ int main(int argc, char* argv[]) {
     // all surfaces that might generate contacts.
 
     auto mysurfmaterial = std::make_shared<ChMaterialSurfaceDEM>();
-    mysurfmaterial->SetYoungModulus(1e3);
+    mysurfmaterial->SetYoungModulus(1.3e4);
     mysurfmaterial->SetFriction(0.3f);
     mysurfmaterial->SetRestitution(0.5f);
     mysurfmaterial->SetAdhesion(0);
@@ -129,7 +130,9 @@ int main(int argc, char* argv[]) {
     Femur->SetMaterialSurface(mysurfmaterial);
     my_system.Add(Femur);
     Femur->SetMass(0.2);
-    Femur->Set_Scr_force(ChVector<>(0, -0.001, 0));
+    if (addForce) {
+        Femur->Set_Scr_force(ChVector<>(0, -0.01, 0));
+    }
     Femur->SetInertiaXX(ChVector<>(0.004, 0.8e-4, 0.004));
     auto mobjmesh2 = std::make_shared<ChObjShapeFile>();
     mobjmesh2->SetFilename(GetChronoDataFile("fea/femur.obj"));
@@ -137,12 +140,12 @@ int main(int argc, char* argv[]) {
         Femur->AddAsset(mobjmesh2);
     }
     // Constraining the motion of the Fumer to y direction for now
-    //    if (true) {
-    //        // Prismatic joint between hub and suspended mass
-    //        auto primsJoint = std::make_shared<ChLinkLockPrismatic>();
-    //        my_system.AddLink(primsJoint);
-    //        primsJoint->Initialize(Femur, Tibia, ChCoordsys<>(ChVector<>(0, 0, 0), Q_from_AngX(-CH_C_PI_2)));
-    //    }
+    if (true) {
+        // Prismatic joint between hub and suspended mass
+        auto primsJoint = std::make_shared<ChLinkLockPrismatic>();
+        my_system.AddLink(primsJoint);
+        primsJoint->Initialize(Femur, Tibia, ChCoordsys<>(ChVector<>(0, 0, 0), Q_from_AngX(-CH_C_PI_2)));
+    }
     GetLog() << "-----------------------------------------------------------\n\n";
 
     int TotalNumNodes, TotalNumElements, TottalNumBEdges;
@@ -247,7 +250,7 @@ int main(int argc, char* argv[]) {
         for (int NoElmPre = 0; NoElmPre < TotalNumElements; NoElmPre++) {
             auto faceload = std::make_shared<ChLoad<ChLoaderPressure>>(
                 std::static_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(NoElmPre)));
-            faceload->loader.SetPressure(-10);
+            faceload->loader.SetPressure(-200);
             faceload->loader.SetStiff(false);
             faceload->loader.SetIntegrationPoints(2);
             Mloadcontainer->Add(faceload);
@@ -279,12 +282,12 @@ int main(int argc, char* argv[]) {
     auto mvisualizemeshcoll = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh.get()));
     mvisualizemeshcoll->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_CONTACTSURFACES);
     mvisualizemeshcoll->SetWireframe(true);
-    mvisualizemeshcoll->SetDefaultMeshColor(ChColor(1, 0.7, 0));
+    mvisualizemeshcoll->SetDefaultMeshColor(ChColor(1, 1.0, 1));
     my_mesh->AddAsset(mvisualizemeshcoll);
 
     auto mvisualizemeshbeam = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh.get()));
-    mvisualizemeshbeam->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_NODE_SPEED_NORM);
-    mvisualizemeshbeam->SetColorscaleMinMax(0.0, 5.50);
+    mvisualizemeshbeam->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_ELEM_STRAIN_VONMISES);
+    mvisualizemeshbeam->SetColorscaleMinMax(-0.0, 0.010);
     mvisualizemeshbeam->SetSmoothFaces(true);
     my_mesh->AddAsset(mvisualizemeshbeam);
 
