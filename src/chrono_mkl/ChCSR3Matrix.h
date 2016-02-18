@@ -135,9 +135,6 @@ namespace chrono{
 		bool CheckArraysAlignment(int alignment = 0) const;
 		void GetMemoryInfo() const;
 		int VerifyMatrix() const;
-		int is_nan() const;
-		int is_infinite() const;
-		int is_valid() const;
 
 		// Import/Export functions
 		void ImportFromDatFile(std::string filepath);
