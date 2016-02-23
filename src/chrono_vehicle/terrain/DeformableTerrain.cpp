@@ -38,17 +38,119 @@ using namespace rapidjson;
 namespace chrono {
 namespace vehicle {
 
-
 // -----------------------------------------------------------------------------
-// Default constructor.
+// Implementation of the DeformableTerrain wrapper class
 // -----------------------------------------------------------------------------
 DeformableTerrain::DeformableTerrain(ChSystem* system) {
+    m_ground = std::make_shared<DeformableSoil>(system);
+    system->Add(m_ground);
+}
     
+// Return the terrain height at the specified location
+double DeformableTerrain::GetHeight(double x, double y) const {
+    //// TODO
+    return 0;
+}
+
+// Return the terrain normal at the specified location
+ChVector<> DeformableTerrain::GetNormal(double x, double y) const {
+    //// TODO
+    return m_ground->plane.TransformDirectionLocalToParent(ChVector<>(0, 1, 0));
+}
+
+// Set the color of the visualization assets
+void DeformableTerrain::SetColor(ChColor color) {
+    m_ground->m_color->SetColor(color);
+}
+
+// Set the texture and texture scaling
+void DeformableTerrain::SetTexture(const std::string tex_file, float tex_scale_x, float tex_scale_y) {
+    std::shared_ptr<ChTexture> texture(new ChTexture);
+    texture->SetTextureFilename(tex_file);
+    texture->SetTextureScale(tex_scale_x, tex_scale_y);
+    m_ground->AddAsset(texture);
+}
+
+// Set the plane reference.
+void DeformableTerrain::SetPlane(ChCoordsys<> mplane) { m_ground->plane = mplane; }
+
+// Get the plane reference.
+const ChCoordsys<>& DeformableTerrain::GetPlane() const { return m_ground->plane; }
+
+// Enable bulldozing effect.
+void DeformableTerrain::SetBulldozingFlow(bool mb) {
+    m_ground->do_bulldozing = mb;
+}
+
+bool DeformableTerrain::GetBulldozingFlow() const {
+    return m_ground->do_bulldozing;
+}
+
+// Set properties of the SCM soil model
+void DeformableTerrain::SetSoilParametersSCM(
+    double mBekker_Kphi,    // Kphi, frictional modulus in Bekker model
+    double mBekker_Kc,      // Kc, cohesive modulus in Bekker model
+    double mBekker_n,       // n, exponent of sinkage in Bekker model (usually 0.6...1.8)
+    double mMohr_cohesion,  // Cohesion in, Pa, for shear failure
+    double mMohr_friction,  // Friction angle (in degrees!), for shear failure
+    double mJanosi_shear,   // J , shear parameter, in meters, in Janosi-Hanamoto formula (usually few mm or cm)
+    double melastic_K       // elastic stiffness K (must be > Kphi; very high values gives the original SCM model)
+    ) {
+    m_ground->Bekker_Kphi = mBekker_Kphi;
+    m_ground->Bekker_Kc = mBekker_Kc;
+    m_ground->Bekker_n = mBekker_n;
+    m_ground->Mohr_cohesion = mMohr_cohesion;
+    m_ground->Mohr_friction = mMohr_friction;
+    m_ground->Janosi_shear = mJanosi_shear;
+    m_ground->elastic_K = ChMax(melastic_K, mBekker_Kphi);
+}
+
+void DeformableTerrain::SetBulldozingParameters(double mbulldozing_erosion_angle,     ///< angle of erosion of the displaced material (in degrees!)
+                                 double mbulldozing_flow_factor   ///< growth of lateral volume respect to pressed volume
+                                 ) {
+    m_ground->bulldozing_erosion_angle = mbulldozing_erosion_angle;
+    m_ground->bulldozing_flow_factor = mbulldozing_flow_factor;
+}
+
+
+// Set the color plot type.
+void DeformableTerrain::SetPlotType(DataPlotType mplot, double mmin, double mmax) {
+    m_ground->plot_type = mplot;
+    m_ground->plot_v_min = mmin;
+    m_ground->plot_v_max = mmax;
+}
+
+// Initialize the terrain as a flat grid
+void DeformableTerrain::Initialize(double height, double sizeX, double sizeY, int divX, int divY) {
+    m_ground->Initialize(height, sizeX, sizeY, divX, divY);
+}
+
+// Initialize the terrain from a specified .obj mesh file.
+void DeformableTerrain::Initialize(const std::string& mesh_file) {
+    m_ground->Initialize(mesh_file);
+}
+
+// Initialize the terrain from a specified height map.
+void DeformableTerrain::Initialize(const std::string& heightmap_file,
+                                   const std::string& mesh_name,
+                                   double sizeX,
+                                   double sizeY,
+                                   double hMin,
+                                   double hMax) {
+    m_ground->Initialize(heightmap_file, mesh_name, sizeX, sizeY, hMin, hMax);
+}
+
+// -----------------------------------------------------------------------------
+// Implementation of DeformableSoil
+// -----------------------------------------------------------------------------
+
+// Constructor.
+DeformableSoil::DeformableSoil(ChSystem* system) {
     this->SetSystem(system);
 
     // Create the default mesh asset
     m_color = std::shared_ptr<ChColorAsset>(new ChColorAsset);
-    m_color->SetColor(ChColor(0.3, 0.3, 0.3));
+    m_color->SetColor(ChColor(0.3f, 0.3f, 0.3f));
     this->AddAsset(m_color);
 
     // Create the default triangle mesh asset
@@ -57,6 +159,8 @@ DeformableTerrain::DeformableTerrain(ChSystem* system) {
     m_trimesh_shape->SetWireframe(false);
 
     do_bulldozing = false;
+    bulldozing_flow_factor = 1.2;
+    bulldozing_erosion_angle = 40;
 
     Bekker_Kphi = 2e6;
     Bekker_Kc = 0;
@@ -68,36 +172,13 @@ DeformableTerrain::DeformableTerrain(ChSystem* system) {
 
     Initialize(0,3,3,10,10);
     
-    plot_type = PLOT_NONE;
+    plot_type = DeformableTerrain::PLOT_NONE;
     plot_v_min = 0;
     plot_v_max = 0.2;
 }
 
-
-
-// -----------------------------------------------------------------------------
-// Set the color of the visualization assets
-// -----------------------------------------------------------------------------
-void DeformableTerrain::SetColor(ChColor color) {
-    m_color->SetColor(color);
-}
-
-// -----------------------------------------------------------------------------
-// Set the texture and texture scaling
-// -----------------------------------------------------------------------------
-void DeformableTerrain::SetTexture(const std::string tex_file, float tex_scale_x, float tex_scale_y) {
-    std::shared_ptr<ChTexture> texture(new ChTexture);
-    texture->SetTextureFilename(tex_file);
-    texture->SetTextureScale(tex_scale_x, tex_scale_y);
-    this->AddAsset(texture);
-}
-
-// -----------------------------------------------------------------------------
 // Initialize the terrain as a flat grid
-// -----------------------------------------------------------------------------
-
-void DeformableTerrain::Initialize(double height, double sizeX, double sizeY, int nX, int nY) {
-
+void DeformableSoil::Initialize(double height, double sizeX, double sizeY, int nX, int nY) {
     m_trimesh_shape->GetMesh().Clear();
     // Readibility aliases
     std::vector<ChVector<> >& vertices = m_trimesh_shape->GetMesh().getCoordsVertices();
@@ -127,7 +208,7 @@ void DeformableTerrain::Initialize(double height, double sizeX, double sizeY, in
     unsigned int iv = 0;
     for (int iy = nvy-1; iy >= 0; --iy) {
         double y = 0.5 * sizeY - iy * dy;
-        for (int ix = 0; ix < nvx; ++ix) {
+        for (unsigned int ix = 0; ix < nvx; ++ix) {
             double x = ix * dx - 0.5 * sizeX;
             // Set vertex location
             vertices[iv] = plane * ChVector<>(x, height, y);
@@ -140,9 +221,10 @@ void DeformableTerrain::Initialize(double height, double sizeX, double sizeY, in
             ++iv;
         }
     }
+
     unsigned int it = 0;
     for (int iy = nvy - 2; iy >= 0; --iy) {
-        for (int ix = 0; ix < nvx - 1; ++ix) {
+        for (unsigned int ix = 0; ix < nvx - 1; ++ix) {
             int v0 = ix + nvx * iy;
             idx_vertices[it] = ChVector<int>(v0, v0 + nvx + 1, v0 + nvx);
             idx_normals[it] = ChVector<int>(v0, v0 + nvx + 1, v0 + nvx);
@@ -158,20 +240,14 @@ void DeformableTerrain::Initialize(double height, double sizeX, double sizeY, in
     SetupAuxData();
 }
 
-// -----------------------------------------------------------------------------
 // Initialize the terrain from a specified .obj mesh file.
-// -----------------------------------------------------------------------------
-void DeformableTerrain::Initialize(const std::string& mesh_file) {
-
+void DeformableSoil::Initialize(const std::string& mesh_file) {
     m_trimesh_shape->GetMesh().Clear();
     m_trimesh_shape->GetMesh().LoadWavefrontMesh(mesh_file, true, true);
-
 }
 
-// -----------------------------------------------------------------------------
 // Initialize the terrain from a specified height map.
-// -----------------------------------------------------------------------------
-void DeformableTerrain::Initialize(const std::string& heightmap_file,
+void DeformableSoil::Initialize(const std::string& heightmap_file,
                               const std::string& mesh_name,
                               double sizeX,
                               double sizeY,
@@ -291,9 +367,8 @@ void DeformableTerrain::Initialize(const std::string& heightmap_file,
     SetupAuxData();
 }
 
-
-void DeformableTerrain::SetupAuxData() {
-
+// Set up auxiliary data structures.
+void DeformableSoil::SetupAuxData() {
     // better readability:
     std::vector<ChVector<int> >& idx_vertices = m_trimesh_shape->GetMesh().getIndicesVertexes();
     std::vector<ChVector<> >& vertices = m_trimesh_shape->GetMesh().getCoordsVertices();
@@ -312,6 +387,7 @@ void DeformableTerrain::SetupAuxData() {
     p_sigma_yeld.resize( vertices.size());
     p_tau.resize( vertices.size());  
     p_id_island.resize (vertices.size());
+    p_erosion.resize(vertices.size());
 
     connected_vertexes.resize( vertices.size() );
     for (unsigned int iface = 0; iface < idx_vertices.size(); ++iface) {
@@ -324,29 +400,8 @@ void DeformableTerrain::SetupAuxData() {
     }
 }
 
-
-/*
-// -----------------------------------------------------------------------------
-// Return the terrain height at the specified location
-// -----------------------------------------------------------------------------
-double DeformableTerrain::GetHeight(double x, double y) const {
-    return 0; 
-    //***TODO***
-}
-
-// -----------------------------------------------------------------------------
-// Return the terrain normal at the specified location
-// -----------------------------------------------------------------------------
-ChVector<> DeformableTerrain::GetNormal(double x, double y) const {
-    return VECT_Y; 
-    //***TODO***
-}
-*/
-
-
-
-void DeformableTerrain::UpdateInternalForces() {
-    
+// Reset the list of forces, and fills it with forces from a soil contact model.
+void DeformableSoil::UpdateInternalForces() {
     // Readibility aliases
     std::vector<ChVector<> >& vertices = m_trimesh_shape->GetMesh().getCoordsVertices();
     std::vector<ChVector<> >& normals = m_trimesh_shape->GetMesh().getCoordsNormals();
@@ -394,13 +449,13 @@ void DeformableTerrain::UpdateInternalForces() {
         p_sigma[i] = 0;
         p_sinkage_elastic[i] = 0;
         p_step_plastic_flow[i]=0;
-  
-        ChVector<> to   = vertices[i] +N*0.01; //p_vertices_initial[i] - (N* p_sinkage_plastic[i]*0.95);
+        p_erosion[i] = false;
+
+        ChVector<> to   = vertices[i] +N*0.01; 
         ChVector<> from = to - N*0.5;
 
         this->GetSystem()->GetCollisionSystem()->RayHit(from,to,mrayhit_result);
         if (mrayhit_result.hit == true) {
-            
             double test_sinkage = - Vdot(( mrayhit_result.abs_hitPoint - p_vertices_initial[i] ), N);
 
             if (ChContactable* contactable = dynamic_cast<ChContactable*>(mrayhit_result.hitModel->GetPhysicsItem())) {
@@ -423,8 +478,7 @@ void DeformableTerrain::UpdateInternalForces() {
             // Handle unilaterality:
             if (p_sigma[i] <0) {
                 p_sigma[i] =0;
-            }
-            else {
+            } else {
                 p_sinkage[i] = test_sinkage;
 
                 // Accumulate shear for Janosi-Hanamoto
@@ -437,7 +491,8 @@ void DeformableTerrain::UpdateInternalForces() {
                     p_sigma_yeld[i]= p_sigma[i];
                     double old_sinkage_plastic = p_sinkage_plastic[i];
                     p_sinkage_plastic[i] = p_sinkage[i] - p_sigma[i]/elastic_K;
-                    p_step_plastic_flow[i] = (p_sinkage_plastic[i] - old_sinkage_plastic)/this->GetSystem()->GetStep();
+                    p_step_plastic_flow[i] =
+                        (p_sinkage_plastic[i] - old_sinkage_plastic) / this->GetSystem()->GetStep();
                 }
 
                 p_sinkage_elastic[i] = p_sinkage[i] - p_sinkage_plastic[i];
@@ -456,7 +511,8 @@ void DeformableTerrain::UpdateInternalForces() {
                     // object, but an already used pointer because mrayhit_result.hitModel->GetPhysicsItem() 
                     // cannot return it as shared_ptr, as needed by the ChLoadBodyForce:
                     std::shared_ptr<ChBody> srigidbody(rigidbody, [](ChBody*){}); 
-                    std::shared_ptr<ChLoadBodyForce> mload(new ChLoadBodyForce(srigidbody, Fn+Ft, false, vertices[i], false));
+                    std::shared_ptr<ChLoadBodyForce> mload(
+                        new ChLoadBodyForce(srigidbody, Fn + Ft, false, vertices[i], false));
                     this->Add(mload);
                 }
 
@@ -468,6 +524,7 @@ void DeformableTerrain::UpdateInternalForces() {
         } // end successfull hit test
 
     } // end loop on vertexes
+
 
 
     //
@@ -482,8 +539,10 @@ void DeformableTerrain::UpdateInternalForces() {
                 touched_vertexes.insert(iv);
         }
 
-        int id_island = 0;
+        std::set<int> domain_boundaries;
 
+        // Compute contact islands (and their displaced material) by flood-filling the mesh
+        int id_island = 0;
         for (auto fillseed = touched_vertexes.begin(); fillseed != touched_vertexes.end(); fillseed = touched_vertexes.begin()) {
             // new island:
             ++id_island;
@@ -492,7 +551,6 @@ void DeformableTerrain::UpdateInternalForces() {
             std::set<int> boundary;
             int n_vert_boundary = 0;
             double tot_area_boundary = 0;
-            double tot_length_boundary = 0;
 
             int n_vert_island = 1;
             double tot_step_flow_island = p_area[*fillseed] * p_step_plastic_flow[*fillseed] * this->GetSystem()->GetStep();
@@ -503,21 +561,21 @@ void DeformableTerrain::UpdateInternalForces() {
             while (fill_front.size() >0) {
                 // fill next front
                 std::set<int> fill_front_2;
-                for (auto ifront = fill_front.begin(); ifront != fill_front.end(); ++ifront) {
-                    for (auto ivconnect = connected_vertexes[*ifront].begin(); ivconnect != connected_vertexes[*ifront].end(); ++ivconnect) {
-                        if ((p_sigma[*ivconnect]>0) && (p_id_island[*ivconnect]==0)) {
+                for (auto ifront : fill_front) {
+                    for (auto ivconnect : connected_vertexes[ifront]) {
+                        if ((p_sigma[ivconnect]>0) && (p_id_island[ivconnect]==0)) {
                             ++n_vert_island;
-                            tot_step_flow_island += p_area[*ivconnect] * p_step_plastic_flow[*ivconnect] * this->GetSystem()->GetStep();
-                            tot_Nforce_island += p_area[*ivconnect] * p_sigma[*ivconnect];
-                            fill_front_2.insert(*ivconnect);
-                            p_id_island[*ivconnect] = id_island;
-                            touched_vertexes.erase(*ivconnect);
-                        }
-                        if ((p_sigma[*ivconnect]==0) && (p_id_island[*ivconnect]<=0) && (p_id_island[*ivconnect] != -id_island)) {
+                            tot_step_flow_island += p_area[ivconnect] * p_step_plastic_flow[ivconnect] * this->GetSystem()->GetStep();
+                            tot_Nforce_island += p_area[ivconnect] * p_sigma[ivconnect];
+                            fill_front_2.insert(ivconnect);
+                            p_id_island[ivconnect] = id_island;
+                            touched_vertexes.erase(ivconnect);
+                        } 
+                        else if ((p_sigma[ivconnect] == 0) && (p_id_island[ivconnect] <= 0) && (p_id_island[ivconnect] != -id_island)) {
                             ++n_vert_boundary;
-                            tot_area_boundary += p_area[*ivconnect];
-                            p_id_island[*ivconnect] = -id_island; // negative to as boundary
-                            boundary.insert(*ivconnect);
+                            tot_area_boundary += p_area[ivconnect];
+                            p_id_island[ivconnect] = -id_island; // negative to mark as boundary
+                            boundary.insert(ivconnect);
                         }
                     }
                 }
@@ -526,59 +584,110 @@ void DeformableTerrain::UpdateInternalForces() {
             }
             //GetLog() << " island " << id_island << " flow volume =" << tot_step_flow_island << " N force=" << tot_Nforce_island << "\n"; 
 
-            // Raise the boundary because of material flow
+            // Raise the boundary because of material flow (it gives a sharp spike around the
+            // island boundary, but later we'll use the erosion algorithm to smooth it out)
+            double tot_length_boundary = (double)boundary.size() * sqrt(0.5*tot_area_boundary / (double)boundary.size() ); // approx.
+            double tot_width_boundary = tot_area_boundary/tot_length_boundary;
+            
             for (auto ibv : boundary) {
-                double raise_y = ((p_area[ibv]/tot_area_boundary) *  (1/p_area[ibv]) * tot_step_flow_island);
+                double raise_y = bulldozing_flow_factor * ((p_area[ibv]/tot_area_boundary) *  (1/p_area[ibv]) * tot_step_flow_island);
                 vertices[ibv]           += N * raise_y;
                 p_vertices_initial[ibv] += N * raise_y;
             }
 
-        } // end for islands
+            domain_boundaries.insert(boundary.begin(), boundary.end());
+
+        }// end for islands
+
+
+        // Erosion domain area select, by topologically dilation of all the 
+        // boundaries of the islands:
+        std::set<int> domain_erosion= domain_boundaries;
+        for (auto ie : domain_boundaries)
+            p_erosion[ie] = true;
+        std::set<int> front_erosion = domain_boundaries;
+        for (int iloop = 0; iloop <10; ++iloop) {
+            std::set<int> front_erosion2;
+            for(auto is : front_erosion) {
+                for (auto ivconnect : connected_vertexes[is]) {
+                    if ((p_id_island[ivconnect]==0) && (p_erosion[ivconnect]==0)) {
+                        front_erosion2.insert(ivconnect);
+                        p_erosion[ivconnect] = true;
+                    }
+                }
+            }
+            domain_erosion.insert(front_erosion2.begin(), front_erosion2.end());
+            front_erosion = front_erosion2;
+        }
+        // Erosion smoothing algorithm on domain
+        for (int ismo = 0; ismo <3; ++ismo) {
+            for (auto is : domain_erosion) {
+                double my = vertices[is].y;
+                for (auto ivc : connected_vertexes[is]) {
+                    ChVector<> vis = this->plane.TransformParentToLocal(vertices[is]);
+                    if (p_sigma[ivc] == 0) {
+                        ChVector<> vic = this->plane.TransformParentToLocal(vertices[ivc]);
+                        ChVector<> vdist = vic-vis;
+                        vdist.y=0;
+                        double ddist = vdist.Length();
+                        double dy = my - vertices[ivc].y;
+                        double dy_lim = ddist * tan(bulldozing_erosion_angle*CH_C_DEG_TO_RAD);
+                        if (dy>dy_lim) {
+                            ChVector<> DV = ((dy-dy_lim)*0.5/(double)connected_vertexes[is].size()) * this->plane.TransformDirectionLocalToParent(VECT_Y);
+                            vertices[is]  -= DV;
+                            vertices[ivc] += DV;
+                        }
+                    }
+                }
+            }
+        }
 
     } // end bulldozing flow 
+
 
 
     //
     // Update the visualization colors
     // 
-    if (plot_type != PLOT_NONE) {
+    if (plot_type != DeformableTerrain::PLOT_NONE) {
         colors.resize(vertices.size());
         for (size_t iv = 0; iv< vertices.size(); ++iv) {
             ChColor mcolor;
             switch (plot_type) {
-                case PLOT_SINKAGE:
+                case DeformableTerrain::PLOT_SINKAGE:
                     mcolor = ChColor::ComputeFalseColor(p_sinkage[iv], plot_v_min, plot_v_max);
                     break;
-                case PLOT_SINKAGE_ELASTIC:
+                case DeformableTerrain::PLOT_SINKAGE_ELASTIC:
                     mcolor = ChColor::ComputeFalseColor(p_sinkage_elastic[iv], plot_v_min, plot_v_max);
                     break;
-                case PLOT_SINKAGE_PLASTIC:
+                case DeformableTerrain::PLOT_SINKAGE_PLASTIC:
                     mcolor = ChColor::ComputeFalseColor(p_sinkage_plastic[iv], plot_v_min, plot_v_max);
                     break;
-                case PLOT_STEP_PLASTIC_FLOW:
+                case DeformableTerrain::PLOT_STEP_PLASTIC_FLOW:
                     mcolor = ChColor::ComputeFalseColor(p_step_plastic_flow[iv], plot_v_min, plot_v_max);
                     break;
-                case PLOT_K_JANOSI:
+                case DeformableTerrain::PLOT_K_JANOSI:
                     mcolor = ChColor::ComputeFalseColor(p_kshear[iv], plot_v_min, plot_v_max);
                     break;
-                case PLOT_PRESSURE:
+                case DeformableTerrain::PLOT_PRESSURE:
                     mcolor = ChColor::ComputeFalseColor(p_sigma[iv], plot_v_min, plot_v_max);
                     break;
-                case PLOT_PRESSURE_YELD:
+                case DeformableTerrain::PLOT_PRESSURE_YELD:
                     mcolor = ChColor::ComputeFalseColor(p_sigma_yeld[iv], plot_v_min, plot_v_max);
                     break;
-                case PLOT_SHEAR:
+                case DeformableTerrain::PLOT_SHEAR:
                     mcolor = ChColor::ComputeFalseColor(p_tau[iv], plot_v_min, plot_v_max);
                     break;
-                case PLOT_ISLAND_ID:
+                case DeformableTerrain::PLOT_ISLAND_ID:
+                    mcolor = ChColor(0,0,1);
+                    if (p_erosion[iv] == true)
+                        mcolor = ChColor(1,1,1);
                     if (p_id_island[iv] >0)
-                        mcolor = ChColor::ComputeFalseColor(3 +(p_id_island[iv] % 8), 0, 11);
-                    else if (p_id_island[iv] <0)
+                        mcolor = ChColor::ComputeFalseColor(4 +(p_id_island[iv] % 8), 0, 12);
+                    if (p_id_island[iv] <0)
                         mcolor = ChColor(0,0,0);
-                    else
-                        mcolor = ChColor(0,0,1);
                     break;
-                case PLOT_IS_TOUCHED:
+                case DeformableTerrain::PLOT_IS_TOUCHED:
                     if (p_sigma[iv]>0)
                         mcolor = ChColor(1,0,0);
                     else 
@@ -587,8 +696,7 @@ void DeformableTerrain::UpdateInternalForces() {
             }
             colors[iv] = {mcolor.R, mcolor.G, mcolor.B};
         }
-    } 
-    else {
+    } else {
         colors.clear();
     }
 
@@ -619,28 +727,21 @@ void DeformableTerrain::UpdateInternalForces() {
         normals[in] /= (double)accumulators[in];
     }
 
-
     // 
     // Compute the forces 
     //
     
-
     // Use the SCM soil contact model as described in the paper:
     // "Parameter Identification of a Planetary Rover Wheel–Soil
     // Contact Model via a Bayesian Approach", A.Gallina, R. Krenn et al.
-
 
     // 
     // Update visual asset
     //
 
-    
-
     // Not needed because Update() will happen anyway
     //  ChPhysicsItem::Update(0, true);
 }
-
-
 
 }  // end namespace vehicle
 }  // end namespace chrono
