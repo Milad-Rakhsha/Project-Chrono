@@ -401,6 +401,18 @@ WheelState ChSuspensionTestRig::GetWheelState(VehicleSide side) const {
 
 // -----------------------------------------------------------------------------
 // -----------------------------------------------------------------------------
+double ChSuspensionTestRig::GetVehicleMass() const {
+    double mass = m_suspension->GetMass();
+    if (HasSteering())
+        mass += m_steering->GetMass();
+    for (size_t i = 0; i < m_wheels.size(); i++)
+        mass += m_wheels[i]->GetMass();
+
+    return mass;
+}
+
+// -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 double ChSuspensionTestRig::GetActuatorDisp(VehicleSide side) {
     double time = GetSystem()->GetChTime();
     if (side == LEFT)
@@ -425,14 +437,14 @@ double ChSuspensionTestRig::GetActuatorMarkerDist(VehicleSide side) {
 
 // -----------------------------------------------------------------------------
 // -----------------------------------------------------------------------------
-void ChSuspensionTestRig::Update(double time,
-                                 double steering,
-                                 double disp_L,
-                                 double disp_R,
-                                 const TireForces& tire_forces) {
+void ChSuspensionTestRig::Synchronize(double time,
+                                      double steering,
+                                      double disp_L,
+                                      double disp_R,
+                                      const TireForces& tire_forces) {
     if (HasSteering()) {
         // Let the steering subsystem process the steering input.
-        m_steering->Update(time, steering);
+        m_steering->Synchronize(time, steering);
     }
 
     // Apply the displacements to the left/right post actuators
@@ -442,8 +454,8 @@ void ChSuspensionTestRig::Update(double time,
         func_R->Set_yconst(disp_R);
 
     // Apply tire forces to spindle bodies.
-    m_suspension->Update(LEFT, tire_forces[0]);
-    m_suspension->Update(RIGHT, tire_forces[1]);
+    m_suspension->Synchronize(LEFT, tire_forces[0]);
+    m_suspension->Synchronize(RIGHT, tire_forces[1]);
 
     // Cache driver inputs.
     m_steer = steering;
