@@ -42,7 +42,7 @@ void PrintMatrix(matrix_t& mat)
 	}
 }
 
-bool CompareArrays(ChCSR3Matrix& mat1, ChCSR3Matrix& mat2, bool only_rowIndex = false)
+bool are_arrays_equal(ChCSR3Matrix& mat1, ChCSR3Matrix& mat2, bool only_rowIndex = false)
 {
 	int rows = mat1.GetRows();
 	{
@@ -66,7 +66,19 @@ bool CompareArrays(ChCSR3Matrix& mat1, ChCSR3Matrix& mat2, bool only_rowIndex = 
 }
 
 template <class matrixIN, class matrixOUT>
-void FillMatrix(matrixOUT& mat_out, matrixIN& mat_in)
+bool is_equal(matrixOUT& mat_out, matrixIN& mat_in)
+{
+	if (mat_in.GetRows() != mat_out.GetRows() || mat_in.GetColumns() != mat_out.GetColumns()) return false;
+
+	for (int m_sel = 0; m_sel < mat_in.GetRows(); m_sel++)
+		for (int n_sel = 0; n_sel < mat_in.GetColumns(); n_sel++)
+			if (mat_in.GetElement(m_sel, n_sel) != mat_out.GetElement(m_sel, n_sel)) return false;
+
+	return true;
+}
+
+template <class matrixIN, class matrixOUT>
+void CopyMatrix(matrixOUT& mat_out, matrixIN& mat_in)
 {
 
 	//assert(mat_out.GetRows() == mat_in.GetRows());
@@ -74,6 +86,82 @@ void FillMatrix(matrixOUT& mat_out, matrixIN& mat_in)
 	for (int m_sel = 0; m_sel < mat_in.GetRows(); m_sel++)
 		for (int n_sel = 0; n_sel < mat_in.GetColumns(); n_sel++)
 			if (mat_in.GetElement(m_sel, n_sel) != 0) mat_out.SetElement(m_sel, n_sel, mat_in.GetElement(m_sel, n_sel));
+}
+
+
+bool is_Initialize_with_nonzeros_vector_broken()
+{
+
+	return false;
+}
+
+bool is_Reset_function_broken()
+{
+	{
+		ChCSR3Matrix mat(3, 3, 3);
+		mat.SetElement(0, 0, 1.1);
+		mat.SetElement(1, 1, 2.2);
+		mat.SetElement(2, 2, 3.3);
+
+		mat.SetRowIndexLock(true);
+		mat.SetColIndexLock(true);
+
+		mat.Compress();
+
+		// both sparsity block must be kept after this command below
+		mat.SetElement(2, 2, 4.4);
+		if (mat.IsRowIndexLockBroken() || mat.IsColIndexLockBroken()) return true;
+
+		// both sparsity block must be broken after this command below
+		mat.SetElement(2, 1, 4.4);
+		if (!mat.IsRowIndexLockBroken() || !mat.IsColIndexLockBroken()) return true;
+
+		// sparsity locks must be restored after this command below
+		mat.Reset(3, 3, 3);
+		if (mat.IsRowIndexLockBroken() || mat.IsColIndexLockBroken()) return true;
+	}
+
+	{
+		ChCSR3Matrix mat(3, 3, 3);
+		mat.SetElement(0, 0, 1.1);
+		mat.SetElement(1, 1, 2.2);
+		mat.SetElement(2, 2, 3.3);
+
+		mat.SetRowIndexLock(true);
+		mat.SetColIndexLock(true);
+
+		mat.Compress();
+
+		std::vector<int> rowInd;
+		std::vector<int> colInd;
+
+		for (int cont = 0; cont < 3; cont++)
+		{
+			colInd[cont] = mat.GetColIndexAddress()[cont];
+		}
+
+		for (int cont = 0; cont < 3+1; cont++)
+		{
+			rowInd[cont] = mat.GetRowIndexAddress()[cont];
+		}
+
+		mat.Reset(mat.GetRows(), mat.GetColumns());
+
+		for (int cont = 0; cont < 3; cont++)
+		{
+			if (colInd[cont] != mat.GetColIndexAddress()[cont]) return true;
+		}
+
+		for (int cont = 0; cont < 3 + 1; cont++)
+		{
+			if (rowInd[cont] != mat.GetRowIndexAddress()[cont]) return true;
+		}
+
+	}
+
+
+
+	return false;
 }
 
 int main(){
@@ -96,7 +184,7 @@ int main(){
 	mat_base(4, 1) = 4.1;
 	mat_base(2, 1) = 2.1;
 
-	FillMatrix(matCSR3, mat_base);
+	CopyMatrix(matCSR3, mat_base);
 
 	nonzeros_vector = new int[matCSR3.GetRows()];
 	matCSR3.GetNonZerosDistribution(nonzeros_vector);
@@ -119,13 +207,13 @@ int main(){
 	//////////////////
 
 	ChCSR3Matrix matCSR3_1(m, n, nonzeros_vector);
-	FillMatrix(matCSR3_1, mat_base);
+	CopyMatrix(matCSR3_1, mat_base);
 
-	bool test2 = CompareArrays(matCSR3_1, matCSR3);
+	bool test2 = are_arrays_equal(matCSR3_1, matCSR3);
 
 	matCSR3_1.Reset(matCSR3_1.GetRows(),matCSR3_1.GetColumns());
 
-	bool test3 = CompareArrays(matCSR3_1, matCSR3, true);
+	bool test3 = are_arrays_equal(matCSR3_1, matCSR3, true);
 
 	///////////////////
 
@@ -139,8 +227,10 @@ int main(){
 		std::cout << "Test 3: " << (test3 ? "passed" : "NOT passed") << std::endl;
 		getchar();
 	}
+
+	is_Reset_function_broken();
 	
 
-	return (0 || !test1 || !test2 || !test3);
+	return (0);
 
 }
