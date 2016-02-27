@@ -27,6 +27,21 @@ namespace chrono
 	{
 	}
 
+	template <class array_ptr_t>
+	void ExportArrayToFILE(array_ptr_t vect, std::string filepath, int array_length)
+	{
+		std::ofstream ofile;
+		ofile.open(filepath);
+		ofile << std::scientific << std::setprecision(12);
+
+		for (size_t sel = 0; sel< array_length; sel++)
+		{
+			ofile << vect[sel] << std::endl;
+		}
+
+		ofile.close();
+	}
+
 	double ChLcpMklSolver::Solve(ChLcpSystemDescriptor& sysd) ///< system description with constraints and variables
 	{
 		// Initial resizing;
@@ -89,6 +104,11 @@ namespace chrono
         // the problem size must be updated also in the Engine: this is done by SetProblem() itself.
         mkl_engine.SetProblem(matCSR3, rhs, sol);
         int pardiso_message = mkl_engine.PardisoCall(13, 0);
+		//ExportArrayToFILE(matCSR3.GetValuesAddress(), "a.dat", matCSR3.GetColIndexLength());
+		//ExportArrayToFILE(matCSR3.GetValuesAddress(), "ja.dat", matCSR3.GetColIndexLength());
+		//ExportArrayToFILE(matCSR3.GetValuesAddress(), "ia.dat", matCSR3.GetRows() + 1);
+
+
         solver_call++;
         if (pardiso_message != 0) {
             GetLog() << "Pardiso error code = " << pardiso_message << "\n";
