@@ -3,9 +3,8 @@
 
 
 #define DEBUG_MODE true
-#define SKIP_CONTACTS_UV true
-#define ADD_COMPLIANCE false
-#define REUSE_OLD_SOLUTIONS false
+#define REUSE_OLD_SOLUTIONS true
+#define LAMBDA_DIVISION_BYZERO_SAFEGUARD true
 
 namespace chrono
 {
@@ -31,7 +30,7 @@ namespace chrono
 		{
 			for (size_t col_sel = 0; col_sel < mat.GetColumns(); col_sel++)
 			{
-				ofile << mat.GetElement(row_sel, col_sel) << " , ";
+				ofile << mat.GetElement(row_sel, col_sel);
 			}
 
 			ofile << std::endl;
@@ -60,7 +59,7 @@ namespace chrono
 
 	double ChInteriorPoint::Solve(ChLcpSystemDescriptor& sysd)
 	{
-		solver_call++;
+		solver_call++; // so first execution runs with solver_call = 1
 		initialize(sysd);
 
 		if (m == 0) // if no contraints are active, MKL has been called in initialize() and has written the solution directly in sol;
@@ -105,7 +104,7 @@ namespace chrono
 		int n_old = n;
 		int m_old = m;
 		n = sysd.CountActiveVariables();
-		m = sysd.CountActiveConstraints(false, SKIP_CONTACTS_UV);
+		m = sysd.CountActiveConstraints(false, skip_contacts_uv);
 
 		reset_dimensions(n_old, m_old);
 
@@ -113,11 +112,11 @@ namespace chrono
 		switch (KKT_solve_method)
 		{
 		case STANDARD:
-			sysd.ConvertToMatrixForm(&BigMat, nullptr, false, SKIP_CONTACTS_UV, 2);
+			sysd.ConvertToMatrixForm(&BigMat, nullptr, false, skip_contacts_uv, 2);
 			make_positive_definite();
 			break;
 		case AUGMENTED:
-			sysd.ConvertToMatrixForm(&BigMat, nullptr, false, SKIP_CONTACTS_UV, 1);
+			sysd.ConvertToMatrixForm(&BigMat, nullptr, false, skip_contacts_uv, 1);
 			make_positive_definite();
 			break;
 		case NORMAL:
@@ -125,7 +124,7 @@ namespace chrono
 			break;
 		}
 
-		sysd.ConvertToMatrixForm(nullptr, nullptr, nullptr, &c, &b, nullptr, false, SKIP_CONTACTS_UV); // load f->c and b->b
+		sysd.ConvertToMatrixForm(nullptr, nullptr, nullptr, &c, &b, nullptr, false, skip_contacts_uv); // load f->c and b->b
 		c.MatrScale(-1); // adapt to InteriorPoint convention
 		b.MatrScale(-1); // adapt to InteriorPoint convention
 
@@ -157,7 +156,7 @@ namespace chrono
 			BigMat.Trim();
 			ChMklEngine mkl_test; // TODO: the program crashes if we use the same solver of IP!!!!
 			mkl_test.SetProblem(BigMat, rhs, sol);
-			mkl_test.PardisoCall(13, 1);
+			mkl_test.PardisoCall(13, 0);
 
 			if (verbose)
 			{
@@ -172,13 +171,14 @@ namespace chrono
 			return;
 		}
 
-		if (ADD_COMPLIANCE && m>0)
+		if (add_compliance && m>0)
 		{
-			sysd.ConvertToMatrixForm(nullptr, nullptr, &E, nullptr, nullptr, nullptr, false, SKIP_CONTACTS_UV);
+			sysd.ConvertToMatrixForm(nullptr, nullptr, &E, nullptr, nullptr, nullptr, false, skip_contacts_uv);
 			E *= -1;
 		}
 
-		starting_point_Nocedal(n_old, m_old);
+		//starting_point_Nocedal(n_old, m_old);
+		starting_point_Nocedal_WS(n_old, m_old);
 		//starting_point_STP1();
 		//starting_point_STP2(n_old);
 		
@@ -241,20 +241,36 @@ namespace chrono
 
 	void ChInteriorPoint::starting_point_Nocedal_WS(int n_old, int m_old)
 	{
-		/*Backup vectors*/
+		// Warm start keeps ALL the vectors 'x', 'y', 'lam' from previous call so
+		// BOTH n and m must be equal to the previous call (if not first call)
+
+		// Simple Reuse does:
+		// - keeps 'x' if n is unchanged (and not first call)
+		// - keeps 'lam' if m is unchanged (and not first call)
+		// - evaluate 'y'
+
 		ChMatrixDynamic<double> x_bkp(x);
 		ChMatrixDynamic<double> y_bkp(y);
 		ChMatrixDynamic<double> lam_bkp(lam);
-		fullupdate_residual();
-		VerifyKKTconditions();
-		double residual_value_bkp = IPres.rp_nnorm*m + IPres.rd_nnorm*n + mu*m;
+		double residual_value_bkp = std::numeric_limits<double>::max();
+
+		if (n_old == n && m_old == m && solver_call > 1)
+		{
+			/*Backup vectors*/
+			x_bkp = x;
+			y_bkp = y;
+			lam_bkp = lam;
+			fullupdate_residual();
+			VerifyKKTconditions();
+			residual_value_bkp = IPres.rp_nnorm*m + IPres.rd_nnorm*n + mu*m;
+		}
 		
 
 		/********** Initialize IP algorithm **********/
 		// Initial guess
-		if (n_old != n || solver_call == 0)
+		if (n_old != n || solver_call == 0 || !REUSE_OLD_SOLUTIONS)
 			x.FillElem(1); // TIP: every ChMatrix is initialized with zeros by default
-		if (m_old != m || solver_call == 0)
+		if (m_old != m || solver_call == 0 || !REUSE_OLD_SOLUTIONS)
 			lam.FillElem(1); // each element of lam will be at the denominator; avoid zeros!
 
 		// since A is generally changed between calls, also with warm_start,
@@ -285,7 +301,6 @@ namespace chrono
 		/* Check if restoring previous values would be better */
 		VerifyKKTconditions();
 		double residual_value_new = IPres.rp_nnorm*m + IPres.rd_nnorm*n + mu*m;
-
 		if (residual_value_bkp<residual_value_new)
 		{
 			x = x_bkp;
@@ -299,6 +314,7 @@ namespace chrono
 		{
 			std::cout << "Not WS\n";
 		}
+		
 
 	}
 
@@ -363,8 +379,9 @@ namespace chrono
 		lam_pred = Dlam; lam_pred.MatrScale(alfa_pred_dual); lam_pred += lam;
 
 		double mu_pred = y_pred.MatrDot(&y_pred, &lam_pred) / m; // from 14.33 pag.408 //TODO: why MatrDot is a member?
+		double sigma = (mu_pred*mu_pred*mu_pred) / (mu*mu*mu); // from 14.34 pag.408
 
-		if (ONLY_PREDICT)
+		if (ONLY_PREDICT || !std::isfinite(sigma))
 		{
 			x_pred = Dx; x_pred.MatrScale(alfa_pred_prim); x_pred += x; x = x_pred;
 			y = y_pred;
@@ -378,12 +395,12 @@ namespace chrono
 			rd += vectn;
 
 			mu = mu_pred;
+
+			return;
 		}
 		
 
 		/********** Correction phase **********/
-		double sigma = (mu_pred / mu)*(mu_pred / mu)*(mu_pred / mu); // from 14.34 pag.408
-
 		KKTsolve(sigma);
 
 		double eta = ADAPTIVE_ETA ? exp(-mu*m)*0.1 + 0.9 : 0.95; // exponential descent of eta
@@ -477,8 +494,18 @@ namespace chrono
 
 			break;
 		case AUGMENTED:
+			if (LAMBDA_DIVISION_BYZERO_SAFEGUARD)
+			{
+				double epsilon = 1e-16;
+				for (size_t sel = 0; sel < m; sel++)
+				{
+					lam(sel, 0) = std::max(epsilon, lam(sel, 0));
+				}
+			}
+				
+
 			// update y/lambda diagonal submatrix
-			if (ADD_COMPLIANCE)
+			if (add_compliance)
 				for (size_t diag_sel = 0; diag_sel < m; diag_sel++)
 				{
 					BigMat.SetElement(n + diag_sel, n + diag_sel, y.GetElement(diag_sel, 0) / lam.GetElement(diag_sel, 0) + E.GetElement(diag_sel, diag_sel));
@@ -506,34 +533,10 @@ namespace chrono
 			}
 
 
-
 			// Solve the KKT system
 			BigMat.Compress();
 			mkl_engine.SetProblem(BigMat, rhs, sol);
 			mkl_engine.PardisoCall(13, 0);
-
-			//if (!sol.is_valid())
-			//{
-			//	double perturb = -1e-18;
-			//	
-			//	double* vect_address;
-			//	vect_address = BigMat.GetValuesAddress();
-			//	for (size_t sel = 0; sel< BigMat.GetColIndexLength(); sel++)
-			//	{
-			//		if (!is_valid(vect_address[sel]))
-			//			vect_address[sel] = perturb;
-			//	}
-			//	
-			//	vect_address = rhs.GetAddress();
-			//	for (size_t sel = 0; sel < rhs.GetColumns()*rhs.GetRows(); sel++)
-			//	{
-			//		if (!is_valid(vect_address[sel]))
-			//			vect_address[sel] = perturb;
-			//	}
-
-			//	mkl_engine.SetProblem(BigMat, rhs, sol);
-			//	mkl_engine.PardisoCall(13, 0);
-			//}
 
 			if (verbose)
 			{
@@ -541,7 +544,7 @@ namespace chrono
 				res.Reset(BigMat.GetRows(), 1);
 				mkl_engine.GetResidual(res);
 				res_norm = mkl_engine.GetResidualNorm(res);
-				if (res_norm > 1e3)
+				if (res_norm > 1e-3 || res_norm!=res_norm)
 				{
 					std::cout << "KKT solve res norm: " << res_norm << std::endl;
 
@@ -555,7 +558,7 @@ namespace chrono
 					std::cout << "KKT solve res norm 2nd: " << res_norm << std::endl;
 					DumpProblem();
 					DumpIPStatus();
-					system("pause");
+					//system("pause");
 				}
 			}
 			
@@ -569,7 +572,7 @@ namespace chrono
 			// Calc 'Dy' (it is also possible to evaluate Dy as Dy=(-lam°y+sigma*mu*e-y°Dlam)./lam )
 			multiplyA(Dx, Dy);  // Dy = A*Dx
 			Dy += rp;
-			if (ADD_COMPLIANCE)
+			if (add_compliance)
 			{
 				E.MatMultiply(Dlam, vectm);
 				Dy += vectm;
@@ -652,7 +655,7 @@ namespace chrono
 			vectm.Resize(m, 1);
 		}
 		
-		SKIP_CONTACTS_UV ? sol_chrono.Resize(n + 3 * m, 1) : sol_chrono.Resize(n + m, 1);
+		skip_contacts_uv ? sol_chrono.Resize(n + 3 * m, 1) : sol_chrono.Resize(n + m, 1);
 
 		// BigMat and sol
 		switch (KKT_solve_method)
@@ -882,7 +885,7 @@ namespace chrono
 			multiplyA(x, rp);  // rp = A*x
 			rp -= y;
 			rp -= b;
-			if (ADD_COMPLIANCE)
+			if (add_compliance)
 			{
 				E.MatMultiply(Dlam, vectm);
 				rp += vectm;
@@ -900,9 +903,9 @@ namespace chrono
 
 	void ChInteriorPoint::update_history()
 	{
-		if (history_file.is_open())
+		if (history_file.is_open() && print_history)
 		{
-			history_file << std::endl << solver_call << ", " << iteration_count << ", " << IPres.rp_nnorm << ", " << IPres.rd_nnorm << ", " << mu;
+			history_file << solver_call << ", " << iteration_count << ", " << IPres.rp_nnorm << ", " << IPres.rd_nnorm << ", " << mu << std::endl;
 		}
 			
 	}
@@ -915,7 +918,7 @@ namespace chrono
 			sol_chrono(row_sel, 0) = x(row_sel,0);
 
 		// copy Lagrangian multipliers; skip tangential forces if needed
-		if (SKIP_CONTACTS_UV)
+		if (skip_contacts_uv)
 		{
 			for (size_t row_sel = 0; row_sel < m; row_sel++)
 			{
@@ -950,7 +953,7 @@ namespace chrono
 		}
 
 		history_file << std::scientific << std::setprecision(3);
-		history_file << std::endl << "SolverCall" << ", " << "Iteration" << ", " << "rp_nnorm" << ", " << "rd_nnorm" << ", " << "mu";
+		history_file << "SolverCall" << ", " << "Iteration" << ", " << "rp_nnorm" << ", " << "rd_nnorm" << ", " << "mu" << std::endl;
 
 		print_history = true;
 
@@ -996,15 +999,17 @@ namespace chrono
 		EQUAL_STEP_LENGTH(false),
 		ADAPTIVE_ETA(true),
 		ONLY_PREDICT(false),
-		warm_start(true),
 		warm_start_broken(false),
+		warm_start(true),
+		skip_contacts_uv(true),
+		add_compliance(false),
 		IPtolerances(1e-12),
 		mu_tolerance(1e-12),
 		KKT_solve_method(AUGMENTED),
-		mu(0)
+		mu(0),
+		print_history(false)
 	{
 		mkl_engine.SetProblem(BigMat, rhs, sol);
-		PrintHistory(true);
 	}
 
 	ChInteriorPoint::~ChInteriorPoint()

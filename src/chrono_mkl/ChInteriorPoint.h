@@ -107,6 +107,8 @@ namespace chrono
 		bool ONLY_PREDICT;
 		bool warm_start_broken;
 		bool warm_start;
+		bool skip_contacts_uv;
+		bool add_compliance;
 
 		struct IPresidual_t
 		{
@@ -210,6 +212,9 @@ namespace chrono
 			IPtolerances.rd_nnorm = rd_tol;
 			mu_tolerance = complementarity_tol;
 		}
+
+		void ExcludeFriction(bool on_off){ skip_contacts_uv = on_off; }
+		void AddCompliance(bool on_off){ add_compliance = on_off; }
 
 		// Test
 		void DumpProblem(std::string suffix = "");
