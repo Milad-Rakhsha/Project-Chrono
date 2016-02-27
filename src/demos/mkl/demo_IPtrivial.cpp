@@ -56,14 +56,14 @@ using namespace gui;
 void create_system(ChSystem& mphysicalSystem) {
 
 	// Create a material that will be shared between bricks
-	ChSharedPtr<ChMaterialSurface> mmaterial(new ChMaterialSurface);
+	auto mmaterial = std::make_shared<ChMaterialSurface>();
 	mmaterial->SetFriction(0.4f);
 	
-	if (false) // material selector
+	if (true) // material selector
 	{
-		mmaterial->SetCompliance(0.0000005f);
-		mmaterial->SetComplianceT(0.0000005f);
-		mmaterial->SetDampingF(0.5f);
+		mmaterial->SetCompliance(0.00005f);
+		mmaterial->SetComplianceT(0.00005f);
+		mmaterial->SetDampingF(0.2f);
 	}
 	else
 	{
@@ -74,11 +74,12 @@ void create_system(ChSystem& mphysicalSystem) {
 
 	// Create the floor using
 	// fixed rigid body of 'box' type:
-	ChSharedPtr<ChBodyEasyBox> mrigidFloor(new ChBodyEasyBox(250, 4, 250,  // x,y,z size
+	double mrigidFloor_thickness = 4;
+	auto mrigidFloor = std::make_shared<ChBodyEasyBox>(250, mrigidFloor_thickness, 250,  // x,y,z size
 		1000,         // density
 		true,         // collide enable?
-		true));       // visualization?
-	mrigidFloor->SetPos(ChVector<>(0, -2, 0));
+		true);       // visualization?
+	mrigidFloor->SetPos(ChVector<>(0, -mrigidFloor_thickness/2, 0));
 	mrigidFloor->SetMaterialSurface(mmaterial);
 	mrigidFloor->SetBodyFixed(true);
 
@@ -89,17 +90,17 @@ void create_system(ChSystem& mphysicalSystem) {
 	if (true)
 	{
 		// Create bricks
-		ChSharedPtr<ChBodyEasyBox> mrigidBody(new ChBodyEasyBox(4, 2, 2,  // x,y,z size
+		auto mrigidBody = std::make_shared<ChBodyEasyBox>(4, 2, 2,  // x,y,z size
 			100,         // density
 			true,        // collide enable?
-			true));      // visualization?
+			true);      // visualization?
 		mrigidBody->SetPos(ChVector<>(0, 4, 0));
 		mrigidBody->SetMaterialSurface(mmaterial);  // use shared surface properties
 
 		mphysicalSystem.Add(mrigidBody);
 
 		// optional, attach a texture for better visualization
-		ChSharedPtr<ChTexture> mtexture(new ChTexture());
+		auto mtexture = std::make_shared<ChTexture>();
 		mtexture->SetTextureFilename(GetChronoDataFile("cubetexture_borders.png"));
 		mrigidBody->AddAsset(mtexture);
 	}
@@ -107,11 +108,11 @@ void create_system(ChSystem& mphysicalSystem) {
 
 	if (false)
 	{
-		// Create a ball that will collide with wall
-		ChSharedPtr<ChBodyEasySphere> mrigidBall(new ChBodyEasySphere(1,       // radius
+		// Create a ball
+		auto mrigidBall = std::make_shared<ChBodyEasySphere>(1,       // radius
 			8000,    // density
 			true,    // collide enable?
-			true));  // visualization?
+			true);  // visualization?
 		mrigidBall->SetMaterialSurface(mmaterial);
 		mrigidBall->SetPos(ChVector<>(0, 3, 0));
 		mrigidBall->SetPos_dt(ChVector<>(0, -1, 0));          // set initial speed
@@ -119,7 +120,7 @@ void create_system(ChSystem& mphysicalSystem) {
 		mphysicalSystem.Add(mrigidBall);
 
 		// optional, attach a texture for better visualization
-		ChSharedPtr<ChTexture> mtextureball(new ChTexture());
+		auto mtextureball = std::make_shared<ChTexture>();
 		mtextureball->SetTextureFilename(GetChronoDataFile("bluwhite.png"));
 		mrigidBall->AddAsset(mtextureball);
 	}
@@ -134,13 +135,13 @@ int main(int argc, char* argv[]) {
 
     // Create the Irrlicht visualization (open the Irrlicht device,
     // bind a simple user interface, etc. etc.)
-    ChIrrApp application(&mphysicalSystem, L"Balls in bucket", core::dimension2d<u32>(800, 600), false, true);
+	irrlicht::ChIrrApp application(&mphysicalSystem, L"Balls in bucket", core::dimension2d<u32>(800, 600), false, true);
 
     // Easy shortcuts to add camera, lights, logo and sky in Irrlicht scene:
-    ChIrrWizard::add_typical_Logo(application.GetDevice());
-    ChIrrWizard::add_typical_Sky(application.GetDevice());
-    ChIrrWizard::add_typical_Lights(application.GetDevice(), core::vector3df(70.f, 120.f, -90.f), core::vector3df(30.f, 80.f, 60.f), 290, 190);
-	ChIrrWizard::add_typical_Camera(application.GetDevice(), core::vector3df(-5, 5, -5), core::vector3df(0, 0, 0));
+	irrlicht::ChIrrWizard::add_typical_Logo(application.GetDevice());
+	irrlicht::ChIrrWizard::add_typical_Sky(application.GetDevice());
+	irrlicht::ChIrrWizard::add_typical_Lights(application.GetDevice(), core::vector3df(70.f, 120.f, -90.f), core::vector3df(30.f, 80.f, 60.f), 290, 190);
+	irrlicht::ChIrrWizard::add_typical_Camera(application.GetDevice(), core::vector3df(-5, 5, -5), core::vector3df(0, 0, 0));
     //ChIrrWizard::add_typical_Camera(application.GetDevice(), core::vector3df(-15, 14, -30), core::vector3df(0, 5, 0));
 
     //
@@ -176,6 +177,11 @@ int main(int argc, char* argv[]) {
 	ChInteriorPoint* ip_solver_speed = new ChInteriorPoint;
 	mphysicalSystem.ChangeLcpSolverStab(ip_solver_stab);
 	mphysicalSystem.ChangeLcpSolverSpeed(ip_solver_speed);
+	ip_solver_stab->PrintHistory(true, "trivial_history_file_stab.txt");
+	ip_solver_speed->PrintHistory(true, "trivial_history_file_speed.txt");
+	//ip_solver_stab->AddCompliance(true);
+	//ip_solver_speed->AddCompliance(true);
+
 	application.GetSystem()->Update();
 
 	//// Change solver to Matlab external linear solver, for max precision in benchmarks
@@ -196,9 +202,10 @@ int main(int argc, char* argv[]) {
 	//application.SetPaused(true);
 
     while (application.GetDevice()->run()) {
+	//for (int step_count = 0; step_count < 200; step_count++) {
         application.GetVideoDriver()->beginScene(true, true, SColor(255, 140, 161, 192));
 
-        ChIrrTools::drawGrid(application.GetVideoDriver(), 5, 5, 20, 20,
+	    irrlicht::ChIrrTools::drawGrid(application.GetVideoDriver(), 5, 5, 20, 20,
                              ChCoordsys<>(ChVector<>(0, 0.04, 0), Q_from_AngAxis(CH_C_PI / 2, VECT_X)),
                              video::SColor(50, 90, 90, 150), true);
 

@@ -57,7 +57,7 @@ using namespace gui;
 void create_bucket(ChSystem& mphysicalSystem) {
 
     // Create a material that will be shared between bricks
-    ChSharedPtr<ChMaterialSurface> mmaterial(new ChMaterialSurface);
+	auto mmaterial = std::make_shared<ChMaterialSurface>();
     mmaterial->SetFriction(0.4f);
     mmaterial->SetCompliance(0.0000005f);
     mmaterial->SetComplianceT(0.0000005f);
@@ -68,7 +68,7 @@ void create_bucket(ChSystem& mphysicalSystem) {
 	double s = 0.01;
 	double apothem = 0.15;
 	double height = 0.25;
-	double ball_radius = 0.035;
+	double ball_radius = 0.025;
 
 	
 	double alfa = 2*PI/edges;
@@ -80,12 +80,11 @@ void create_bucket(ChSystem& mphysicalSystem) {
 	for (int edge_k = 0; edge_k < edges; edge_k++)
 	{
 		double alfa_k = alfa*edge_k;
-		ChSharedPtr<ChBodyEasyBox> wall(new ChBodyEasyBox(width, height, s,  // x,y,z size
-															1000,         // density
-															true,         // collide enable?
-															(alfa_k>=0 && alfa_k<PI) ? true : false)
-															//true)
-															);       // visualization?
+		auto wall = std::make_shared<ChBodyEasyBox>(width, height, s,  // x,y,z size
+			1000,         // density
+			true,         // collide enable?
+			(alfa_k >= 0 && alfa_k < PI) ? true : false);
+			//true);
 
 		ChQuaternion<double> quat(cos(alfa_k/2), 0, sin(alfa_k / 2), 0);
 		wall->SetRot(quat);
@@ -95,45 +94,78 @@ void create_bucket(ChSystem& mphysicalSystem) {
 		mphysicalSystem.Add(wall);
 
 		// optional, attach a texture for better visualization
-		ChSharedPtr<ChTexture> mtexture(new ChTexture());
+		auto mtexture = std::make_shared<ChTexture>();
 		mtexture->SetTextureFilename(GetChronoDataFile("cubetexture_borders.png"));
 		wall->AddAsset(mtexture);
 
-		int ball_arrays = 10;
-		for (int ball_set = 0; ball_set < ball_arrays; ball_set++)
-		{
-			// Create a ball that will collide with wall
-			ChSharedPtr<ChBodyEasySphere> mrigidBall(new ChBodyEasySphere(ball_radius,       // radius
-				8000,    // density
-				true,    // collide enable?
-				true));  // visualization?
-			mrigidBall->SetMaterialSurface(mmaterial);
-			mrigidBall->SetPos(ChVector<>(ball_pos_radius*sin(alfa_k + alfa / 2), 2*ball_radius * (ball_set + 1), ball_pos_radius*cos(alfa_k + alfa / 2)));
-			mrigidBall->SetPos_dtdt(ChVector<>(0, -3, 0));          // set initial acceleration
-			mrigidBall->GetMaterialSurface()->SetFriction(0.4f);  // use own (not shared) matrial properties
-			mrigidBall->GetMaterialSurface()->SetCompliance(0.0);
-			mrigidBall->GetMaterialSurface()->SetComplianceT(0.0);
-			mrigidBall->GetMaterialSurface()->SetDampingF(0.2f);
+		//int ball_arrays = 10;
+		//for (int ball_set = 0; ball_set < ball_arrays; ball_set++)
+		//{
+		//	// Create a ball that will collide with wall
+		//	auto mrigidBall = std::make_shared<ChBodyEasySphere>(ball_radius,       // radius
+		//		8000,    // density
+		//		true,    // collide enable?
+		//		true);  // visualization?
+		//	mrigidBall->SetMaterialSurface(mmaterial);
+		//	mrigidBall->SetPos(ChVector<>(ball_pos_radius*sin(alfa_k + alfa / 2), 2*ball_radius * (ball_set + 1), ball_pos_radius*cos(alfa_k + alfa / 2)));
+		//	mrigidBall->SetPos_dtdt(ChVector<>(0, -3, 0));          // set initial acceleration
+		//	mrigidBall->GetMaterialSurface()->SetFriction(0.4f);  // use own (not shared) matrial properties
+		//	mrigidBall->GetMaterialSurface()->SetCompliance(0.0);
+		//	mrigidBall->GetMaterialSurface()->SetComplianceT(0.0);
+		//	mrigidBall->GetMaterialSurface()->SetDampingF(0.2f);
 
-			mphysicalSystem.Add(mrigidBall);
+		//	mphysicalSystem.Add(mrigidBall);
 
-			// optional, attach a texture for better visualization
-			ChSharedPtr<ChTexture> mtextureball(new ChTexture());
-			mtextureball->SetTextureFilename(GetChronoDataFile("bluwhite.png"));
-			mrigidBall->AddAsset(mtextureball);
-		}
+		//	// optional, attach a texture for better visualization
+		//	auto mtextureball = std::make_shared<ChTexture>();
+		//	mtextureball->SetTextureFilename(GetChronoDataFile("bluwhite.png"));
+		//	mrigidBall->AddAsset(mtextureball);
+		//}
 		
 
 	}
 
+	// Ball cluster
+	double mesh_size = ball_radius*2.05;
+	int ball_arrays = 2;
+	assert(mesh_size > 2 * ball_radius);
+	for (int array_num = 0; array_num < ball_arrays; array_num++)
+	{
+		for (double pos_x = -apothem + ball_radius + std::numeric_limits<float>::min(); pos_x <= apothem - ball_radius; pos_x += mesh_size)
+		{
+			for (double pos_y = -apothem + ball_radius; pos_y <= apothem - ball_radius; pos_y += mesh_size)
+			{
+				if (sqrt(pos_x*pos_x + pos_y*pos_y) <= apothem - ball_radius)
+				{
+					auto mrigidBall = std::make_shared<ChBodyEasySphere>(ball_radius,       // radius
+								8000,    // density
+								true,    // collide enable?
+								true);  // visualization?
+					mrigidBall->SetMaterialSurface(mmaterial);
+					mrigidBall->SetPos(ChVector<double>(pos_x, (array_num + 1)*2.05*ball_radius, pos_y));
+					mrigidBall->SetPos_dtdt(ChVector<>(0, -3, 0));          // set initial acceleration
+					mrigidBall->GetMaterialSurface()->SetFriction(0.4f);  // use own (not shared) matrial properties
+					mrigidBall->GetMaterialSurface()->SetCompliance(0.0);
+					mrigidBall->GetMaterialSurface()->SetComplianceT(0.0);
+					mrigidBall->GetMaterialSurface()->SetDampingF(0.2f);
+
+					mphysicalSystem.Add(mrigidBall);
+
+					// optional, attach a texture for better visualization
+					auto mtextureball = std::make_shared<ChTexture>();
+					mtextureball->SetTextureFilename(GetChronoDataFile("bluwhite.png"));
+					mrigidBall->AddAsset(mtextureball);
+				}
+			}
+		}
+	}
 
     // Create the floor using
     // fixed rigid body of 'box' type:
-
-    ChSharedPtr<ChBodyEasyBox> mrigidFloor(new ChBodyEasyBox(250, 4, 250,  // x,y,z size
+	auto mrigidFloor = std::make_shared<ChBodyEasyBox>(250, 4, 250,  // x,y,z size
                                                              1000,         // density
                                                              true,         // collide enable?
-                                                             true));       // visualization?
+                                                             true);       // visualization?
     mrigidFloor->SetPos(ChVector<>(0, -2, 0));
     mrigidFloor->SetMaterialSurface(mmaterial);
     mrigidFloor->SetBodyFixed(true);
@@ -150,13 +182,13 @@ int main(int argc, char* argv[]) {
 
     // Create the Irrlicht visualization (open the Irrlicht device,
     // bind a simple user interface, etc. etc.)
-    ChIrrApp application(&mphysicalSystem, L"Balls in bucket", core::dimension2d<u32>(800, 600), false, true);
+	irrlicht::ChIrrApp application(&mphysicalSystem, L"Balls in bucket", core::dimension2d<u32>(800, 600), false, true);
 
     // Easy shortcuts to add camera, lights, logo and sky in Irrlicht scene:
-    ChIrrWizard::add_typical_Logo(application.GetDevice());
-    ChIrrWizard::add_typical_Sky(application.GetDevice());
-    ChIrrWizard::add_typical_Lights(application.GetDevice(), core::vector3df(70.f, 120.f, -90.f), core::vector3df(30.f, 80.f, 60.f), 290, 190);
-	ChIrrWizard::add_typical_Camera(application.GetDevice(), core::vector3df(-0.5, 0.5, -0.5), core::vector3df(0, 0, 0));
+	irrlicht::ChIrrWizard::add_typical_Logo(application.GetDevice());
+	irrlicht::ChIrrWizard::add_typical_Sky(application.GetDevice());
+	irrlicht::ChIrrWizard::add_typical_Lights(application.GetDevice(), core::vector3df(70.f, 120.f, -90.f), core::vector3df(30.f, 80.f, 60.f), 290, 190);
+	irrlicht::ChIrrWizard::add_typical_Camera(application.GetDevice(), core::vector3df(-0.5, 0.5, -0.5), core::vector3df(0, 0, 0));
     //ChIrrWizard::add_typical_Camera(application.GetDevice(), core::vector3df(-15, 14, -30), core::vector3df(0, 5, 0));
 
     //
@@ -192,7 +224,10 @@ int main(int argc, char* argv[]) {
 	ChInteriorPoint* ip_solver_speed = new ChInteriorPoint;
 	mphysicalSystem.ChangeLcpSolverStab(ip_solver_stab);
 	mphysicalSystem.ChangeLcpSolverSpeed(ip_solver_speed);
+	ip_solver_stab->PrintHistory(true, "ballinbucket_history_file_stab.txt");
+	ip_solver_speed->PrintHistory(true, "ballinbucket_history_file_speed.txt");
 	application.GetSystem()->Update();
+	
 
 	//// Change solver to Matlab external linear solver, for max precision in benchmarks
 	//ChMatlabEngine matlab_engine;
@@ -209,12 +244,15 @@ int main(int argc, char* argv[]) {
 
     application.SetStepManage(true);
     application.SetTimestep(0.02);
-	application.SetPaused(true);
+	application.SetPaused(false);
+
+
 
     while (application.GetDevice()->run()) {
+	//for (int step_count = 0; step_count < 50; step_count++){
         application.GetVideoDriver()->beginScene(true, true, SColor(255, 140, 161, 192));
 
-        ChIrrTools::drawGrid(application.GetVideoDriver(), 5, 5, 20, 20,
+	    irrlicht::ChIrrTools::drawGrid(application.GetVideoDriver(), 5, 5, 20, 20,
                              ChCoordsys<>(ChVector<>(0, 0.04, 0), Q_from_AngAxis(CH_C_PI / 2, VECT_X)),
                              video::SColor(50, 90, 90, 150), true);
 
@@ -224,6 +262,9 @@ int main(int argc, char* argv[]) {
 
         application.GetVideoDriver()->endScene();
     }
+
+
+
 
     return 0;
 }

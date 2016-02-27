@@ -57,7 +57,7 @@ using namespace gui;
 
 void create_wall_bodies(ChSystem& mphysicalSystem) {
     // Create a material that will be shared between bricks
-    ChSharedPtr<ChMaterialSurface> mmaterial(new ChMaterialSurface);
+	auto mmaterial = std::make_shared<ChMaterialSurface>();
     mmaterial->SetFriction(0.4f);
     mmaterial->SetCompliance(0.0000005f);
     mmaterial->SetComplianceT(0.0000005f);
@@ -70,17 +70,17 @@ void create_wall_bodies(ChSystem& mphysicalSystem) {
         {
             for (int ui = 0; ui < 15; ui++)  // N. of hor. bricks
             {
-                ChSharedPtr<ChBodyEasyBox> mrigidBody(new ChBodyEasyBox(3.96, 2, 4,  // x,y,z size
+				auto mrigidBody = std::make_shared<ChBodyEasyBox>(3.96, 2, 4,  // x,y,z size
                                                                         100,         // density
                                                                         true,        // collide enable?
-                                                                        true));      // visualization?
+                                                                        true);      // visualization?
                 mrigidBody->SetPos(ChVector<>(-8 + ui * 4.0 + 2 * (bi % 2), 1.0 + bi * 2.0, ai * 9));
                 mrigidBody->SetMaterialSurface(mmaterial);  // use shared surface properties
 
                 mphysicalSystem.Add(mrigidBody);
 
                 // optional, attach a texture for better visualization
-                ChSharedPtr<ChTexture> mtexture(new ChTexture());
+				auto mtexture = std::make_shared<ChTexture>();
                 mtexture->SetTextureFilename(GetChronoDataFile("cubetexture_borders.png"));
                 mrigidBody->AddAsset(mtexture);
             }
@@ -90,10 +90,10 @@ void create_wall_bodies(ChSystem& mphysicalSystem) {
     // Create the floor using
     // fixed rigid body of 'box' type:
 
-    ChSharedPtr<ChBodyEasyBox> mrigidFloor(new ChBodyEasyBox(250, 4, 250,  // x,y,z size
+	auto mrigidFloor = std::make_shared<ChBodyEasyBox>(250, 4, 250,  // x,y,z size
                                                              1000,         // density
                                                              true,         // collide enable?
-                                                             true));       // visualization?
+                                                             true);       // visualization?
     mrigidFloor->SetPos(ChVector<>(0, -2, 0));
     mrigidFloor->SetMaterialSurface(mmaterial);
     mrigidFloor->SetBodyFixed(true);
@@ -101,10 +101,10 @@ void create_wall_bodies(ChSystem& mphysicalSystem) {
     mphysicalSystem.Add(mrigidFloor);
 
     // Create a ball that will collide with wall
-    ChSharedPtr<ChBodyEasySphere> mrigidBall(new ChBodyEasySphere(4,       // radius
+	auto mrigidBall = std::make_shared<ChBodyEasySphere>(4,       // radius
                                                                   8000,    // density
                                                                   true,    // collide enable?
-                                                                  true));  // visualization?
+                                                                  true);  // visualization?
     mrigidBall->SetMaterialSurface(mmaterial);
     mrigidBall->SetPos(ChVector<>(0, 5, -8));
     mrigidBall->SetPos_dt(ChVector<>(0, 0, 16));          // set initial speed
@@ -116,7 +116,7 @@ void create_wall_bodies(ChSystem& mphysicalSystem) {
     mphysicalSystem.Add(mrigidBall);
 
     // optional, attach a texture for better visualization
-    ChSharedPtr<ChTexture> mtextureball(new ChTexture());
+	auto mtextureball = std::make_shared<ChTexture>();
     mtextureball->SetTextureFilename(GetChronoDataFile("bluwhite.png"));
     mrigidBall->AddAsset(mtextureball);
 }
@@ -126,7 +126,7 @@ void create_wall_bodies(ChSystem& mphysicalSystem) {
 
 void create_jengatower_bodies(ChSystem& mphysicalSystem) {
     // Create a material that will be shared between bricks
-    ChSharedPtr<ChMaterialSurface> mmaterial(new ChMaterialSurface);
+	auto mmaterial = std::make_shared<ChMaterialSurface>();
     mmaterial->SetFriction(0.4f);
     mmaterial->SetCompliance(0.0000005f);
     mmaterial->SetComplianceT(0.0000005f);
@@ -134,34 +134,34 @@ void create_jengatower_bodies(ChSystem& mphysicalSystem) {
 
     // Create bricks
     for (int bi = 0; bi < 12; bi += 2) {
-        ChSharedPtr<ChBodyEasyBox> mrigidBody1(new ChBodyEasyBox(2, 2, 14,  // x,y,z size
+		auto mrigidBody1 = std::make_shared<ChBodyEasyBox>(2, 2, 14,  // x,y,z size
                                                                  100,       // density
                                                                  true,      // collide enable?
-                                                                 true));    // visualization?
+                                                                 true);    // visualization?
         mrigidBody1->SetPos(ChVector<>(-5, 1.0 + bi * 2.0, 0));
         mrigidBody1->SetMaterialSurface(mmaterial);  // use shared surface properties
         mphysicalSystem.Add(mrigidBody1);
 
-        ChSharedPtr<ChBodyEasyBox> mrigidBody2(new ChBodyEasyBox(2, 2, 14,  // x,y,z size
+		auto mrigidBody2 = std::make_shared<ChBodyEasyBox>(2, 2, 14,  // x,y,z size
                                                                  100,       // density
                                                                  true,      // collide enable?
-                                                                 true));    // visualization?
+                                                                 true);    // visualization?
         mrigidBody2->SetPos(ChVector<>(5, 1.0 + bi * 2.0, 0));
         mrigidBody2->SetMaterialSurface(mmaterial);  // use shared surface properties
         mphysicalSystem.Add(mrigidBody2);
 
-        ChSharedPtr<ChBodyEasyBox> mrigidBody3(new ChBodyEasyBox(14, 2, 2,  // x,y,z size
+		auto mrigidBody3 = std::make_shared<ChBodyEasyBox>(14, 2, 2,  // x,y,z size
                                                                  100,       // density
                                                                  true,      // collide enable?
-                                                                 true));    // visualization?
+                                                                 true);    // visualization?
         mrigidBody3->SetPos(ChVector<>(0, 3.0 + bi * 2.0, 5));
         mrigidBody3->SetMaterialSurface(mmaterial);  // use shared surface properties
         mphysicalSystem.Add(mrigidBody3);
 
-        ChSharedPtr<ChBodyEasyBox> mrigidBody4(new ChBodyEasyBox(14, 2, 2,  // x,y,z size
+		auto mrigidBody4 = std::make_shared<ChBodyEasyBox>(14, 2, 2,  // x,y,z size
                                                                  100,       // density
                                                                  true,      // collide enable?
-                                                                 true));    // visualization?
+                                                                 true);    // visualization?
         mrigidBody4->SetPos(ChVector<>(0, 3.0 + bi * 2.0, -5));
         mrigidBody4->SetMaterialSurface(mmaterial);  // use shared surface properties
         mphysicalSystem.Add(mrigidBody4);
@@ -170,10 +170,10 @@ void create_jengatower_bodies(ChSystem& mphysicalSystem) {
     // Create the floor using
     // fixed rigid body of 'box' type:
 
-    ChSharedPtr<ChBodyEasyBox> mrigidFloor(new ChBodyEasyBox(250, 4, 250,  // x,y,z size
+	auto mrigidFloor = std::make_shared<ChBodyEasyBox>(250, 4, 250,  // x,y,z size
                                                              1000,         // density
                                                              true,         // collide enable?
-                                                             true));       // visualization?
+                                                             true);       // visualization?
     mrigidFloor->SetPos(ChVector<>(0, -2, 0));
     mrigidFloor->SetMaterialSurface(mmaterial);
     mrigidFloor->SetBodyFixed(true);
@@ -181,10 +181,10 @@ void create_jengatower_bodies(ChSystem& mphysicalSystem) {
     mphysicalSystem.Add(mrigidFloor);
 
     // Create a ball that will collide with tower
-    ChSharedPtr<ChBodyEasySphere> mrigidBall(new ChBodyEasySphere(4,       // radius
-                                                                  1000,    // density
-                                                                  true,    // collide enable?
-                                                                  true));  // visualization?
+	auto mrigidBall = std::make_shared<ChBodyEasySphere>(4,       // radius
+		1000,    // density
+		true,    // collide enable?
+		true);  // visualization?
     mrigidBall->SetMaterialSurface(mmaterial);
     mrigidBall->SetPos(ChVector<>(0, 3, -8));
     mrigidBall->SetPos_dt(ChVector<>(0, 0, 2));           // set initial speed
@@ -196,7 +196,7 @@ void create_jengatower_bodies(ChSystem& mphysicalSystem) {
     mphysicalSystem.Add(mrigidBall);
 
     // optional, attach a texture for better visualization
-    ChSharedPtr<ChTexture> mtextureball(new ChTexture());
+	auto mtextureball = std::make_shared<ChTexture>();
     mtextureball->SetTextureFilename(GetChronoDataFile("bluwhite.png"));
     mrigidBall->AddAsset(mtextureball);
 }
@@ -207,14 +207,14 @@ int main(int argc, char* argv[]) {
 
 	// Create the Irrlicht visualization (open the Irrlicht device,
 	// bind a simple user interface, etc. etc.)
-	ChIrrApp application(&mphysicalSystem, L"Bricks test", core::dimension2d<u32>(800, 600), false, true);
+	irrlicht::ChIrrApp application(&mphysicalSystem, L"Bricks test", core::dimension2d<u32>(800, 600), false, true);
 
 	// Easy shortcuts to add camera, lights, logo and sky in Irrlicht scene:
-	ChIrrWizard::add_typical_Logo(application.GetDevice());
-	ChIrrWizard::add_typical_Sky(application.GetDevice());
-	ChIrrWizard::add_typical_Lights(application.GetDevice(), core::vector3df(70.f, 120.f, -90.f),
+	irrlicht::ChIrrWizard::add_typical_Logo(application.GetDevice());
+	irrlicht::ChIrrWizard::add_typical_Sky(application.GetDevice());
+	irrlicht::ChIrrWizard::add_typical_Lights(application.GetDevice(), core::vector3df(70.f, 120.f, -90.f),
 		core::vector3df(30.f, 80.f, 60.f), 290, 190);
-	ChIrrWizard::add_typical_Camera(application.GetDevice(), core::vector3df(-15, 14, -30), core::vector3df(0, 5, 0));
+	irrlicht::ChIrrWizard::add_typical_Camera(application.GetDevice(), core::vector3df(-15, 14, -30), core::vector3df(0, 5, 0));
 
 	//
 	// HERE YOU POPULATE THE MECHANICAL SYSTEM OF CHRONO...
@@ -268,7 +268,7 @@ int main(int argc, char* argv[]) {
 		{
 			application.GetVideoDriver()->beginScene(true, true, SColor(255, 140, 161, 192));
 
-			ChIrrTools::drawGrid(application.GetVideoDriver(), 5, 5, 20, 20,
+			irrlicht::ChIrrTools::drawGrid(application.GetVideoDriver(), 5, 5, 20, 20,
 				ChCoordsys<>(ChVector<>(0, 0.04, 0), Q_from_AngAxis(CH_C_PI / 2, VECT_X)),
 				video::SColor(50, 90, 90, 150), true);
 
