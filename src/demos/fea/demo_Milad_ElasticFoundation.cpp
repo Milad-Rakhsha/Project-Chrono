@@ -62,9 +62,14 @@ bool addForce = true;
 bool showTibia = false;
 bool showFemur = true;
 // bool addFixed = false;
-double time_step = 0.0004;
+double time_step = 0.0005;
 int scaleFactor = 1;
 double dz = 0.001;
+// Stiffness of the foundation
+double K_S = 1;     // Stiffness Constant
+double C_S = 0.05;  // Damper Constant
+double L0 = 1.0;    // Initial length
+
 double MeterToInch = 0.02539998628;
 
 class MyLoadSpringDamper : public ChLoadCustomMultiple {
@@ -93,7 +98,6 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
     virtual void ComputeQ(ChState* state_x,      ///< state position to evaluate Q
                           ChStateDelta* state_w  ///< state speed to evaluate Q
                           ) {
-
         ChVector<> Node_Pos;
         ChVector<> Node_Vel;
         ChVector<> Node_Grad;
@@ -103,8 +107,8 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
 
         ChVector<> NodeAttachment;
         if (state_x && state_w) {
-           // GetLog() << " We are reaching this" << loadables.size();
-            for (int iii = 0; iii < loadables.size()-1; iii++) {
+            // GetLog() << " We are reaching this" << loadables.size();
+            for (int iii = 0; iii < loadables.size() - 1; iii++) {
                 Node_Pos = state_x->ClipVector(iii * 6, 0);
                 Node_Grad = state_x->ClipVector(iii * 6 + 3, 0);
                 Node_Vel = state_w->ClipVector(iii * 6, 0);
@@ -118,7 +122,8 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
                     K_sp[iii] * (c_length - l0[iii]) + C_dp[iii] * dc_length;  // Absolute value of spring-damper force
 
                 // Apply generalized force to node
-            //    GetLog() << " Vertical component and absolute value of force: " << dij.GetNormalized().y << "  " << for_spdp;
+                //    GetLog() << " Vertical component and absolute value of force: " << dij.GetNormalized().y << "  "
+                //    << for_spdp;
                 this->load_Q(iii * 6 + 0) = -for_spdp * dij.GetNormalized().x;
                 this->load_Q(iii * 6 + 1) = -for_spdp * dij.GetNormalized().y;
                 this->load_Q(iii * 6 + 2) = -for_spdp * dij.GetNormalized().z;
@@ -135,7 +140,7 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
                 Fi(5) = 0.0;
 
                 ChState stateBody_x(7, NULL);
-                ChStateDelta stateBody_w (6, NULL);
+                ChStateDelta stateBody_w(6, NULL);
 
                 stateBody_x(0) = (*state_x)((loadables.size() - 1) * 6);
                 stateBody_x(1) = (*state_x)((loadables.size() - 1) * 6 + 1);
@@ -157,7 +162,7 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
                                       &stateBody_x, &stateBody_w);
 
                 // Apply forces to body (If body fixed, we should set those to zero not Qi(coordinate))
-                this->load_Q((loadables.size() - 1) * 6)     = 0.0;
+                this->load_Q((loadables.size() - 1) * 6) = 0.0;
                 this->load_Q((loadables.size() - 1) * 6 + 1) = 0.0;
                 this->load_Q((loadables.size() - 1) * 6 + 2) = 0.0;
                 this->load_Q((loadables.size() - 1) * 6 + 3) = 0.0;
@@ -196,7 +201,7 @@ int main(int argc, char* argv[]) {
     double sphere_swept_thickness = dz * 0.01;
 
     double rho = 1000;  ///< material density
-    double E = 7e09;     ///< Young's modulus
+    double E = 7e09;    ///< Young's modulus
     double nu = 0.3;    ///< Poisson ratio
     // Create the surface material, containing information
     // about friction etc.
@@ -255,11 +260,11 @@ int main(int argc, char* argv[]) {
         auto OneLoadSpringDamper = std::make_shared<MyLoadSpringDamper>(NodeList, mfloor);
         for (int iNode = 0; iNode < my_mesh->GetNnodes(); iNode++) {
             auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(iNode));
-            ChVector<> AttachBodyGlobal = Node->GetPos() - 0.5 * Node->GetD();  // Locate first the
+            ChVector<> AttachBodyGlobal = Node->GetPos() - L0 * Node->GetD();  // Locate first the
             // attachment point in the body in global coordiantes
-            OneLoadSpringDamper->C_dp[iNode] = 0.4;
-            OneLoadSpringDamper->K_sp[iNode] = 2.0;
-            OneLoadSpringDamper->l0[iNode] = 0.5; 
+            OneLoadSpringDamper->C_dp[iNode] = C_S;
+            OneLoadSpringDamper->K_sp[iNode] = K_S;
+            OneLoadSpringDamper->l0[iNode] = L0;
             OneLoadSpringDamper->LocalBodyAtt[iNode] = mfloor->Point_World2Body(AttachBodyGlobal);
         }
         mloadcontainerGround->Add(OneLoadSpringDamper);
@@ -282,8 +287,8 @@ int main(int argc, char* argv[]) {
         // Add a single layers with a fiber angle of 0 degrees.
         element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, material);
         // Set other element properties
-        element->SetAlphaDamp(0.04);  // Structural damping for this element
-        element->SetGravityOn(true);  // gravitational forces
+        element->SetAlphaDamp(0.04);   // Structural damping for this element
+        element->SetGravityOn(false);  // gravitational forces
     }
 
     if (addPressure) {
@@ -360,7 +365,7 @@ int main(int argc, char* argv[]) {
 
     // ---------------
     // Simulation loop
-    // ---------------
+    //    -------------- -
     //    ChLcpMklSolver* mkl_solver_stab = new ChLcpMklSolver;
     //    ChLcpMklSolver* mkl_solver_speed = new ChLcpMklSolver;
     //    my_system.ChangeLcpSolverStab(mkl_solver_stab);
@@ -374,32 +379,35 @@ int main(int argc, char* argv[]) {
     ChLcpIterativeMINRES* msolver = (ChLcpIterativeMINRES*)my_system.GetLcpSolverSpeed();
     msolver->SetDiagonalPreconditioning(true);
     my_system.SetIterLCPwarmStarting(true);  // this helps a lot to speedup convergence in this class of
-    my_system.SetIterLCPmaxItersSpeed(400000);
+    my_system.SetIterLCPmaxItersSpeed(40000000);
     my_system.SetTolForce(1e-6);
     msolver->SetVerbose(false);
     //
     // INT_HHT or INT_EULER_IMPLICIT
-    //    my_system.SetIntegrationType(ChSystem::INT_EULER_IMPLICIT_LINEARIZED);  // fast, less precise
-
-    my_system.SetIntegrationType(ChSystem::INT_HHT);
-    auto mystepper = std::dynamic_pointer_cast<ChTimestepperHHT>(my_system.GetTimestepper());
-    mystepper->SetAlpha(-0.2);
-    mystepper->SetMaxiters(200);
-    mystepper->SetAbsTolerances(1e-05,1e-2);
-    mystepper->SetMaxiters(16);
-    mystepper->SetMaxItersSuccess(5);
-    mystepper->SetMode(ChTimestepperHHT::POSITION);
-    mystepper->SetScaling(true);
-    mystepper->SetVerbose(true);
-    application.SetPaused(true);
+    my_system.SetIntegrationType(ChSystem::INT_EULER_IMPLICIT_LINEARIZED);  // fast, less precise
+    auto NodeTip = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(5));
+    //
+    //    my_system.SetIntegrationType(ChSystem::INT_HHT);
+    //    auto mystepper = std::dynamic_pointer_cast<ChTimestepperHHT>(my_system.GetTimestepper());
+    //    mystepper->SetAlpha(-0.2);
+    //    mystepper->SetMaxiters(200);
+    //    mystepper->SetAbsTolerances(1e-05, 1e-2);
+    //    mystepper->SetMaxiters(16);
+    //    mystepper->SetMaxItersSuccess(5);
+    //    mystepper->SetMode(ChTimestepperHHT::POSITION);
+    //    mystepper->SetScaling(true);
+    //    mystepper->SetVerbose(false);
+    //    application.SetPaused(false);
     application.SetTimestep(time_step);
     while (application.GetDevice()->run()) {
         application.BeginScene();
         application.DrawAll();
-        std::cout << "Time t = " << my_system.GetChTime() << "\n";
+        std::cout << "Time t = " << my_system.GetChTime() << ", Node Pos = " << NodeTip->GetPos().y << "\n";
+
         application.DoStep();
         application.EndScene();
     }
 
     return 0;
 }
+
