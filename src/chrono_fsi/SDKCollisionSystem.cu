@@ -1552,7 +1552,7 @@ void ReCalcDensity(thrust::device_vector<Real4>& oldRhoPreMu,
 	computeGridSize(numAllMarkers, 64, numBlocks, numThreads);
 
 	// execute the kernel
-	thrust::device_vector<Real4>& dummySortedRhoPreMu = sortedRhoPreMu;
+	thrust::device_vector<Real4> dummySortedRhoPreMu = sortedRhoPreMu;
 	ReCalcDensityD_F1<<<numBlocks, numThreads>>>(mR4CAST(dummySortedRhoPreMu), mR3CAST(sortedPosRad),
 			mR3CAST(sortedVelMas), mR4CAST(sortedRhoPreMu),
 			U1CAST(gridMarkerIndex), U1CAST(cellStart), U1CAST(cellEnd),
