@@ -33,6 +33,8 @@
 #include "chrono_fsi/custom_cutil_math.h"
 #include "chrono_fsi/SPHCudaUtils.h"
 #include "chrono_fsi/checkPointReduced.h"
+#include "chrono_fsi/UtilsDeviceOperations.cuh"
+
 
 // Chrono Parallel Includes
 #include "chrono_parallel/physics/ChSystemParallel.h"

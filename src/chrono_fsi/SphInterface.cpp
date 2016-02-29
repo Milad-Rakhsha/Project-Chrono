@@ -6,6 +6,7 @@
  */
 
 #include "chrono_fsi/SphInterface.h"
+#include "chrono_fsi/UtilsDeviceOperations.cuh"
 #include "chrono/core/ChTransform.h"
 
 // Chrono Vehicle Include
@@ -507,17 +508,18 @@ void Copy_fsiBodies_ChSystem_to_FluidSystem(
 		omegaAccLRF_fsiBodies_H[i] = ConvertChVectorToR3(bodyPtr->GetWacc_loc());
 	}
 
-	thrust::copy(posRigid_fsiBodies_H.begin(), posRigid_fsiBodies_H.end(),
-			posRigid_fsiBodies_D.begin());
-	thrust::copy(velMassRigid_fsiBodies_H.begin(),
-				velMassRigid_fsiBodies_H.end(), velMassRigid_fsiBodies_D.begin());
-	thrust::copy(accRigid_fsiBodies_H.begin(),
-				accRigid_fsiBodies_H.end(), accRigid_fsiBodies_D.begin());
-	thrust::copy(q_fsiBodies_H.begin(), q_fsiBodies_H.end(),
-			q_fsiBodies_D.begin());
-	thrust::copy(rigidOmegaLRF_fsiBodies_H.begin(),
-			rigidOmegaLRF_fsiBodies_H.end(), rigidOmegaLRF_fsiBodies_D.begin());
-	thrust::copy(omegaAccLRF_fsiBodies_H.begin(),
-			omegaAccLRF_fsiBodies_H.end(), omegaAccLRF_fsiBodies_D.begin());
+	CopyFluidDataH2D(
+		posRigid_fsiBodies_D,
+		velMassRigid_fsiBodies_D,
+		accRigid_fsiBodies_D,
+		q_fsiBodies_D,
+		rigidOmegaLRF_fsiBodies_D,
+		omegaAccLRF_fsiBodies_D,
+		posRigid_fsiBodies_H,
+		velMassRigid_fsiBodies_H,
+		accRigid_fsiBodies_H,
+		q_fsiBodies_H,
+		rigidOmegaLRF_fsiBodies_H,
+		omegaAccLRF_fsiBodies_H);
 }
 

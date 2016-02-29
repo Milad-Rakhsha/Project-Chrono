@@ -22,6 +22,7 @@
 /* Chrono::FSI library*/
 #include "chrono_fsi/custom_cutil_math.h"
 #include "chrono_fsi/SPHCudaUtils.h"
+#include "chrono_fsi/UtilsDeviceOperations.cuh"
 #include "chrono_fsi/SDKCollisionSystem.cuh"
 #include "chrono_fsi/collideSphereSphere.cuh"
 #include "chrono_fsi/printToFile.cuh"
@@ -674,50 +675,8 @@ void InitSystem(SimParams paramsH, NumberOfObjects numObjects) {
 	cudaMemcpyToSymbolAsync(paramsD, &paramsH, sizeof(SimParams)); // sets paramsD for this file
 	cudaMemcpyToSymbolAsync(numObjectsD, &numObjects, sizeof(NumberOfObjects));
 }
-/**
- * @brief See collideSphereSphere.cuh for documentation.
- */
-void ResizeMyThrust3(thrust::device_vector<Real3>& mThrustVec, int mSize) {
-	mThrustVec.resize(mSize);
-}
-void ResizeMyThrust4(thrust::device_vector<Real4>& mThrustVec, int mSize) {
-	mThrustVec.resize(mSize);
-}
 
-/**
- * @brief See collideSphereSphere.cuh for documentation.
- */
-void FillMyThrust4(thrust::device_vector<Real4>& mThrustVec, Real4 v) {
-	thrust::fill(mThrustVec.begin(), mThrustVec.end(), v);
-}
 
-/**
- * @brief See collideSphereSphere.cuh for documentation.
- */
-void ClearMyThrustR3(thrust::device_vector<Real3>& mThrustVec) {
-	mThrustVec.clear();
-}
-void ClearMyThrustR4(thrust::device_vector<Real4>& mThrustVec) {
-	mThrustVec.clear();
-}
-void ClearMyThrustU1(thrust::device_vector<uint>& mThrustVec) {
-	mThrustVec.clear();
-}
-void PushBackR3(thrust::device_vector<Real3>& mThrustVec, Real3 a3) {
-	mThrustVec.push_back(a3);
-}
-void PushBackR4(thrust::device_vector<Real4>& mThrustVec, Real4 a4) {
-	mThrustVec.push_back(a4);
-}
-void ResizeR3(thrust::device_vector<Real3>& mThrustVec, int size) {
-	mThrustVec.resize(size);
-}
-void ResizeR4(thrust::device_vector<Real4>& mThrustVec, int size) {
-	mThrustVec.resize(size);
-}
-void ResizeU1(thrust::device_vector<uint>& mThrustVec, int size) {
-	mThrustVec.resize(size);
-}
 
 /**
  * @brief See collideSphereSphere.cuh for more documentation.

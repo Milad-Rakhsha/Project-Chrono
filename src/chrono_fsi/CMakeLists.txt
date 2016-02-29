@@ -64,6 +64,7 @@ printToFile.cu
 SDKCollisionSystem.cu 
 SphInterface.cpp 
 VehicleExtraProperties.cpp
+UtilsDeviceOperations.cu
 )
 
 SET(ChronoEngine_FSI_HEADERS
@@ -81,6 +82,7 @@ SDKCollisionSystem.cuh
 SPHCudaUtils.h
 SphInterface.h
 VehicleExtraProperties.h
+UtilsDeviceOperations.cuh
 )
 
 SOURCE_GROUP("" FILES 

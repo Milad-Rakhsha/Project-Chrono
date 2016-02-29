@@ -21,41 +21,6 @@
  */
 void InitSystem(SimParams paramsH, NumberOfObjects numObjects);
 
-/**
- * @brief ResizeMyThrust, ResizeMyThrust3, ResizeMyThrust4
- * @details
- * 			This function needs to exist because resizing thrust vectors can only happen in .cu
- * 			files. So in order to resize a thrust vector in a .cpp file, this file will need to
- * 			call a ResizeMyThrust function
- * @param mThrustVec Vector to resize
- * @param mSize Size to resize
- */
-void ResizeMyThrust3(thrust::device_vector<Real3>& mThrustVec, int mSize);
-void ResizeMyThrust4(thrust::device_vector<Real4>& mThrustVec, int mSize);
-
-/**
- * @brief FillMyThrust, FillMyThrust4
- * @details
- * 			Same explanation as ResizeMyThrust.
- * @param mThrustVec Vector to resize
- * @param v Value to fill thrust vector with.
- */
-void FillMyThrust4(thrust::device_vector<Real4>& mThrustVec, Real4 v);
-
-/**
- * @brief ClearMyThrust, ClearMyThrust3, ClearMyThrust4, ClearMyThrustU
- * @details
- * 			Same explanation as ResizeMyThrust.
- * @param mThrustVec Vector to clear
- */
-void ClearMyThrustR3(thrust::device_vector<Real3>& mThrustVec);
-void ClearMyThrustR4(thrust::device_vector<Real4>& mThrustVec);
-void ClearMyThrustU1(thrust::device_vector<uint>& mThrustVec);
-void PushBackR3(thrust::device_vector<Real3>& mThrustVec, Real3 a3);
-void PushBackR4(thrust::device_vector<Real4>& mThrustVec, Real4 a4);
-void ResizeR3(thrust::device_vector<Real3>& mThrustVec, int size);
-void ResizeR4(thrust::device_vector<Real4>& mThrustVec, int size);
-void ResizeU1(thrust::device_vector<uint>& mThrustVec, int size);
 
 void MakeRigidIdentifier(thrust::device_vector<uint>& rigidIdentifierD,
 		int numRigidBodies, int startRigidMarkers,

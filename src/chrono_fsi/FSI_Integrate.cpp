@@ -8,6 +8,7 @@
 #include "chrono_fsi/FSI_Integrate.h"
 #include "chrono_fsi/SphInterface.h"
 #include "chrono_fsi/collideSphereSphere.cuh"
+#include "chrono_fsi/UtilsDeviceOperations.cuh"
 
 //#ifdef CHRONO_OPENGL
 //#undef CHRONO_OPENGL
