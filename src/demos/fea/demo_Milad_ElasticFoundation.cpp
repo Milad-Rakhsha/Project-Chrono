@@ -62,7 +62,7 @@ bool addForce = true;
 bool showTibia = false;
 bool showFemur = true;
 // bool addFixed = false;
-double time_step = 0.001;
+double time_step = 0.0004;
 int scaleFactor = 1;
 double dz = 0.001;
 double MeterToInch = 0.02539998628;
@@ -77,6 +77,7 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
           LocalBodyAtt(mloadables.size(), AttachBody->GetPos()) {
         assert(std::dynamic_pointer_cast<ChNodeFEAxyzD>(mloadables[0]));
         loadables.push_back(AttachBody);
+        load_Q.Reset(this->LoadGet_ndof_w());
         for (size_t i = 0; i < mloadables.size(); i++) {
             auto Node = std::static_pointer_cast<ChNodeFEAxyzD>(mloadables[i]);
             l0.push_back((Node->GetPos() - AttachBody->GetPos()).Length());
@@ -92,7 +93,6 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
     virtual void ComputeQ(ChState* state_x,      ///< state position to evaluate Q
                           ChStateDelta* state_w  ///< state speed to evaluate Q
                           ) {
-        std::vector<std::shared_ptr<ChLoadable>> NodeList;
 
         ChVector<> Node_Pos;
         ChVector<> Node_Vel;
@@ -103,7 +103,8 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
 
         ChVector<> NodeAttachment;
         if (state_x && state_w) {
-            for (int iii = 0; iii < NodeList.size(); iii++) {
+           // GetLog() << " We are reaching this" << loadables.size();
+            for (int iii = 0; iii < loadables.size()-1; iii++) {
                 Node_Pos = state_x->ClipVector(iii * 6, 0);
                 Node_Grad = state_x->ClipVector(iii * 6 + 3, 0);
                 Node_Vel = state_w->ClipVector(iii * 6, 0);
@@ -117,51 +118,51 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
                     K_sp[iii] * (c_length - l0[iii]) + C_dp[iii] * dc_length;  // Absolute value of spring-damper force
 
                 // Apply generalized force to node
-                this->load_Q(iii * 6 + 0) = for_spdp * dij.GetNormalized().x;
-                this->load_Q(iii * 6 + 1) = for_spdp * dij.GetNormalized().y;
-                this->load_Q(iii * 6 + 2) = for_spdp * dij.GetNormalized().z;
+            //    GetLog() << " Vertical component and absolute value of force: " << dij.GetNormalized().y << "  " << for_spdp;
+                this->load_Q(iii * 6 + 0) = -for_spdp * dij.GetNormalized().x;
+                this->load_Q(iii * 6 + 1) = -for_spdp * dij.GetNormalized().y;
+                this->load_Q(iii * 6 + 2) = -for_spdp * dij.GetNormalized().z;
 
                 ChVectorDynamic<> Qi(6);  // Vector of generalized forces from spring and damper
                 ChVectorDynamic<> Fi(6);  // Vector of applied forces and torques (6 components)
                 double detJi = 0;         // Determinant of transformation (Not used)
 
-                Fi(0) = -for_spdp * dij.GetNormalized().x;
-                Fi(1) = -for_spdp * dij.GetNormalized().y;
-                Fi(2) = -for_spdp * dij.GetNormalized().z;
-
+                Fi(0) = for_spdp * dij.GetNormalized().x;
+                Fi(1) = for_spdp * dij.GetNormalized().y;
+                Fi(2) = for_spdp * dij.GetNormalized().z;
                 Fi(3) = 0.0;
                 Fi(4) = 0.0;
                 Fi(5) = 0.0;
 
-                ChState* stateBody_x;
-                ChStateDelta* stateBody_w;
+                ChState stateBody_x(7, NULL);
+                ChStateDelta stateBody_w (6, NULL);
 
-                (*stateBody_x)(0) = (*state_x)((loadables.size() - 1) * 6);
-                (*stateBody_x)(1) = (*state_x)((loadables.size() - 1) * 6 + 1);
-                (*stateBody_x)(2) = (*state_x)((loadables.size() - 1) * 6 + 2);
-                (*stateBody_x)(3) = (*state_x)((loadables.size() - 1) * 6 + 3);
-                (*stateBody_x)(4) = (*state_x)((loadables.size() - 1) * 6 + 4);
-                (*stateBody_x)(5) = (*state_x)((loadables.size() - 1) * 6 + 5);
-                (*stateBody_x)(6) = (*state_x)((loadables.size() - 1) * 6 + 6);
+                stateBody_x(0) = (*state_x)((loadables.size() - 1) * 6);
+                stateBody_x(1) = (*state_x)((loadables.size() - 1) * 6 + 1);
+                stateBody_x(2) = (*state_x)((loadables.size() - 1) * 6 + 2);
+                stateBody_x(3) = (*state_x)((loadables.size() - 1) * 6 + 3);
+                stateBody_x(4) = (*state_x)((loadables.size() - 1) * 6 + 4);
+                stateBody_x(5) = (*state_x)((loadables.size() - 1) * 6 + 5);
+                stateBody_x(6) = (*state_x)((loadables.size() - 1) * 6 + 6);
 
-                (*stateBody_w)(0) = (*state_w)((loadables.size() - 1) * 6);
-                (*stateBody_w)(1) = (*state_w)((loadables.size() - 1) * 6 + 1);
-                (*stateBody_w)(2) = (*state_w)((loadables.size() - 1) * 6 + 2);
-                (*stateBody_w)(3) = (*state_w)((loadables.size() - 1) * 6 + 3);
-                (*stateBody_w)(4) = (*state_w)((loadables.size() - 1) * 6 + 4);
-                (*stateBody_w)(5) = (*state_w)((loadables.size() - 1) * 6 + 5);
+                stateBody_w(0) = (*state_w)((loadables.size() - 1) * 6);
+                stateBody_w(1) = (*state_w)((loadables.size() - 1) * 6 + 1);
+                stateBody_w(2) = (*state_w)((loadables.size() - 1) * 6 + 2);
+                stateBody_w(3) = (*state_w)((loadables.size() - 1) * 6 + 3);
+                stateBody_w(4) = (*state_w)((loadables.size() - 1) * 6 + 4);
+                stateBody_w(5) = (*state_w)((loadables.size() - 1) * 6 + 5);
 
                 // Apply generalized force to rigid body (opposite sign)
                 AttachBody->ComputeNF(BodyAttachWorld.x, BodyAttachWorld.y, BodyAttachWorld.z, Qi, detJi, Fi,
-                                      stateBody_x, stateBody_w);
+                                      &stateBody_x, &stateBody_w);
 
-                // Apply forces to body
-                this->load_Q((loadables.size() - 1) * 6) = Qi(0);
-                this->load_Q((loadables.size() - 1) * 6 + 1) = Qi(1);
-                this->load_Q((loadables.size() - 1) * 6 + 2) = Qi(2);
-                this->load_Q((loadables.size() - 1) * 6 + 3) = Qi(3);
-                this->load_Q((loadables.size() - 1) * 6 + 4) = Qi(4);
-                this->load_Q((loadables.size() - 1) * 6 + 5) = Qi(5);
+                // Apply forces to body (If body fixed, we should set those to zero not Qi(coordinate))
+                this->load_Q((loadables.size() - 1) * 6)     = 0.0;
+                this->load_Q((loadables.size() - 1) * 6 + 1) = 0.0;
+                this->load_Q((loadables.size() - 1) * 6 + 2) = 0.0;
+                this->load_Q((loadables.size() - 1) * 6 + 3) = 0.0;
+                this->load_Q((loadables.size() - 1) * 6 + 4) = 0.0;
+                this->load_Q((loadables.size() - 1) * 6 + 5) = 0.0;
             }
         } else {
             // explicit integrators might call ComputeQ(0,0), null pointers mean
@@ -195,7 +196,7 @@ int main(int argc, char* argv[]) {
     double sphere_swept_thickness = dz * 0.01;
 
     double rho = 1000;  ///< material density
-    double E = 7e6;     ///< Young's modulus
+    double E = 7e09;     ///< Young's modulus
     double nu = 0.3;    ///< Poisson ratio
     // Create the surface material, containing information
     // about friction etc.
@@ -256,9 +257,9 @@ int main(int argc, char* argv[]) {
             auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(iNode));
             ChVector<> AttachBodyGlobal = Node->GetPos() - 0.5 * Node->GetD();  // Locate first the
             // attachment point in the body in global coordiantes
-            OneLoadSpringDamper->C_dp[iNode] = 0;
-            OneLoadSpringDamper->K_sp[iNode] = 0.02;
-            OneLoadSpringDamper->l0[iNode] = 0.5;
+            OneLoadSpringDamper->C_dp[iNode] = 0.4;
+            OneLoadSpringDamper->K_sp[iNode] = 2.0;
+            OneLoadSpringDamper->l0[iNode] = 0.5; 
             OneLoadSpringDamper->LocalBodyAtt[iNode] = mfloor->Point_World2Body(AttachBodyGlobal);
         }
         mloadcontainerGround->Add(OneLoadSpringDamper);
@@ -384,11 +385,13 @@ int main(int argc, char* argv[]) {
     auto mystepper = std::dynamic_pointer_cast<ChTimestepperHHT>(my_system.GetTimestepper());
     mystepper->SetAlpha(-0.2);
     mystepper->SetMaxiters(200);
-    mystepper->SetAbsTolerances(1e-06);
+    mystepper->SetAbsTolerances(1e-05,1e-2);
+    mystepper->SetMaxiters(16);
+    mystepper->SetMaxItersSuccess(5);
     mystepper->SetMode(ChTimestepperHHT::POSITION);
     mystepper->SetScaling(true);
     mystepper->SetVerbose(true);
-
+    application.SetPaused(true);
     application.SetTimestep(time_step);
     while (application.GetDevice()->run()) {
         application.BeginScene();
