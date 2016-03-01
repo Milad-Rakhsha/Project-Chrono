@@ -19,6 +19,7 @@
 #include "chrono/physics/ChSystem.h"
 #include "chrono_fea/ChElementShellANCF.h"
 #include "chrono_fea/ChUtilsFEA.h"
+#include <cmath>
 
 namespace chrono {
 namespace fea {
@@ -154,7 +155,7 @@ void ChElementShellANCF::ComputeMmatrixGlobal(ChMatrix<>& M) {
 // -----------------------------------------------------------------------------
 
 /// This class defines the calculations for the integrand of the inertia matrix.
-class MyMass : public ChIntegrable3D<ChMatrixNM<double, 24, 24> > {
+class MyMass : public ChIntegrable3D<ChMatrixNM<double, 24, 24>> {
   public:
     MyMass(ChElementShellANCF* element) : m_element(element) {}
     ~MyMass() {}
@@ -206,13 +207,13 @@ void ChElementShellANCF::ComputeMassMatrix() {
         MyMass myformula(this);
         ChMatrixNM<double, 24, 24> TempMassMatrix;
 
-        ChQuadrature::Integrate3D<ChMatrixNM<double, 24, 24> >(TempMassMatrix,  // result of integration will go there
-                                                               myformula,       // formula to integrate
-                                                               -1, 1,           // x limits
-                                                               -1, 1,           // y limits
-                                                               m_GaussZ[kl], m_GaussZ[kl + 1],  // z limits
-                                                               2                                // order of integration
-                                                               );
+        ChQuadrature::Integrate3D<ChMatrixNM<double, 24, 24>>(TempMassMatrix,  // result of integration will go there
+                                                              myformula,       // formula to integrate
+                                                              -1, 1,           // x limits
+                                                              -1, 1,           // y limits
+                                                              m_GaussZ[kl], m_GaussZ[kl + 1],  // z limits
+                                                              2                                // order of integration
+                                                              );
 
         TempMassMatrix *= rho;
         m_MassMatrix += TempMassMatrix;
@@ -224,7 +225,7 @@ void ChElementShellANCF::ComputeMassMatrix() {
 // -----------------------------------------------------------------------------
 
 /// This class defines the calculations for the integrand of the element gravity forces
-class MyGravity : public ChIntegrable3D<ChMatrixNM<double, 24, 1> > {
+class MyGravity : public ChIntegrable3D<ChMatrixNM<double, 24, 1>> {
   public:
     MyGravity(ChElementShellANCF* element, const ChVector<> gacc) : m_element(element), m_gacc(gacc) {}
     ~MyGravity() {}
@@ -259,13 +260,13 @@ void ChElementShellANCF::ComputeGravityForce(const ChVector<>& g_acc) {
         MyGravity myformula(this, g_acc);
         ChMatrixNM<double, 24, 1> Fgravity;
 
-        ChQuadrature::Integrate3D<ChMatrixNM<double, 24, 1> >(Fgravity,   // result of integration will go there
-                                                              myformula,  // formula to integrate
-                                                              -1, 1,      // x limits
-                                                              -1, 1,      // y limits
-                                                              m_GaussZ[kl], m_GaussZ[kl + 1],  // z limits
-                                                              2                                // order of integration
-                                                              );
+        ChQuadrature::Integrate3D<ChMatrixNM<double, 24, 1>>(Fgravity,   // result of integration will go there
+                                                             myformula,  // formula to integrate
+                                                             -1, 1,      // x limits
+                                                             -1, 1,      // y limits
+                                                             m_GaussZ[kl], m_GaussZ[kl + 1],  // z limits
+                                                             2                                // order of integration
+                                                             );
 
         Fgravity *= rho;
         m_GravForce += Fgravity;
@@ -286,7 +287,7 @@ void ChElementShellANCF::ComputeGravityForce(const ChVector<>& g_acc) {
 // shear locking. This implementation also features a composite material implementation
 // that allows for selecting a number of layers over the element thickness; each of which
 // has an independent, user-selected fiber angle (direction for orthotropic constitutive behavior)
-class MyForce : public ChIntegrable3D<ChMatrixNM<double, 54, 1> > {
+class MyForce : public ChIntegrable3D<ChMatrixNM<double, 54, 1>> {
   public:
     MyForce(ChElementShellANCF* element,         // Containing element
             size_t kl,                           // Current layer index
@@ -545,7 +546,6 @@ void MyForce::Evaluate(ChMatrixNM<double, 54, 1>& result, const double x, const 
     strain += strain_EAS;
     m_element->strainXplot = strain(0);
     m_element->strainYplot = strain(1);
-
     // Strain time derivative for structural damping
     ChMatrixNM<double, 6, 1> DEPS;
     DEPS.Reset();
@@ -586,7 +586,6 @@ void ChElementShellANCF::ComputeInternalForces(ChMatrixDynamic<>& Fi) {
     CalcCoordMatrix(m_d);
     CalcCoordDerivMatrix(m_d_dt);
     m_ddT.MatrMultiplyT(m_d, m_d);
-
     // Assumed Natural Strain (ANS):  Calculate m_strainANS and m_strainANS_D
     CalcStrainANSbilinearShell();
 
@@ -604,13 +603,13 @@ void ChElementShellANCF::ComputeInternalForces(ChMatrixDynamic<>& Fi) {
         for (int count = 0; count < m_maxIterationsEAS; count++) {
             ChMatrixNM<double, 54, 1> result;
             MyForce formula(this, kl, &alphaEAS);
-            ChQuadrature::Integrate3D<ChMatrixNM<double, 54, 1> >(result,   // result of integration
-                                                                  formula,  // integrand formula
-                                                                  -1, 1,    // x limits
-                                                                  -1, 1,    // y limits
-                                                                  m_GaussZ[kl], m_GaussZ[kl + 1],  // z limits
-                                                                  2  // order of integration
-                                                                  );
+            ChQuadrature::Integrate3D<ChMatrixNM<double, 54, 1>>(result,   // result of integration
+                                                                 formula,  // integrand formula
+                                                                 -1, 1,    // x limits
+                                                                 -1, 1,    // y limits
+                                                                 m_GaussZ[kl], m_GaussZ[kl + 1],  // z limits
+                                                                 2  // order of integration
+                                                                 );
 
             // Extract vectors and matrices from result of integration
             Finternal.PasteClippedMatrix(&result, 0, 0, 24, 1, 0, 0);
@@ -660,7 +659,7 @@ void ChElementShellANCF::ComputeInternalForces(ChMatrixDynamic<>& Fi) {
 //      Kfactor * [K] + Rfactor * [R]
 // where K does not include the EAS contribution.
 // The last 120 entries represent the 5x24 cross-dependency matrix.
-class MyJacobian : public ChIntegrable3D<ChMatrixNM<double, 696, 1> > {
+class MyJacobian : public ChIntegrable3D<ChMatrixNM<double, 696, 1>> {
   public:
     MyJacobian(ChElementShellANCF* element,  // Containing element
                double Kfactor,               // Scaling coefficient for stiffness component
@@ -1029,13 +1028,13 @@ void ChElementShellANCF::ComputeInternalJacobians(double Kfactor, double Rfactor
     for (size_t kl = 0; kl < m_numLayers; kl++) {
         ChMatrixNM<double, 696, 1> result;
         MyJacobian formula(this, Kfactor, Rfactor, kl);
-        ChQuadrature::Integrate3D<ChMatrixNM<double, 696, 1> >(result,                          // result of integration
-                                                               formula,                         // integrand formula
-                                                               -1, 1,                           // x limits
-                                                               -1, 1,                           // y limits
-                                                               m_GaussZ[kl], m_GaussZ[kl + 1],  // z limits
-                                                               2                                // order of integration
-                                                               );
+        ChQuadrature::Integrate3D<ChMatrixNM<double, 696, 1>>(result,                          // result of integration
+                                                              formula,                         // integrand formula
+                                                              -1, 1,                           // x limits
+                                                              -1, 1,                           // y limits
+                                                              m_GaussZ[kl], m_GaussZ[kl + 1],  // z limits
+                                                              2                                // order of integration
+                                                              );
 
         // Extract matrices from result of integration
         ChMatrixNM<double, 24, 24> KTE;
@@ -1257,7 +1256,7 @@ void ChElementShellANCF::ShapeFunctionANSbilinearShell(ChMatrixNM<double, 1, 4>&
 
 // Calculate ANS strain and its Jacobian
 void ChElementShellANCF::CalcStrainANSbilinearShell() {
-    std::vector<ChVector<> > knots(8);
+    std::vector<ChVector<>> knots(8);
 
     knots[0] = ChVector<>(-1, -1, 0);
     knots[1] = ChVector<>(1, -1, 0);
@@ -1321,6 +1320,44 @@ void ChElementShellANCF::CalcStrainANSbilinearShell() {
 // -----------------------------------------------------------------------------
 // Interface to ChElementShell base class
 // -----------------------------------------------------------------------------
+
+void ChElementShellANCF::EvaluateDeflection(double& def) {
+    ChVector<> oldPos;
+    ChVector<> newPos;
+    ChVector<> defVec;
+
+    for (int i = 0; i < 4; i++) {
+        oldPos.x += this->m_d0(2 * i, 0);
+        oldPos.y += this->m_d0(2 * i, 1);
+        oldPos.z += this->m_d0(2 * i, 2);
+    }
+
+    for (int i = 0; i < 4; i++) {
+        newPos.x += this->m_d(2 * i, 0);
+        newPos.y += this->m_d(2 * i, 1);
+        newPos.z += this->m_d(2 * i, 2);
+    }
+
+    //    ChMatrixNM<double, 1, 8> N;
+    //
+    //    double x = 0;  // at the center
+    //    double y = 0;  // at the center
+    //    double z = 0;
+    //
+    //    this->ShapeFunctions(N, x, y, z);
+    //
+    //    const ChVector<>& pA = m_nodes[0]->GetPos();
+    //    const ChVector<>& pB = m_nodes[1]->GetPos();
+    //    const ChVector<>& pC = m_nodes[2]->GetPos();
+    //    const ChVector<>& pD = m_nodes[3]->GetPos();
+    //
+    //    newPos.x = N(0) * pA.x + N(2) * pB.x + N(4) * pC.x + N(6) * pD.x;
+    //    newPos.y = N(0) * pA.y + N(2) * pB.y + N(4) * pC.y + N(6) * pD.y;
+    //    newPos.z = N(0) * pA.z + N(2) * pB.z + N(4) * pC.z + N(6) * pD.z;
+
+    defVec = (newPos - oldPos) / 4;
+    def = defVec.Length();
+}
 
 void ChElementShellANCF::EvaluateSectionDisplacement(const double u,
                                                      const double v,
@@ -1564,8 +1601,8 @@ void ChElementShellANCF::Inverse55_Numerical(ChMatrixNM<double, 5, 5>& a, int n)
         count = 0;
         preValue = 0.0;
         for (int ii = k; ii < n; ii++) {
-            if (preValue < abs(b(ii, k))) {
-                preValue = abs(b(ii, k));
+            if (preValue < std::abs(b(ii, k))) {
+                preValue = std::abs(b(ii, k));
                 count = count + 1;
             }
             imax(1) = count + k;
@@ -1849,7 +1886,7 @@ ChMaterialShellANCF::ChMaterialShellANCF(double rho,  // material density
                                          double E,    // Young's modulus
                                          double nu    // Poisson ratio
                                          )
-    : m_rho(rho) {
+    : m_rho(rho), m_E(E) {
     double G = 0.5 * E / (1 + nu);
     Calc_E_eps(ChVector<>(E), ChVector<>(nu), ChVector<>(G));
 }
@@ -1884,6 +1921,8 @@ void ChMaterialShellANCF::Calc_E_eps(const ChVector<>& E, const ChVector<>& nu, 
     m_E_eps(2, 2) = G.x;
     m_E_eps(4, 4) = G.y;
     m_E_eps(5, 5) = G.z;
+
+    // Set the Yaoung Modules
 }
 
 // ============================================================================

@@ -64,42 +64,18 @@ ChVisualizationFEAmesh::ChVisualizationFEAmesh(ChMesh& mymesh) {
 }
 
 ChColor ChVisualizationFEAmesh::ComputeFalseColor2(double mv) {
-    ChVector<float> mcol = ComputeFalseColor(mv);
-    return ChColor(mcol.x, mcol.y, mcol.z);
+    ChColor c = ChColor::ComputeFalseColor(mv, this->colorscale_min, this->colorscale_max, true);
+
+    if (this->fem_data_type == E_PLOT_SURFACE)
+        c = ChColor(meshcolor.R, meshcolor.G, meshcolor.B);
+
+    return c;
 }
 
 ChVector<float> ChVisualizationFEAmesh::ComputeFalseColor(double mv) {
-    if (mv < this->colorscale_min)
-        return ChVector<float>(0, 0, 0);
-    if (mv > this->colorscale_max)
-        return ChVector<float>(1, 1, 1);
-
-    ChVector<float> c(1, 1, 1);
-    float dv;
-    float v = (float)mv;
-    float vmax = (float)this->colorscale_max;
-    float vmin = (float)this->colorscale_min;
-
-    dv = vmax - vmin;
-
-    if (v < (vmin + 0.25 * dv)) {
-        c.x = 0.f;
-        c.y = 4.f * (v - vmin) / dv;
-    } else if (v < (vmin + 0.5 * dv)) {
-        c.x = 0;
-        c.z = 1.f + 4.f * (vmin + 0.25f * dv - v) / dv;
-    } else if (v < (vmin + 0.75f * dv)) {
-        c.x = 4.f * (v - vmin - 0.5f * dv) / dv;
-        c.z = 0;
-    } else {
-        c.y = 1.f + 4.f * (vmin + 0.75f * dv - v) / dv;
-        c.z = 0;
-    }
-
-    if (this->fem_data_type == E_PLOT_SURFACE)
-        c = ChVector<float>(meshcolor.R, meshcolor.G, meshcolor.B);
-
-    return (c);
+    ChColor c = this->ComputeFalseColor2(mv);
+    ChVector<float> vc(c.R, c.G, c.B);
+    return vc;
 }
 
 double ChVisualizationFEAmesh::ComputeScalarOutput(std::shared_ptr<ChNodeFEAxyz> mnode,
@@ -539,7 +515,7 @@ void ChVisualizationFEAmesh::Update(ChPhysicsItem* updater, const ChCoordsys<>& 
                         pt[in] = nodes[in]->GetX0();
                 }
 
-                // vertexesChElementShellANCF
+                // vertexes
 
                 if (this->shrink_elements) {
                     ChVector<> vc(0, 0, 0);
@@ -826,11 +802,20 @@ void ChVisualizationFEAmesh::Update(ChPhysicsItem* updater, const ChCoordsys<>& 
 
                         ChVector<float> mcol(1, 1, 1);
                         double strainVec = 0.0;
+                        double stressVec = 0.0;
+                        double defVec = 0.0;
+
                         double sresult = 0;
                         switch (this->fem_data_type) {
                             case E_PLOT_ELEM_STRAIN_VONMISES:
-                                myshell->EvaluateVonMises(strainVec);
+                                myshell->EvaluateVonMisesStrain(strainVec);
                                 sresult = strainVec;
+                            case E_PLOT_ANCF_SECTION_DISPLACEMENT:
+                                myshell->EvaluateVonMisesStress(stressVec);
+                                sresult = strainVec;
+                            case E_PLOT_ELEM_STRESS_VONMISES:
+                                myshell->EvaluateDeflection(defVec);
+                                sresult = defVec;
                                 break;
                         }
                         mcol = ComputeFalseColor(sresult);

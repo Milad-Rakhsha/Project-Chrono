@@ -61,6 +61,7 @@ class ChApiFea ChVisualizationFEAmesh : public ChAssetLevel {
         E_PLOT_NODE_P,  // scalar field for Poisson problems (ex. temperature if thermal FEM)
         E_PLOT_ANCF_BEAM_AX,
         E_PLOT_ANCF_BEAM_BD,
+        E_PLOT_ANCF_SECTION_DISPLACEMENT,
     };
 
     enum eChFemGlyphs {
@@ -156,7 +157,7 @@ class ChApiFea ChVisualizationFEAmesh : public ChAssetLevel {
     void SetBeamResolution(int mres) { this->beam_resolution = mres; }
     int GetBeamResolution() { return this->beam_resolution; }
 
-    /// Set the resolution of beam triangulated drawing, along the section 
+    /// Set the resolution of beam triangulated drawing, along the section
     /// (i.e. for circular section= number of points along the circle)
     void SetBeamResolutionSection(int mres) { this->beam_resolution_section = mres; }
     int GetBeamResolutionSection() { return this->beam_resolution_section; }
@@ -197,8 +198,12 @@ class ChApiFea ChVisualizationFEAmesh : public ChAssetLevel {
     virtual void Update(ChPhysicsItem* updater, const ChCoordsys<>& coords);
 
   private:
-    double ComputeScalarOutput(std::shared_ptr<ChNodeFEAxyz> mnode, int nodeID, std::shared_ptr<ChElementBase> melement);
-    double ComputeScalarOutput(std::shared_ptr<ChNodeFEAxyzP> mnode, int nodeID, std::shared_ptr<ChElementBase> melement);
+    double ComputeScalarOutput(std::shared_ptr<ChNodeFEAxyz> mnode,
+                               int nodeID,
+                               std::shared_ptr<ChElementBase> melement);
+    double ComputeScalarOutput(std::shared_ptr<ChNodeFEAxyzP> mnode,
+                               int nodeID,
+                               std::shared_ptr<ChElementBase> melement);
     ChVector<float> ComputeFalseColor(double in);
     ChColor ComputeFalseColor2(double in);
 };
