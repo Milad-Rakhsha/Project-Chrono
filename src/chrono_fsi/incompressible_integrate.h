@@ -8,6 +8,11 @@
 #ifndef INCOMPRESSIBLE_INTEGRATE_H_
 #define INCOMPRESSIBLE_INTEGRATE_H_
 
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
+#include "chrono_fsi/custom_cutil_math.h"
+#include "chrono_fsi/MyStructs.cuh"
+
 void DoStepFluid_implicit(
 		thrust::device_vector<Real3>& posRadD,
 		thrust::device_vector<Real3>& velMasD,

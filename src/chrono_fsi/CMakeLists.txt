@@ -57,12 +57,14 @@ SET(ChronoEngine_FSI_SOURCES
 checkPointReduced.cpp 
 ChFsiModelData.cpp
 CreateBCE.cpp
-FSI_Integrate.cpp
 InitializeSphMarkers.cpp
 printToFile.cu
 SphInterface.cpp 
 VehicleExtraProperties.cpp
 UtilsDeviceOperations.cu
+#SDKCollisionSystem.cu 
+#collideSphereSphere.cu
+#FSI_Integrate.cpp
 incompressible_collisionSystem.cu
 incompressible_collideSphereSphere.cu
 incompressible_integrate.cpp
@@ -74,7 +76,6 @@ ChFsiModelData.h
 CreateBCE.h
 custom_cutil_math.h
 demo_utils.h
-FSI_Integrate.h
 InitializeSphMarkers.h
 MyStructs.cuh
 printToFile.cu
@@ -82,6 +83,9 @@ SPHCudaUtils.h
 SphInterface.h
 VehicleExtraProperties.h
 UtilsDeviceOperations.cuh
+#SDKCollisionSystem.cuh
+#collideSphereSphere.cuh
+#FSI_Integrate.h
 incompressible_collisionSystem.cuh
 incompressible_collideSphereSphere.cuh
 incompressible_integrate.h

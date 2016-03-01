@@ -557,6 +557,7 @@ void IntegrateSPH_implicit(thrust::device_vector<Real4>& derivVelRhoD,
 		const thrust::device_vector<uint>& rigidIdentifierD,
 
 		const NumberOfObjects& numObjects, SimParams currentParamsH, Real dT) {
+	InitSystem(currentParamsH, numObjects);
 	ForceSPH_implicit(posRadD, velMasD, rhoPresMuD, bodyIndexD, derivVelRhoD, referenceArray,
 			q_fsiBodies_D, accRigid_fsiBodies_D, omegaVelLRF_fsiBodies_D, omegaAccLRF_fsiBodies_D, rigidSPH_MeshPos_LRF_D, rigidIdentifierD,
 			numObjects, currentParamsH, dT); //?$ right now, it does not consider paramsH.gravity or other stuff on rigid bodies. they should be

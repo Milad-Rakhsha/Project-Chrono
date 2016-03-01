@@ -6,6 +6,9 @@
  */
 
 #include "chrono_fsi/incompressible_integrate.h"
+#include "chrono_fsi/incompressible_collideSphereSphere.cuh"
+#include "chrono_fsi/SPHCudaUtils.h"
+#include "chrono_fsi/UtilsDeviceOperations.cuh"
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
@@ -63,7 +66,6 @@ void DoStepFluid_implicit(
 	//----------------------------
 	//--------- start fluid ------
 	//----------------------------
-	InitSystem(paramsH, numObjects);
 	// ** initialize host mid step data
 	thrust::copy(posRadD.begin(), posRadD.end(), posRadD2.begin());
 	thrust::copy(velMasD.begin(), velMasD.end(), velMasD2.begin());

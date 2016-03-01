@@ -28,7 +28,7 @@
 
 // SPH includes
 #include "chrono_fsi/MyStructs.cuh"  //just for SimParams
-#include "chrono_fsi/collideSphereSphere.cuh"
+#include "chrono_fsi/incompressible_collideSphereSphere.cuh"
 #include "chrono_fsi/printToFile.cuh"
 #include "chrono_fsi/custom_cutil_math.h"
 #include "chrono_fsi/SPHCudaUtils.h"
@@ -59,7 +59,6 @@
 #include "chrono_fsi/incompressible_integrate.h"
 
 #include "chrono_fsi/InitializeSphMarkers.h"
-#include "chrono_fsi/FSI_Integrate.h"
 
 // FSI Interface Includes
 #include "params_test_fsi_implicit_damBreak.h"  //SetupParamsH()
