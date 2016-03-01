@@ -44,6 +44,7 @@
 #include "timestepper/ChTimestepper.h"
 #include "timestepper/ChStaticAnalysis.h"
 
+
 using namespace chrono::collision;
 
 namespace chrono {
@@ -834,12 +835,12 @@ bool ChSystem::ManageSleepingBodies() {
 
     // Make this class for iterating through contacts 
 
-    class _wakeup_reporter_class : public ChReportContactCallback2 {
+    class _wakeup_reporter_class : public ChReportContactCallback {
       public:
         /// Callback, used to report contact points already added to the container.
         /// This must be implemented by a child class of ChReportContactCallback.
         /// If returns false, the contact scanning will be stopped.
-        virtual bool ReportContactCallback2(
+        virtual bool ReportContactCallback(
             const ChVector<>& pA,             ///< get contact pA
             const ChVector<>& pB,             ///< get contact pB
             const ChMatrix33<>& plane_coord,  ///< get contact plane coordsystem (A column 'X' is contact normal)
@@ -848,7 +849,7 @@ bool ChSystem::ManageSleepingBodies() {
             const ChVector<>& react_torques,  ///< get react.torques, if rolling friction (if already computed).
             ChContactable* contactobjA,  ///< get model A (note: some containers may not support it and could be zero!)
             ChContactable* contactobjB   ///< get model B (note: some containers may not support it and could be zero!)
-            ) {
+            ) override {
             if (!(contactobjA && contactobjB))
                 return true;
             ChBody* b1 = dynamic_cast<ChBody*>(contactobjA);
@@ -926,7 +927,7 @@ bool ChSystem::ManageSleepingBodies() {
         }
 
         // scan all contacts and wake neighbouring bodies
-        this->contact_container->ReportAllContacts2(&my_waker);
+        this->contact_container->ReportAllContacts(&my_waker);
 
         // bailout wakeup cycle prematurely, if all bodies are not sleeping
         if (!my_waker.someone_sleeps)
@@ -2245,137 +2246,22 @@ int ChSystem::DoAssembly(int action, int mflags) {
 
     this->solvecount = 0;
 
-    // Counts dofs, statistics, etc.
     Setup();
+    Update();
 
-    // Update the system and all its components.
-    // No need to update visualization assets here.
-    Update(false);
+    int old_maxsteps = this->GetIterLCPmaxItersSpeed();
+    this->SetIterLCPmaxItersSpeed(300);
 
-    //
-    // (1)--------  POSITION
-    //
-    if (action & ASS_POSITION) {
-        for (int m_iter = 0; m_iter < maxiter; m_iter++) {
-            if (mflags & ASF_COLLISIONS) {
-                // Compute new contacts and create contact constraints
-                ComputeCollisions();
+    // Prepare lists of variables and constraints. 
+    LCPprepare_inject(*this->LCP_descriptor);
 
-                Setup();        // Counts dofs, statistics, etc.
-                Update(false);  // Update everything (do not update visualization assets)
-            }
+    ChAssemblyAnalysis manalysis(*this);
+    manalysis.SetMaxAssemblyIters(this->GetMaxiter());
 
-            // Reset known-term vectors
-            LCPprepare_reset();
+    // Perform analysis
+    manalysis.AssemblyAnalysis(action, mflags);
 
-            // Fill known-term vectors with proper terms 0 and -C :
-            //
-            // | M -Cq'|*|Dpos|- |0 |= |0| ,  c>=0, l>=0, l*c=0;
-            // | Cq  0 | |l   |  |-C|  |c|
-            //
-            LCPprepare_load(true,    // calculate Jacobian Cq
-                            false,   // no addition of M*v in known term
-                            0,       // no forces
-                            0,       // no K matrix
-                            0,       // no R matrix
-                            1.0,     // M (for FEM with non-lumped masses, add their mass-matrices)
-                            0,       // no Ct term
-                            1.0,     // C
-                            0.0,     //
-                            false);  // no clamping on -C/dt
-
-            // Make the vectors of pointers to constraint and variables, for LCP solver
-            LCPprepare_inject(*this->LCP_descriptor);
-
-            // Check violation and exit Newton loop if reached tolerance.
-            double max_res, max_LCPerr;
-            this->LCP_descriptor->ComputeFeasabilityViolation(max_res, max_LCPerr);
-            if (max_res <= this->tol)
-                break;
-
-            // Solve the LCP problem.
-            // Solution variables are 'Dpos', delta positions.
-            // Note: use settings of the 'speed' lcp solver (i.e. use max number
-            // of iterations as you would use for the speed probl., if iterative solver)
-            GetLcpSolverSpeed()->Solve(*this->LCP_descriptor);
-
-            // Update bodies and other physics items at new positions
-
-            for (int ip = 0; ip < bodylist.size(); ++ip) {
-                bodylist[ip]->VariablesQbIncrementPosition(1.0);  // pos += Dpos
-                bodylist[ip]->Update(this->ChTime);
-            }
-
-            for (int ip = 0; ip < otherphysicslist.size(); ++ip) {
-                otherphysicslist[ip]->VariablesQbIncrementPosition(1.0);  // pos += Dpos
-                otherphysicslist[ip]->Update(this->ChTime);
-            }
-
-            Update();  // Update everything
-
-        }  // end loop Newton iterations
-    }
-
-    //
-    // 2) -------- SPEEDS and ACCELERATIONS
-    //
-    if ((action & ASS_SPEED) || (action & ASS_ACCEL)) {
-        // Save current value of the time step and max number of 'speed' iterations.
-        double step_saved = step;
-        int niter_saved = GetIterLCPmaxItersSpeed();
-
-        // Use a small time step for assembly. Also, temporarily increase the max
-        // number of iterations for the speed solver (to accommodate for the bad
-        // initial guess)
-        step = 1e-7;
-        SetIterLCPmaxItersSpeed(5 * niter_saved);
-
-        // Reset known-term vectors
-        LCPprepare_reset();
-
-        // Fill LCP known-term vectors with proper terms
-        //
-        // | M -Cq'|*|v_new|- | [M]*v_old +f*dt | = |0| ,  c>=0, l>=0, l*c=0;
-        // | Cq  0 | |l    |  |  - Ct           |   |c|
-        //
-        LCPprepare_load(false,        // Cq are already there..
-                        true,         // adds [M]*v_old to the known vector
-                        step,         // f*dt
-                        step * step,  // dt^2*K  (nb only non-Schur based solvers support K matrix blocks)
-                        step,         // dt*R   (nb only non-Schur based solvers support K matrix blocks)
-                        1.0,          // M (for FEM with non-lumped masses, add their mass-matrices)
-                        1.0,          // Ct term
-                        0,            // no C term
-                        0.0,          //
-                        false);       // no clamping on -C/dt
-
-        // Make the vectors of pointers to constraint and variables, for LCP solver
-        LCPprepare_inject(*this->LCP_descriptor);
-
-        // Solve the LCP problem using the speed solver. Solution variables are new
-        // speeds 'v_new'
-        GetLcpSolverSpeed()->Solve(*this->LCP_descriptor);
-
-        // Update the constraint reaction forces.
-        LCPresult_Li_into_reactions(1 / step);
-
-        // Loop over all bodies and other physics items; approximate speeds using
-        // finite diferences (with the local, small time step value) and update all
-        // markers and forces.
-        for (int ip = 0; ip < bodylist.size(); ++ip) {
-            bodylist[ip]->VariablesQbSetSpeed(step);
-            bodylist[ip]->Update(this->ChTime);
-        }
-
-        for (int ip = 0; ip < otherphysicslist.size(); ++ip) {
-            otherphysicslist[ip]->VariablesQbSetSpeed(step);
-            otherphysicslist[ip]->Update(this->ChTime);
-        }
-
-        // Restore the time step and max number of iterations.
-        step = step_saved;
-        SetIterLCPmaxItersSpeed(niter_saved);
-    }
+    this->SetIterLCPmaxItersSpeed(old_maxsteps);
 
     return 0;
 }
