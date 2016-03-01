@@ -55,7 +55,9 @@
 #include <core/ChTransform.h>  //transform acc from GF to LF for post process
 
 //#include "BallDropParams.h"
-#include "chrono_fsi/SphInterface.h"
+//#include "chrono_fsi/SphInterface.h"
+#include "chrono_fsi/incompressible_integrate.h"
+
 #include "chrono_fsi/InitializeSphMarkers.h"
 #include "chrono_fsi/FSI_Integrate.h"
 
@@ -136,8 +138,6 @@ int main(int argc, char* argv[]) {
 	thrust::host_vector<Real3> omegaVelGRF_ChSystemBackupH;
 	thrust::host_vector<Real3> omegaAccGRF_ChSystemBackupH;
 
-	std::vector<ChSharedPtr<ChBody> > FSI_Bodies;
-
 	Real sphMarkerMass = 0; // To be initialized in CreateFluidMarkers, and used in other places
 
 	SetupParamsH(paramsH);
@@ -168,15 +168,16 @@ int main(int argc, char* argv[]) {
 			return -1;
 		}
 		if (numObjects.numAllMarkers == 0) {
-			ClearArraysH(posRadH, velMasH, rhoPresMuH, bodyIndex,
-					referenceArray);
+			posRadH.clear();
+			velMasH.clear();
+			rhoPresMuH.clear();
+			bodyIndex.clear();
+			referenceArray.clear();
 			std::cout << "No marker to begin with " << numObjects.numAllMarkers
 					<< std::endl;
 			return 0;
 		}
 #endif
-	// ***************************** Create Rigid ********************************************
-	ChSystemParallelDVI mphysicalSystem;
 
 	// ***************************** Create Interface ********************************************
 
@@ -197,7 +198,7 @@ int main(int argc, char* argv[]) {
 	thrust::device_vector<Real4> derivVelRhoD;
 	ResizeR4(derivVelRhoD, numObjects.numAllMarkers);
 
-	int numFsiBodies = FSI_Bodies.size();
+	int numFsiBodies = 0; //FSI_Bodies.size();
 	thrust::device_vector<Real3> posRigid_fsiBodies_D;
 	thrust::device_vector<Real4> velMassRigid_fsiBodies_D;
 	thrust::device_vector<Real3> accRigid_fsiBodies_D;
@@ -355,8 +356,8 @@ int main(int argc, char* argv[]) {
 #if haveFluid
 		fsi_timer.start("DoStepDynamics_FSI");
 
-		DoStepDynamics_FSI(mphysicalSystem, mVehicle, posRadD, velMasD,
-				vel_XSPH_D, rhoPresMuD,
+		DoStepFluid_implicit(posRadD, velMasD,
+				rhoPresMuD,
 
 				posRadD2, velMasD2, rhoPresMuD2,
 
@@ -376,9 +377,7 @@ int main(int argc, char* argv[]) {
 
 				rigid_FSI_ForcesD, rigid_FSI_TorquesD,
 
-				bodyIndexD, FSI_Bodies, referenceArray, numObjects, paramsH,
-				mTime, time_hold_vehicle, tStep,
-				haveVehicle);
+				bodyIndexD, referenceArray, numObjects, paramsH);
 		fsi_timer.stop("DoStepDynamics_FSI");
 #endif
 		// -------------------
@@ -407,10 +406,12 @@ int main(int argc, char* argv[]) {
 		fflush(stdout);
 		realTime += currentParamsH.dT;
 
-		//        mphysicalSystem.data_manager->system_timer.PrintReport();
 	}
-	ClearArraysH(posRadH, velMasH, rhoPresMuH, bodyIndex, referenceArray);
-	FSI_Bodies.clear();
+	posRadH.clear();
+	velMasH.clear();
+	rhoPresMuH.clear();
+	bodyIndex.clear();
+	referenceArray.clear();
 
 	pos_ChSystemBackupH.clear();
 	vel_ChSystemBackupH.clear();
@@ -458,10 +459,5 @@ int main(int argc, char* argv[]) {
 	omegaVelLRF_fsiBodies_dummyH.clear();
 	omegaAccLRF_fsiBodies_dummyH.clear();
 #endif
-	delete mVehicle;
-	delete tire_cb;
-	delete chassis_cb;
-	delete driver_cb;
-
 	return 0;
 }
