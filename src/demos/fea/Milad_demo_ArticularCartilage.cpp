@@ -58,7 +58,7 @@ using namespace std;
 // bool addForce = true;
 bool addGravity = false;
 bool addPressure = true;
-bool addForce = true;
+bool addForce = false;
 bool showTibia = false;
 bool showFemur = false;
 // bool addFixed = false;
@@ -185,6 +185,9 @@ int main(int argc, char* argv[]) {
     application.AddTypicalLogo();
     application.AddTypicalSky();
     application.AddTypicalLights();
+    application.AddTypicalLights(core::vector3df(0, -5, 0), core::vector3df(0, 5, 0), 90, 90,
+                                 irr::video::SColorf(0.5, 0.5, 0.5));
+
     application.AddTypicalCamera(core::vector3df(-0.08f, -0.001f, 0.005f),  // camera location
                                  core::vector3df(0.0f, 0.f, 0.f));          // "look at" location
     application.SetContactsDrawMode(ChIrrTools::CONTACT_DISTANCES);
@@ -214,6 +217,8 @@ int main(int argc, char* argv[]) {
     GetLog() << "-----------------------------------------------------------\n";
     GetLog() << "   		Articular Cartilage Modeling   \n";
     GetLog() << "-----------------------------------------------------------\n\n";
+    ////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////
     // Creating Rigid body
     GetLog() << "	Adding the Tibia as a Rigid Body ...\n";
     auto Tibia = std::make_shared<ChBody>();
@@ -247,7 +252,7 @@ int main(int argc, char* argv[]) {
         Femur->AddAsset(mobjmesh2);
     }
     // Constraining the motion of the Fumer to y direction for now
-    if (true) {
+    if (false) {
         // Prismatic joint between hub and suspended mass
         auto primsJoint = std::make_shared<ChLinkLockPrismatic>();
         my_system.AddLink(primsJoint);
@@ -255,8 +260,7 @@ int main(int argc, char* argv[]) {
     }
     GetLog() << "-----------------------------------------------------------\n\n";
 
-    int TotalNumNodes, TotalNumElements, TottalNumBEdges;
-    std::vector<double> NODE_AVE_AREA;
+    std::vector<double> NODE_AVE_AREA_t, NODE_AVE_AREA_f;
     std::vector<int> BC_NODES;
     std::vector<int> BC_NODES1;
     std::vector<int> BC_NODES2;
@@ -264,31 +268,44 @@ int main(int argc, char* argv[]) {
     GetLog() << "	Adding the Membrane Using ANCF Shell Elements...  \n\n";
     // Creating the membrane shell
     auto material = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
-    auto my_mesh = std::make_shared<ChMesh>();
+    auto my_mesh_femur = std::make_shared<ChMesh>();
+    auto my_mesh_tibia = std::make_shared<ChMesh>();
+
     //    ChMatrix33<> rot_transform(0);
     //    rot_transform.SetElement(0, 0, 1);
     //    rot_transform.SetElement(1, 1, -1);
     //    rot_transform.SetElement(2, 2, 1);
 
     ChMatrix33<> rot_transform(1);
-    // Import the Torus
-    //    try {
-    //        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Femur.mesh").c_str(), material,
-    //                                               NODE_AVE_AREA, BC_NODES, Center_Femur, rot_transform, MeterToInch,
-    //                                               false,
-    //                                               false);
-    //    } catch (ChException myerr) {
-    //        GetLog() << myerr.what();
-    //        return 0;
-    //    }
-    //    //
-    //    if (true) {
+    double Tottal_stiff = 0;
+    double Tottal_damp = 0;
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////// Femur /////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Import the Femur
+    try {
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_femur, GetChronoDataFile("fea/FemurCoarse.mesh").c_str(),
+                                               material, NODE_AVE_AREA_f, BC_NODES, Center_Femur, rot_transform,
+                                               MeterToInch, false, false);
+    } catch (ChException myerr) {
+        GetLog() << myerr.what();
+        return 0;
+    }
+    for (int node = 0; node < BC_NODES.size(); node++) {
+        auto FixedNode = std::make_shared<ChNodeFEAxyzD>();
+        FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_femur->GetNode(BC_NODES[node]));
+        FixedNode->SetFixed(true);
+    }
+
+    //    if (false) {
     //        for (int node = 0; node < BC_NODES.size(); node++) {
     //            auto NodePosBone = std::make_shared<ChLinkPointFrame>();
     //            auto NodeDirBone = std::make_shared<ChLinkDirFrame>();
     //            auto ConstrainedNode = std::make_shared<ChNodeFEAxyzD>();
     //
-    //            ConstrainedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(BC_NODES[node]));
+    //            ConstrainedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_femur->GetNode(BC_NODES[node]));
     //            NodePosBone->Initialize(ConstrainedNode, Femur);
     //            my_system.Add(NodePosBone);
     //
@@ -297,8 +314,47 @@ int main(int argc, char* argv[]) {
     //            my_system.Add(NodeDirBone);
     //        }
     //    }
-    int Femur_mesh_Nnodes = my_mesh->GetNnodes();
+
+    auto mloadcontainerFemur = std::make_shared<ChLoadContainer>();
     //
+    if (true) {
+        // Select on which nodes we are going to apply a load
+        std::vector<std::shared_ptr<ChLoadable>> NodeList;
+        for (int iNode = 0; iNode < my_mesh_femur->GetNnodes(); iNode++) {
+            auto NodeLoad = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_femur->GetNode(iNode));
+            NodeList.push_back(NodeLoad);
+        }
+        auto OneLoadSpringDamperFemur = std::make_shared<MyLoadSpringDamper>(NodeList, Femur);
+        for (int iNode = 0; iNode < my_mesh_femur->GetNnodes(); iNode++) {
+            auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_femur->GetNode(iNode));
+            ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
+            // attachment point in the body in global coordiantes
+            // Stiffness of the Elastic Foundation
+            double K_S = 1.5e9 * NODE_AVE_AREA_f[iNode];  // Stiffness Constant
+            double C_S = 5e3 * NODE_AVE_AREA_f[iNode];    // Damper Constant
+            Tottal_stiff += K_S;
+            Tottal_damp += C_S;
+            // Initial length
+            OneLoadSpringDamperFemur->C_dp[iNode] = C_S;
+            OneLoadSpringDamperFemur->K_sp[iNode] = K_S;
+            OneLoadSpringDamperFemur->l0[iNode] = L0_t;
+            // Calculate the damping ratio zeta
+            double zeta, m_ele;
+            m_ele = rho * dz * NODE_AVE_AREA_f[iNode];
+            zeta = C_S / (2 * sqrt(K_S * m_ele));
+            GetLog() << "Zeta of node # " << iNode << " is set to : " << zeta << "\n";
+            OneLoadSpringDamperFemur->LocalBodyAtt[iNode] = Femur->Point_World2Body(AttachBodyGlobal);
+        }
+        mloadcontainerFemur->Add(OneLoadSpringDamperFemur);
+    }  // End loop over tires
+    my_system.Add(mloadcontainerFemur);
+    GetLog() << "Total Stiffness (N/mm)= " << Tottal_stiff / 1e3 << " Total Damping = " << Tottal_damp << "\n";
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////// Tibia /////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////
     //    //    ChMatrix33<> rot_transform_2(1);
     //    //    rot_transform_2.SetElement(0, 0, 1);
     //    //    rot_transform_2.SetElement(1, 1, -1);
@@ -306,10 +362,10 @@ int main(int argc, char* argv[]) {
     //    //    Center = ChVector<>(0, -0.2, 0.4);
 
     ChVector<> Center(0, 0.0, 0);
-    // Import the mesh
+    // Import the Tibia
     try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Tibia-1.mesh").c_str(), material,
-                                               NODE_AVE_AREA, BC_NODES1, Center, rot_transform, MeterToInch, false,
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-1.mesh").c_str(), material,
+                                               NODE_AVE_AREA_t, BC_NODES1, Center, rot_transform, MeterToInch, false,
                                                false);
     } catch (ChException myerr) {
         GetLog() << myerr.what();
@@ -317,14 +373,14 @@ int main(int argc, char* argv[]) {
     }
     for (int node = 0; node < BC_NODES1.size(); node++) {
         auto FixedNode = std::make_shared<ChNodeFEAxyzD>();
-        FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(BC_NODES1[node]));
+        FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_tibia->GetNode(BC_NODES1[node]));
         FixedNode->SetFixed(true);
     }
 
-    // Import the mesh
+    // Import the Tibia
     try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Tibia-2.mesh").c_str(), material,
-                                               NODE_AVE_AREA, BC_NODES2, Center, rot_transform, MeterToInch, false,
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-2.mesh").c_str(), material,
+                                               NODE_AVE_AREA_t, BC_NODES2, Center, rot_transform, MeterToInch, false,
                                                false);
     } catch (ChException myerr) {
         GetLog() << myerr.what();
@@ -332,60 +388,73 @@ int main(int argc, char* argv[]) {
     }
     for (int node = 0; node < BC_NODES2.size(); node++) {
         auto FixedNode = std::make_shared<ChNodeFEAxyzD>();
-        FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(BC_NODES2[node]));
+        FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_tibia->GetNode(BC_NODES2[node]));
         FixedNode->SetFixed(true);
     }
 
     /// TEST TO INCLUDE SPRING-DAMPER GENERALIZED FORCES
-    auto mloadcontainerGround = std::make_shared<ChLoadContainer>();
-    double Tottal_stiff = 0;
-    double Tottal_damp = 0;
-
+    auto mloadcontainerTibia = std::make_shared<ChLoadContainer>();
+    Tottal_stiff = 0;
+    Tottal_damp = 0;
     if (true) {
         // Select on which nodes we are going to apply a load
         std::vector<std::shared_ptr<ChLoadable>> NodeList;
-        for (int iNode = 0; iNode < my_mesh->GetNnodes(); iNode++) {
-            auto NodeLoad = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(iNode));
+        for (int iNode = 0; iNode < my_mesh_tibia->GetNnodes(); iNode++) {
+            auto NodeLoad = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_tibia->GetNode(iNode));
             NodeList.push_back(NodeLoad);
         }
-        auto OneLoadSpringDamper = std::make_shared<MyLoadSpringDamper>(NodeList, Tibia);
-        for (int iNode = Femur_mesh_Nnodes; iNode < my_mesh->GetNnodes(); iNode++) {
-            auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(iNode));
+        auto OneLoadSpringDamperTibia = std::make_shared<MyLoadSpringDamper>(NodeList, Tibia);
+        for (int iNode = 0; iNode < my_mesh_tibia->GetNnodes(); iNode++) {
+            auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_tibia->GetNode(iNode));
             ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
             // attachment point in the body in global coordiantes
             // Stiffness of the Elastic Foundation
-            double K_S = 1.5e9 * NODE_AVE_AREA[iNode];  // Stiffness Constant
-            double C_S = 5e3 * NODE_AVE_AREA[iNode];    // Damper Constant
+            double K_S = 1.5e9 * NODE_AVE_AREA_t[iNode];  // Stiffness Constant
+            double C_S = 5e3 * NODE_AVE_AREA_t[iNode];    // Damper Constant
             Tottal_stiff += K_S;
             Tottal_damp += C_S;
             // Initial length
-            OneLoadSpringDamper->C_dp[iNode] = C_S;
-            OneLoadSpringDamper->K_sp[iNode] = K_S;
-            OneLoadSpringDamper->l0[iNode] = L0_t;
+            OneLoadSpringDamperTibia->C_dp[iNode] = C_S;
+            OneLoadSpringDamperTibia->K_sp[iNode] = K_S;
+            OneLoadSpringDamperTibia->l0[iNode] = L0_t;
             // Calculate the damping ratio zeta
             double zeta, m_ele;
-            m_ele = rho * dz * NODE_AVE_AREA[iNode];
+            m_ele = rho * dz * NODE_AVE_AREA_t[iNode];
             zeta = C_S / (2 * sqrt(K_S * m_ele));
             GetLog() << "Zeta of node # " << iNode << " is set to : " << zeta << "\n";
-            OneLoadSpringDamper->LocalBodyAtt[iNode] = Tibia->Point_World2Body(AttachBodyGlobal);
+            OneLoadSpringDamperTibia->LocalBodyAtt[iNode] = Tibia->Point_World2Body(AttachBodyGlobal);
+            GetLog() << "Total Stiffness (N/mm)= " << Tottal_stiff / 1e3 << " Total Damping = " << Tottal_damp << "\n";
+            GetLog() << "Total nodes (N/mm)= " << my_mesh_tibia->GetNnodes() << " BC nodes = " << BC_NODES1.size()
+                     << " inner nodes = " << iNode << "\n";
         }
-        mloadcontainerGround->Add(OneLoadSpringDamper);
+        mloadcontainerTibia->Add(OneLoadSpringDamperTibia);
     }  // End loop over tires
-    my_system.Add(mloadcontainerGround);
-    GetLog() << "Total Stiffness (N/mm)= " << Tottal_stiff / 1e3 << " Total Damping = " << Tottal_damp << "\n";
+    my_system.Add(mloadcontainerTibia);
+
     // Create the contact surface(s).
     // In this case it is a ChContactSurfaceMesh, that allows mesh-mesh collsions.
     auto mcontactsurf = std::make_shared<ChContactSurfaceMesh>();
-    my_mesh->AddContactSurface(mcontactsurf);
+    my_mesh_tibia->AddContactSurface(mcontactsurf);
+    my_mesh_femur->AddContactSurface(mcontactsurf);
     mcontactsurf->AddFacesFromBoundary(sphere_swept_thickness);  // do this after my_mesh->AddContactSurface
     mcontactsurf->SetMaterialSurface(mysurfmaterial);            // use the DEM penalty contacts
 
-    TotalNumNodes = my_mesh->GetNnodes();
-    TotalNumElements = my_mesh->GetNelements();
-
-    for (int ele = 0; ele < TotalNumElements; ele++) {
+    double TotalNumNodes_Femur = my_mesh_femur->GetNnodes();
+    double TotalNumElements_Femur = my_mesh_femur->GetNelements();
+    for (int ele = 0; ele < TotalNumElements_Femur; ele++) {
         auto element = std::make_shared<ChElementShellANCF>();
-        element = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(ele));
+        element = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh_femur->GetElement(ele));
+        // Add a single layers with a fiber angle of 0 degrees.
+        element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, material);
+        // Set other element properties
+        element->SetAlphaDamp(0.04);   // Structural damping for this element
+        element->SetGravityOn(false);  // gravitational forces
+    }
+    double TotalNumNodes_tibia = my_mesh_tibia->GetNnodes();
+    double TotalNumElements_tibia = my_mesh_tibia->GetNelements();
+    for (int ele = 0; ele < TotalNumElements_tibia; ele++) {
+        auto element = std::make_shared<ChElementShellANCF>();
+        element = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh_tibia->GetElement(ele));
         // Add a single layers with a fiber angle of 0 degrees.
         element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, material);
         // Set other element properties
@@ -396,63 +465,110 @@ int main(int argc, char* argv[]) {
     if (addPressure) {
         // First: loads must be added to "load containers",
         // and load containers must be added to your ChSystem
-        auto Mloadcontainer = std::make_shared<ChLoadContainer>();
+        auto Mloadcontainer_Femur = std::make_shared<ChLoadContainer>();
         // Add constant pressure using ChLoaderPressure (preferred for simple, constant pressure)
-        for (int NoElmPre = 0; NoElmPre < TotalNumElements; NoElmPre++) {
+        for (int NoElmPre = 0; NoElmPre < TotalNumElements_Femur; NoElmPre++) {
             auto faceload = std::make_shared<ChLoad<ChLoaderPressure>>(
-                std::static_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(NoElmPre)));
+                std::static_pointer_cast<ChElementShellANCF>(my_mesh_femur->GetElement(NoElmPre)));
             faceload->loader.SetPressure(1e6);
             faceload->loader.SetStiff(true);
             faceload->loader.SetIntegrationPoints(2);
-            Mloadcontainer->Add(faceload);
+            Mloadcontainer_Femur->Add(faceload);
         }
-        my_system.Add(Mloadcontainer);
+        my_system.Add(Mloadcontainer_Femur);
+        auto Mloadcontainer_Tibia = std::make_shared<ChLoadContainer>();
+        for (int NoElmPre = 0; NoElmPre < TotalNumElements_tibia; NoElmPre++) {
+            auto faceload = std::make_shared<ChLoad<ChLoaderPressure>>(
+                std::static_pointer_cast<ChElementShellANCF>(my_mesh_tibia->GetElement(NoElmPre)));
+            faceload->loader.SetPressure(1e6);
+            faceload->loader.SetStiff(true);
+            faceload->loader.SetIntegrationPoints(2);
+            Mloadcontainer_Tibia->Add(faceload);
+        }
+        my_system.Add(Mloadcontainer_Tibia);
     }
 
     // Switch off mesh class gravity
-    my_mesh->SetAutomaticGravity(addGravity);
+    my_mesh_femur->SetAutomaticGravity(addGravity);
+    my_mesh_tibia->SetAutomaticGravity(addGravity);
+
     if (addGravity) {
         my_system.Set_G_acc(ChVector<>(0, -9.8, 0));
     } else {
         my_system.Set_G_acc(ChVector<>(0, 0, 0));
     }
     // Add the mesh to the system
-    my_system.Add(my_mesh);
+    my_system.Add(my_mesh_tibia);
+    //        my_system.Add(my_mesh_femur);
 
     // Mark completion of system construction
 
     //    ////////////////////////////////////////
     //    // Options for visualization in irrlicht
     //    ////////////////////////////////////////
-    auto mvisualizemesh = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh.get()));
+    auto mvisualizemesh = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh_femur.get()));
     mvisualizemesh->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_NODE_SPEED_NORM);
     mvisualizemesh->SetColorscaleMinMax(0.0, 5.50);
     mvisualizemesh->SetSmoothFaces(true);
-    my_mesh->AddAsset(mvisualizemesh);
+    my_mesh_femur->AddAsset(mvisualizemesh);
 
-    auto mvisualizemeshcoll = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh.get()));
+    auto mvisualizemeshcoll = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh_femur.get()));
     mvisualizemeshcoll->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_CONTACTSURFACES);
     mvisualizemeshcoll->SetWireframe(true);
     mvisualizemeshcoll->SetDefaultMeshColor(ChColor(0.0, 0.0, 0.0));
-    my_mesh->AddAsset(mvisualizemeshcoll);
+    my_mesh_femur->AddAsset(mvisualizemeshcoll);
 
-    auto mvisualizemeshbeam = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh.get()));
+    auto mvisualizemeshbeam = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh_femur.get()));
     mvisualizemeshbeam->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_ELEM_STRESS_VONMISES);
     mvisualizemeshbeam->SetColorscaleMinMax(0.00, 0.070);
     mvisualizemeshbeam->SetSmoothFaces(true);
-    my_mesh->AddAsset(mvisualizemeshbeam);
+    my_mesh_femur->AddAsset(mvisualizemeshbeam);
 
-    auto mvisualizemeshDef = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh.get()));
+    auto mvisualizemeshDef = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh_femur.get()));
     mvisualizemeshDef->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_ANCF_SECTION_DISPLACEMENT);
     mvisualizemeshDef->SetColorscaleMinMax(0, 0.0009);
     //    mvisualizemeshDef->SetSmoothFaces(true);
-    my_mesh->AddAsset(mvisualizemeshDef);
+    my_mesh_femur->AddAsset(mvisualizemeshDef);
 
-    auto mvisualizemeshbeamnodes = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh.get()));
+    auto mvisualizemeshbeamnodes = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh_femur.get()));
     mvisualizemeshbeamnodes->SetFEMglyphType(ChVisualizationFEAmesh::E_GLYPH_NODE_DOT_POS);
     mvisualizemeshbeamnodes->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_NONE);
     mvisualizemeshbeamnodes->SetSymbolsThickness(0.0002);
-    my_mesh->AddAsset(mvisualizemeshbeamnodes);
+    my_mesh_femur->AddAsset(mvisualizemeshbeamnodes);
+
+    ///////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////
+    //////////////Tibia
+    //////////////////////////////////////////////////////////////////
+    auto mvisualizemesh_tibia = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh_tibia.get()));
+    mvisualizemesh_tibia->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_NODE_SPEED_NORM);
+    mvisualizemesh_tibia->SetColorscaleMinMax(0.0, 5.50);
+    mvisualizemesh_tibia->SetSmoothFaces(true);
+    my_mesh_tibia->AddAsset(mvisualizemesh_tibia);
+
+    auto mvisualizemeshcoll_tibia = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh_tibia.get()));
+    mvisualizemeshcoll_tibia->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_CONTACTSURFACES);
+    mvisualizemeshcoll_tibia->SetWireframe(true);
+    mvisualizemeshcoll_tibia->SetDefaultMeshColor(ChColor(0.0, 0.0, 0.0));
+    my_mesh_tibia->AddAsset(mvisualizemeshcoll_tibia);
+
+    auto mvisualizemeshbeam_tibia = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh_tibia.get()));
+    mvisualizemeshbeam_tibia->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_ELEM_STRESS_VONMISES);
+    mvisualizemeshbeam_tibia->SetColorscaleMinMax(0.00, 0.060);
+    mvisualizemeshbeam_tibia->SetSmoothFaces(true);
+    my_mesh_tibia->AddAsset(mvisualizemeshbeam_tibia);
+
+    auto mvisualizemeshDef_tibia = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh_tibia.get()));
+    mvisualizemeshDef_tibia->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_ANCF_SECTION_DISPLACEMENT);
+    mvisualizemeshDef_tibia->SetColorscaleMinMax(0, 0.00073);
+    //    mvisualizemeshDef->SetSmoothFaces(true);
+    my_mesh_tibia->AddAsset(mvisualizemeshDef_tibia);
+
+    auto mvisualizemeshbeamnodes_tibia = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh_tibia.get()));
+    mvisualizemeshbeamnodes_tibia->SetFEMglyphType(ChVisualizationFEAmesh::E_GLYPH_NODE_DOT_POS);
+    mvisualizemeshbeamnodes_tibia->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_NONE);
+    mvisualizemeshbeamnodes_tibia->SetSymbolsThickness(0.0002);
+    my_mesh_tibia->AddAsset(mvisualizemeshbeamnodes_tibia);
 
     application.AssetBindAll();
     application.AssetUpdateAll();
@@ -482,12 +598,12 @@ int main(int argc, char* argv[]) {
     //    mkl_solver_speed->SetSparsityPatternLock(true);
     //    application.GetSystem()->Update();
 
-    // Setup solver
+    //    // Setup solver
     my_system.SetLcpSolverType(ChSystem::LCP_ITERATIVE_MINRES);
     ChLcpIterativeMINRES* msolver = (ChLcpIterativeMINRES*)my_system.GetLcpSolverSpeed();
     msolver->SetDiagonalPreconditioning(true);
     my_system.SetIterLCPwarmStarting(true);  // this helps a lot to speedup convergence in this class of
-    my_system.SetIterLCPmaxItersSpeed(4000000);
+    my_system.SetIterLCPmaxItersSpeed(400000);
     my_system.SetTolForce(1e-6);
     msolver->SetVerbose(false);
     //
