@@ -59,7 +59,7 @@ bool addGravity = true;
 bool addPressure = false;
 bool showBone = true;
 bool addFixed = false;
-double time_step = 0.0015;
+double time_step = 0.0005;
 int scaleFactor = 35;
 double dz = 0.01;
 
@@ -121,16 +121,17 @@ int main(int argc, char* argv[]) {
     auto material = std::make_shared<ChMaterialShellANCF>(1000, 1e5, 0.3);
     auto my_mesh = std::make_shared<ChMesh>();
 
-    ChVector<> Center(-0.5, -0.5, 0.3);
+    ChVector<> Center(-0.5, -0.5, 0.5);
     ChMatrix33<> rot_transform(0);
     rot_transform.SetElement(0, 0, 1);
     rot_transform.SetElement(1, 1, -1);
     rot_transform.SetElement(2, 1, -1);
+    std::vector<double> NODE_AVE_AREA;
 
     // Import the mesh
     try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Plate.mesh").c_str(), material, BC_NODES,
-                                               Center, rot_transform, 0.8, true, true, true);
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Plate.mesh").c_str(), material,
+                                               NODE_AVE_AREA, BC_NODES, Center, rot_transform, 0.8, false, false);
     } catch (ChException myerr) {
         GetLog() << myerr.what();
         return 0;
@@ -211,22 +212,22 @@ int main(int argc, char* argv[]) {
     // Simulation loop
     // ---------------
 
-    ChLcpMklSolver* mkl_solver_stab = new ChLcpMklSolver;
-    ChLcpMklSolver* mkl_solver_speed = new ChLcpMklSolver;
-    my_system.ChangeLcpSolverStab(mkl_solver_stab);
-    my_system.ChangeLcpSolverSpeed(mkl_solver_speed);
-    mkl_solver_stab->SetSparsityPatternLock(true);
-    mkl_solver_speed->SetSparsityPatternLock(true);
-    application.GetSystem()->Update();
+    //    ChLcpMklSolver* mkl_solver_stab = new ChLcpMklSolver;
+    //    ChLcpMklSolver* mkl_solver_speed = new ChLcpMklSolver;
+    //    my_system.ChangeLcpSolverStab(mkl_solver_stab);
+    //    my_system.ChangeLcpSolverSpeed(mkl_solver_speed);
+    //    mkl_solver_stab->SetSparsityPatternLock(true);
+    //    mkl_solver_speed->SetSparsityPatternLock(true);
+    //    application.GetSystem()->Update();
 
     // Setup solver
-    //    my_system.SetLcpSolverType(ChSystem::LCP_ITERATIVE_MINRES);
-    //    ChLcpIterativeMINRES* msolver = (ChLcpIterativeMINRES*)my_system.GetLcpSolverSpeed();
-    //    msolver->SetDiagonalPreconditioning(true);
-    //    my_system.SetIterLCPwarmStarting(true);  // this helps a lot to speedup convergence in this class of
-    //    my_system.SetIterLCPmaxItersSpeed(40);
-    //    my_system.SetTolForce(1e-6);
-    //    msolver->SetVerbose(false);
+    my_system.SetLcpSolverType(ChSystem::LCP_ITERATIVE_MINRES);
+    ChLcpIterativeMINRES* msolver = (ChLcpIterativeMINRES*)my_system.GetLcpSolverSpeed();
+    msolver->SetDiagonalPreconditioning(true);
+    my_system.SetIterLCPwarmStarting(true);  // this helps a lot to speedup convergence in this class of
+    my_system.SetIterLCPmaxItersSpeed(4000000);
+    my_system.SetTolForce(1e-6);
+    msolver->SetVerbose(false);
     //
     // INT_HHT or INT_EULER_IMPLICIT
     my_system.SetIntegrationType(ChSystem::INT_HHT);
