@@ -219,6 +219,8 @@ class ChApiFea ChElementShellANCF : public ChElementShell, public ChLoadableUV, 
 
     void EvaluateVonMisesStrain(double& strainvec) { strainvec = std::abs(strainXplot) + std::abs(strainYplot); };
     void EvaluateVonMisesStress(double& stressvec) { stressvec = 1 * (std::abs(strainXplot) + std::abs(strainYplot)); };
+    double EvaluateStrainX() { return strainXplot; };
+    double EvaluateStrainY() { return strainYplot; };
 
     void EvaluateDeflection(double& defVec);
 
@@ -385,7 +387,7 @@ class ChApiFea ChElementShellANCF : public ChElementShell, public ChLoadableUV, 
                            double& detJ,                ///< Return det[J] here
                            const ChVectorDynamic<>& F,  ///< Input F vector, size is =n. field coords.
                            ChVectorDynamic<>* state_x,  ///< if != 0, update state (pos. part) to this, then evaluate Q
-                           ChVectorDynamic<>* state_w   ///< if != 0, update state (speed part) to this, then evaluate Q
+                           ChVectorDynamic<>* state_w   ///< if != 0, update state (GetDispeed part) to this, then evaluate Q
                            ) override;
 
     /// Evaluate N'*F , where N is some type of shape function
