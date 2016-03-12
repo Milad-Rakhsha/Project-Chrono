@@ -73,6 +73,9 @@ int ChSystemParallel::Integrate_Y() {
   data_manager->system_timer.start("collision");
   collision_system->Run();
   collision_system->ReportContacts(this->contact_container.get());
+  for (size_t ic = 0; ic < collision_callbacks.size(); ic++) {
+      collision_callbacks[ic]->PerformCustomCollision(this);
+  }
   data_manager->system_timer.stop("collision");
 
   data_manager->system_timer.start("lcp");
@@ -90,7 +93,14 @@ int ChSystemParallel::Integrate_Y() {
   }
 
   // Update the constraint reactions.
-  LCPresult_Li_into_reactions(1.0 / this->GetStep());  // R = l/dt  , approximately
+  double factor = 1 / this->GetStep();
+  for (int ip = 0; ip < linklist.size(); ++ip) {
+      linklist[ip]->ConstraintsFetch_react(factor);
+  }
+  for (int ip = 0; ip < otherphysicslist.size(); ++ip) {
+      otherphysicslist[ip]->ConstraintsFetch_react(factor);
+  }
+  contact_container->ConstraintsFetch_react(factor);
 
   // Scatter the states to the Chrono objects (bodies and shafts) and update
   // all physics items at the end of the step.
