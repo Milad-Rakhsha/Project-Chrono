@@ -55,7 +55,7 @@ using namespace chrono::irrlicht;
 using namespace irr;
 using namespace std;
 
-//#define USE_IRR ;
+#define USE_IRR ;
 
 // bool addConstrain = true;
 // bool addForce = true;
@@ -65,7 +65,7 @@ bool addForce = true;
 bool showTibia = false;
 bool showFemur = false;
 // bool addFixed = false;
-double time_step = 0.0002;
+double time_step = 0.00001;
 int scaleFactor = 1;
 double dz = 0.001;
 double MeterToInch = 0.02539998628;
@@ -199,11 +199,12 @@ int main(int argc, char* argv[]) {
 #endif
 
     // collision::ChCollisionModel::SetDefaultSuggestedEnvelope(0.0); // not needed, already 0 when using
-    collision::ChCollisionModel::SetDefaultSuggestedMargin(1.5);  // max inside penetration - if not enough stiffness in
-                                                                  // material: troubles
+    collision::ChCollisionModel::SetDefaultSuggestedMargin(dz *
+                                                           2);  // max inside penetration - if not enough stiffness in
+                                                                // material: troubles
     // Use this value for an outward additional layer around meshes, that can improve
     // robustness of mesh-mesh collision detection (at the cost of having unnatural inflate effect)
-    double sphere_swept_thickness = dz * 0.2;
+    double sphere_swept_thickness = dz * 1;
 
     double rho = 1000;  ///< material density
     double E = 15e6;    ///< Young's modulus
@@ -241,7 +242,7 @@ int main(int argc, char* argv[]) {
     }
 
     //    GetLog() << "	Adding the Femur as a Rigid Body ...\n";
-    ChVector<> Center_Femur(0, 0.002, 0);
+    ChVector<> Center_Femur(0, 0.003, 0);
     auto Femur = std::make_shared<ChBody>();
     Femur->SetPos(Center_Femur);
     Femur->SetBodyFixed(false);
@@ -331,8 +332,8 @@ int main(int argc, char* argv[]) {
             ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
             // attachment point in the body in global coordiantes
             // Stiffness of the Elastic Foundation
-            double K_S = 1.5e9 * NODE_AVE_AREA_f[iNode];  // Stiffness Constant
-            double C_S = 5e3 * NODE_AVE_AREA_f[iNode];    // Damper Constant
+            double K_S = 50e9 * NODE_AVE_AREA_f[iNode];  // Stiffness Constant
+            double C_S = 10e3 * NODE_AVE_AREA_f[iNode];  // Damper Constant
             Tottal_stiff += K_S;
             Tottal_damp += C_S;
             // Initial length
@@ -410,8 +411,8 @@ int main(int argc, char* argv[]) {
             ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
             // attachment point in the body in global coordiantes
             // Stiffness of the Elastic Foundation
-            double K_S = 1.5e9 * NODE_AVE_AREA_t[iNode];  // Stiffness Constant
-            double C_S = 5e3 * NODE_AVE_AREA_t[iNode];    // Damper Constant
+            double K_S = 50e9 * NODE_AVE_AREA_t[iNode];  // Stiffness Constant
+            double C_S = 10e3 * NODE_AVE_AREA_t[iNode];  // Damper Constant
             Tottal_stiff += K_S;
             Tottal_damp += C_S;
             // Initial length
@@ -541,7 +542,7 @@ int main(int argc, char* argv[]) {
 
     auto mvisualizemeshDef_tibia = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh_tibia.get()));
     mvisualizemeshDef_tibia->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_ANCF_SECTION_DISPLACEMENT);
-    mvisualizemeshDef_tibia->SetColorscaleMinMax(0, 0.0005);
+    mvisualizemeshDef_tibia->SetColorscaleMinMax(0, 0.001);
     mvisualizemeshDef_tibia->SetSmoothFaces(true);
     my_mesh_tibia->AddAsset(mvisualizemeshDef_tibia);
 
@@ -678,13 +679,14 @@ int main(int argc, char* argv[]) {
         if (addForce) {
             double t = my_system.GetChTime();
             double T_MAX = 0.001;
-            double F_MAX = -50;
+            double F_MAX = -100;
+            double F;
             if (t < T_MAX)
-                double F_MAX = (1 - cos((t / T_MAX) * 3.1415)) * F_MAX / 2;
+                F = (1 - cos((t / T_MAX) * 3.1415)) * F_MAX / 2;
             else
-                double F_MAX = F_MAX;
-
-            Femur->Set_Scr_force(ChVector<>(0, F_MAX, 0));
+                F = F_MAX;
+            Femur->Empty_forces_accumulators();
+            Femur->Set_Scr_force(ChVector<>(0, F, 0));
             std::cout << "Time t = " << my_system.GetChTime() << " Applied Force = " << F_MAX << "\n";
 
         } else
