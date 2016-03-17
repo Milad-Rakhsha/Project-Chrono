@@ -224,7 +224,7 @@ int main(int argc, char* argv[]) {
                                                                   // material: troubles
     // Use this value for an outward additional layer around meshes, that can improve
     // robustness of mesh-mesh collision detection (at the cost of having unnatural inflate effect)
-    double sphere_swept_thickness = dz * 1;
+    double sphere_swept_thickness = dz * 2.01;
 
     double rho = 1000;  ///< material density
     double E = 45e7;    ///< Young's modulus
