@@ -55,7 +55,7 @@ using namespace chrono::fea;
 using namespace chrono::irrlicht;
 using namespace irr;
 using namespace std;
-int num_threads = 3;
+int num_threads = 1;
 #define USE_IRR ;
 bool outputData = true;
 bool addGravity = false;
@@ -224,10 +224,10 @@ int main(int argc, char* argv[]) {
                                                                   // material: troubles
     // Use this value for an outward additional layer around meshes, that can improve
     // robustness of mesh-mesh collision detection (at the cost of having unnatural inflate effect)
-    double sphere_swept_thickness = dz * 2;
+    double sphere_swept_thickness = dz * 1;
 
     double rho = 1000;  ///< material density
-    double E = 45e6;    ///< Young's modulus
+    double E = 45e7;    ///< Young's modulus
     double nu = 0.3;    ///< Poisson ratio
     // Create the surface material, containing information
     // about friction etc.
@@ -239,7 +239,7 @@ int main(int argc, char* argv[]) {
     //    mysurfmaterial->SetFriction(0.3f);
     //    mysurfmaterial->SetRestitution(0.5f);
     //    mysurfmaterial->SetAdhesion(0);
-    mysurfmaterial->SetKn(2e2);
+    mysurfmaterial->SetKn(2e3);
     mysurfmaterial->SetKt(0);
     mysurfmaterial->SetGn(1e1);
     mysurfmaterial->SetGt(0);
@@ -668,7 +668,7 @@ int main(int argc, char* argv[]) {
     // mystepper->SetAbsTolerances(1e-05, 1e-1);        // For Pos
     mystepper->SetMode(ChTimestepperHHT::ACCELERATION);  // POSITION //ACCELERATION
     mystepper->SetScaling(true);
-    mystepper->SetVerbose(true);
+    mystepper->SetVerbose(false);
 
 #ifndef USE_IRR
     /////////////////////////////////////////////////

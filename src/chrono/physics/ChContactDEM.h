@@ -58,9 +58,7 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
         Reset(mobjA, mobjB, cinfo);
     }
 
-    ~ChContactDEM() {
-        delete m_Jac;
-    }
+    ~ChContactDEM() { delete m_Jac; }
 
     /// Get the contact force, if computed, in absolute coordinate system.
     virtual ChVector<> GetContactForce() override { return m_force; }
@@ -88,6 +86,27 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
         assert(cinfo.distance < 0);
 
         // Calculate contact force.
+        //        printf("distance is = %f\n", -this->norm_dist);
+        double DIST = -this->norm_dist;
+        ChVector<> p1 = this->GetContactP1();
+        ChVector<> p2 = this->GetContactP2();
+        double CD = this->GetContactDistance();
+        char buffer1[32], buffer2[32];  // The filename buffer.
+        auto thisSystem = static_cast<ChSystemDEM*>(this->container->GetSystem());
+        snprintf(buffer1, sizeof(char) * 32, "PointCloud/p1.%f.txt", thisSystem->GetChTime());
+        snprintf(buffer2, sizeof(char) * 32, "PointCloud/p2.%f.txt", thisSystem->GetChTime());
+
+        std::ofstream Point1, Point2;
+        Point1.open(buffer1, std::ios::app);
+        Point2.open(buffer2, std::ios::app);
+        Point1 << p1.x << ", " << p1.y << ", " << p1.z << std::endl;
+        Point2 << p2.x << ", " << p2.y << ", " << p2.z << std::endl;
+        Point1.close();
+        Point2.close();
+        printf("Point1=[%f %f %f]\n", p1.x, p1.y, p1.z);
+        printf("Point2=[%f %f %f]\n", p2.x, p2.y, p2.z);
+        printf("Contact Distance=%f\n", CD);
+
         CalculateForce(-this->norm_dist,                            // overlap (here, always positive)
                        this->normal,                                // normal contact direction
                        this->objA->GetContactPointSpeed(this->p1),  // velocity of contact point on objA
@@ -105,9 +124,9 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
     /// Calculate contact force, expressed in absolute coordinates.
     void CalculateForce(double delta,                  ///< overlap in normal direction (positive)
                         const ChVector<>& normal_dir,  ///< normal contact direction (expressed in global frame)
-                        const ChVector<>& vel1,        ///< velocity of contact point on objA (expressed in global frame)
-                        const ChVector<>& vel2,        ///< velocity of contact point on objB (expressed in global frame)
-                        ChVector<>& force              ///< output force vector
+                        const ChVector<>& vel1,  ///< velocity of contact point on objA (expressed in global frame)
+                        const ChVector<>& vel2,  ///< velocity of contact point on objB (expressed in global frame)
+                        ChVector<>& force        ///< output force vector
                         ) {
         // Set contact force to zero if overlap is non-positive.
         if (delta <= 0) {
@@ -129,7 +148,6 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
         ChVector<> relvel_n = relvel_n_mag * normal_dir;
         ChVector<> relvel_t = relvel - relvel_n;
         double relvel_t_mag = relvel_t.Length();
-
         // Calculate effective mass
         double m_eff = this->objA->GetContactableMass() * this->objB->GetContactableMass() /
                        (this->objA->GetContactableMass() + this->objB->GetContactableMass());
@@ -172,8 +190,8 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
                 } else {
                     kn = mat.kn;
                     kt = mat.kt;
-                    gn = m_eff * mat.gn;
-                    gt = m_eff * mat.gt;
+                    gn = mat.gn;
+                    gt = mat.gt;
                 }
 
                 break;
@@ -213,12 +231,12 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
 
         // Include adhesion force
         switch (adhesion_model) {
-        case ChSystemDEM::Constant:
-            forceN -= mat.adhesion_eff;
-            break;
-        case ChSystemDEM::DMT:
-            forceN -= mat.adhesionMultDMT_eff * sqrt(R_eff);
-            break;
+            case ChSystemDEM::Constant:
+                forceN -= mat.adhesion_eff;
+                break;
+            case ChSystemDEM::DMT:
+                forceN -= mat.adhesionMultDMT_eff * sqrt(R_eff);
+                break;
         }
 
         // Coulomb law
@@ -264,6 +282,10 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
 
         // Calculate penetration depth
         double delta = (p1_abs - p2_abs).Length();
+
+        printf("A position is = (%f %f %f )", p1_abs.x, p1_abs.y, p1_abs.z);
+        printf("B position is = (%f %f %f )", p2_abs.x, p2_abs.y, p2_abs.z);
+        printf("delta is = %f", delta);
 
         // If the normal direction flipped sign, change sign of delta
         if (Vdot(normal_dir, this->normal) < 0)
