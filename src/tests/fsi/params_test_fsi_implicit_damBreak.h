@@ -38,13 +38,13 @@ Real maxFlowVelocity = 1;  // 12;  // in an ideal case, these two need to be the
 Real time_end = 2;  // 15;
 
 // Dimensions
-Real hdimX = 0.5;  // 5.5;
-Real hdimY = 0.5;
-Real hdimZ = 0.5;
+Real hdimX = 3;  // 5.5;
+Real hdimY = 0.6;
+Real hdimZ = 2;
 
-Real fluidInitDimX = .2;
-Real fluidInitDimY = .2;
-Real fluidInitDimZ = .2;
+Real fluidInitDimX = .4;
+Real fluidInitDimY = hdimY / 2;
+Real fluidInitDimZ = .4;
 
 int fluidCollisionFamily = 1;  // 2 and 3 are reserved for tire and chassis
 
@@ -132,18 +132,18 @@ void SetupParamsH(SimParams& paramsH) {
     //	paramsH.binSize0 = (paramsH.binSize0 > binSize3.z) ? paramsH.binSize0 : binSize3.z;
     paramsH.binSize0 =
         binSize3.x;  // for effect of distance. Periodic BC in x direction. we do not care about paramsH.cMax y and z.
-    paramsH.cMax = paramsH.cMin + paramsH.binSize0 * mR3(side0);
+                     //    paramsH.cMax = paramsH.cMin + paramsH.binSize0 * mR3(side0);
 
     paramsH.boxDims = paramsH.cMax - paramsH.cMin;
     //****************************************************************************************
-    paramsH.cMinInit = mR3(-fluidInitDimX, -fluidInitDimY, -fluidInitDimZ);  // 3D channel
-    paramsH.cMaxInit = mR3(fluidInitDimX, fluidInitDimY, fluidInitDimZ);
+    paramsH.cMinInit = mR3(0, -fluidInitDimY, 0) + paramsH.NUM_BOUNDARY_LAYERS * paramsH.HSML * mR3(1, 0, 1);
+    paramsH.cMaxInit =
+        mR3(fluidInitDimX, fluidInitDimY, fluidInitDimZ) + paramsH.NUM_BOUNDARY_LAYERS * paramsH.HSML * mR3(1, 0, 1);
+
     //****************************************************************************************
     //*** initialize straight channel
-    paramsH.straightChannelBoundaryMin =
-        paramsH.cMin + 4 * paramsH.MULT_INITSPACE * paramsH.HSML * mR3(1);  // mR3(0, 0, 0);  // 3D channel
-    paramsH.straightChannelBoundaryMax =
-        paramsH.cMax - 4 * paramsH.MULT_INITSPACE * paramsH.HSML * mR3(1);  // SmR3(3, 2, 3) * paramsH.sizeScale;
+    paramsH.straightChannelBoundaryMin = paramsH.cMin + 3 * paramsH.MULT_INITSPACE * paramsH.HSML * mR3(1);
+    paramsH.straightChannelBoundaryMax = paramsH.cMax - 3 * paramsH.MULT_INITSPACE * paramsH.HSML * mR3(1);
     //************************** modify pressure ***************************
     //		paramsH.deltaPress = paramsH.rho0 * paramsH.boxDims * paramsH.bodyForce3;  //did not work as I expected
     paramsH.deltaPress = mR3(
