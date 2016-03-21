@@ -66,7 +66,7 @@ bool showFemur = false;
 // bool addConstrain = true;
 // bool addForce = true;
 // bool addFixed = false;
-double time_step = 0.0001;
+double time_step = 0.0003;
 int scaleFactor = 1;
 double dz = 0.001;
 double MeterToInch = 0.02539998628;
@@ -224,10 +224,10 @@ int main(int argc, char* argv[]) {
                                                                   // material: troubles
     // Use this value for an outward additional layer around meshes, that can improve
     // robustness of mesh-mesh collision detection (at the cost of having unnatural inflate effect)
-    double sphere_swept_thickness = dz * 2.01;
+    double sphere_swept_thickness = dz * 0.51;
 
     double rho = 1000;  ///< material density
-    double E = 45e7;    ///< Young's modulus
+    double E = 40e7;    ///< Young's modulus
     double nu = 0.3;    ///< Poisson ratio
     // Create the surface material, containing information
     // about friction etc.
@@ -239,9 +239,9 @@ int main(int argc, char* argv[]) {
     //    mysurfmaterial->SetFriction(0.3f);
     //    mysurfmaterial->SetRestitution(0.5f);
     //    mysurfmaterial->SetAdhesion(0);
-    mysurfmaterial->SetKn(2e3);
+    mysurfmaterial->SetKn(8e5);
     mysurfmaterial->SetKt(0);
-    mysurfmaterial->SetGn(1e1);
+    mysurfmaterial->SetGn(8e2);
     mysurfmaterial->SetGt(0);
 
     GetLog() << "-----------------------------------------------------------\n";
@@ -390,7 +390,7 @@ int main(int argc, char* argv[]) {
     ChVector<> Center(0, 0.0, 0);
     // Import the Tibia
     try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-1Low.mesh").c_str(),
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-1.mesh").c_str(),
                                                material, NODE_AVE_AREA_t, BC_NODES1, Center, rot_transform, MeterToInch,
                                                false, false);
     } catch (ChException myerr) {
@@ -405,7 +405,7 @@ int main(int argc, char* argv[]) {
 
     // Import the Tibia
     try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-2Low.mesh").c_str(),
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-2.mesh").c_str(),
                                                material, NODE_AVE_AREA_t, BC_NODES2, Center, rot_transform, MeterToInch,
                                                false, false);
     } catch (ChException myerr) {
@@ -435,7 +435,7 @@ int main(int argc, char* argv[]) {
             ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
             // attachment point in the body in global coordiantes
             // Stiffness of the Elastic Foundation
-            double K_S = 5e8 * NODE_AVE_AREA_t[iNode];  // Stiffness Constant
+            double K_S = 4e8 * NODE_AVE_AREA_t[iNode];  // Stiffness Constant 5e8
             double C_S = 5e3 * NODE_AVE_AREA_t[iNode];  // Damper Constant
             Tottal_stiff += K_S;
             Tottal_damp += C_S;
@@ -582,7 +582,7 @@ int main(int argc, char* argv[]) {
 
     auto mvisualizemeshDef_tibia = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh_tibia.get()));
     mvisualizemeshDef_tibia->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_ANCF_SECTION_DISPLACEMENT);
-    mvisualizemeshDef_tibia->SetColorscaleMinMax(0, 0.001);
+    mvisualizemeshDef_tibia->SetColorscaleMinMax(0, 0.007);
     mvisualizemeshDef_tibia->SetSmoothFaces(true);
     my_mesh_tibia->AddAsset(mvisualizemeshDef_tibia);
 
@@ -664,11 +664,13 @@ int main(int argc, char* argv[]) {
     auto mystepper = std::dynamic_pointer_cast<ChTimestepperHHT>(my_system.GetTimestepper());
     mystepper->SetAlpha(-0.2);
     mystepper->SetMaxiters(40);
-    mystepper->SetAbsTolerances(1e-04, 1e-3);  // For ACC
-    // mystepper->SetAbsTolerances(1e-05, 1e-1);        // For Pos
-    mystepper->SetMode(ChTimestepperHHT::ACCELERATION);  // POSITION //ACCELERATION
+    //mystepper->SetAbsTolerances(1e-04, 1e-3);  // For ACC
+     mystepper->SetAbsTolerances(1e-05, 6e0);        // For Pos
+    mystepper->SetMode(ChTimestepperHHT::POSITION);  // POSITION //ACCELERATION
     mystepper->SetScaling(true);
-    mystepper->SetVerbose(false);
+    mystepper->SetVerbose(true);
+    mystepper->SetMaxItersSuccess(3);
+    mystepper->SetMaxiters(15);
 
 #ifndef USE_IRR
     /////////////////////////////////////////////////
@@ -729,7 +731,7 @@ int main(int argc, char* argv[]) {
         if (addForce) {
             double t = my_system.GetChTime();
             double T_MAX = 0.00;
-            double F_MAX = -1000;
+            double F_MAX = -2000;
             double F;
             if (t < T_MAX)
                 F = (1 - cos((t / T_MAX) * 3.1415)) * F_MAX / 2;

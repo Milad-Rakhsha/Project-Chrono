@@ -1066,10 +1066,11 @@ void ChElementShellANCF::ShapeFunctions(ChMatrix<>& N, double x, double y, doubl
     N(1) = z * c / 2.0 * 0.25 * (1.0 - x) * (1.0 - y);
     N(2) = 0.25 * (1.0 + x) * (1.0 - y);
     N(3) = z * c / 2.0 * 0.25 * (1.0 + x) * (1.0 - y);
-    N(4) = 0.25 * (1.0 - x) * (1.0 + y);
-    N(5) = z * c / 2.0 * 0.25 * (1.0 - x) * (1.0 + y);
-    N(6) = 0.25 * (1.0 + x) * (1.0 + y);
-    N(7) = z * c / 2.0 * 0.25 * (1.0 + x) * (1.0 + y);
+    N(4) = 0.25 * (1.0 + x) * (1.0 + y);
+    N(5) = z * c / 2.0 * 0.25 * (1.0 + x) * (1.0 + y);
+    N(6) = 0.25 * (1.0 - x) * (1.0 + y);
+    N(7) = z * c / 2.0 * 0.25 * (1.0 - x) * (1.0 + y);
+
 }
 
 void ChElementShellANCF::ShapeFunctionsDerivativeX(ChMatrix<>& Nx, double x, double y, double z) {
@@ -1081,10 +1082,11 @@ void ChElementShellANCF::ShapeFunctionsDerivativeX(ChMatrix<>& Nx, double x, dou
     Nx(1) = z * c / 2.0 * 0.25 * (-2.0 / a) * (1.0 - y);
     Nx(2) = 0.25 * (2.0 / a) * (1.0 - y);
     Nx(3) = z * c / 2.0 * 0.25 * (2.0 / a) * (1.0 - y);
-    Nx(4) = 0.25 * (-2.0 / a) * (1.0 + y);
-    Nx(5) = z * c / 2.0 * 0.25 * (-2.0 / a) * (1.0 + y);
-    Nx(6) = 0.25 * (2.0 / a) * (1.0 + y);
-    Nx(7) = z * c / 2.0 * 0.25 * (2.0 / a) * (1.0 + y);
+    Nx(4) = 0.25 * (2.0 / a) * (1.0 + y);
+    Nx(5) = z * c / 2.0 * 0.25 * (2.0 / a) * (1.0 + y);
+    Nx(6) = 0.25 * (-2.0 / a) * (1.0 + y);
+    Nx(7) = z * c / 2.0 * 0.25 * (-2.0 / a) * (1.0 + y);
+
 }
 
 void ChElementShellANCF::ShapeFunctionsDerivativeY(ChMatrix<>& Ny, double x, double y, double z) {
@@ -1096,10 +1098,11 @@ void ChElementShellANCF::ShapeFunctionsDerivativeY(ChMatrix<>& Ny, double x, dou
     Ny(1) = z * c / 2.0 * 0.25 * (1.0 - x) * (-2.0 / b);
     Ny(2) = 0.25 * (1.0 + x) * (-2.0 / b);
     Ny(3) = z * c / 2.0 * 0.25 * (1.0 + x) * (-2.0 / b);
-    Ny(4) = 0.25 * (1.0 - x) * (2.0 / b);
-    Ny(5) = z * c / 2.0 * 0.25 * (1.0 - x) * (2.0 / b);
-    Ny(6) = 0.25 * (1.0 + x) * (2.0 / b);
-    Ny(7) = z * c / 2.0 * 0.25 * (1.0 + x) * (2.0 / b);
+    Ny(4) = 0.25 * (1.0 + x) * (2.0 / b);
+    Ny(5) = z * c / 2.0 * 0.25 * (1.0 + x) * (2.0 / b);
+    Ny(6) = 0.25 * (1.0 - x) * (2.0 / b);
+    Ny(7) = z * c / 2.0 * 0.25 * (1.0 - x) * (2.0 / b);
+
 }
 
 void ChElementShellANCF::ShapeFunctionsDerivativeZ(ChMatrix<>& Nz, double x, double y, double z) {
@@ -1112,9 +1115,9 @@ void ChElementShellANCF::ShapeFunctionsDerivativeZ(ChMatrix<>& Nz, double x, dou
     Nz(2) = 0.0;
     Nz(3) = 0.250 * (1.0 + x) * (1.0 - y);
     Nz(4) = 0.0;
-    Nz(5) = 0.250 * (1.0 - x) * (1.0 + y);
+    Nz(5) = 0.250 * (1.0 + x) * (1.0 + y);
     Nz(6) = 0.0;
-    Nz(7) = 0.250 * (1.0 + x) * (1.0 + y);
+    Nz(7) = 0.250 * (1.0 - x) * (1.0 + y);
 }
 
 void ChElementShellANCF::Basis_M(ChMatrixNM<double, 6, 5>& M, double x, double y, double z) {

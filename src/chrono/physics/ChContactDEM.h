@@ -87,14 +87,12 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
 
         // Calculate contact force.
         //        printf("distance is = %f\n", -this->norm_dist);
+        
         double DIST = -this->norm_dist;
         ChVector<> p1 = this->GetContactP1();
         ChVector<> p2 = this->GetContactP2();
         double CD = this->GetContactDistance();
         char buffer1[32], buffer2[32];  // The filename buffer.
-        auto thisSystem = static_cast<ChSystemDEM*>(this->container->GetSystem());
-        snprintf(buffer1, sizeof(char) * 32, "PointCloud/p1.%f.txt", thisSystem->GetChTime());
-        snprintf(buffer2, sizeof(char) * 32, "PointCloud/p2.%f.txt", thisSystem->GetChTime());
 
         std::ofstream Point1, Point2;
         Point1.open(buffer1, std::ios::app);
@@ -103,8 +101,6 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
         Point2 << p2.x << ", " << p2.y << ", " << p2.z << std::endl;
         Point1.close();
         Point2.close();
-        printf("Point1=[%f %f %f]\n", p1.x, p1.y, p1.z);
-        printf("Point2=[%f %f %f]\n", p2.x, p2.y, p2.z);
         printf("Contact Distance=%f\n", CD);
 
         CalculateForce(-this->norm_dist,                            // overlap (here, always positive)
