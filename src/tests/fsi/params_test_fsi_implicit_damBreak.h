@@ -39,12 +39,12 @@ Real time_end = 2;  // 15;
 
 // Dimensions
 Real hdimX = 3;  // 5.5;
-Real hdimY = 0.6;
+Real hdimY = 0.5;
 Real hdimZ = 2;
 
-Real fluidInitDimX = .4;
+Real fluidInitDimX = 1;
 Real fluidInitDimY = hdimY / 2;
-Real fluidInitDimZ = .4;
+Real fluidInitDimZ = 1;
 
 int fluidCollisionFamily = 1;  // 2 and 3 are reserved for tire and chassis
 
