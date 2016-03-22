@@ -824,16 +824,14 @@ __global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted 
                                          const Real m_0,
                                          volatile bool* isErrorD) {
   uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (i_idx == 1)
-    printf("I am inside the calcNormalizedRho_kernel 1st place\n");
+  //  if (i_idx == 1)
+  //    printf("I am inside the calcNormalizedRho_kernel 1st place\n");
   if (i_idx > numAllMarkers) {
     return;
   }
   Real3 posRadA = FETCH(sortedPosRad, i_idx);
-  Real4 rhoPresMuA = FETCH(sortedRhoPreMu, i_idx);
 
   Real sum_mW = 0;
-  rhoPresMuA.x = 0;
   // get address in grid
   int3 gridPos = calcGridPos(posRadA);
   //
@@ -874,38 +872,38 @@ __global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted 
   // Adding neighbor contribution is done!
   Real IncompressibilityFactor = 1;
   sortedRhoPreMu[i_idx].x = (sum_mW - RHO_0) * IncompressibilityFactor + RHO_0;
-  if (sortedRhoPreMu[i_idx].w < -0.1) {
-    printf("My density is %f,ref density= %f\n", sortedRhoPreMu[i_idx].x, RHO_0);
-  }
+  //  if (sortedRhoPreMu[i_idx].w < -0.1) {
+  //    printf("My density is %f,ref density= %f\n", sortedRhoPreMu[i_idx].x, RHO_0);
+  //  }
 }
 //--------------------------------------------------------------------------------------------------------------------------------
-__global__ void F_i_np__AND__d_ii_kernel(Real3* sortedPosRad,  // input: sorted positions
-                                         Real3* sortedVelMas,
-                                         Real4* sortedRhoPreMu,
+__global__ void F_i_np__AND__d_ii_kernel(const Real3* sortedPosRad,  // input: sorted positions
+                                         const Real3* sortedVelMas,
+                                         const Real4* sortedRhoPreMu,
                                          Real3* d_ii,
                                          Real3* F_i_np,
-                                         uint* cellStart,
-                                         uint* cellEnd,
-                                         uint* mapOriginalToSorted,
+                                         const uint* cellStart,
+                                         const uint* cellEnd,
                                          int2 updatePortion,
-                                         int numAllMarkers,
-                                         double m_0,
-                                         double mu_0,
-                                         double epsilon,
-                                         Real dT,
+                                         const int numAllMarkers,
+                                         const Real m_0,
+                                         const Real mu_0,
+                                         const Real RHO_0,
+                                         const Real epsilon,
+                                         const Real dT,
                                          volatile bool* isErrorD) {
   uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (i_idx > numAllMarkers) {
     return;
   }
-  Real3 posA = FETCH(sortedPosRad, i_idx);
-  Real3 VelA = FETCH(sortedVelMas, i_idx);
-  Real RhoA = FETCH(sortedRhoPreMu, i_idx).x;
+  Real3 posi = FETCH(sortedPosRad, i_idx);
+  Real3 Veli = FETCH(sortedVelMas, i_idx);
+  Real Rhoi = FETCH(sortedRhoPreMu, i_idx).x;
   Real3 My_d_ii = mR3(0);
   Real3 My_F_i_np = mR3(0);
 
   // get address in grid
-  int3 gridPos = calcGridPos(posA);
+  int3 gridPos = calcGridPos(posi);
 
   //  /// if (gridPos.x == paramsD.gridSize.x-1) printf("****aha %d %d\n", gridPos.x, paramsD.gridSize.x);
   //
@@ -924,18 +922,18 @@ __global__ void F_i_np__AND__d_ii_kernel(Real3* sortedPosRad,  // input: sorted 
           for (uint j = startIndex; j < endIndex; j++) {
             if (i_idx == j)
               continue;
-            Real3 posB = FETCH(sortedPosRad, j);
-            Real3 VelB = FETCH(sortedVelMas, j);
-            Real RhoB = FETCH(sortedRhoPreMu, j).x;
-            Real3 dist3 = Distance(posA, posB);
+            Real3 posj = FETCH(sortedPosRad, j);
+            Real3 Velj = FETCH(sortedVelMas, j);
+            Real Rhoj = FETCH(sortedRhoPreMu, j).x;
+            Real3 dist3 = Distance(posi, posj);
             Real d = length(dist3);
             ////CHECK THIS CONDITION!!!
             if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML)
               continue;
             Real3 grad_a_wab = GradW(dist3) / (paramsD.HSML * d) * dist3;
-            My_d_ii += m_0 * (-(dT * dT) / (RhoA * RhoA)) * grad_a_wab;
-            Real Rho_bar = (RhoB + RhoA) / 2;
-            Real3 V_ij = (VelB - VelA);
+            My_d_ii += m_0 * (-(dT * dT) / (Rhoi * Rhoi)) * grad_a_wab;
+            Real Rho_bar = (Rhoj + Rhoi) * 0.5;
+            Real3 V_ij = (Velj - Veli);
             Real3 muNumerator = -2 * mu_0 * dot(dist3, grad_a_wab) * V_ij;
             Real muDenominator = (Rho_bar * Rho_bar) * (d * d + paramsD.HSML * paramsD.HSML * epsilon);
             My_F_i_np += muNumerator / muDenominator;
@@ -948,6 +946,324 @@ __global__ void F_i_np__AND__d_ii_kernel(Real3* sortedPosRad,  // input: sorted 
   d_ii[i_idx] = My_d_ii;
   F_i_np[i_idx] = My_F_i_np;
 }
+
+__device__ void Calc_c_i(Real3& c_i,
+                         const uint i_idx,
+                         const Real3 pos_i,
+                         const Real3 Vel_i,
+                         const Real Rho_i,
+                         const Real3* sortedPosRad,
+                         const Real3* sortedVelMas,
+                         const Real4* sortedRhoPreMu,
+                         const Real* p_old,
+                         const uint* cellStart,
+                         const uint* cellEnd,
+                         const Real m_0,
+                         const Real dT) {
+  Real3 My_c_i = mR3(0);
+  int3 gridPos = calcGridPos(pos_i);
+  for (int z = -1; z <= 1; z++) {
+    for (int y = -1; y <= 1; y++) {
+      for (int x = -1; x <= 1; x++) {
+        int3 neighbourPos = gridPos + mI3(x, y, z);
+        uint gridHash = calcGridHash(neighbourPos);
+        // get start of bucket for this cell
+        uint startIndex = FETCH(cellStart, gridHash);
+        if (startIndex != 0xffffffff) {  // cell is not empty
+          // iterate over particles in this cell
+          uint endIndex = FETCH(cellEnd, gridHash);
+
+          for (uint j = startIndex; j < endIndex; j++) {
+            if (i_idx == j)
+              continue;
+            Real3 pos_j = FETCH(sortedPosRad, j);
+            Real Rho_j = FETCH(sortedRhoPreMu, j).x;
+            // Real p_j = FETCH(sortedRhoPreMu, j).x;
+            Real p_j_old = FETCH(p_old, j);
+            Real3 dist3 = Distance(pos_i, pos_j);
+            Real d = length(dist3);
+            ////CHECK THIS CONDITION!!!
+            if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML)
+              continue;
+            Real3 grad_a_wab = GradW(dist3) / (paramsD.HSML * d) * dist3;
+            My_c_i += m_0 * (-(dT * dT) / (Rho_j * Rho_j)) * grad_a_wab * p_j_old;
+          }
+        }
+      }
+    }
+  }
+  c_i = My_c_i;
+}
+// Calc_Others(rho_np_i, cprime_i, dprime_i, eprime_i, a_ii, c_i, d_ii, F_i_np, i_idx, pos_i, Vel_i, Rho_i,
+//                  sortedPosRad, sortedVelMas, sortedRhoPreMu, p_old, cellStart, cellEnd, m_0, mu_0, RHO_0, epsilon,
+//                  dT);
+
+__device__ void Calc_Others(Real& rho_np_i,
+                            Real& cprime_i,
+                            Real& dprime_i,
+                            Real& eprime_i,
+                            Real& a_ii,
+                            const Real3 c_i,
+                            const Real3* d_ii,
+                            const Real3* F_i_np,
+                            const uint i_idx,
+                            const Real3 pos_i,
+                            const Real3 Vel_i,
+                            const Real Rho_i,
+                            const Real3* sortedPosRad,
+                            const Real3* sortedVelMas,
+                            const Real4* sortedRhoPreMu,
+                            const Real* p_old,
+                            const uint* cellStart,
+                            const uint* cellEnd,
+                            const Real m_0,
+                            const Real mu_0,
+                            const Real RHO_0,
+                            const Real epsilon,
+                            const Real dT) {
+  Real my_rho_np = 0;
+  Real my_cprime = 0;
+  Real my_dprime = 0;
+  Real my_eprime = 0;
+  Real my_a_ii = 0;
+
+  int3 gridPosI = calcGridPos(pos_i);
+  for (int z = -1; z <= 1; z++) {
+    for (int y = -1; y <= 1; y++) {
+      for (int x = -1; x <= 1; x++) {
+        int3 neighbourPosI = gridPosI + mI3(x, y, z);
+        uint gridHashI = calcGridHash(neighbourPosI);
+        // get start of bucket for this cell
+        uint startIndexI = FETCH(cellStart, gridHashI);
+        if (startIndexI != 0xffffffff) {  // cell is not empty
+          // iterate over particles in this cell
+          uint endIndexI = FETCH(cellEnd, gridHashI);
+
+          for (uint j = startIndexI; j < endIndexI; j++) {
+            if (i_idx == j)
+              continue;
+            Real3 pos_j = FETCH(sortedPosRad, j);
+            Real3 dist3ij = Distance(pos_i, pos_j);
+            Real dij = length(dist3ij);
+            ////CHECK THIS CONDITION!!!
+            if (dij > RESOLUTION_LENGTH_MULT * paramsD.HSML)
+              continue;
+            Real3 Vel_j = FETCH(sortedVelMas, j);
+            Real Rho_j = FETCH(sortedRhoPreMu, j).x;
+            Real p_j_old = FETCH(p_old, j);
+            Real3 grad_i_wij = GradW(dist3ij) / (paramsD.HSML * dij) * dist3ij;
+
+            //============================= Calc F_j_np, d_j, and e_j for the j
+            Real3 F_np_j = mR3(0);
+            Real3 d_j = mR3(0);
+            Real3 e_j = mR3(0);
+
+            int3 gridPosJ = calcGridPos(pos_j);
+            for (int z = -1; z <= 1; z++) {
+              for (int y = -1; y <= 1; y++) {
+                for (int x = -1; x <= 1; x++) {
+                  int3 neighbourPosJ = gridPosJ + mI3(x, y, z);
+                  uint gridHashJ = calcGridHash(neighbourPosJ);
+                  // get start of bucket for this cell
+                  uint startIndexJ = FETCH(cellStart, gridHashJ);
+                  if (startIndexJ != 0xffffffff) {  // cell is not empty
+                    // iterate over particles in this cell
+                    uint endIndexJ = FETCH(cellEnd, gridHashJ);
+                    for (uint k = startIndexJ; j < endIndexJ; k++) {
+                      if (k == j)
+                        continue;
+                      Real3 pos_k = FETCH(sortedPosRad, k);
+
+                      Real3 dist3jk = Distance(pos_j, pos_k);
+                      Real djk = length(dist3jk);
+                      if (djk > RESOLUTION_LENGTH_MULT * paramsD.HSML)
+                        continue;
+                      Real3 Vel_k = FETCH(sortedVelMas, k);
+                      Real p_k_old = FETCH(p_old, k);
+                      Real Rho_k = FETCH(sortedRhoPreMu, k).x;
+                      Real3 V_jk = (Vel_j - Vel_k);
+                      Real3 grad_j_wjk = GradW(dist3jk) / (paramsD.HSML * djk) * dist3jk;
+                      Real Rho_bar = (Rho_j + Rho_k) * 0.5;
+                      Real3 muNumerator = -2 * mu_0 * dot(dist3jk, grad_j_wjk) * V_jk;
+                      Real muDenominator = (Rho_bar * Rho_bar) * (djk * djk + paramsD.HSML * paramsD.HSML * epsilon);
+                      F_np_j += m_0 * m_0 * muNumerator / muDenominator;
+                      d_j += m_0 * grad_j_wjk;
+                      if (k != i_idx)
+                        e_j = e_j + 1 / (Rho_k * Rho_k) * m_0 * grad_j_wjk * p_k_old;
+                    }
+                  }
+                }
+              }
+            }
+            d_j = d_j * (-(dT * dT) / (Rho_j * Rho_j)) * p_j_old;
+            e_j = e_j * (-dT * dT);
+            //============================= done with calculation for j
+
+            Real3 V_ij = (Vel_i - Vel_j);
+            Real3 F_np_i = FETCH(F_i_np, i_idx);
+            Real3 my_d_ii = FETCH(d_ii, i_idx);
+            Real3 toBeUsed = (V_ij + (F_np_i / m_0 - F_np_j / m_0) * dT);
+            my_rho_np += m_0 * dot(toBeUsed, grad_i_wij) * dT;
+            my_cprime += m_0 * dot(c_i, grad_i_wij);
+            my_dprime += m_0 * dot(d_j, grad_i_wij);
+            my_eprime += m_0 * dot(e_j, grad_i_wij);
+            Real3 d_ji_temp = m_0 * (-(dT * dT) / (Rho_i * Rho_i)) * (-grad_i_wij);
+            my_a_ii += m_0 * dot((my_d_ii - d_ji_temp), grad_i_wij);
+          }
+        }
+      }
+    }
+  }
+  rho_np_i = my_rho_np;
+  cprime_i = my_cprime;
+  dprime_i = my_dprime;
+  eprime_i = my_eprime;
+  a_ii = my_a_ii;
+}
+__device__ void Calc_BC_ADAMI(Real& p_i,
+                              Real3& Vel_i,
+                              const uint i_idx,
+                              const Real3 pos_i,
+                              const Real Rho_i,
+                              const Real3* sortedPosRad,
+                              const Real3* sortedVelMas,
+                              const Real4* sortedRhoPreMu,
+                              const Real* p_old,
+                              const uint* cellStart,
+                              const uint* cellEnd,
+                              const Real m_0,
+                              const Real mu_0,
+                              const Real RHO_0,
+                              const Real epsilon,
+                              const Real dT,
+                              const Real3 g) {
+  Real3 numeratorv = mR3(0);
+  Real denumenator = 0;
+  Real numeratorp = 0;
+  // get address in grid
+  int3 gridPos = calcGridPos(pos_i);
+  for (int z = -1; z <= 1; z++) {
+    for (int y = -1; y <= 1; y++) {
+      for (int x = -1; x <= 1; x++) {
+        int3 neighbourPos = gridPos + mI3(x, y, z);
+        uint gridHash = calcGridHash(neighbourPos);
+        // get start of bucket for this cell
+        uint startIndex = FETCH(cellStart, gridHash);
+        if (startIndex != 0xffffffff) {  // cell is not empty
+          // iterate over particles in this cell
+          uint endIndex = FETCH(cellEnd, gridHash);
+
+          for (uint j = startIndex; j < endIndex; j++) {
+            Real3 pos_j = FETCH(sortedPosRad, j);
+            Real3 dist3 = Distance(pos_i, pos_j);
+            Real d = length(dist3);
+            if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML)
+              continue;
+            Real3 Vel_j = FETCH(sortedVelMas, j);
+            Real p_j = FETCH(sortedRhoPreMu, j).y;
+
+            Real Wd = W3(d);
+            numeratorv += Vel_j * Wd;
+            numeratorp += p_j * Wd + dot(g, dist3) * Rho_i * Wd;
+            denumenator += Wd;
+
+            if (abs(denumenator - 0.0000001) < 10 ^ -10) {
+              p_i = 0;
+              Vel_i = mR3(0);
+            } else {
+              Vel_i = -numeratorv / denumenator;
+              p_i = numeratorp / denumenator;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void Iterative_pressure_update(const Real3* sortedPosRad,  // input: sorted positions
+                                          const Real3* sortedVelMas,
+                                          Real4* sortedRhoPreMu,
+                                          Real* p_old,
+                                          const Real3* d_ii,
+                                          const Real3* F_i_np,
+                                          const uint* cellStart,
+                                          const uint* cellEnd,
+                                          const int2 updatePortion,
+                                          const int numAllMarkers,
+                                          const Real m_0,
+                                          const Real mu_0,
+                                          const Real RHO_0,
+                                          const Real epsilon,
+                                          const Real dT,
+                                          const Real3 g,
+                                          Real iteration,
+                                          volatile bool* isErrorD) {
+  uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i_idx > numAllMarkers) {
+    return;
+  }
+  p_old[i_idx] = sortedRhoPreMu[i_idx].y;  // This is very important !!
+  const Real3 pos_i = FETCH(sortedPosRad, i_idx);
+  // Should this be constant or not??
+  const Real Rho_i = FETCH(sortedRhoPreMu, i_idx).x;
+  const int my_type = FETCH(sortedRhoPreMu, i_idx).w;
+  Real3 Vel_i = FETCH(sortedVelMas, i_idx);
+  Real p_i = 0;
+  Real relax = 1;
+  if (my_type == -1) {
+    if (Rho_i > 0.99 * RHO_0) {
+      /// DO IISPH expression here
+      Real3 c_i = mR3(0);
+      Real rho_np_i = 0;
+      Real cprime_i = 0;
+      Real dprime_i = 0;
+      Real eprime_i = 0;
+      Real a_ii = 0;
+      if (i_idx == 0) {
+        printf("I am launching calculating Calc_c_i\n");
+      }
+
+      //------------------------------------ Calculating c_i ----------------------------------------------------
+      Calc_c_i(c_i, i_idx, pos_i, Vel_i, Rho_i, sortedPosRad, sortedVelMas, sortedRhoPreMu, p_old, cellStart, cellEnd,
+               m_0, dT);
+      //------------------------------------ Calculating other terms -----------------------------------------------
+      // This function calculates rho_np, cprime_i, dprime_i,eprime_i
+      if (i_idx == 0) {
+        printf("I am launching calculating Calc_Others\n");
+      }
+      Calc_Others(rho_np_i, cprime_i, dprime_i, eprime_i, a_ii, c_i, d_ii, F_i_np, i_idx, pos_i, Vel_i, Rho_i,
+                  sortedPosRad, sortedVelMas, sortedRhoPreMu, p_old, cellStart, cellEnd, m_0, mu_0, RHO_0, epsilon, dT);
+      p_i = (RHO_0 - (Rho_i + rho_np_i) - cprime_i + dprime_i + eprime_i) / a_ii;
+
+    } else {
+      /// Free Surface BC on fluid
+      p_i = 0;
+    }
+  } else if (my_type == 0) {
+    if (i_idx == numAllMarkers - 1) {
+      printf("I am launching calculating Calc_Others\n");
+    }
+    Calc_BC_ADAMI(p_i, Vel_i, i_idx, pos_i, Rho_i, sortedPosRad, sortedVelMas, sortedRhoPreMu, p_old, cellStart,
+                  cellEnd, m_0, mu_0, RHO_0, epsilon, dT, g);
+  }
+
+  // Over Relax to speed up
+  if (iteration < 100)
+    relax = 1.2;
+  // No relaxation
+  else if (iteration > 100 && iteration < 200)
+    relax = 1;
+  // Under-relaxation
+  else
+    relax = 0.5;
+
+  Real p_old_i = FETCH(p_old, i_idx);
+  p_i = (1 - relax) * p_old_i + relax * p_i;
+
+  Real myRes = abs(p_i - p_old_i) / abs(p_i == 0 ? 10e10 : p_i);
+  return;
+}
 //--------------------------------------------------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------------------------------------------------
 //-------------------------------------Pressure Solver------------------------------------------------------------------
@@ -959,11 +1275,11 @@ void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
                        const thrust::device_vector<uint>& cellStart,
                        const thrust::device_vector<uint>& cellEnd,
                        const thrust::device_vector<uint>& mapOriginalToSorted,
-                       SimParams paramsH,
+                       const SimParams paramsH,
                        const NumberOfObjects& numObjects,
-                       int2 updatePortion,
-                       Real dT,
-                       Real RES) {
+                       const int2 updatePortion,
+                       const Real dT,
+                       const Real RES) {
   bool *isErrorH, *isErrorD;
   isErrorH = (bool*)malloc(sizeof(bool));
   cudaMalloc((void**)&isErrorD, sizeof(bool));
@@ -980,7 +1296,7 @@ void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
   //-------------Calculation of Densities
 
   //------------------------------------------------------------------------
-  printf("I am going to launch calcNormalizedRho_kernel\n ");
+  printf("I am going to launch calcNormalizedRho_kernel\n");
   calcNormalizedRho_kernel<<<numBlocks, numThreads>>>(mR3CAST(sortedPosRad),
                                                       mR4CAST(sortedRhoPreMu),  // input: sorted velocities
                                                       U1CAST(cellStart), U1CAST(cellEnd), updatePortion, numAllMarkers,
@@ -993,7 +1309,7 @@ void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
   if (*isErrorH == true) {
     throw std::runtime_error("Error! program crashed after calcNormalizedRho_kernel!\n");
   }
-  printf("DONE HERE------------------------\n");
+  printf("Done with calcNormalizedRho_kernel\n\n");
   //  for (int i = 0; i < numAllMarkers; i++) {
   //    Real4 test = FETCH(sortedRhoPreMu, i);
   //    printf("My density is: %f\n", test.x);
@@ -1005,37 +1321,51 @@ void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
   thrust::device_vector<Real3> d_ii(numAllMarkers);
   thrust::device_vector<Real3> F_i_np(numAllMarkers);
   *isErrorH = false;
+  printf("I am going to launch F_i_np__AND__d_ii_kernel\n");
+
   cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
   F_i_np__AND__d_ii_kernel<<<numBlocks, numThreads>>>(
       mR3CAST(sortedPosRad), mR3CAST(sortedVelMas), mR4CAST(sortedRhoPreMu), mR3CAST(d_ii), mR3CAST(F_i_np),
-      U1CAST(cellStart), U1CAST(cellEnd), U1CAST(mapOriginalToSorted), updatePortion, numAllMarkers, paramsH.markerMass,
-      paramsH.mu0, paramsH.epsMinMarkersDis, dT, isErrorD);
+      U1CAST(cellStart), U1CAST(cellEnd), updatePortion, numAllMarkers, paramsH.markerMass, paramsH.mu0, paramsH.rho0,
+      paramsH.epsMinMarkersDis, dT, isErrorD);
 
   cudaThreadSynchronize();
   cudaCheckError();
   cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
   if (*isErrorH == true) {
     throw std::runtime_error("Error! program crashed after F_i_np__AND__d_ii_kernel!\n");
-  }  //------------------------------------------------------------------------
-     //  //------------------------------------------------------------------------
-     //  //-------------Calculation of F_i_np, and d_ii
-     //  //------------------------------------------------------------------------
-     //  thrust::device_vector<Real3> d_ii(numAllMarkers);
-     //  thrust::device_vector<Real3> F_i_np(numAllMarkers);
-     //  *isErrorH = false;
-     //  cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
-     //  F_i_np__AND__d_ii_kernel<<<numBlocks, numThreads>>>(
-     //      mR3CAST(sortedPosRad), mR3CAST(sortedVelMas), mR4CAST(sortedRhoPreMu), mR3CAST(d_ii), mR3CAST(F_i_np),
-     //      U1CAST(cellStart), U1CAST(cellEnd), U1CAST(mapOriginalToSorted), updatePortion, numAllMarkers,
-     //      paramsH.markerMass,
-     //      paramsH.mu0, paramsH.epsMinMarkersDis, dT, isErrorD);
-     //  //
-     //  cudaThreadSynchronize();
-     //  cudaCheckError();
-     //  cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
-     //  if (*isErrorH == true) {
-     //    throw std::runtime_error("Error! program crashed after F_i_np__AND__d_ii_kernel!\n");
-     //  }
+  }
+  printf("Done with F_i_np__AND__d_ii_kernel\n\n");
+
+  //------------------------------------------------------------------------
+  //------------- Iterative loop
+  //------------------------------------------------------------------------
+  int Iteration = 0;
+  Real residual = 1;
+  thrust::device_vector<Real> p_old(numAllMarkers);  // This has P_old and Residual of the pressure
+
+  while (residual > RES) {
+    // This is needed!!!!!!!!!!!!!!!!!!!!!!!!
+
+    *isErrorH = false;
+    cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+    printf("I am launching Iterative_pressure_update\n");
+    Iterative_pressure_update<<<numBlocks, numThreads>>>(
+        mR3CAST(sortedPosRad), mR3CAST(sortedVelMas), mR4CAST(sortedRhoPreMu), R1CAST(p_old), mR3CAST(d_ii),
+        mR3CAST(F_i_np), U1CAST(cellStart), U1CAST(cellEnd), updatePortion, numAllMarkers, paramsH.markerMass,
+        paramsH.mu0, paramsH.rho0, paramsH.epsMinMarkersDis, dT, paramsH.gravity, Iteration, isErrorD);
+    cudaThreadSynchronize();
+    cudaCheckError();
+    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+    if (*isErrorH == true) {
+      throw std::runtime_error("Error! program crashed after Iterative_pressure_update!\n");
+    }
+
+    Iteration++;
+    //    residual = thrust::max_element(p_old.begin(), p_old.end());
+    printf("Iteration: %d\n", Iteration);
+  }
+
   //------------------------------------------------------------------------
   //------------------------------------------------------------------------
   //------------------------------------------------------------------------

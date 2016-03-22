@@ -338,11 +338,11 @@ void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
                        const thrust::device_vector<uint>& cellStart,
                        const thrust::device_vector<uint>& cellEnd,
                        const thrust::device_vector<uint>& mapOriginalToSorted,
-                       SimParams paramsH,
+                       const SimParams paramsH,
                        const NumberOfObjects& numObjects,
-                       int2 updatePortion,
-                       Real dT,
-                       Real RES);
+                       const int2 updatePortion,
+                       const Real dT,
+                       const Real RES);
 
 void calcNormalizedRho(const thrust::device_vector<Real3>& sortedPosRad,
                        const thrust::device_vector<Real4>& sortedRhoPreMu,
