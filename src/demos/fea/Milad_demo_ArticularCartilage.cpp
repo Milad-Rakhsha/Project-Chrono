@@ -55,8 +55,8 @@ using namespace chrono::fea;
 using namespace chrono::irrlicht;
 using namespace irr;
 using namespace std;
-int num_threads = 1;
-#define USE_IRR ;
+int num_threads = 4;
+//#define USE_IRR ;
 bool outputData = true;
 bool addGravity = false;
 bool addPressure = false;
@@ -66,14 +66,21 @@ bool showFemur = false;
 // bool addConstrain = true;
 // bool addForce = true;
 // bool addFixed = false;
-double time_step = 0.0003;
+double time_step = 0.00001;
 int scaleFactor = 1;
 double dz = 0.001;
+const double K_SPRINGS = 100e8;
+const double C_DAMPERS = 100e3;
 double MeterToInch = 0.02539998628;
 double L0 = 0.01;  // Initial length
 double L0_t = 0.01;
 int write_interval = 20;
 
+void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement);
+void writeFrame(std::shared_ptr<ChMesh> my_mesh,
+                char SaveAsBuffer[64],
+                char MeshFileBuffer[32],
+                std::vector<std::vector<int>> NodeNeighborElement);
 class MyLoadSpringDamper : public ChLoadCustomMultiple {
   public:
     MyLoadSpringDamper(std::vector<std::shared_ptr<ChLoadable>>& mloadables, std::shared_ptr<ChBody> AttachBodyInput)
@@ -165,9 +172,9 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
 
                 // Apply forces to body (If body fixed, we should set those to zero not Qi(coordinate))
                 if (!AttachBody->GetBodyFixed()) {
-                    this->load_Q((loadables.size() - 1) * 6) = for_spdp * dij.GetNormalized().x;
-                    this->load_Q((loadables.size() - 1) * 6 + 1) = for_spdp * dij.GetNormalized().y;
-                    this->load_Q((loadables.size() - 1) * 6 + 2) = for_spdp * dij.GetNormalized().z;
+                    this->load_Q((loadables.size() - 1) * 6) = -for_spdp * dij.GetNormalized().x;
+                    this->load_Q((loadables.size() - 1) * 6 + 1) = -for_spdp * dij.GetNormalized().y;
+                    this->load_Q((loadables.size() - 1) * 6 + 2) = -for_spdp * dij.GetNormalized().z;
                     this->load_Q((loadables.size() - 1) * 6 + 3) = 0.0;
                     this->load_Q((loadables.size() - 1) * 6 + 4) = 0.0;
                     this->load_Q((loadables.size() - 1) * 6 + 5) = 0.0;
@@ -224,25 +231,25 @@ int main(int argc, char* argv[]) {
                                                                   // material: troubles
     // Use this value for an outward additional layer around meshes, that can improve
     // robustness of mesh-mesh collision detection (at the cost of having unnatural inflate effect)
-    double sphere_swept_thickness = dz * 0.51;
+    double sphere_swept_thickness = dz * 0.5;
 
-    double rho = 1000;  ///< material density
-    double E = 40e7;    ///< Young's modulus
-    double nu = 0.3;    ///< Poisson ratio
+    double rho = 1000 * 0.005 / dz;  ///< material density
+    double E = 40e7;                 ///< Young's modulus
+    double nu = 0.3;                 ///< Poisson ratio
     // Create the surface material, containing information
     // about friction etc.
     // It is a DEM-p (penalty) material that we will assign to
     // all surfaces that might generate contacts.
     my_system.SetContactForceModel(ChSystemDEM::Hooke);
     auto mysurfmaterial = std::make_shared<ChMaterialSurfaceDEM>();
-    //    mysurfmaterial->SetYoungModulus(80e5);
+    //    mysurfmaterial->SetYoungModulus(1e2);
     //    mysurfmaterial->SetFriction(0.3f);
     //    mysurfmaterial->SetRestitution(0.5f);
     //    mysurfmaterial->SetAdhesion(0);
-    mysurfmaterial->SetKn(8e5);
-    mysurfmaterial->SetKt(0);
-    mysurfmaterial->SetGn(8e2);
-    mysurfmaterial->SetGt(0);
+    mysurfmaterial->SetKn(16e5);
+    mysurfmaterial->SetKt(1);
+    mysurfmaterial->SetGn(5e1);
+    mysurfmaterial->SetGt(1);
 
     GetLog() << "-----------------------------------------------------------\n";
     GetLog() << "-----------------------------------------------------------\n";
@@ -266,7 +273,7 @@ int main(int argc, char* argv[]) {
     }
 
     //    GetLog() << "	Adding the Femur as a Rigid Body ...\n";
-    ChVector<> Center_Femur(0, 0.005, 0);
+    ChVector<> Center_Femur(0, 0.003, 0);
     auto Femur = std::make_shared<ChBody>();
     Femur->SetPos(Center_Femur);
     Femur->SetBodyFixed(false);
@@ -356,8 +363,8 @@ int main(int argc, char* argv[]) {
             ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
             // attachment point in the body in global coordiantes
             // Stiffness of the Elastic Foundation
-            double K_S = 5e8 * NODE_AVE_AREA_f[iNode];  // Stiffness Constant
-            double C_S = 5e3 * NODE_AVE_AREA_f[iNode];  // Damper Constant
+            double K_S = K_SPRINGS * NODE_AVE_AREA_f[iNode];  // Stiffness Constant
+            double C_S = C_DAMPERS * NODE_AVE_AREA_f[iNode];  // Damper Constant
             Tottal_stiff += K_S;
             Tottal_damp += C_S;
             // Initial length
@@ -372,7 +379,8 @@ int main(int argc, char* argv[]) {
             OneLoadSpringDamperFemur->LocalBodyAtt[iNode] = Femur->Point_World2Body(AttachBodyGlobal);
         }
         mloadcontainerFemur->Add(OneLoadSpringDamperFemur);
-        GetLog() << "Total Stiffness (N/mm)= " << Tottal_stiff / 1e3 << " Total Damping = " << Tottal_damp << "\n";
+        GetLog() << "Total Stiffness (N/mm)= " << Tottal_stiff / 1e3 << " Total Damping = " << Tottal_damp
+                 << " Average zeta= " << Tottal_damp / (2 * sqrt(Tottal_stiff * (rho * dz * 1e-3))) << "\n";
     }
     my_system.Add(mloadcontainerFemur);
 
@@ -390,9 +398,9 @@ int main(int argc, char* argv[]) {
     ChVector<> Center(0, 0.0, 0);
     // Import the Tibia
     try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-1.mesh").c_str(),
-                                               material, NODE_AVE_AREA_t, BC_NODES1, Center, rot_transform, MeterToInch,
-                                               false, false);
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-1.mesh").c_str(), material,
+                                               NODE_AVE_AREA_t, BC_NODES1, Center, rot_transform, MeterToInch, false,
+                                               false);
     } catch (ChException myerr) {
         GetLog() << myerr.what();
         return 0;
@@ -405,9 +413,9 @@ int main(int argc, char* argv[]) {
 
     // Import the Tibia
     try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-2.mesh").c_str(),
-                                               material, NODE_AVE_AREA_t, BC_NODES2, Center, rot_transform, MeterToInch,
-                                               false, false);
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-2.mesh").c_str(), material,
+                                               NODE_AVE_AREA_t, BC_NODES2, Center, rot_transform, MeterToInch, false,
+                                               false);
     } catch (ChException myerr) {
         GetLog() << myerr.what();
         return 0;
@@ -435,8 +443,8 @@ int main(int argc, char* argv[]) {
             ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
             // attachment point in the body in global coordiantes
             // Stiffness of the Elastic Foundation
-            double K_S = 4e8 * NODE_AVE_AREA_t[iNode];  // Stiffness Constant 5e8
-            double C_S = 5e3 * NODE_AVE_AREA_t[iNode];  // Damper Constant
+            double K_S = K_SPRINGS * NODE_AVE_AREA_t[iNode];  // Stiffness Constant
+            double C_S = C_DAMPERS * NODE_AVE_AREA_t[iNode];  // Damper Constant
             Tottal_stiff += K_S;
             Tottal_damp += C_S;
             // Initial length
@@ -469,7 +477,7 @@ int main(int argc, char* argv[]) {
         // Add a single layers with a fiber angle of 0 degrees.
         element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, material);
         // Set other element properties
-        element->SetAlphaDamp(0.2);    // Structural damping for this element
+        element->SetAlphaDamp(0.05);   // Structural damping for this element
         element->SetGravityOn(false);  // gravitational forces
     }
     double TotalNumNodes_tibia = my_mesh_tibia->GetNnodes();
@@ -480,7 +488,7 @@ int main(int argc, char* argv[]) {
         // Add a single layers with a fiber angle of 0 degrees.
         element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, material);
         // Set other element properties
-        element->SetAlphaDamp(0.2);    // Structural damping for this element
+        element->SetAlphaDamp(0.05);   // Structural damping for this element
         element->SetGravityOn(false);  // gravitational forces
     }
 
@@ -582,7 +590,7 @@ int main(int argc, char* argv[]) {
 
     auto mvisualizemeshDef_tibia = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh_tibia.get()));
     mvisualizemeshDef_tibia->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_ANCF_SECTION_DISPLACEMENT);
-    mvisualizemeshDef_tibia->SetColorscaleMinMax(0, 0.007);
+    mvisualizemeshDef_tibia->SetColorscaleMinMax(0, 0.001);
     mvisualizemeshDef_tibia->SetSmoothFaces(true);
     my_mesh_tibia->AddAsset(mvisualizemeshDef_tibia);
 
@@ -642,6 +650,7 @@ int main(int argc, char* argv[]) {
     my_system.ChangeLcpSolverSpeed(mkl_solver_speed);
     mkl_solver_stab->SetSparsityPatternLock(true);
     mkl_solver_speed->SetSparsityPatternLock(true);
+
 #ifdef USE_IRR
     application.GetSystem()->Update();
     //    application.SetPaused(true);
@@ -663,75 +672,40 @@ int main(int argc, char* argv[]) {
     my_system.SetIntegrationType(ChSystem::INT_HHT);
     auto mystepper = std::dynamic_pointer_cast<ChTimestepperHHT>(my_system.GetTimestepper());
     mystepper->SetAlpha(-0.2);
-    mystepper->SetMaxiters(40);
-    //mystepper->SetAbsTolerances(1e-04, 1e-3);  // For ACC
-     mystepper->SetAbsTolerances(1e-05, 6e0);        // For Pos
+    mystepper->SetMaxiters(20);
+    //    mystepper->SetAbsTolerances(1e-04, 1e-3);  // For ACC
+    mystepper->SetAbsTolerances(1e-05, 1);           // For Pos
     mystepper->SetMode(ChTimestepperHHT::POSITION);  // POSITION //ACCELERATION
     mystepper->SetScaling(true);
     mystepper->SetVerbose(true);
     mystepper->SetMaxItersSuccess(3);
-    mystepper->SetMaxiters(15);
 
 #ifndef USE_IRR
-    /////////////////////////////////////////////////
-    //////////////// Write Mesh Info ////////////////
-    ////////////////////////////////////////////////
-    utils::CSV_writer MESH(" ");
-    std::vector<std::vector<int>> NodeNeighborElement;  // This is important for nodal solution
-    NodeNeighborElement.resize(my_mesh_tibia->GetNnodes());
-    MESH.stream().setf(std::ios::scientific | std::ios::showpos);
-    MESH.stream().precision(6);
-    //    out << my_system.GetChTime() << nodetip->GetPos() << std::endl;
-    std::vector<std::shared_ptr<ChNodeFEAbase>> myvector;
-    myvector.resize(my_mesh_tibia->GetNnodes());
-    for (int i = 0; i < my_mesh_tibia->GetNnodes(); i++) {
-        myvector[i] = std::dynamic_pointer_cast<ChNodeFEAbase>(my_mesh_tibia->GetNode(i));
-    }
-    MESH << "\nCELLS " << my_mesh_tibia->GetNelements() << 5 * my_mesh_tibia->GetNelements() << "\n";
-
-    for (int iele = 0; iele < my_mesh_tibia->GetNelements(); iele++) {
-        auto element = (my_mesh_tibia->GetElement(iele));
-        MESH << "4 ";
-        int nodeOrder[] = {0, 1, 3, 2};
-        for (int myNodeN = 0; myNodeN < 4; myNodeN++) {
-            auto nodeA = (element->GetNodeN(nodeOrder[myNodeN]));
-            std::vector<std::shared_ptr<ChNodeFEAbase>>::iterator it;
-            it = find(myvector.begin(), myvector.end(), nodeA);
-            if (it == myvector.end()) {
-                // name not in vector
-            } else {
-                auto index = std::distance(myvector.begin(), it);
-                MESH << (unsigned int)index << " ";
-                NodeNeighborElement[index].push_back(iele);
-            }
-        }
-        MESH << "\n";
-    }
-    MESH << "\nCELL_TYPES " << my_mesh_tibia->GetNelements() << "\n";
-
-    for (int iele = 0; iele < my_mesh_tibia->GetNelements(); iele++) {
-        MESH << "9\n";
-    }
-    // Create output directory (if it does not already exist).
-    if (ChFileutils::MakeDirectory("VTK_Animations") < 0) {
-        GetLog() << "Error creating directory VTK_Animations\n";
-        return 1;
-    }
-    MESH.write_to_file("VTK_Animations/Mesh.vtk");
+    std::vector<std::vector<int>> NodeNeighborElementFemur;
+    std::vector<std::vector<int>> NodeNeighborElementTibia;
+    string saveAsFemur = "Femur";
+    string saveAsTibia = "Tibia";
+    writeMesh(my_mesh_femur, saveAsFemur, NodeNeighborElementFemur);
+    writeMesh(my_mesh_tibia, saveAsTibia, NodeNeighborElementTibia);
     int step_count = 0;
+
 #endif
 /////////////////////////////////////////////////////////////////
 
 #ifdef USE_IRR
     while (application.GetDevice()->run()) {
+        application.BeginScene();
+        application.DrawAll();
+        application.DoStep();
+        application.EndScene();
+    }
 #else
     while (my_system.GetChTime() < 1) {
-#endif
         ////////////////////////////////////////////////////////////////
         if (addForce) {
             double t = my_system.GetChTime();
-            double T_MAX = 0.00;
-            double F_MAX = -2000;
+            double T_MAX = 0.1;
+            double F_MAX = -1000;
             double F;
             if (t < T_MAX)
                 F = (1 - cos((t / T_MAX) * 3.1415)) * F_MAX / 2;
@@ -758,87 +732,137 @@ int main(int argc, char* argv[]) {
         } else
             std::cout << "Time t = " << my_system.GetChTime() << "\n";
 
-#ifdef USE_IRR
-        application.BeginScene();
-        application.DrawAll();
-        application.DoStep();
-        application.EndScene();
-
-#else
         my_system.DoStepDynamics(time_step);
         step_count++;
-
         ////////////////////////////////////////
         ///////////Write to VTK/////////////////
         ////////////////////////////////////////
         if (step_count % write_interval == 0) {
-            char buffer[32];  // The filename buffer.
-            std::ofstream output;
-            snprintf(buffer, sizeof(char) * 32, "VTK_Animations/out.%f.vtk", my_system.GetChTime());
-            output.open(buffer, std::ios::app);
-            output << "# vtk DataFile Version 1.0\nUnstructured Grid Example\nASCII\n\n" << std::endl;
-            output << "DATASET UNSTRUCTURED_GRID\nPOINTS " << my_mesh_tibia->GetNnodes() << " float\n";
-            for (int i = 0; i < my_mesh_tibia->GetNnodes(); i++) {
-                auto node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_tibia->GetNode(i));
-                output << node->GetPos().x << " " << node->GetPos().y << " " << node->GetPos().z << "\n ";
-            }
-            std::ifstream CopyFrom("VTK_Animations/Mesh.vtk");
-            output << CopyFrom.rdbuf();
-            output << "\nPOINT_DATA " << my_mesh_tibia->GetNnodes() << "\n ";
-            output << "SCALARS VonMissesStrain float\n";
-            output << "LOOKUP_TABLE default\n";
-            for (int i = 0; i < my_mesh_tibia->GetNnodes(); i++) {
-                double areaAve = 0;
-                double scalar = 0;
-                double myarea = 0;
-                double dx, dy;
-                for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
-                    int myelemInx = NodeNeighborElement[i][j];
-                    std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh_tibia->GetElement(myelemInx))
-                        ->EvaluateVonMisesStrain(scalar);
-                    dx = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh_tibia->GetElement(myelemInx))
-                             ->GetLengthX();
-                    dy = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh_tibia->GetElement(myelemInx))
-                             ->GetLengthY();
-                    myarea += dx * dy / 4;
-                    areaAve += scalar * dx * dy / 4;
-                }
+            char SaveAsBufferFemur[64];  // The filename buffer.
+            char SaveAsBufferTibia[64];  // The filename buffer.
+            snprintf(SaveAsBufferFemur, sizeof(char) * 64, "VTK_Animations/femur.%f.vtk", my_system.GetChTime());
+            snprintf(SaveAsBufferTibia, sizeof(char) * 64, "VTK_Animations/tibia.%f.vtk", my_system.GetChTime());
+            char MeshFileBufferFemur[32];  // The filename buffer.
+            char MeshFileBufferTibia[32];  // The filename buffer.
 
-                output << areaAve / myarea << "\n";
-            }
-            output << "\nVECTORS strains-Def float\n";
-            for (int i = 0; i < my_mesh_tibia->GetNnodes(); i++) {
-                double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
-                double SX, SY, SZ = 0;
-                double myarea = 0;
-                double dx, dy;
-                for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
-                    int myelemInx = NodeNeighborElement[i][j];
-                    SX = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh_tibia->GetElement(myelemInx))
-                             ->EvaluateStrainX();
-                    SY = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh_tibia->GetElement(myelemInx))
-                             ->EvaluateStrainY();
-                    std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh_tibia->GetElement(myelemInx))
-                        ->EvaluateDeflection(SZ);
+            snprintf(MeshFileBufferFemur, sizeof(char) * 32, "VTK_Animations/%s.vtk", saveAsFemur.c_str());
+            snprintf(MeshFileBufferTibia, sizeof(char) * 32, "VTK_Animations/%s.vtk", saveAsTibia.c_str());
 
-                    dx = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh_tibia->GetElement(myelemInx))
-                             ->GetLengthX();
-                    dy = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh_tibia->GetElement(myelemInx))
-                             ->GetLengthY();
-                    myarea += dx * dy / 4;
-                    areaAve1 += SX * dx * dy / 4;
-                    areaAve2 += SY * dx * dy / 4;
-                    areaAve3 += SZ * dx * dy / 4;
-                }
-                output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
-            }
-            output.close();
+            writeFrame(my_mesh_femur, SaveAsBufferFemur, MeshFileBufferFemur, NodeNeighborElementFemur);
+            writeFrame(my_mesh_tibia, SaveAsBufferTibia, MeshFileBufferTibia, NodeNeighborElementTibia);
         }
-//////////////////////////////////////////////////////////////////
-
 #endif
-    }
+}
+return 0;
+}
 
-    return 0;
+void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement) {
+    utils::CSV_writer MESH(" ");
+    NodeNeighborElement.resize(my_mesh->GetNnodes());
+    MESH.stream().setf(std::ios::scientific | std::ios::showpos);
+    MESH.stream().precision(6);
+    //    out << my_system.GetChTime() << nodetip->GetPos() << std::endl;
+    std::vector<std::shared_ptr<ChNodeFEAbase>> myvector;
+    myvector.resize(my_mesh->GetNnodes());
+    for (int i = 0; i < my_mesh->GetNnodes(); i++) {
+        myvector[i] = std::dynamic_pointer_cast<ChNodeFEAbase>(my_mesh->GetNode(i));
+    }
+    MESH << "\nCELLS " << my_mesh->GetNelements() << 5 * my_mesh->GetNelements() << "\n";
+
+    for (int iele = 0; iele < my_mesh->GetNelements(); iele++) {
+        auto element = (my_mesh->GetElement(iele));
+        MESH << "4 ";
+        int nodeOrder[] = {0, 1, 2, 3};
+        for (int myNodeN = 0; myNodeN < 4; myNodeN++) {
+            auto nodeA = (element->GetNodeN(nodeOrder[myNodeN]));
+            std::vector<std::shared_ptr<ChNodeFEAbase>>::iterator it;
+            it = find(myvector.begin(), myvector.end(), nodeA);
+            if (it == myvector.end()) {
+                // name not in vector
+            } else {
+                auto index = std::distance(myvector.begin(), it);
+                MESH << (unsigned int)index << " ";
+                NodeNeighborElement[index].push_back(iele);
+            }
+        }
+        MESH << "\n";
+    }
+    MESH << "\nCELL_TYPES " << my_mesh->GetNelements() << "\n";
+
+    for (int iele = 0; iele < my_mesh->GetNelements(); iele++) {
+        MESH << "9\n";
+    }
+    // Create output directory (if it does not already exist).
+    if (ChFileutils::MakeDirectory("VTK_Animations") < 0) {
+        GetLog() << "Error creating directory VTK_Animations\n";
+    }
+    char buffer[32];  // The filename buffer.
+    snprintf(buffer, sizeof(char) * 32, "VTK_Animations/");
+    sprintf(buffer + strlen(buffer), SaveAs.c_str());
+    sprintf(buffer + strlen(buffer), ".vtk");
+    MESH.write_to_file(buffer);
+    int step_count = 0;
+}
+
+////////////////////////////////////////
+///////////Write to VTK/////////////////
+////////////////////////////////////////
+void writeFrame(std::shared_ptr<ChMesh> my_mesh,
+                char SaveAsBuffer[64],
+                char MeshFileBuffer[32],
+                std::vector<std::vector<int>> NodeNeighborElement) {
+    std::ofstream output;
+    output.open(SaveAsBuffer, std::ios::app);
+
+    output << "# vtk DataFile Version 1.0\nUnstructured Grid Example\nASCII\n\n" << std::endl;
+    output << "DATASET UNSTRUCTURED_GRID\nPOINTS " << my_mesh->GetNnodes() << " float\n";
+    for (int i = 0; i < my_mesh->GetNnodes(); i++) {
+        auto node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(i));
+        output << node->GetPos().x << " " << node->GetPos().y << " " << node->GetPos().z << "\n ";
+    }
+    std::ifstream CopyFrom(MeshFileBuffer);
+    output << CopyFrom.rdbuf();
+    output << "\nPOINT_DATA " << my_mesh->GetNnodes() << "\n ";
+    output << "SCALARS VonMissesStrain float\n";
+    output << "LOOKUP_TABLE default\n";
+    for (int i = 0; i < my_mesh->GetNnodes(); i++) {
+        double areaAve = 0;
+        double scalar = 0;
+        double myarea = 0;
+        double dx, dy;
+        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
+            int myelemInx = NodeNeighborElement[i][j];
+            std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))
+                ->EvaluateVonMisesStrain(scalar);
+            dx = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
+            dy = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
+            myarea += dx * dy / 4;
+            areaAve += scalar * dx * dy / 4;
+        }
+
+        output << areaAve / myarea << "\n";
+    }
+    output << "\nVECTORS strains-Def float\n";
+    for (int i = 0; i < my_mesh->GetNnodes(); i++) {
+        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+        double SX, SY, SZ = 0;
+        double myarea = 0;
+        double dx, dy;
+        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
+            int myelemInx = NodeNeighborElement[i][j];
+            SX = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->EvaluateStrainX();
+            SY = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->EvaluateStrainY();
+            std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->EvaluateDeflection(SZ);
+
+            dx = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
+            dy = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
+            myarea += dx * dy / 4;
+            areaAve1 += SX * dx * dy / 4;
+            areaAve2 += SY * dx * dy / 4;
+            areaAve3 += SZ * dx * dy / 4;
+        }
+        output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
+    }
+    output.close();
 }
 
