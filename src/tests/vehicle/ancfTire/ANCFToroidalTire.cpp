@@ -18,6 +18,8 @@
 //
 // =============================================================================
 
+#include "chrono_fea/ChElementShellANCF.h"
+
 #include "ANCFToroidalTire.h"
 
 using namespace chrono;
@@ -35,12 +37,11 @@ const double ANCFToroidalTire::m_default_pressure = 320.0e3;
 const double ANCFToroidalTire::m_alpha = 0.15;
 
 ANCFToroidalTire::ANCFToroidalTire(const std::string& name) : ChANCFTire(name) {
-    SetContactMaterial(0.9f, 0.1f, 2e7f, 0.3f);
+    SetContactMaterialProperties(0.9f, 0.1f, 2e7f, 0.3f);
     SetContactSurfaceType(ChANCFTire::NODE_CLOUD);
 }
 
-void ANCFToroidalTire::CreateMesh(std::shared_ptr<fea::ChMesh> mesh,
-                                  const ChFrameMoving<>& wheel_frame,
+void ANCFToroidalTire::CreateMesh(const ChFrameMoving<>& wheel_frame,
                                   VehicleSide side) {
     // Create an isotropic material (shared by all elements)
     auto mat = std::make_shared<ChMaterialShellANCF>(500, 9.0e7, 0.3);
@@ -66,7 +67,7 @@ void ANCFToroidalTire::CreateMesh(std::shared_ptr<fea::ChMesh> mesh,
 
             auto node = std::make_shared<ChNodeFEAxyzD>(loc, dir);
             node->SetMass(0);
-            mesh->AddNode(node);
+            m_mesh->AddNode(node);
         }
     }
 
@@ -81,20 +82,20 @@ void ANCFToroidalTire::CreateMesh(std::shared_ptr<fea::ChMesh> mesh,
             // Adjacent nodes
             int inode0, inode1, inode2, inode3;
             inode1 = j + i * (m_div_width + 1);
-            inode3 = j + 1 + i * (m_div_width + 1);
+            inode2 = j + 1 + i * (m_div_width + 1);
             if (i == m_div_circumference - 1) {
                 inode0 = j;
-                inode2 = j + 1;
+                inode3 = j + 1;
             }
             else {
                 inode0 = j + (i + 1) * (m_div_width + 1);
-                inode2 = j + 1 + (i + 1) * (m_div_width + 1);
+                inode3 = j + 1 + (i + 1) * (m_div_width + 1);
             }
 
-            auto node0 = std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(inode0));
-            auto node1 = std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(inode1));
-            auto node2 = std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(inode2));
-            auto node3 = std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(inode3));
+            auto node0 = std::dynamic_pointer_cast<ChNodeFEAxyzD>(m_mesh->GetNode(inode0));
+            auto node1 = std::dynamic_pointer_cast<ChNodeFEAxyzD>(m_mesh->GetNode(inode1));
+            auto node2 = std::dynamic_pointer_cast<ChNodeFEAxyzD>(m_mesh->GetNode(inode2));
+            auto node3 = std::dynamic_pointer_cast<ChNodeFEAxyzD>(m_mesh->GetNode(inode3));
 
             // Create the element and set its nodes.
             auto element = std::make_shared<ChElementShellANCF>();
@@ -111,23 +112,23 @@ void ANCFToroidalTire::CreateMesh(std::shared_ptr<fea::ChMesh> mesh,
             element->SetGravityOn(true);
 
             // Add element to mesh
-            mesh->AddElement(element);
+            m_mesh->AddElement(element);
         }
     }
 
     // Switch off automatic gravity
-    mesh->SetAutomaticGravity(false);
+    m_mesh->SetAutomaticGravity(false);
 }
 
-NodeList ANCFToroidalTire::GetConnectedNodes(const std::shared_ptr<fea::ChMesh>& mesh) const {
-    std::vector<std::shared_ptr<fea::ChNodeFEAxyzD>> nodes;
+std::vector<std::shared_ptr<ChNodeFEAbase>> ANCFToroidalTire::GetConnectedNodes() const {
+    std::vector<std::shared_ptr<fea::ChNodeFEAbase>> nodes;
 
     for (int i = 0; i < m_div_circumference; i++) {
         for (int j = 0; j <= m_div_width; j++) {
             int index = j + i * (m_div_width + 1);
             if (index % (m_div_width + 1) == 0) {
-                nodes.push_back(std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(index)));
-                nodes.push_back(std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(index + m_div_width)));
+                nodes.push_back(std::dynamic_pointer_cast<ChNodeFEAbase>(m_mesh->GetNode(index)));
+                nodes.push_back(std::dynamic_pointer_cast<ChNodeFEAbase>(m_mesh->GetNode(index + m_div_width)));
             }
         }
     }

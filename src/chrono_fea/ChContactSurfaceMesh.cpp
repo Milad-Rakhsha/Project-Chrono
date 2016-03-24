@@ -93,7 +93,7 @@ void ChContactSurfaceMesh::AddFacesFromBoundary(double sphere_swept) {
                 std::sort(mface_key.begin(), mface_key.end());
                 if (face_map.count(mface_key) == 1) {  
                     // Found a face that is not shared.. so it is a boundary face. 
-                    triangles.push_back({ mface.GetNodeN(0).get(), mface.GetNodeN(1).get(), mface.GetNodeN(2).get() });
+                    triangles.push_back( {mface.GetNodeN(0).get(), mface.GetNodeN(1).get(), mface.GetNodeN(2).get()} );
                     triangles_ptrs.push_back( {mface.GetNodeN(0), mface.GetNodeN(1), mface.GetNodeN(2)} );
                 }
             }
@@ -109,14 +109,10 @@ void ChContactSurfaceMesh::AddFacesFromBoundary(double sphere_swept) {
             std::shared_ptr<ChNodeFEAxyz> nB = mshell->GetNodeB();
             std::shared_ptr<ChNodeFEAxyz> nC = mshell->GetNodeC();
             std::shared_ptr<ChNodeFEAxyz> nD = mshell->GetNodeD();
-            //std::array<ChNodeFEAxyz*, 3> tri1 = { nA.get(), nC.get(), nD.get() };
-            //std::array<ChNodeFEAxyz*, 3> tri2 = { nA.get(), nD.get(), nB.get() };
-            //std::array<std::shared_ptr<ChNodeFEAxyz>, 3> tri1_ptrs = { nA, nC, nD };
-            //std::array<std::shared_ptr<ChNodeFEAxyz>, 3> tri2_ptrs = { nA, nD, nB };
-            std::array<ChNodeFEAxyz*,3> tri1 = {nA.get(),nB.get(),nC.get()};
-            std::array<ChNodeFEAxyz*,3> tri2 = {nA.get(),nC.get(),nD.get()};
-            std::array<std::shared_ptr<ChNodeFEAxyz>,3> tri1_ptrs = {nA,nB,nC};
-            std::array<std::shared_ptr<ChNodeFEAxyz>,3> tri2_ptrs = {nA,nC,nD};
+            std::array<ChNodeFEAxyz*, 3> tri1 = { nA.get(), nD.get(), nB.get() };
+            std::array<ChNodeFEAxyz*, 3> tri2 = { nB.get(), nD.get(), nC.get() };
+            std::array<std::shared_ptr<ChNodeFEAxyz>, 3> tri1_ptrs = { nA, nD, nB };
+            std::array<std::shared_ptr<ChNodeFEAxyz>, 3> tri2_ptrs = { nB, nD, nC };
             triangles.push_back( tri1 );
             triangles.push_back( tri2 );
             triangles_ptrs.push_back( tri1_ptrs );

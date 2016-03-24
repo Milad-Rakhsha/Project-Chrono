@@ -83,12 +83,28 @@ void ANCFTire::ProcessJSON(const rapidjson::Document& d) {
     m_rim_width = d["Rim Width"].GetDouble();
 
     // Read contact material data
-    float mu = d["Contact Material"]["Coefficient of Friction"].GetDouble();
-    float cr = d["Contact Material"]["Coefficient of Restitution"].GetDouble();
-    float ym = d["Contact Material"]["Young Modulus"].GetDouble();
-    float pr = d["Contact Material"]["Poisson Ratio"].GetDouble();
+    assert(d.HasMember("Contact Material"));
+    assert(d["Contact Material"].HasMember("Use Physical Properties"));
 
-    SetContactMaterial(mu, cr, ym, pr);
+    if (d["Contact Material"]["Use Physical Properties"].GetBool()) {
+        assert(d["Contact Material"].HasMember("Properties"));
+
+        float mu = d["Contact Material"]["Properties"]["Coefficient of Friction"].GetDouble();
+        float cr = d["Contact Material"]["Properties"]["Coefficient of Restitution"].GetDouble();
+        float ym = d["Contact Material"]["Properties"]["Young Modulus"].GetDouble();
+        float pr = d["Contact Material"]["Properties"]["Poisson Ratio"].GetDouble();
+
+        SetContactMaterialProperties(mu, cr, ym, pr);
+    } else {
+        assert(d["Contact Material"].HasMember("Coefficients"));
+        
+        float kn = d["Contact Material"]["Coefficients"]["Normal Stiffness"].GetDouble();
+        float gn = d["Contact Material"]["Coefficients"]["Normal Damping"].GetDouble();
+        float kt = d["Contact Material"]["Coefficients"]["Tangential Stiffness"].GetDouble();
+        float gt = d["Contact Material"]["Coefficients"]["Tangential Damping"].GetDouble();
+
+        SetContactMaterialCoefficients(kn, gn, kt, gt);
+    }
 
     // Read the list of materials (note that order is important)
     int num_materials = d["Materials"].Size();
@@ -179,7 +195,7 @@ void ANCFTire::ProcessJSON(const rapidjson::Document& d) {
 // -----------------------------------------------------------------------------
 // Create the FEA mesh
 // -----------------------------------------------------------------------------
-void ANCFTire::CreateMesh(std::shared_ptr<fea::ChMesh> mesh, const ChFrameMoving<>& wheel_frame, VehicleSide side) {
+void ANCFTire::CreateMesh(const ChFrameMoving<>& wheel_frame, VehicleSide side) {
     // Create piece-wise cubic spline approximation of the tire profile.
     //   x - radial direction
     //   y - transversal direction
@@ -218,7 +234,7 @@ void ANCFTire::CreateMesh(std::shared_ptr<fea::ChMesh> mesh, const ChFrameMoving
             node->SetPos_dt(vel);
 
             node->SetMass(0);
-            mesh->AddNode(node);
+            m_mesh->AddNode(node);
         }
     }
 
@@ -228,19 +244,19 @@ void ANCFTire::CreateMesh(std::shared_ptr<fea::ChMesh> mesh, const ChFrameMoving
             // Adjacent nodes
             int inode0, inode1, inode2, inode3;
             inode1 = j + i * (m_div_width + 1);
-            inode3 = j + 1 + i * (m_div_width + 1);
+            inode2 = j + 1 + i * (m_div_width + 1);
             if (i == m_div_circumference - 1) {
                 inode0 = j;
-                inode2 = j + 1;
+                inode3 = j + 1;
             } else {
                 inode0 = j + (i + 1) * (m_div_width + 1);
-                inode2 = j + 1 + (i + 1) * (m_div_width + 1);
+                inode3 = j + 1 + (i + 1) * (m_div_width + 1);
             }
 
-            auto node0 = std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(inode0));
-            auto node1 = std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(inode1));
-            auto node2 = std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(inode2));
-            auto node3 = std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(inode3));
+            auto node0 = std::dynamic_pointer_cast<ChNodeFEAxyzD>(m_mesh->GetNode(inode0));
+            auto node1 = std::dynamic_pointer_cast<ChNodeFEAxyzD>(m_mesh->GetNode(inode1));
+            auto node2 = std::dynamic_pointer_cast<ChNodeFEAxyzD>(m_mesh->GetNode(inode2));
+            auto node3 = std::dynamic_pointer_cast<ChNodeFEAxyzD>(m_mesh->GetNode(inode3));
 
             // Create the element and set its nodes.
             auto element = std::make_shared<ChElementShellANCF>();
@@ -283,23 +299,23 @@ void ANCFTire::CreateMesh(std::shared_ptr<fea::ChMesh> mesh, const ChFrameMoving
             element->SetGravityOn(true);
 
             // Add element to mesh
-            mesh->AddElement(element);
+            m_mesh->AddElement(element);
         }
     }
 
     // Switch off automatic gravity
-    mesh->SetAutomaticGravity(false);
+    m_mesh->SetAutomaticGravity(false);
 }
 
-NodeList ANCFTire::GetConnectedNodes(const std::shared_ptr<fea::ChMesh>& mesh) const {
-    std::vector<std::shared_ptr<fea::ChNodeFEAxyzD>> nodes;
+std::vector<std::shared_ptr<fea::ChNodeFEAbase>> ANCFTire::GetConnectedNodes() const {
+    std::vector<std::shared_ptr<fea::ChNodeFEAbase>> nodes;
 
     for (int i = 0; i < m_div_circumference; i++) {
         for (int j = 0; j <= m_div_width; j++) {
             int index = j + i * (m_div_width + 1);
             if (index % (m_div_width + 1) == 0) {
-                nodes.push_back(std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(index)));
-                nodes.push_back(std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(index + m_div_width)));
+                nodes.push_back(std::dynamic_pointer_cast<ChNodeFEAbase>(m_mesh->GetNode(index)));
+                nodes.push_back(std::dynamic_pointer_cast<ChNodeFEAbase>(m_mesh->GetNode(index + m_div_width)));
             }
         }
     }
