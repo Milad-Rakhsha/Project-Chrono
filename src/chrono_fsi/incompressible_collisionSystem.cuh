@@ -239,6 +239,64 @@ __device__ inline Real3 Distance(Real3 a, Real3 b) {
  * @return gridPos
  */
 __device__ int3 calcGridPos(Real3 p);
+//--------------------------------------------------------------------------------------------------------------------------------
+
+__device__ void Calc_c_i(Real3& c_i,
+                         const uint i_idx,
+                         const Real3 pos_i,
+                         const Real3 Vel_i,
+                         const Real Rho_i,
+                         Real3* sortedPosRad,
+                         Real3* sortedVelMas,
+                         Real4* sortedRhoPreMu,
+                         Real* p_old,
+                         uint* cellStart,
+                         uint* cellEnd,
+                         const Real m_0,
+                         const Real dT);
+//--------------------------------------------------------------------------------------------------------------------------------
+
+__device__ void Calc_Others(Real& rho_np_i,
+                            Real& cprime_i,
+                            Real& dprime_i,
+                            Real& eprime_i,
+                            Real& a_ii,
+                            const Real3 c_i,
+                            Real3* d_ii,
+                            Real3* F_i_np,
+                            const uint i_idx,
+                            const Real3 pos_i,
+                            const Real3 Vel_i,
+                            const Real Rho_i,
+                            Real3* sortedPosRad,
+                            Real3* sortedVelMas,
+                            Real4* sortedRhoPreMu,
+                            Real* p_old,
+                            uint* cellStart,
+                            uint* cellEnd,
+                            const Real m_0,
+                            const Real mu_0,
+                            const Real RHO_0,
+                            const Real epsilon,
+                            const Real dT);
+//--------------------------------------------------------------------------------------------------------------------------------
+__device__ void Calc_BC_ADAMI(const uint i_idx,
+                              const Real3 pos_i,
+                              const Real Rho_i,
+                              Real3* sortedPosRad,
+                              Real3* sortedVelMas,
+                              Real4* sortedRhoPreMu,
+                              Real* p_old,
+                              Real3* V_new,
+                              uint* cellStart,
+                              uint* cellEnd,
+                              const Real m_0,
+                              const Real mu_0,
+                              const Real RHO_0,
+                              const Real epsilon,
+                              const Real dT,
+                              const Real3 g);
+//--------------------------------------------------------------------------------------------------------------------------------
 
 /**
  * @brief calcGridHash - calcGridHashD
@@ -333,22 +391,16 @@ void CopyBackSortedToOriginal(Real* vDot_P,
                               uint numAllMarkers);
 
 void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
-                       const thrust::device_vector<Real3>& sortedVelMas,
+                       thrust::device_vector<Real3>& sortedVelMas,
                        thrust::device_vector<Real4>& sortedRhoPreMu,
-                       const thrust::device_vector<uint>& cellStart,
-                       const thrust::device_vector<uint>& cellEnd,
-                       const thrust::device_vector<uint>& mapOriginalToSorted,
+                       const thrust::device_vector<uint> cellStart,
+                       const thrust::device_vector<uint> cellEnd,
+                       const thrust::device_vector<uint> mapOriginalToSorted,
                        const SimParams paramsH,
                        const NumberOfObjects& numObjects,
                        const int2 updatePortion,
                        const Real dT,
                        const Real RES);
-
-void calcNormalizedRho(const thrust::device_vector<Real3>& sortedPosRad,
-                       const thrust::device_vector<Real4>& sortedRhoPreMu,
-                       const thrust::device_vector<uint>& cellStart,
-                       const thrust::device_vector<uint>& cellEnd,
-                       const thrust::device_vector<uint>& mapOriginalToSorted);
 
 void RecalcSortedVelocityPressure_BCE(thrust::device_vector<Real3>& velMas_ModifiedBCE,
                                       thrust::device_vector<Real4>& rhoPreMu_ModifiedBCE,
@@ -377,19 +429,14 @@ void RecalcSortedVelocityPressure_BCE(thrust::device_vector<Real3>& velMas_Modif
  * @param numCells [description]
  * @param  dT Time Step
  */
-void collide_implicit(thrust::device_vector<Real4>& sortedDerivVelRho_fsi_D,
-                      thrust::device_vector<Real3>& sortedPosRad,
-                      thrust::device_vector<Real3>& sortedVelMas,
-                      thrust::device_vector<Real4>& sortedRhoPreMu,
-                      thrust::device_vector<Real3>& velMas_ModifiedBCE,
-                      thrust::device_vector<Real4>& rhoPreMu_ModifiedBCE,
-
-                      thrust::device_vector<uint>& gridMarkerIndex,
-                      thrust::device_vector<uint>& cellStart,
-                      thrust::device_vector<uint>& cellEnd,
-                      uint numAllMarkers,
-                      uint numCells,
-                      Real dT);
+void Update_FluidIISPH(thrust::device_vector<Real3>& sortedPosRad,
+                       thrust::device_vector<Real3>& sortedVelMas,
+                       thrust::device_vector<Real4>& sortedRhoPreMu,
+                       thrust::device_vector<uint>& cellStart,
+                       thrust::device_vector<uint>& cellEnd,
+                       uint numFluidMarker,
+                       const SimParams paramsH,
+                       Real dT);
 
 void UpdatePosVelP(Real3* m_dSortedPosRadNew,
                    Real3* m_dSortedVelMasNew,

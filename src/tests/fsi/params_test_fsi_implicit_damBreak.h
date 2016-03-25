@@ -37,15 +37,13 @@ Real maxFlowVelocity = 1;  // 12;  // in an ideal case, these two need to be the
 // Total simulation duration.
 Real time_end = 2;  // 15;
 
-// Dimensions
-Real hdimX = 3;  // 5.5;
-Real hdimY = 0.5;
-Real hdimZ = 2;
-
 Real fluidInitDimX = 1;
-Real fluidInitDimY = hdimY / 2;
+Real fluidInitDimY = 0.5;  // This is half of the width
 Real fluidInitDimZ = 1;
-
+// Dimensions
+Real hdimX = 2;
+Real hdimY = 0.5;  // Should be the same as fluidInitDimY, BCEs are taken care of later
+Real hdimZ = 2;
 int fluidCollisionFamily = 1;  // 2 and 3 are reserved for tire and chassis
 
 // -----------------------------------------------------------------------------
@@ -118,8 +116,8 @@ void SetupParamsH(SimParams& paramsH) {
     //	paramsH.cMax = mR3( 3  + paramsH.toleranceZone, 2 + paramsH.toleranceZone,  3 + paramsH.toleranceZone);
     //  paramsH.cMin = mR3(0, 0, 0);  // 3D channel
     //  paramsH.cMax = mR3(3, 2, 3);
-    paramsH.cMin = mR3(0, -hdimY, 0);  // 3D channel
-    paramsH.cMax = mR3(hdimX, hdimY, hdimZ);
+    paramsH.cMin = mR3(0, -hdimY - (3 * paramsH.HSML), 0);  // 3D channel
+    paramsH.cMax = mR3(hdimX, hdimY + (3 * paramsH.HSML), hdimZ);
     //****************************************************************************************
     // printf("a1  paramsH.cMax.x, y, z %f %f %f,  binSize %f\n", paramsH.cMax.x, paramsH.cMax.y, paramsH.cMax.z, 2 *
     // paramsH.HSML);

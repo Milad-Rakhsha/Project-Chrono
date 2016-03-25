@@ -155,7 +155,10 @@ int main(int argc, char* argv[]) {
     SetNumObjects(numObjects, referenceArray, numAllMarkers);
     //        assert(posRadH.size() == numObjects.numAllMarkers && "(1) numObjects is not set correctly");
     if (posRadH.size() != numObjects.numAllMarkers) {
-        printf("\n\n\n\n Error! (1) numObjects is not set correctly: posRadH.size() %d numObjects.numAllMarkers %d \n\n\n\n", posRadH.size(), numObjects.numAllMarkers);
+        printf(
+            "\n\n\n\n Error! (1) numObjects is not set correctly: posRadH.size() %d numObjects.numAllMarkers %d "
+            "\n\n\n\n",
+            posRadH.size(), numObjects.numAllMarkers);
         return -1;
     }
     if (numObjects.numAllMarkers == 0) {
@@ -272,7 +275,7 @@ int main(int argc, char* argv[]) {
                                                      // currentParamsH.dT ;//0.7e6;//2.5e6;
                                                      // //200000;//10000;//50000;//100000;
 
-    stepEnd = 2;
+    stepEnd = 50;
     printf("stepEnd %d\n", stepEnd);
     Real realTime = 0;
 
@@ -323,7 +326,7 @@ int main(int argc, char* argv[]) {
         fsi_timer.start("fluid_initialization");
 
         int out_steps = std::ceil((1.0 / paramsH.dT) / out_fps);
-        out_steps = 2;
+        out_steps = 1;
         PrintToFile(posRadD, velMasD, rhoPresMuD, referenceArray, currentParamsH, realTime, tStep, out_steps,
                     pov_dir_fluid);
 

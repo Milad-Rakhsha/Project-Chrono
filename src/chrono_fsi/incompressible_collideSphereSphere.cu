@@ -187,76 +187,26 @@ void ForceSPH_implicit(thrust::device_vector<Real3>& posRadD,
     throw std::runtime_error("Error! number of rigid and boundary markers are saved incorrectly!\n");
   }
   int2 updatePortion = mI2(referenceArray[0].y, referenceArray[2 + numObjects.numRigidBodies - 1].y);
-  thrust::device_vector<Real3> velMas_ModifiedBCE(numRigidAndBoundaryMarkers);
-  thrust::device_vector<Real4> rhoPreMu_ModifiedBCE(numRigidAndBoundaryMarkers);
+
   ///---------------------------------------------------------------------------------------------------------
   double RESIDUAL = 0.01;
   calcPressureIISPH(m_dSortedPosRad, m_dSortedVelMas, m_dSortedRhoPreMu, m_dCellStart, m_dCellEnd, mapOriginalToSorted,
                     paramsH, numObjects, updatePortion, dT, RESIDUAL);
-  //----------------------------------------------------------------------------------------------------------
-  if (paramsH.bceType == ADAMI) {
-    thrust::device_vector<Real3> bceAcc(numObjects.numRigid_SphMarkers);
-    if (numObjects.numRigid_SphMarkers > 0) {
-      CalcBceAcceleration(bceAcc, q_fsiBodies_D, accRigid_fsiBodies_D, omegaVelLRF_fsiBodies_D, omegaAccLRF_fsiBodies_D,
-                          rigidSPH_MeshPos_LRF_D, rigidIdentifierD, numObjects.numRigid_SphMarkers);
-    }
-    RecalcSortedVelocityPressure_BCE(velMas_ModifiedBCE, rhoPreMu_ModifiedBCE, m_dSortedPosRad, m_dSortedVelMas,
-                                     m_dSortedRhoPreMu, m_dCellStart, m_dCellEnd, mapOriginalToSorted, bceAcc,
-                                     updatePortion);
-    bceAcc.clear();
-  } else {
-    thrust::copy(velMasD.begin() + updatePortion.x, velMasD.begin() + updatePortion.y, velMas_ModifiedBCE.begin());
-    thrust::copy(rhoPresMuD.begin() + updatePortion.x, rhoPresMuD.begin() + updatePortion.y,
-                 rhoPreMu_ModifiedBCE.begin());
-  }
 
-  /* Collide */
-  /* Initialize derivVelRhoD with zero. NECESSARY. */
-  thrust::device_vector<Real4> m_dSortedDerivVelRho_fsi_D(
-      numAllMarkers);  // Store Rho, Pressure, Mu of each particle in the device memory
-  thrust::fill(m_dSortedDerivVelRho_fsi_D.begin(), m_dSortedDerivVelRho_fsi_D.end(), mR4(0));
+  Update_FluidIISPH(m_dSortedPosRad, m_dSortedVelMas, m_dSortedRhoPreMu, m_dCellStart, m_dCellEnd, numAllMarkers,
+                    paramsH, dT);
 
-  collide_implicit(m_dSortedDerivVelRho_fsi_D, m_dSortedPosRad, m_dSortedVelMas, m_dSortedRhoPreMu, velMas_ModifiedBCE,
-                   rhoPreMu_ModifiedBCE, m_dGridMarkerIndex, m_dCellStart, m_dCellEnd, numAllMarkers, m_numGridCells,
-                   dT);
+  CopySortedToOriginal_NonInvasive_R3(velMasD, m_dSortedVelMas, m_dGridMarkerIndex);
+  CopySortedToOriginal_NonInvasive_R4(rhoPresMuD, m_dSortedRhoPreMu, m_dGridMarkerIndex);
+  CopySortedToOriginal_NonInvasive_R3(posRadD, m_dSortedPosRad, m_dGridMarkerIndex);
 
-  CopySortedToOriginal_Invasive_R4(derivVelRhoD, m_dSortedDerivVelRho_fsi_D, m_dGridMarkerIndex);
-  m_dSortedDerivVelRho_fsi_D.clear();
-
-  velMas_ModifiedBCE.clear();
-  rhoPreMu_ModifiedBCE.clear();
-
-  // add gravity to fluid markers
-  /* Add outside forces. Don't add gravity to rigids, BCE, and boundaries, it is added in ChSystem */
   Real3 totalFluidBodyForce3 = paramsH.bodyForce3 + paramsH.gravity;
   thrust::device_vector<Real4> bodyForceD(numAllMarkers);
   thrust::fill(bodyForceD.begin(), bodyForceD.end(), mR4(totalFluidBodyForce3));
-  thrust::transform(derivVelRhoD.begin() + referenceArray[0].x, derivVelRhoD.begin() + referenceArray[0].y,
-                    bodyForceD.begin(), derivVelRhoD.begin() + referenceArray[0].x, thrust::plus<Real4>());
+  //  thrust::transform(derivVelRhoD.begin() + referenceArray[0].x, derivVelRhoD.begin() + referenceArray[0].y,
+  //                    bodyForceD.begin(), derivVelRhoD.begin() + referenceArray[0].x, thrust::plus<Real4>());
   bodyForceD.clear();
 
-  // set the pressure and density of BC and BCE markers to those of the nearest fluid marker.
-  // I put it here to use the already determined proximity computation
-  //********************************************************************************************************************************
-  //	ProjectDensityPressureToBCandBCE(rhoPresMuD, m_dSortedPosRad, m_dSortedRhoPreMu,
-  //				m_dGridMarkerIndex, m_dCellStart, m_dCellEnd, numAllMarkers);
-  //	//********************************************************************************************************************************
-  //	//*********************** Calculate MaxStress on Particles
-  //	//***********************************************************************
-  //	thrust::device_vector<Real3> devStressD(
-  //			numObjects.numRigid_SphMarkers + numObjects.numFlex_SphMarkers);
-  //	thrust::device_vector<Real3> volStressD(
-  //			numObjects.numRigid_SphMarkers + numObjects.numFlex_SphMarkers);
-  //	thrust::device_vector<Real4> mainStressD(
-  //			numObjects.numRigid_SphMarkers + numObjects.numFlex_SphMarkers);
-  //	int numBCE = numObjects.numRigid_SphMarkers + numObjects.numFlex_SphMarkers;
-  //	CalcBCE_Stresses(devStressD, volStressD, mainStressD, m_dSortedPosRad,
-  //			m_dSortedVelMas, m_dSortedRhoPreMu, mapOriginalToSorted,
-  //			m_dCellStart, m_dCellEnd, numBCE);
-  //
-  //	devStressD.clear();
-  //	volStressD.clear();
-  //	mainStressD.clear();
   //********************************************************************************************************************************
   m_dSortedPosRad.clear();
   m_dSortedVelMas.clear();
