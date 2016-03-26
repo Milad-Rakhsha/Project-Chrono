@@ -189,16 +189,16 @@ void ForceSPH_implicit(thrust::device_vector<Real3>& posRadD,
   int2 updatePortion = mI2(referenceArray[0].y, referenceArray[2 + numObjects.numRigidBodies - 1].y);
 
   ///---------------------------------------------------------------------------------------------------------
-  double RESIDUAL = 0.001;
+  double RESIDUAL = 0.01;
   calcPressureIISPH(m_dSortedPosRad, m_dSortedVelMas, m_dSortedRhoPreMu, m_dCellStart, m_dCellEnd, mapOriginalToSorted,
                     paramsH, numObjects, updatePortion, dT, RESIDUAL);
 
   Update_FluidIISPH(m_dSortedPosRad, m_dSortedVelMas, m_dSortedRhoPreMu, m_dCellStart, m_dCellEnd, numAllMarkers,
                     paramsH, dT);
 
-  CopySortedToOriginal_NonInvasive_R3(velMasD, m_dSortedVelMas, m_dGridMarkerIndex);
-  CopySortedToOriginal_NonInvasive_R4(rhoPresMuD, m_dSortedRhoPreMu, m_dGridMarkerIndex);
-  CopySortedToOriginal_NonInvasive_R3(posRadD, m_dSortedPosRad, m_dGridMarkerIndex);
+  CopySortedToOriginal_Invasive_R3(velMasD, m_dSortedVelMas, m_dGridMarkerIndex);
+  CopySortedToOriginal_Invasive_R4(rhoPresMuD, m_dSortedRhoPreMu, m_dGridMarkerIndex);
+  CopySortedToOriginal_Invasive_R3(posRadD, m_dSortedPosRad, m_dGridMarkerIndex);
 
   Real3 totalFluidBodyForce3 = paramsH.bodyForce3 + paramsH.gravity;
   thrust::device_vector<Real4> bodyForceD(numAllMarkers);
@@ -491,9 +491,7 @@ void IntegrateIISPH(thrust::device_vector<Real4>& derivVelRhoD,
                     SimParams currentParamsH,
                     Real dT) {
   InitSystem(currentParamsH, numObjects);
-  ForceSPH_implicit(
-      posRadD, velMasD, rhoPresMuD, bodyIndexD, derivVelRhoD, referenceArray, q_fsiBodies_D, accRigid_fsiBodies_D,
-      omegaVelLRF_fsiBodies_D, omegaAccLRF_fsiBodies_D, rigidSPH_MeshPos_LRF_D, rigidIdentifierD, numObjects,
-      currentParamsH,
-      dT);
+  ForceSPH_implicit(posRadD, velMasD, rhoPresMuD, bodyIndexD, derivVelRhoD, referenceArray, q_fsiBodies_D,
+                    accRigid_fsiBodies_D, omegaVelLRF_fsiBodies_D, omegaAccLRF_fsiBodies_D, rigidSPH_MeshPos_LRF_D,
+                    rigidIdentifierD, numObjects, currentParamsH, dT);
 }

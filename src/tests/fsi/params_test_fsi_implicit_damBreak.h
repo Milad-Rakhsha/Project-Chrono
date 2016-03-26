@@ -39,11 +39,11 @@ Real time_end = 2;  // 15;
 
 Real fluidInitDimX = 1;
 Real fluidInitDimY = 0.1;  // This is half of the width
-Real fluidInitDimZ = 1;
+Real fluidInitDimZ = 0.5;
 // Dimensions
-Real hdimX = 4;
-Real hdimY = 0.1;  // Should be the same as fluidInitDimY, BCEs are taken care of later
-Real hdimZ = 1.5;
+Real hdimX = 2;
+Real hdimY = 0.2;  // Should be the same as fluidInitDimY, BCEs are taken care of later
+Real hdimZ = 2;
 int fluidCollisionFamily = 1;  // 2 and 3 are reserved for tire and chassis
 
 // -----------------------------------------------------------------------------
@@ -72,25 +72,25 @@ NumberOfObjects numObjects;
  */
 void SetupParamsH(SimParams& paramsH) {
     paramsH.sizeScale = 1;  // don't change it.
-    paramsH.HSML = 0.05;    // 0.06;    // 0.06;//0.04;
+    paramsH.HSML = 0.025;   // 0.06;    // 0.06;//0.04;
     paramsH.MULT_INITSPACE = 1.0;
     paramsH.epsMinMarkersDis = .001;
     paramsH.NUM_BOUNDARY_LAYERS = 3;
     paramsH.toleranceZone = paramsH.NUM_BOUNDARY_LAYERS * (paramsH.HSML * paramsH.MULT_INITSPACE);
-    paramsH.BASEPRES = 0;                // 10;
-    paramsH.LARGE_PRES = 0;              // paramsH.BASEPRES;//10000;
-    paramsH.deltaPress;                  //** modified below
-    paramsH.multViscosity_FSI = 1;       // 5.0;
-    paramsH.gravity = mR3(0, 0, -9.81);  // mR3(0);//mR3(0, -9.81, 0);
+    paramsH.BASEPRES = 0;               // 10;
+    paramsH.LARGE_PRES = 0;             // paramsH.BASEPRES;//10000;
+    paramsH.deltaPress;                 //** modified below
+    paramsH.multViscosity_FSI = 1;      // 5.0;
+    paramsH.gravity = mR3(0, 0, -9.8);  // mR3(0);//mR3(0, -9.81, 0);
     paramsH.bodyForce3 =
         mR3(0, 0, 0);  // mR4(3.2e-3,0,0,0);// mR4(0);;// /*Re = 100 */ //mR4(3.2e-4, 0, 0, 0);/*Re = 100 */
     paramsH.rho0 = 1000;
     paramsH.markerMass = pow(paramsH.MULT_INITSPACE * paramsH.HSML, 3) * paramsH.rho0;
-    paramsH.mu0 = 0;
+    paramsH.mu0 = 0.0001;
     paramsH.v_Max = maxFlowVelocity;  // Arman, I changed it to 0.1 for vehicle. Check this
                                       // later;//10;//50e-3;//18e-3;//1.5;//2e-1; /*0.2 for Re = 100 */ //2e-3;
     paramsH.EPS_XSPH = .5f;
-    paramsH.dT = 0.01;          // 0.2e-4;//1.0e-4;  // 2e-3;  // note you are using half of this for MBD system
+    paramsH.dT = 0.005;          // 0.2e-4;//1.0e-4;  // 2e-3;  // note you are using half of this for MBD system
     paramsH.tFinal = time_end;  // 20 * paramsH.dT; //400
     paramsH.timePause = time_pause_fluid_external_force;  //.0001 * paramsH.tFinal;//.0001 * paramsH.tFinal; 	// time
     // before applying any
@@ -134,9 +134,9 @@ void SetupParamsH(SimParams& paramsH) {
 
     paramsH.boxDims = paramsH.cMax - paramsH.cMin;
     //****************************************************************************************
-    paramsH.cMinInit = mR3(0, -fluidInitDimY, 0) + paramsH.NUM_BOUNDARY_LAYERS * paramsH.HSML * mR3(1, 0, 1);
-    paramsH.cMaxInit =
-        mR3(fluidInitDimX, fluidInitDimY, fluidInitDimZ) + paramsH.NUM_BOUNDARY_LAYERS * paramsH.HSML * mR3(1, 0, 1);
+    paramsH.cMinInit = mR3(0.5, -fluidInitDimY, 0) + paramsH.NUM_BOUNDARY_LAYERS * paramsH.HSML * mR3(1, 0, 1);
+    paramsH.cMaxInit = mR3(fluidInitDimX + 0.5, fluidInitDimY, fluidInitDimZ + 0.5) +
+                       paramsH.NUM_BOUNDARY_LAYERS * paramsH.HSML * mR3(1, 0, 1);
 
     //****************************************************************************************
     //*** initialize straight channel
