@@ -189,7 +189,7 @@ void ForceSPH_implicit(thrust::device_vector<Real3>& posRadD,
   int2 updatePortion = mI2(referenceArray[0].y, referenceArray[2 + numObjects.numRigidBodies - 1].y);
 
   ///---------------------------------------------------------------------------------------------------------
-  double RESIDUAL = 0.01;
+  double RESIDUAL = 0.001;
   calcPressureIISPH(m_dSortedPosRad, m_dSortedVelMas, m_dSortedRhoPreMu, m_dCellStart, m_dCellEnd, mapOriginalToSorted,
                     paramsH, numObjects, updatePortion, dT, RESIDUAL);
 
@@ -495,11 +495,5 @@ void IntegrateIISPH(thrust::device_vector<Real4>& derivVelRhoD,
       posRadD, velMasD, rhoPresMuD, bodyIndexD, derivVelRhoD, referenceArray, q_fsiBodies_D, accRigid_fsiBodies_D,
       omegaVelLRF_fsiBodies_D, omegaAccLRF_fsiBodies_D, rigidSPH_MeshPos_LRF_D, rigidIdentifierD, numObjects,
       currentParamsH,
-      dT);  //?$ right now, it does not consider paramsH.gravity or other stuff on rigid bodies. they should be
-  // applied at rigid body solver
-  //  UpdateFluid_implicit(posRadD2, velMasD2, rhoPresMuD2, derivVelRhoD, referenceArray,
-  //                       dT);  // assumes ...D2 is a copy of ...D
-  //  // UpdateBoundary(rhoPresMuD2, derivVelRhoD, referenceArray, 0.5 * currentParamsH.dT);
-  //  // //assumes ...D2 is a copy of ...D
-  //  ApplyBoundarySPH_Markers(posRadD2, rhoPresMuD2, numObjects.numAllMarkers);
+      dT);
 }

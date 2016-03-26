@@ -68,8 +68,6 @@ void DoStepFluid_implicit(thrust::device_vector<Real3>& posRadD,
   thrust::copy(velMasD.begin(), velMasD.end(), velMasD2.begin());
   thrust::copy(rhoPresMuD.begin(), rhoPresMuD.end(), rhoPresMuD2.begin());
 
-  FillMyThrust4(derivVelRhoD, mR4(0));
-
   //**********************************
   // ******************
   // ******************

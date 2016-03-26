@@ -276,6 +276,7 @@ int main(int argc, char* argv[]) {
                                                      // //200000;//10000;//50000;//100000;
 
     stepEnd = 50;
+
     printf("stepEnd %d\n", stepEnd);
     Real realTime = 0;
 

@@ -872,7 +872,7 @@ __global__ void F_i_np__AND__d_ii_kernel(Real3* sortedPosRad,  // input: sorted 
             Real3 V_ij = (Velj - Veli);
             Real3 muNumerator = -2 * mu_0 * dot(dist3, grad_a_wab) * V_ij;
             Real muDenominator = (Rho_bar * Rho_bar) * (d * d + paramsD.HSML * paramsD.HSML * epsilon);
-            My_F_i_np += muNumerator / muDenominator;
+            My_F_i_np += m_0 * muNumerator / muDenominator;
           }
         }
       }
@@ -880,7 +880,7 @@ __global__ void F_i_np__AND__d_ii_kernel(Real3* sortedPosRad,  // input: sorted 
   }
   // Adding neighbor contribution is done!
   d_ii[i_idx] = My_d_ii;
-  F_i_np[i_idx] = My_F_i_np;
+  F_i_np[i_idx] = m_0 * My_F_i_np;
 
   //  if (i_idx == 1) {
   //    for (int j = 1; j < numAllMarkers; j++)
@@ -925,17 +925,15 @@ __device__ void Calc_c_i(Real3& c_i,
           uint endIndex = cellEnd[gridHash];
 
           for (uint j = startIndex; j < endIndex; j++) {
-            if (i_idx == j)
-              continue;
             Real3 pos_j = sortedPosRad[j];
             Real3 dist3 = Distance(pos_i, pos_j);
             Real d = length(dist3);
             ////CHECK THIS CONDITION!!!
-            if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML)
+            if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML || i_idx == j)
               continue;
             Real Rho_j = sortedRhoPreMu[j].x;
             if (Rho_j == 0) {
-              //              printf("Bug here Calc_c_i i=%d j=%d\n", i_idx, j);
+              printf("Bug here Calc_c_i i=%d j=%d\n", i_idx, j);
             }
             Real p_j_old = p_old[j];
             Real3 grad_a_wab = GradW(dist3) / (paramsD.HSML * d) * dist3;
@@ -998,15 +996,11 @@ __device__ void Calc_Others(Real& rho_np_i,
         if (startIndexI != 0xffffffff) {  // cell is not empty
           // iterate over particles in this cell
           uint endIndexI = cellEnd[gridHashI];
-
           for (uint j = startIndexI; j < endIndexI; j++) {
-            if (i_idx == j)
-              continue;
             Real3 pos_j = sortedPosRad[j];
             Real3 dist3ij = Distance(pos_i, pos_j);
             Real dij = length(dist3ij);
-            ////CHECK THIS CONDITION!!!
-            if (dij > RESOLUTION_LENGTH_MULT * paramsD.HSML)
+            if (dij > RESOLUTION_LENGTH_MULT * paramsD.HSML || i_idx == j)
               continue;
             Real3 Vel_j = sortedVelMas[j];
             Real Rho_j = sortedRhoPreMu[j].x;
@@ -1024,19 +1018,14 @@ __device__ void Calc_Others(Real& rho_np_i,
                 for (int xx = -1; xx <= 1; xx++) {
                   int3 neighbourPosJ = gridPosJ + mI3(xx, yy, zz);
                   uint gridHashJ = calcGridHash(neighbourPosJ);
-                  //                  // get start of bucket for this cell
                   uint startIndexJ = cellStart[gridHashJ];
                   if (startIndexJ != 0xffffffff) {  // cell is not empty
-                                                    //                    // iterate over particles in this cell
                     uint endIndexJ = cellEnd[gridHashJ];
                     for (uint k = startIndexJ; k < endIndexJ; k++) {
-                      if (k == j)
-                        continue;
                       Real3 pos_k = sortedPosRad[k];
-
                       Real3 dist3jk = Distance(pos_j, pos_k);
                       Real djk = length(dist3jk);
-                      if (djk > RESOLUTION_LENGTH_MULT * paramsD.HSML)
+                      if (djk > RESOLUTION_LENGTH_MULT * paramsD.HSML || k == j)
                         continue;
                       Real3 Vel_k = sortedVelMas[k];
                       Real p_k_old = p_old[k];
@@ -1048,8 +1037,8 @@ __device__ void Calc_Others(Real& rho_np_i,
                       Real muDenominator = (Rho_bar * Rho_bar) * (djk * djk + paramsD.HSML * paramsD.HSML * epsilon);
                       F_np_j += m_0 * m_0 * muNumerator / muDenominator;
                       d_j += m_0 * grad_j_wjk;
-                      if (Rho_k == 0)
-                        printf("Bug here i=%d j=%d k=%d\n", i_idx, j, k);
+                      //                      if (Rho_k == 0)
+                      //                        printf("Bug here i=%d j=%d k=%d\n", i_idx, j, k);
                       if (k != i_idx)
                         e_j += 1 / (Rho_k * Rho_k) * m_0 * grad_j_wjk * p_k_old;
                     }
@@ -1061,7 +1050,6 @@ __device__ void Calc_Others(Real& rho_np_i,
             e_j = e_j * (-dT * dT);
             //============================= done with calculation for j
             Real3 grad_i_wij = GradW(dist3ij) / (paramsD.HSML * dij) * dist3ij;
-
             Real3 V_ij = (Vel_i - Vel_j);
             Real3 F_np_i = F_i_np[i_idx];
             Real3 my_d_ii = d_ii[i_idx];
@@ -1071,7 +1059,8 @@ __device__ void Calc_Others(Real& rho_np_i,
             my_dprime += m_0 * dot(d_j, grad_i_wij);
             my_eprime += m_0 * dot(e_j, grad_i_wij);
             Real3 d_ji_temp = m_0 * (-(dT * dT) / (Rho_i * Rho_i)) * (-grad_i_wij);
-            my_a_ii += m_0 * dot((my_d_ii - d_ji_temp), grad_i_wij);
+            toBeUsed = (my_d_ii - d_ji_temp);
+            my_a_ii += m_0 * dot(toBeUsed, grad_i_wij);
           }
         }
       }
@@ -1081,11 +1070,18 @@ __device__ void Calc_Others(Real& rho_np_i,
   cprime_i = my_cprime;
   dprime_i = my_dprime;
   eprime_i = my_eprime;
-  a_ii = my_a_ii == 0 ? 1e10 : my_a_ii;
-  if (my_a_ii == 0) {
-    printf("a_ii= %f, rho_np_i= %f, cprime_i= %f, dprime_i= %f, eprime_i= %f\n", my_a_ii, my_rho_np, my_cprime,
-           my_dprime, my_eprime);
-  }
+  a_ii = my_a_ii;
+
+  //  if (!isfinite(rho_np_i))
+  //    printf("rho_np_i gets infinite or nan in Calc_Others");
+  //  if (!isfinite(my_cprime))
+  //    printf("cprime_i gets infinite or nan in Calc_Others");
+  //  if (!isfinite(dprime_i))
+  //    printf("dprime_i gets infinite or nan in Calc_Others");
+  //  if (!isfinite(eprime_i))
+  //    printf("eprime_i gets infinite or nan in Calc_Others");
+  //  if (!isfinite(my_a_ii) || abs(my_a_ii) < EPSILON)
+  //    printf("a_ii gets zero or nan in Calc_Others");
 }
 ////--------------------------------------------------------------------------------------------------------------------------------
 __device__ void Calc_BC_ADAMI(Real& pn,
@@ -1123,7 +1119,7 @@ __device__ void Calc_BC_ADAMI(Real& pn,
         if (startIndex != 0xffffffff) {  // cell is not empty
           uint endIndex = cellEnd[gridHash];
           for (uint j = startIndex; j < endIndex; j++) {
-            if (sortedRhoPreMu[j].w == -1)  // NO BCE BCE forces...
+            if (sortedRhoPreMu[j].w == 0)  // NO BCE BCE forces...
               continue;
 
             Real3 pos_j = sortedPosRad[j];
@@ -1135,9 +1131,8 @@ __device__ void Calc_BC_ADAMI(Real& pn,
             Real3 Vel_j = sortedVelMas[j];
             Real p_j = p_old[j];
             Real Wd = W3(d);
-            if (isnan(numeratorp))
 
-              numeratorv += Vel_j * Wd;
+            numeratorv += Vel_j * Wd;
             numeratorp += p_j * Wd + dot(g, dist3) * Rho_i * Wd;
             denumenator += Wd;
             if (isnan(numeratorp))
@@ -1151,7 +1146,7 @@ __device__ void Calc_BC_ADAMI(Real& pn,
     p_i = 0;
     Vel_i = mR3(0);
     if (isnan(denumenator) || isnan(numeratorp))
-      printf("Something is wrong though ...\n");
+      printf("I cheated, something is wrong though ...\n");
 
   } else {
     Vel_i = -numeratorv / denumenator;
@@ -1161,6 +1156,24 @@ __device__ void Calc_BC_ADAMI(Real& pn,
   // IS THIS FAST???
   Vn = Vel_i;
 }
+
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void Initialize_Variables(Real4* sortedRhoPreMu,
+                                     Real* p_old,
+                                     Real3* sortedVelMas,
+                                     Real3* V_new,
+                                     const int numAllMarkers,
+                                     volatile bool* isErrorD) {
+  const uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i_idx > numAllMarkers) {
+    return;
+  }
+
+  p_old[i_idx] = sortedRhoPreMu[i_idx].y;  // This needs consistency p_old is old but v_new is new !!:D
+  if (sortedRhoPreMu[i_idx].w == 0)
+    sortedVelMas[i_idx] = V_new[i_idx];
+}
+
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Iterative_pressure_update(Real3* sortedPosRad,  // input: sorted positions
                                           Real4* sortedRhoPreMu,
@@ -1223,12 +1236,14 @@ __global__ void Iterative_pressure_update(Real3* sortedPosRad,  // input: sorted
                   sortedPosRad, sortedVelMas, sortedRhoPreMu, p_old, cellStart, cellEnd, m_0, mu_0, RHO_0, epsilon, dT);
       //-------------------------------------------------------------------------------------------------------------
       pn = (RHO_0 - (Rho_i + rho_np_i) - cprime_i + dprime_i + eprime_i) / a_ii;
+      if (!isfinite(pn)) {
+        printf("Pressure is nan Calc_Others!");
+      }
     } else {
       /// Free Surface BC on fluid
       pn = 0;
     }
-    if (abs(pn) > 1e5)
-      printf("Prone to divergence for IISPH solver\n ");
+
   } else if (my_type == 0) {
     Calc_BC_ADAMI(pn, Vn, i_idx, pos_i, Rho_i, sortedPosRad, sortedVelMas, sortedRhoPreMu, p_old, V_new, cellStart,
                   cellEnd, m_0, mu_0, RHO_0, epsilon, dT, g);
@@ -1251,21 +1266,23 @@ __global__ void Update_AND_Calc_Res(Real3* sortedVelMas,
   if (i_idx > numAllMarkers) {
     return;
   }
+
+  // Double check the relaxations. Something is fishy here
   Real relax;
   if (Iteration < 100)  // Over Relax to speed up
-    relax = 0.5;
-  else if (Iteration > 100 && Iteration < 200)  // No relaxation
-    relax = 0.5;
+    relax = 0.96;
+  else if (Iteration < 200)  // No relaxation
+    relax = 0.98;
   else  // Under-relaxation
-    relax = 0.5;
+    relax = 1;
 
-  Real P_OLD_TEMP = sortedRhoPreMu[i_idx].y;
   //  p_i = (1 - relax) * p_old_i + relax * p_i;
   sortedRhoPreMu[i_idx].y = (1 - relax) * p_old[i_idx] + relax * sortedRhoPreMu[i_idx].y;
-  Residuals[i_idx] = abs(sortedRhoPreMu[i_idx].y - p_old[i_idx]) / (p_old[i_idx] == 0 ? 1e10 : abs(p_old[i_idx]));
-  p_old[i_idx] = P_OLD_TEMP;
-  if (sortedRhoPreMu[i_idx].w == 0)
-    sortedVelMas[i_idx] = V_new[i_idx];
+  Residuals[i_idx] =
+      abs(sortedRhoPreMu[i_idx].y - p_old[i_idx]) / abs(abs(p_old[i_idx]) < EPSILON ? 1e10 : p_old[i_idx]);
+  //  if (!isfinite(sortedRhoPreMu[i_idx].y)) {
+  //    printf("Pressure is nan!");
+  //  }
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -1292,7 +1309,7 @@ void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
   // thread per particle
   uint numThreads, numBlocks;
   int numAllMarkers = numObjects.numBoundaryMarkers + numObjects.numFluidMarkers;
-  computeGridSize(numAllMarkers, 256, numBlocks, numThreads);
+  computeGridSize(numAllMarkers, 64, numBlocks, numThreads);
   printf("numBlocks: %d, numThreads: %d, numAllMarker:%d \n", numBlocks, numThreads, numAllMarkers);
   //------------------------------------------------------------------------
   //------------------------------------------------------------------------
@@ -1338,12 +1355,23 @@ void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
   int Iteration = 0;
   Real MaxRes = 1;
   thrust::device_vector<Real> p_old(numAllMarkers);  // This has P_old
-  thrust::fill(p_old.begin(), p_old.end(), 0);
+  thrust::fill(p_old.begin(), p_old.end(), 1000);
   thrust::device_vector<Real> Residuals(numAllMarkers);  // This has res
   thrust::fill(Residuals.begin(), Residuals.end(), 1);
   thrust::device_vector<Real3> V_new(numAllMarkers);  // This has res
 
   while (MaxRes > RES || Iteration < 3) {
+    *isErrorH = false;
+    cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+    Initialize_Variables<<<numBlocks, numThreads>>>(mR4CAST(sortedRhoPreMu), R1CAST(p_old), mR3CAST(sortedVelMas),
+                                                    mR3CAST(V_new), numAllMarkers, isErrorD);
+    cudaThreadSynchronize();
+    cudaCheckError();
+    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+    if (*isErrorH == true) {
+      throw std::runtime_error("Error! program crashed after Iterative_pressure_update!\n");
+    }
+
     *isErrorH = false;
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
     Iterative_pressure_update<<<numBlocks, numThreads>>>(
@@ -1370,8 +1398,10 @@ void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
     }
 
     Iteration++;
-    MaxRes = thrust::reduce(Residuals.begin(), Residuals.end(), 0.0, thrust::plus<Real>()) / Residuals.size();
-    printf("Iteration= %d, MaxRes= %f\n", Iteration, MaxRes);
+    MaxRes = thrust::reduce(Residuals.begin(), Residuals.end(), 0.0, thrust::maximum<Real>());
+    Real MaxP = thrust::reduce(p_old.begin(), p_old.end(), 0.0, thrust::maximum<Real>());
+
+    printf("Iteration= %d, residual= %f, maximum P= %f\n", Iteration, MaxRes, MaxP);
   }
 
   //------------------------------------------------------------------------
@@ -1400,20 +1430,17 @@ __global__ void CalcForces(Real3* new_Pos,       // input: sorted positions
                            Real3 gravity,
                            volatile bool* isErrorD) {
   uint i_idx = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;
-  if (i_idx > numAllMarkers)
-    return;
-  // Do this only for fluid
-  if (sortedRhoPreMu[i_idx].w > -1)
+  if (i_idx > numAllMarkers || sortedRhoPreMu[i_idx].w != -1)
     return;
 
   Real3 posi = sortedPosRad[i_idx];
   Real3 Veli = sortedVelMas[i_idx];
   Real p_i = sortedRhoPreMu[i_idx].y;
   Real rho_i = sortedRhoPreMu[i_idx].x;
-  Real3 F_i_np, F_i_p;
+  Real3 F_i_np = mR3(0);
+  Real3 F_i_p = mR3(0);
   // get address in grid
   int3 gridPos = calcGridPos(posi);
-
   for (int z = -1; z <= 1; z++) {
     for (int y = -1; y <= 1; y++) {
       for (int x = -1; x <= 1; x++) {
@@ -1421,31 +1448,29 @@ __global__ void CalcForces(Real3* new_Pos,       // input: sorted positions
         uint gridHash = calcGridHash(neighbourPos);
         // get start of bucket for this cell
         uint startIndex = cellStart[gridHash];
-        if (startIndex != 0xffffffff) {  // cell is not empty
-          uint endIndex = cellEnd[gridHash];
-          for (uint j = startIndex; j < endIndex; j++) {
-            if (i_idx == j)
-              continue;
-            Real3 posj = sortedPosRad[j];
-            Real3 dist3 = Distance(posj, posi);
-            Real d = length(dist3);
-            if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML)
-              continue;
-            Real3 Velj = sortedVelMas[j];
-            Real p_j = sortedRhoPreMu[j].y;
-            Real rho_j = sortedRhoPreMu[j].x;
-            if (rho_j < EPSILON) {
-              printf("j= %d returns NAN", j);
-              rho_j = 1000;
-            }
-            Real3 grad_i_wij = GradW(dist3) / (paramsD.HSML * d) * dist3;
-            Real3 V_ij = (Veli - Velj);
-            F_i_p += (m_0 * ((p_i / (rho_i * rho_i)) + (p_j / (rho_j * rho_j)))) * grad_i_wij;
+        uint endIndex = cellEnd[gridHash];
+        for (uint j = startIndex; j < endIndex; j++) {
+          Real3 posj = sortedPosRad[j];
+          Real3 dist3 = Distance(posi, posj);
+          Real d = length(dist3);
+          if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML || i_idx == j)
+            continue;
+          Real3 Velj = sortedVelMas[j];
+          Real p_j = sortedRhoPreMu[j].y;
+          Real rho_j = sortedRhoPreMu[j].x;
 
-            Real Rho_bar = (rho_j + rho_i) * 0.5;
-            Real3 muNumerator = -2 * mu_0 * dot(dist3, grad_i_wij) * V_ij;
-            Real muDenominator = (Rho_bar * Rho_bar) * (d * d + paramsD.HSML * paramsD.HSML * epsilon);
-            F_i_np += m_0 * m_0 * muNumerator / muDenominator;
+          Real3 grad_i_wij = GradW(dist3) / (paramsD.HSML * d) * dist3;
+          Real3 V_ij = (Veli - Velj);
+          F_i_p += m_0 * ((p_i / (rho_i * rho_i)) + (p_j / (rho_j * rho_j))) * grad_i_wij;
+          if (!isfinite(length(F_i_p))) {
+            printf("F_i_p in CalcForces returns Nan or Inf");
+          }
+          Real Rho_bar = (rho_j + rho_i) * 0.5;
+          Real3 muNumerator = -2 * mu_0 * dot(dist3, grad_i_wij) * V_ij;
+          Real muDenominator = (Rho_bar * Rho_bar) * (d * d + paramsD.HSML * paramsD.HSML * epsilon);
+          F_i_np += m_0 * muNumerator / muDenominator;
+          if (!isfinite(length(F_i_np))) {
+            printf("F_i_np in CalcForces returns Nan or Inf");
           }
         }
       }
@@ -1455,8 +1480,7 @@ __global__ void CalcForces(Real3* new_Pos,       // input: sorted positions
   F_i_np = m_0 * F_i_np;
 
   new_vel[i_idx] = Veli + dT / m_0 * (F_i_p + F_i_np) + gravity * dT;
-  new_Pos[i_idx] = posi + dT * Veli;
-  // Adding neighbor contribution is done!
+  new_Pos[i_idx] = posi + dT * new_vel[i_idx];
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Update_Fluid_State(Real3* new_Pos,       // input: sorted positions
@@ -1467,12 +1491,68 @@ __global__ void Update_Fluid_State(Real3* new_Pos,       // input: sorted positi
                                    const uint numAllMarkers,  // input: sorted velocities
                                    volatile bool* isErrorD) {
   uint i_idx = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;
-  if (i_idx > numAllMarkers)
+  if (i_idx > numAllMarkers || sortedRhoPreMu[i_idx].w != -1)
     return;
   if (sortedRhoPreMu[i_idx].w > -1)
     return;
   sortedPosRad[i_idx] = new_Pos[i_idx];
   sortedVelMas[i_idx] = new_vel[i_idx];
+}
+
+/**
+ * @brief Wrapper function for collide
+ * @details
+ * 		See SDKCollisionSystem.cuh for informaton on collide
+ */
+void Update_FluidIISPH(thrust::device_vector<Real3>& sortedPosRad,
+                       thrust::device_vector<Real3>& sortedVelMas,
+                       thrust::device_vector<Real4>& sortedRhoPreMu,
+                       thrust::device_vector<uint>& cellStart,
+                       thrust::device_vector<uint>& cellEnd,
+                       uint numAllMarkers,
+                       const SimParams paramsH,
+                       Real dT) {
+  thrust::device_vector<Real3> New_vel(numAllMarkers);  // Store Velocities of each particle in the device memory
+  thrust::device_vector<Real3> New_pos(numAllMarkers);  // Store positions of each particle in the device memory
+
+  bool *isErrorH, *isErrorD;
+  isErrorH = (bool*)malloc(sizeof(bool));
+  cudaMalloc((void**)&isErrorD, sizeof(bool));
+  *isErrorH = false;
+  cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+  //------------------------------------------------------------------------
+  // thread per particle
+  uint numThreads, numBlocks;
+  computeGridSize(numAllMarkers, 64, numBlocks, numThreads);
+  CalcForces<<<numBlocks, numThreads>>>(mR3CAST(New_pos), mR3CAST(New_vel), mR3CAST(sortedPosRad),
+                                        mR3CAST(sortedVelMas), mR4CAST(sortedRhoPreMu), U1CAST(cellStart),
+                                        U1CAST(cellEnd), numAllMarkers, paramsH.markerMass, paramsH.mu0,
+                                        paramsH.epsMinMarkersDis, dT, paramsH.gravity, isErrorD);
+  cudaThreadSynchronize();
+  cudaCheckError();
+  cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+  if (*isErrorH == true) {
+    throw std::runtime_error("Error! program crashed in CalcForces!\n");
+  }
+  //------------------------------------------------------------------------
+
+  *isErrorH = false;
+  cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+  // thread per particle
+  Update_Fluid_State<<<numBlocks, numThreads>>>(mR3CAST(New_pos), mR3CAST(New_vel), mR3CAST(sortedPosRad),
+                                                mR3CAST(sortedVelMas), mR4CAST(sortedRhoPreMu), numAllMarkers,
+                                                isErrorD);
+  cudaThreadSynchronize();
+  cudaCheckError();
+
+  cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+  if (*isErrorH == true) {
+    throw std::runtime_error("Error! program crashed in  Update_Fluid_State!\n");
+  }
+  //------------------------------------------------------------------------
+
+  cudaFree(isErrorD);
+  free(isErrorH);
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1519,100 +1599,6 @@ void RecalcSortedVelocityPressure_BCE(thrust::device_vector<Real3>& velMas_Modif
 
 //--------------------------------------------------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------------------------------------------------
-
-/**
- * @brief Wrapper function for collide
- * @details
- * 		See SDKCollisionSystem.cuh for informaton on collide
- */
-void Update_FluidIISPH(thrust::device_vector<Real3>& sortedPosRad,
-                       thrust::device_vector<Real3>& sortedVelMas,
-                       thrust::device_vector<Real4>& sortedRhoPreMu,
-                       thrust::device_vector<uint>& cellStart,
-                       thrust::device_vector<uint>& cellEnd,
-                       uint numAllMarkers,
-                       const SimParams paramsH,
-                       Real dT) {
-  thrust::device_vector<Real3> New_vel(numAllMarkers);  // Store Velocities of each particle in the device memory
-  thrust::device_vector<Real3> New_pos(numAllMarkers);  // Store positions of each particle in the device memory
-
-  bool *isErrorH, *isErrorD;
-  isErrorH = (bool*)malloc(sizeof(bool));
-  cudaMalloc((void**)&isErrorD, sizeof(bool));
-  *isErrorH = false;
-  cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
-  //------------------------------------------------------------------------
-  // thread per particle
-  uint numThreads, numBlocks;
-  computeGridSize(numAllMarkers, 64, numBlocks, numThreads);
-  CalcForces<<<numBlocks, numThreads>>>(mR3CAST(New_vel), mR3CAST(New_pos), mR3CAST(sortedPosRad),
-                                        mR3CAST(sortedVelMas), mR4CAST(sortedRhoPreMu), U1CAST(cellStart),
-                                        U1CAST(cellEnd), numAllMarkers, paramsH.markerMass, paramsH.mu0,
-                                        paramsH.epsMinMarkersDis, dT, paramsH.gravity, isErrorD);
-  cudaThreadSynchronize();
-  cudaCheckError();
-  cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
-  if (*isErrorH == true) {
-    throw std::runtime_error("Error! program crashed in CalcForces!\n");
-  }
-  //------------------------------------------------------------------------
-
-  *isErrorH = false;
-  cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
-  // thread per particle
-  Update_Fluid_State<<<numBlocks, numThreads>>>(mR3CAST(New_vel), mR3CAST(New_pos), mR3CAST(sortedPosRad),
-                                                mR3CAST(sortedVelMas), mR4CAST(sortedRhoPreMu), numAllMarkers,
-                                                isErrorD);
-  cudaThreadSynchronize();
-  cudaCheckError();
-
-  cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
-  if (*isErrorH == true) {
-    throw std::runtime_error("Error! program crashed in  Update_Fluid_State!\n");
-  }
-  //------------------------------------------------------------------------
-
-  cudaFree(isErrorD);
-  free(isErrorH);
-}
-
-//--------------------------------------------------------------------------------------------------------------------------------
-// updates the fluid particles by calling UpdateFluidD
-void UpdateFluid_implicit(thrust::device_vector<Real3>& posRadD,
-                          thrust::device_vector<Real3>& velMasD,
-                          thrust::device_vector<Real4>& rhoPresMuD,
-                          thrust::device_vector<Real4>& derivVelRhoD,
-                          const thrust::host_vector<int4>& referenceArray,
-                          Real dT) {
-  //	int4 referencePortion = referenceArray[0];
-  //	if (referencePortion.z != -1) {
-  //		printf("error in UpdateFluid, accessing non fluid\n");
-  //		return;
-  //	}
-  //	int2 updatePortion = mI2(referencePortion);
-  int2 updatePortion = mI2(0, referenceArray[referenceArray.size() - 1].y);
-  // int2 updatePortion = mI2(referenceArray[0].x, referenceArray[0].y);
-
-  bool *isErrorH, *isErrorD;
-  isErrorH = (bool*)malloc(sizeof(bool));
-  cudaMalloc((void**)&isErrorD, sizeof(bool));
-  *isErrorH = false;
-  cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
-  //------------------------
-  uint nBlock_UpdateFluid, nThreads;
-  computeGridSize(updatePortion.y - updatePortion.x, 128, nBlock_UpdateFluid, nThreads);
-  UpdateFluidD_implicit<<<nBlock_UpdateFluid, nThreads>>>(mR3CAST(posRadD), mR3CAST(velMasD), mR4CAST(rhoPresMuD),
-                                                          mR4CAST(derivVelRhoD), updatePortion, dT, isErrorD);
-  cudaThreadSynchronize();
-  cudaCheckError();
-  //------------------------
-  cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
-  if (*isErrorH == true) {
-    throw std::runtime_error("Error! program crashed in  UpdateFluidD!\n");
-  }
-  cudaFree(isErrorD);
-  free(isErrorH);
-}
 
 //--------------------------------------------------------------------------------------------------------------------------------
 // use invasive to avoid one extra copy. However, keep in mind that sorted is changed.
