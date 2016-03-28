@@ -56,17 +56,17 @@ using namespace chrono::irrlicht;
 using namespace irr;
 using namespace std;
 int num_threads = 4;
-//#define USE_IRR ;
+#define USE_IRR ;
 bool outputData = true;
 bool addGravity = false;
 bool addPressure = false;
 bool addForce = true;
-bool showTibia = false;
-bool showFemur = false;
+bool showTibia = true;
+bool showFemur = true;
 // bool addConstrain = true;
 // bool addForce = true;
 // bool addFixed = false;
-double time_step = 0.00001;
+double time_step = 0.0002;
 int scaleFactor = 1;
 double dz = 0.001;
 const double K_SPRINGS = 100e8;
@@ -76,6 +76,7 @@ double L0 = 0.01;  // Initial length
 double L0_t = 0.01;
 int write_interval = 20;
 
+void ManipulateFemur(ChSystemDEM& my_system, std::shared_ptr<ChBody> RigidBody, ChVector<> Initial_Pos);
 void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement);
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[64],
@@ -131,7 +132,8 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
                     K_sp[iii] * (c_length - l0[iii]) + C_dp[iii] * dc_length;  // Absolute value of spring-damper force
 
                 // Apply generalized force to node
-                //    GetLog() << " Vertical component and absolute value of force: " << dij.GetNormalized().y << "  "
+                //    GetLog() << " Vertical component and absolute value of force: " << dij.GetNormalized().y << "
+                //    "
                 //    << for_spdp;
                 this->load_Q(iii * 6 + 0) = -for_spdp * dij.GetNormalized().x;
                 this->load_Q(iii * 6 + 1) = -for_spdp * dij.GetNormalized().y;
@@ -287,12 +289,12 @@ int main(int argc, char* argv[]) {
         Femur->AddAsset(mobjmesh2);
     }
     //     Constraining the motion of the Fumer to y direction for now
-    if (true) {
-        // Prismatic joint between hub and suspended mass
-        auto primsJoint = std::make_shared<ChLinkLockPrismatic>();
-        my_system.AddLink(primsJoint);
-        primsJoint->Initialize(Femur, Tibia, ChCoordsys<>(ChVector<>(0, 0, 0), Q_from_AngX(-CH_C_PI_2)));
-    }
+    //    if (true) {
+    //        // Prismatic joint between hub and suspended mass
+    //        auto primsJoint = std::make_shared<ChLinkLockPrismatic>();
+    //        my_system.AddLink(primsJoint);
+    //        primsJoint->Initialize(Femur, Tibia, ChCoordsys<>(ChVector<>(0, 0, 0), Q_from_AngX(-CH_C_PI_2)));
+    //    }
     GetLog() << "-----------------------------------------------------------\n\n";
 
     std::vector<double> NODE_AVE_AREA_t, NODE_AVE_AREA_f;
@@ -319,9 +321,9 @@ int main(int argc, char* argv[]) {
     ///////////////////////////////////////////////////////////////////////////////////////////////////////
     //    Import the Femur
     try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_femur, GetChronoDataFile("fea/Femur.mesh").c_str(), material,
-                                               NODE_AVE_AREA_f, BC_NODES, Center_Femur, rot_transform, MeterToInch,
-                                               false, false);
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_femur, GetChronoDataFile("fea/FemurCoarse.mesh").c_str(),
+                                               material, NODE_AVE_AREA_f, BC_NODES, Center_Femur, rot_transform,
+                                               MeterToInch, false, false);
     } catch (ChException myerr) {
         GetLog() << myerr.what();
         return 0;
@@ -398,9 +400,9 @@ int main(int argc, char* argv[]) {
     ChVector<> Center(0, 0.0, 0);
     // Import the Tibia
     try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-1.mesh").c_str(), material,
-                                               NODE_AVE_AREA_t, BC_NODES1, Center, rot_transform, MeterToInch, false,
-                                               false);
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-1Low.mesh").c_str(),
+                                               material, NODE_AVE_AREA_t, BC_NODES1, Center, rot_transform, MeterToInch,
+                                               false, false);
     } catch (ChException myerr) {
         GetLog() << myerr.what();
         return 0;
@@ -413,9 +415,9 @@ int main(int argc, char* argv[]) {
 
     // Import the Tibia
     try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-2.mesh").c_str(), material,
-                                               NODE_AVE_AREA_t, BC_NODES2, Center, rot_transform, MeterToInch, false,
-                                               false);
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-2Low.mesh").c_str(),
+                                               material, NODE_AVE_AREA_t, BC_NODES2, Center, rot_transform, MeterToInch,
+                                               false, false);
     } catch (ChException myerr) {
         GetLog() << myerr.what();
         return 0;
@@ -697,24 +699,17 @@ int main(int argc, char* argv[]) {
         application.BeginScene();
         application.DrawAll();
         application.DoStep();
+        ManipulateFemur(my_system, Femur, Femur->GetPos());
         application.EndScene();
     }
 #else
     while (my_system.GetChTime() < 1) {
         ////////////////////////////////////////////////////////////////
         if (addForce) {
-            double t = my_system.GetChTime();
-            double T_MAX = 0.1;
             double F_MAX = -1000;
-            double F;
-            if (t < T_MAX)
-                F = (1 - cos((t / T_MAX) * 3.1415)) * F_MAX / 2;
-            else
-                F = F_MAX;
-            Femur->Empty_forces_accumulators();
-            Femur->Set_Scr_force(ChVector<>(0, F, 0));
-            std::cout << "t = " << my_system.GetChTime() << ", Applied Force = " << F
-                      << ", Femur Acc = " << Femur->GetPos_dtdt().y << ", Femur Pos = " << Femur->GetPos().y << "\n";
+            AddForce(my_system, Femur, 0.1, ChVector<>(0, F_MAX, 0));
+            std::cout << "t = " << my_system.GetChTime() << ", Femur Acc = " << Femur->GetPos_dtdt().y
+                      << ", Femur Pos = " << Femur->GetPos().y << "\n";
             if (outputData) {
                 // Create output directory (if it does not already exist).
                 if (ChFileutils::MakeDirectory("AC-Data") < 0) {
@@ -724,7 +719,7 @@ int main(int argc, char* argv[]) {
                 // Initialize the output stream and set precision.
                 std::ofstream output;
                 output.open("AC-Data/DATA.txt", std::ios::app);
-                output << my_system.GetChTime() << " " << F << " " << Femur->GetPos_dtdt().y << " " << Femur->GetPos().y
+                output << my_system.GetChTime() << " " << Femur->GetPos_dtdt().y << " " << Femur->GetPos().y
                        << std::endl;
                 // Write results to output file.
                 output.close();
@@ -752,8 +747,45 @@ int main(int argc, char* argv[]) {
             writeFrame(my_mesh_tibia, SaveAsBufferTibia, MeshFileBufferTibia, NodeNeighborElementTibia);
         }
 #endif
+
+    return 0;
 }
-return 0;
+
+void ManipulateFemur(ChSystemDEM& my_system, std::shared_ptr<ChBody> RigidBody, ChVector<> Initial_Pos) {
+    ////Adding force
+    double Time_Max = 1;  // Period of gate cycle is 2s
+    double t = my_system.GetChTime();
+    double y_Max = 0.005;
+    double theta_Max = 0.2;
+
+    double F_Max = -1000;
+    double T_Max = 20;
+    double Ft, Tt;
+    if (t < Time_Max) {
+        Ft = (1 - cos((t / Time_Max) * 3.1415)) * F_Max / 2;
+    } else {
+        Ft = F_Max;
+        Tt = T_Max;
+    }
+
+    double y_t = (sin((t / Time_Max) * 3.1415)) * y_Max * 0;
+    double theta_t = (sin((t / Time_Max) * 3.1415)) * theta_Max;
+
+    // Body is moving inside x-y plane
+
+    //    RigidBody->Empty_forces_accumulators();
+    //    RigidBody->Set_Scr_force(ChVector<>(0, Ft, 0));
+    //    RigidBody->Set_Scr_torque(ChVector<>(0, 0, Tt));
+    //    RigidBody->SetPos(ChVector<>(0, y, 0) + Initial_Pos);
+
+    ChMatrix33<> Rotation(0);
+    Rotation.SetElement(0, 0, cos(theta_t));
+    Rotation.SetElement(1, 1, cos(theta_t));
+    Rotation.SetElement(0, 1, -sin(theta_t));
+    Rotation.SetElement(1, 0, +sin(theta_t));
+    Rotation.SetElement(2, 2, 1);
+
+    RigidBody->SetRot(Rotation);
 }
 
 void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement) {
