@@ -327,7 +327,7 @@ int main(int argc, char* argv[]) {
         fsi_timer.start("fluid_initialization");
 
         int out_steps = std::ceil((1.0 / paramsH.dT) / out_fps);
-        out_steps = 1;
+        out_steps = 10;
         PrintToFile(posRadD, velMasD, rhoPresMuD, referenceArray, currentParamsH, realTime, tStep, out_steps,
                     pov_dir_fluid);
 

@@ -228,7 +228,9 @@ __device__ inline Real3 Distance(Real3 a, Real3 b) {
   //
   //  	dist3.z -= ((dist3.z > 0.5f * paramsD.boxDims.z) ? paramsD.boxDims.z : 0);
   //  	dist3.z += ((dist3.z < -0.5f * paramsD.boxDims.z) ? paramsD.boxDims.z : 0);
-  return Modify_Local_PosB(b, a);
+  //  return Modify_Local_PosB(b, a);
+  Real3 result = (a - b);
+  return result;
 }
 
 /**

@@ -189,23 +189,16 @@ void ForceSPH_implicit(thrust::device_vector<Real3>& posRadD,
   int2 updatePortion = mI2(referenceArray[0].y, referenceArray[2 + numObjects.numRigidBodies - 1].y);
 
   ///---------------------------------------------------------------------------------------------------------
-  double RESIDUAL = 0.01;
+  double RESIDUAL = 5;
   calcPressureIISPH(m_dSortedPosRad, m_dSortedVelMas, m_dSortedRhoPreMu, m_dCellStart, m_dCellEnd, mapOriginalToSorted,
                     paramsH, numObjects, updatePortion, dT, RESIDUAL);
 
   Update_FluidIISPH(m_dSortedPosRad, m_dSortedVelMas, m_dSortedRhoPreMu, m_dCellStart, m_dCellEnd, numAllMarkers,
                     paramsH, dT);
 
-  CopySortedToOriginal_Invasive_R3(velMasD, m_dSortedVelMas, m_dGridMarkerIndex);
-  CopySortedToOriginal_Invasive_R4(rhoPresMuD, m_dSortedRhoPreMu, m_dGridMarkerIndex);
-  CopySortedToOriginal_Invasive_R3(posRadD, m_dSortedPosRad, m_dGridMarkerIndex);
-
-  Real3 totalFluidBodyForce3 = paramsH.bodyForce3 + paramsH.gravity;
-  thrust::device_vector<Real4> bodyForceD(numAllMarkers);
-  thrust::fill(bodyForceD.begin(), bodyForceD.end(), mR4(totalFluidBodyForce3));
-  //  thrust::transform(derivVelRhoD.begin() + referenceArray[0].x, derivVelRhoD.begin() + referenceArray[0].y,
-  //                    bodyForceD.begin(), derivVelRhoD.begin() + referenceArray[0].x, thrust::plus<Real4>());
-  bodyForceD.clear();
+  CopySortedToOriginal_NonInvasive_R3(velMasD, m_dSortedVelMas, m_dGridMarkerIndex);
+  CopySortedToOriginal_NonInvasive_R4(rhoPresMuD, m_dSortedRhoPreMu, m_dGridMarkerIndex);
+  CopySortedToOriginal_NonInvasive_R3(posRadD, m_dSortedPosRad, m_dGridMarkerIndex);
 
   //********************************************************************************************************************************
   m_dSortedPosRad.clear();

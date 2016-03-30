@@ -37,12 +37,12 @@ Real maxFlowVelocity = 1;  // 12;  // in an ideal case, these two need to be the
 // Total simulation duration.
 Real time_end = 2;  // 15;
 
-Real fluidInitDimX = 1;
+Real fluidInitDimX = 0.5;
 Real fluidInitDimY = 0.1;  // This is half of the width
 Real fluidInitDimZ = 0.5;
 // Dimensions
 Real hdimX = 2;
-Real hdimY = 0.2;  // Should be the same as fluidInitDimY, BCEs are taken care of later
+Real hdimY = 0.1;  // Should be the same as fluidInitDimY, BCEs are taken care of later
 Real hdimZ = 2;
 int fluidCollisionFamily = 1;  // 2 and 3 are reserved for tire and chassis
 
@@ -72,7 +72,7 @@ NumberOfObjects numObjects;
  */
 void SetupParamsH(SimParams& paramsH) {
     paramsH.sizeScale = 1;  // don't change it.
-    paramsH.HSML = 0.025;   // 0.06;    // 0.06;//0.04;
+    paramsH.HSML = 0.05;    // 0.06;    // 0.06;//0.04;
     paramsH.MULT_INITSPACE = 1.0;
     paramsH.epsMinMarkersDis = .001;
     paramsH.NUM_BOUNDARY_LAYERS = 3;
@@ -86,11 +86,11 @@ void SetupParamsH(SimParams& paramsH) {
         mR3(0, 0, 0);  // mR4(3.2e-3,0,0,0);// mR4(0);;// /*Re = 100 */ //mR4(3.2e-4, 0, 0, 0);/*Re = 100 */
     paramsH.rho0 = 1000;
     paramsH.markerMass = pow(paramsH.MULT_INITSPACE * paramsH.HSML, 3) * paramsH.rho0;
-    paramsH.mu0 = 0.0001;
+    paramsH.mu0 = 0.001;
     paramsH.v_Max = maxFlowVelocity;  // Arman, I changed it to 0.1 for vehicle. Check this
                                       // later;//10;//50e-3;//18e-3;//1.5;//2e-1; /*0.2 for Re = 100 */ //2e-3;
     paramsH.EPS_XSPH = .5f;
-    paramsH.dT = 0.005;          // 0.2e-4;//1.0e-4;  // 2e-3;  // note you are using half of this for MBD system
+    paramsH.dT = 0.001;         // 0.2e-4;//1.0e-4;  // 2e-3;  // note you are using half of this for MBD system
     paramsH.tFinal = time_end;  // 20 * paramsH.dT; //400
     paramsH.timePause = time_pause_fluid_external_force;  //.0001 * paramsH.tFinal;//.0001 * paramsH.tFinal; 	// time
     // before applying any
@@ -134,7 +134,7 @@ void SetupParamsH(SimParams& paramsH) {
 
     paramsH.boxDims = paramsH.cMax - paramsH.cMin;
     //****************************************************************************************
-    paramsH.cMinInit = mR3(0.5, -fluidInitDimY, 0) + paramsH.NUM_BOUNDARY_LAYERS * paramsH.HSML * mR3(1, 0, 1);
+    paramsH.cMinInit = mR3(0.0, -fluidInitDimY, 0.0) + paramsH.NUM_BOUNDARY_LAYERS * paramsH.HSML * mR3(1, 0, 1);
     paramsH.cMaxInit = mR3(fluidInitDimX + 0.5, fluidInitDimY, fluidInitDimZ + 0.5) +
                        paramsH.NUM_BOUNDARY_LAYERS * paramsH.HSML * mR3(1, 0, 1);
 
