@@ -20,6 +20,7 @@
 #include "chrono_fea/ChNodeFEAxyz.h"
 #include "chrono_fea/ChNodeFEAxyzP.h"
 #include "chrono_fea/ChNodeFEAxyzrot.h"
+#include "chrono_fea/ChElementShellANCF.h"
 
 namespace chrono {
 namespace fea {

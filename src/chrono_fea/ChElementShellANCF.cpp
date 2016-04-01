@@ -156,11 +156,11 @@ void ChElementShellANCF::ComputeMmatrixGlobal(ChMatrix<>& M) {
 
 /// This class defines the calculations for the integrand of the inertia matrix.
 class MyMass : public ChIntegrable3D<ChMatrixNM<double, 24, 24> > {
-public:
-  MyMass(ChElementShellANCF* element) : m_element(element) {}
-  ~MyMass() {}
+  public:
+    MyMass(ChElementShellANCF* element) : m_element(element) {}
+    ~MyMass() {}
 
-private:
+  private:
     ChElementShellANCF* m_element;
 
     virtual void Evaluate(ChMatrixNM<double, 24, 24>& result, const double x, const double y, const double z) override;
@@ -233,9 +233,9 @@ void ChElementShellANCF::ComputeNodalMass() {
 class MyGravity : public ChIntegrable3D<ChMatrixNM<double, 24, 1> > {
   public:
     MyGravity(ChElementShellANCF* element, const ChVector<> gacc) : m_element(element), m_gacc(gacc) {}
-  ~MyGravity() {}
+    ~MyGravity() {}
 
-private:
+  private:
     ChElementShellANCF* m_element;
     ChVector<> m_gacc;
 
@@ -294,13 +294,11 @@ void ChElementShellANCF::ComputeGravityForce(const ChVector<>& g_acc) {
 // has an independent, user-selected fiber angle (direction for orthotropic constitutive behavior)
 class MyForce : public ChIntegrable3D<ChMatrixNM<double, 54, 1> > {
   public:
-    MyForce(ChElementShellANCF* element,             // Containing element
-            size_t kl,                               // Current layer index
-            ChMatrixNM<double, 5, 1>* alpha_eas      // Vector of internal parameters for EAS formulation
+    MyForce(ChElementShellANCF* element,         // Containing element
+            size_t kl,                           // Current layer index
+            ChMatrixNM<double, 5, 1>* alpha_eas  // Vector of internal parameters for EAS formulation
             )
-        : m_element(element),
-          m_kl(kl),
-          m_alpha_eas(alpha_eas) {}
+        : m_element(element), m_kl(kl), m_alpha_eas(alpha_eas) {}
     ~MyForce() {}
 
   private:
@@ -428,13 +426,13 @@ void MyForce::Evaluate(ChMatrixNM<double, 54, 1>& result, const double x, const 
     strain_til(0, 0) = 0.5 * ((Nx * ddNx)(0, 0) - (Nx * d0d0Nx)(0, 0));
     strain_til(1, 0) = 0.5 * ((Ny * ddNy)(0, 0) - (Ny * d0d0Ny)(0, 0));
     strain_til(2, 0) = (Nx * ddNy)(0, 0) - (Nx * d0d0Ny)(0, 0);
-    strain_til(3, 0) = N(0, 0) * m_element->m_strainANS(0, 0) + N(0, 2) * m_element->m_strainANS(1, 0) + N(0, 4) * m_element->m_strainANS(2, 0) +
-                       N(0, 6) * m_element->m_strainANS(3, 0);
+    strain_til(3, 0) = N(0, 0) * m_element->m_strainANS(0, 0) + N(0, 2) * m_element->m_strainANS(1, 0) +
+                       N(0, 4) * m_element->m_strainANS(2, 0) + N(0, 6) * m_element->m_strainANS(3, 0);
     strain_til(4, 0) = S_ANS(0, 2) * m_element->m_strainANS(6, 0) + S_ANS(0, 3) * m_element->m_strainANS(7, 0);
     strain_til(5, 0) = S_ANS(0, 0) * m_element->m_strainANS(4, 0) + S_ANS(0, 1) * m_element->m_strainANS(5, 0);
 
     // For orthotropic material
-    ChMatrixNM<double, 6, 1> strain; 
+    ChMatrixNM<double, 6, 1> strain;
 
     strain(0, 0) = strain_til(0, 0) * beta(0) * beta(0) + strain_til(1, 0) * beta(3) * beta(3) +
                    strain_til(2, 0) * beta(0) * beta(3) + strain_til(3, 0) * beta(6) * beta(6) +
@@ -800,8 +798,8 @@ void MyJacobian::Evaluate(ChMatrixNM<double, 696, 1>& result, const double x, co
     strain_til(0, 0) = 0.5 * ((Nx * ddNx)(0, 0) - (Nx * d0d0Nx)(0, 0));
     strain_til(1, 0) = 0.5 * ((Ny * ddNy)(0, 0) - (Ny * d0d0Ny)(0, 0));
     strain_til(2, 0) = (Nx * ddNy)(0, 0) - (Nx * d0d0Ny)(0, 0);
-    strain_til(3, 0) = N(0, 0) * m_element->m_strainANS(0, 0) + N(0, 2) * m_element->m_strainANS(1, 0) + N(0, 4) * m_element->m_strainANS(2, 0) +
-        N(0, 6) * m_element->m_strainANS(3, 0);
+    strain_til(3, 0) = N(0, 0) * m_element->m_strainANS(0, 0) + N(0, 2) * m_element->m_strainANS(1, 0) +
+                       N(0, 4) * m_element->m_strainANS(2, 0) + N(0, 6) * m_element->m_strainANS(3, 0);
     strain_til(4, 0) = S_ANS(0, 2) * m_element->m_strainANS(6, 0) + S_ANS(0, 3) * m_element->m_strainANS(7, 0);
     strain_til(5, 0) = S_ANS(0, 0) * m_element->m_strainANS(4, 0) + S_ANS(0, 1) * m_element->m_strainANS(5, 0);
 
@@ -809,29 +807,29 @@ void MyJacobian::Evaluate(ChMatrixNM<double, 696, 1>& result, const double x, co
     ChMatrixNM<double, 6, 1> strain;
 
     strain(0, 0) = strain_til(0, 0) * beta(0) * beta(0) + strain_til(1, 0) * beta(3) * beta(3) +
-        strain_til(2, 0) * beta(0) * beta(3) + strain_til(3, 0) * beta(6) * beta(6) +
-        strain_til(4, 0) * beta(0) * beta(6) + strain_til(5, 0) * beta(3) * beta(6);
+                   strain_til(2, 0) * beta(0) * beta(3) + strain_til(3, 0) * beta(6) * beta(6) +
+                   strain_til(4, 0) * beta(0) * beta(6) + strain_til(5, 0) * beta(3) * beta(6);
     strain(1, 0) = strain_til(0, 0) * beta(1) * beta(1) + strain_til(1, 0) * beta(4) * beta(4) +
-        strain_til(2, 0) * beta(1) * beta(4) + strain_til(3, 0) * beta(7) * beta(7) +
-        strain_til(4, 0) * beta(1) * beta(7) + strain_til(5, 0) * beta(4) * beta(7);
+                   strain_til(2, 0) * beta(1) * beta(4) + strain_til(3, 0) * beta(7) * beta(7) +
+                   strain_til(4, 0) * beta(1) * beta(7) + strain_til(5, 0) * beta(4) * beta(7);
     strain(2, 0) = strain_til(0, 0) * 2.0 * beta(0) * beta(1) + strain_til(1, 0) * 2.0 * beta(3) * beta(4) +
-        strain_til(2, 0) * (beta(1) * beta(3) + beta(0) * beta(4)) +
-        strain_til(3, 0) * 2.0 * beta(6) * beta(7) +
-        strain_til(4, 0) * (beta(1) * beta(6) + beta(0) * beta(7)) +
-        strain_til(5, 0) * (beta(4) * beta(6) + beta(3) * beta(7));
+                   strain_til(2, 0) * (beta(1) * beta(3) + beta(0) * beta(4)) +
+                   strain_til(3, 0) * 2.0 * beta(6) * beta(7) +
+                   strain_til(4, 0) * (beta(1) * beta(6) + beta(0) * beta(7)) +
+                   strain_til(5, 0) * (beta(4) * beta(6) + beta(3) * beta(7));
     strain(3, 0) = strain_til(0, 0) * beta(2) * beta(2) + strain_til(1, 0) * beta(5) * beta(5) +
-        strain_til(2, 0) * beta(2) * beta(5) + strain_til(3, 0) * beta(8) * beta(8) +
-        strain_til(4, 0) * beta(2) * beta(8) + strain_til(5, 0) * beta(5) * beta(8);
+                   strain_til(2, 0) * beta(2) * beta(5) + strain_til(3, 0) * beta(8) * beta(8) +
+                   strain_til(4, 0) * beta(2) * beta(8) + strain_til(5, 0) * beta(5) * beta(8);
     strain(4, 0) = strain_til(0, 0) * 2.0 * beta(0) * beta(2) + strain_til(1, 0) * 2.0 * beta(3) * beta(5) +
-        strain_til(2, 0) * (beta(2) * beta(3) + beta(0) * beta(5)) +
-        strain_til(3, 0) * 2.0 * beta(6) * beta(8) +
-        strain_til(4, 0) * (beta(2) * beta(6) + beta(0) * beta(8)) +
-        strain_til(5, 0) * (beta(5) * beta(6) + beta(3) * beta(8));
+                   strain_til(2, 0) * (beta(2) * beta(3) + beta(0) * beta(5)) +
+                   strain_til(3, 0) * 2.0 * beta(6) * beta(8) +
+                   strain_til(4, 0) * (beta(2) * beta(6) + beta(0) * beta(8)) +
+                   strain_til(5, 0) * (beta(5) * beta(6) + beta(3) * beta(8));
     strain(5, 0) = strain_til(0, 0) * 2.0 * beta(1) * beta(2) + strain_til(1, 0) * 2.0 * beta(4) * beta(5) +
-        strain_til(2, 0) * (beta(2) * beta(4) + beta(1) * beta(5)) +
-        strain_til(3, 0) * 2.0 * beta(7) * beta(8) +
-        strain_til(4, 0) * (beta(2) * beta(7) + beta(1) * beta(8)) +
-        strain_til(5, 0) * (beta(5) * beta(7) + beta(4) * beta(8));
+                   strain_til(2, 0) * (beta(2) * beta(4) + beta(1) * beta(5)) +
+                   strain_til(3, 0) * 2.0 * beta(7) * beta(8) +
+                   strain_til(4, 0) * (beta(2) * beta(7) + beta(1) * beta(8)) +
+                   strain_til(5, 0) * (beta(5) * beta(7) + beta(4) * beta(8));
 
     // Strain derivative component
 
@@ -893,32 +891,32 @@ void MyJacobian::Evaluate(ChMatrixNM<double, 696, 1>& result, const double x, co
     strainD_til.PasteClippedMatrix(&tempBB, 0, 0, 1, 24, 5, 0);  // strainD for yz
 
     //// For orthotropic material
-    ChMatrixNM<double, 6, 24> strainD;    // Derivative of the strains w.r.t. the coordinates. Includes orthotropy
+    ChMatrixNM<double, 6, 24> strainD;  // Derivative of the strains w.r.t. the coordinates. Includes orthotropy
     for (int ii = 0; ii < 24; ii++) {
         strainD(0, ii) = strainD_til(0, ii) * beta(0) * beta(0) + strainD_til(1, ii) * beta(3) * beta(3) +
-            strainD_til(2, ii) * beta(0) * beta(3) + strainD_til(3, ii) * beta(6) * beta(6) +
-            strainD_til(4, ii) * beta(0) * beta(6) + strainD_til(5, ii) * beta(3) * beta(6);
+                         strainD_til(2, ii) * beta(0) * beta(3) + strainD_til(3, ii) * beta(6) * beta(6) +
+                         strainD_til(4, ii) * beta(0) * beta(6) + strainD_til(5, ii) * beta(3) * beta(6);
         strainD(1, ii) = strainD_til(0, ii) * beta(1) * beta(1) + strainD_til(1, ii) * beta(4) * beta(4) +
-            strainD_til(2, ii) * beta(1) * beta(4) + strainD_til(3, ii) * beta(7) * beta(7) +
-            strainD_til(4, ii) * beta(1) * beta(7) + strainD_til(5, ii) * beta(4) * beta(7);
+                         strainD_til(2, ii) * beta(1) * beta(4) + strainD_til(3, ii) * beta(7) * beta(7) +
+                         strainD_til(4, ii) * beta(1) * beta(7) + strainD_til(5, ii) * beta(4) * beta(7);
         strainD(2, ii) = strainD_til(0, ii) * 2.0 * beta(0) * beta(1) + strainD_til(1, ii) * 2.0 * beta(3) * beta(4) +
-            strainD_til(2, ii) * (beta(1) * beta(3) + beta(0) * beta(4)) +
-            strainD_til(3, ii) * 2.0 * beta(6) * beta(7) +
-            strainD_til(4, ii) * (beta(1) * beta(6) + beta(0) * beta(7)) +
-            strainD_til(5, ii) * (beta(4) * beta(6) + beta(3) * beta(7));
+                         strainD_til(2, ii) * (beta(1) * beta(3) + beta(0) * beta(4)) +
+                         strainD_til(3, ii) * 2.0 * beta(6) * beta(7) +
+                         strainD_til(4, ii) * (beta(1) * beta(6) + beta(0) * beta(7)) +
+                         strainD_til(5, ii) * (beta(4) * beta(6) + beta(3) * beta(7));
         strainD(3, ii) = strainD_til(0, ii) * beta(2) * beta(2) + strainD_til(1, ii) * beta(5) * beta(5) +
-            strainD_til(2, ii) * beta(2) * beta(5) + strainD_til(3, ii) * beta(8) * beta(8) +
-            strainD_til(4, ii) * beta(2) * beta(8) + strainD_til(5) * beta(5) * beta(8);
+                         strainD_til(2, ii) * beta(2) * beta(5) + strainD_til(3, ii) * beta(8) * beta(8) +
+                         strainD_til(4, ii) * beta(2) * beta(8) + strainD_til(5) * beta(5) * beta(8);
         strainD(4, ii) = strainD_til(0, ii) * 2.0 * beta(0) * beta(2) + strainD_til(1, ii) * 2.0 * beta(3) * beta(5) +
-            strainD_til(2, ii) * (beta(2) * beta(3) + beta(0) * beta(5)) +
-            strainD_til(3, ii) * 2.0 * beta(6) * beta(8) +
-            strainD_til(4, ii) * (beta(2) * beta(6) + beta(0) * beta(8)) +
-            strainD_til(5, ii) * (beta(5) * beta(6) + beta(3) * beta(8));
+                         strainD_til(2, ii) * (beta(2) * beta(3) + beta(0) * beta(5)) +
+                         strainD_til(3, ii) * 2.0 * beta(6) * beta(8) +
+                         strainD_til(4, ii) * (beta(2) * beta(6) + beta(0) * beta(8)) +
+                         strainD_til(5, ii) * (beta(5) * beta(6) + beta(3) * beta(8));
         strainD(5, ii) = strainD_til(0, ii) * 2.0 * beta(1) * beta(2) + strainD_til(1, ii) * 2.0 * beta(4) * beta(5) +
-            strainD_til(2, ii) * (beta(2) * beta(4) + beta(1) * beta(5)) +
-            strainD_til(3, ii) * 2.0 * beta(7) * beta(8) +
-            strainD_til(4, ii) * (beta(2) * beta(7) + beta(1) * beta(8)) +
-            strainD_til(5, ii) * (beta(5) * beta(7) + beta(4) * beta(8));
+                         strainD_til(2, ii) * (beta(2) * beta(4) + beta(1) * beta(5)) +
+                         strainD_til(3, ii) * 2.0 * beta(7) * beta(8) +
+                         strainD_til(4, ii) * (beta(2) * beta(7) + beta(1) * beta(8)) +
+                         strainD_til(5, ii) * (beta(5) * beta(7) + beta(4) * beta(8));
     }
 
     /// Gd : Jacobian (w.r.t. coordinates) of the initial position vector gradient matrix
@@ -926,16 +924,16 @@ void MyJacobian::Evaluate(ChMatrixNM<double, 696, 1>& result, const double x, co
 
     for (int ii = 0; ii < 8; ii++) {
         Gd(0, 3 * (ii)) = j0(0, 0) * Nx(0, ii) + j0(1, 0) * Ny(0, ii) + j0(2, 0) * Nz(0, ii);
-        Gd(1, 3 * (ii)+1) = j0(0, 0) * Nx(0, ii) + j0(1, 0) * Ny(0, ii) + j0(2, 0) * Nz(0, ii);
-        Gd(2, 3 * (ii)+2) = j0(0, 0) * Nx(0, ii) + j0(1, 0) * Ny(0, ii) + j0(2, 0) * Nz(0, ii);
+        Gd(1, 3 * (ii) + 1) = j0(0, 0) * Nx(0, ii) + j0(1, 0) * Ny(0, ii) + j0(2, 0) * Nz(0, ii);
+        Gd(2, 3 * (ii) + 2) = j0(0, 0) * Nx(0, ii) + j0(1, 0) * Ny(0, ii) + j0(2, 0) * Nz(0, ii);
 
         Gd(3, 3 * (ii)) = j0(0, 1) * Nx(0, ii) + j0(1, 1) * Ny(0, ii) + j0(2, 1) * Nz(0, ii);
-        Gd(4, 3 * (ii)+1) = j0(0, 1) * Nx(0, ii) + j0(1, 1) * Ny(0, ii) + j0(2, 1) * Nz(0, ii);
-        Gd(5, 3 * (ii)+2) = j0(0, 1) * Nx(0, ii) + j0(1, 1) * Ny(0, ii) + j0(2, 1) * Nz(0, ii);
+        Gd(4, 3 * (ii) + 1) = j0(0, 1) * Nx(0, ii) + j0(1, 1) * Ny(0, ii) + j0(2, 1) * Nz(0, ii);
+        Gd(5, 3 * (ii) + 2) = j0(0, 1) * Nx(0, ii) + j0(1, 1) * Ny(0, ii) + j0(2, 1) * Nz(0, ii);
 
         Gd(6, 3 * (ii)) = j0(0, 2) * Nx(0, ii) + j0(1, 2) * Ny(0, ii) + j0(2, 2) * Nz(0, ii);
-        Gd(7, 3 * (ii)+1) = j0(0, 2) * Nx(0, ii) + j0(1, 2) * Ny(0, ii) + j0(2, 2) * Nz(0, ii);
-        Gd(8, 3 * (ii)+2) = j0(0, 2) * Nx(0, ii) + j0(1, 2) * Ny(0, ii) + j0(2, 2) * Nz(0, ii);
+        Gd(7, 3 * (ii) + 1) = j0(0, 2) * Nx(0, ii) + j0(1, 2) * Ny(0, ii) + j0(2, 2) * Nz(0, ii);
+        Gd(8, 3 * (ii) + 2) = j0(0, 2) * Nx(0, ii) + j0(1, 2) * Ny(0, ii) + j0(2, 2) * Nz(0, ii);
     }
 
     // Enhanced Assumed Strain 2nd
@@ -965,7 +963,7 @@ void MyJacobian::Evaluate(ChMatrixNM<double, 696, 1>& result, const double x, co
     stress.MatrMultiply(E_eps, strain);
 
     // Declaration and computation of Sigm, to be removed
-    ChMatrixNM<double, 9, 9> Sigm;    ///< Rearrangement of stress vector (not always needed)
+    ChMatrixNM<double, 9, 9> Sigm;  ///< Rearrangement of stress vector (not always needed)
 
     Sigm(0, 0) = stress(0, 0);  // XX
     Sigm(1, 1) = stress(0, 0);
@@ -1076,7 +1074,6 @@ void ChElementShellANCF::ShapeFunctions(ChMatrix<>& N, double x, double y, doubl
     N(5) = z * c / 2.0 * 0.25 * (1.0 + x) * (1.0 + y);
     N(6) = 0.25 * (1.0 - x) * (1.0 + y);
     N(7) = z * c / 2.0 * 0.25 * (1.0 - x) * (1.0 + y);
-
 }
 
 void ChElementShellANCF::ShapeFunctionsDerivativeX(ChMatrix<>& Nx, double x, double y, double z) {
@@ -1122,7 +1119,6 @@ void ChElementShellANCF::ShapeFunctionsDerivativeZ(ChMatrix<>& Nz, double x, dou
     Nz(5) = 0.250 * (1.0 + x) * (1.0 + y);
     Nz(6) = 0.0;
     Nz(7) = 0.250 * (1.0 - x) * (1.0 + y);
-
 }
 
 void ChElementShellANCF::Basis_M(ChMatrixNM<double, 6, 5>& M, double x, double y, double z) {
@@ -1328,6 +1324,26 @@ void ChElementShellANCF::CalcStrainANSbilinearShell() {
 // -----------------------------------------------------------------------------
 // Interface to ChElementShell base class
 // -----------------------------------------------------------------------------
+void ChElementShellANCF::EvaluateDeflection(double& def) {
+    ChVector<> oldPos;
+    ChVector<> newPos;
+    ChVector<> defVec;
+
+    for (int i = 0; i < 4; i++) {
+        oldPos.x += this->m_d0(2 * i, 0);
+        oldPos.y += this->m_d0(2 * i, 1);
+        oldPos.z += this->m_d0(2 * i, 2);
+    }
+
+    for (int i = 0; i < 4; i++) {
+        newPos.x += this->m_d(2 * i, 0);
+        newPos.y += this->m_d(2 * i, 1);
+        newPos.z += this->m_d(2 * i, 2);
+    }
+
+    defVec = (newPos - oldPos) / 4;
+    def = defVec.Length();
+}
 
 void ChElementShellANCF::EvaluateSectionDisplacement(const double u,
                                                      const double v,
