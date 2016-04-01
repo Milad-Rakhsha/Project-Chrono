@@ -95,20 +95,20 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
         // Calculate contact force.
         //        printf("distance is = %f\n", -this->norm_dist);
         
-        double DIST = -this->norm_dist;
-        ChVector<> p1 = this->GetContactP1();
-        ChVector<> p2 = this->GetContactP2();
-        double CD = this->GetContactDistance();
-        char buffer1[32], buffer2[32];  // The filename buffer.
+        // double DIST = -this->norm_dist;
+        // ChVector<> p1 = this->GetContactP1();
+        // ChVector<> p2 = this->GetContactP2();
+        // double CD = this->GetContactDistance();
+        // char buffer1[32], buffer2[32];  // The filename buffer.
 
-        std::ofstream Point1, Point2;
-        Point1.open(buffer1, std::ios::app);
-        Point2.open(buffer2, std::ios::app);
-        Point1 << p1.x << ", " << p1.y << ", " << p1.z << std::endl;
-        Point2 << p2.x << ", " << p2.y << ", " << p2.z << std::endl;
-        Point1.close();
-        Point2.close();
-        printf("Contact Distance=%f\n", CD);
+        // std::ofstream Point1, Point2;
+        // Point1.open(buffer1, std::ios::app);
+        // Point2.open(buffer2, std::ios::app);
+        // Point1 << p1.x << ", " << p1.y << ", " << p1.z << std::endl;
+        // Point2 << p2.x << ", " << p2.y << ", " << p2.z << std::endl;
+        // Point1.close();
+        // Point2.close();
+        // printf("Contact Distance=%f\n", CD);
 
         CalculateForce(-this->norm_dist,                            // overlap (here, always positive)
                        this->normal,                                // normal contact direction
