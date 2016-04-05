@@ -275,7 +275,7 @@ int main(int argc, char* argv[]) {
                                                      // currentParamsH.dT ;//0.7e6;//2.5e6;
                                                      // //200000;//10000;//50000;//100000;
 
-    stepEnd = 2000;
+    stepEnd = 20000;
 
     printf("stepEnd %d\n", stepEnd);
     Real realTime = 0;
@@ -327,7 +327,7 @@ int main(int argc, char* argv[]) {
         fsi_timer.start("fluid_initialization");
 
         int out_steps = std::ceil((1.0 / paramsH.dT) / out_fps);
-        out_steps = 10;
+        out_steps = 25;
         PrintToFile(posRadD, velMasD, rhoPresMuD, referenceArray, currentParamsH, realTime, tStep, out_steps,
                     pov_dir_fluid);
 

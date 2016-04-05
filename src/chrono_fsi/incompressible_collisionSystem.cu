@@ -748,15 +748,15 @@ void reorderDataAndFindCellStart(thrust::device_vector<uint>& cellStart,
   //#endif
 }
 //--------------------------------------------------------------------------------------------------------------------------------
-__global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted positions
-                                         Real4* sortedRhoPreMu,
-                                         uint* cellStart,
-                                         uint* cellEnd,
-                                         int2 updatePortion,
-                                         const int numAllMarkers,
-                                         const Real RHO_0,
-                                         const Real m_0,
-                                         volatile bool* isErrorD) {
+__global__ void calcRho_kernel(Real3* sortedPosRad,  // input: sorted positions
+                               Real* nonNormalRho,
+                               uint* cellStart,
+                               uint* cellEnd,
+                               int2 updatePortion,
+                               const int numAllMarkers,
+                               const Real RHO_0,
+                               const Real m_0,
+                               volatile bool* isErrorD) {
   uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (i_idx >= numAllMarkers) {
     return;
@@ -796,14 +796,71 @@ __global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted 
   }
 
   // Adding neighbor contribution is done!
+  nonNormalRho[i_idx] = sum_mW;
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted positions
+                                         Real4* sortedRhoPreMu,
+                                         Real* nonNormalRho,
+                                         uint* cellStart,
+                                         uint* cellEnd,
+                                         int2 updatePortion,
+                                         const int numAllMarkers,
+                                         const Real RHO_0,
+                                         const Real m_0,
+                                         volatile bool* isErrorD) {
+  uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i_idx >= numAllMarkers) {
+    return;
+  }
+  Real3 posRadA = sortedPosRad[i_idx];
+  Real sum_mW = 0;
+  Real sum_mW_over_Rho = 0;
+  // get address in grid
+  int3 gridPos = calcGridPos(posRadA);
+  //
+  //  /// if (gridPos.x == paramsD.gridSize.x-1) printf("****aha %d %d\n", gridPos.x, paramsD.gridSize.x);
+  //
+  // examine neighbouring cells
+  for (int z = -1; z <= 1; z++) {
+    for (int y = -1; y <= 1; y++) {
+      for (int x = -1; x <= 1; x++) {
+        int3 neighbourPos = gridPos + mI3(x, y, z);
+        uint gridHash = calcGridHash(neighbourPos);
+        // get start of bucket for this cell
+        uint startIndex = cellStart[gridHash];
+        if (startIndex != 0xffffffff) {  // cell is not empty
+                                         // iterate over particles in this cell
+          uint endIndex = cellEnd[gridHash];
+
+          for (uint j = startIndex; j < endIndex; j++) {
+            Real3 posRadB = sortedPosRad[j];
+            Real3 dist3 = Distance(posRadA, posRadB);
+            Real d = length(dist3);
+            if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML)
+              continue;
+            sum_mW += m_0 * W3(d);
+            sum_mW_over_Rho += m_0 * W3(d) / nonNormalRho[j];
+          }
+        }
+      }
+    }
+  }
+
   Real IncompressibilityFactor = 1;
-  sortedRhoPreMu[i_idx].x = (sum_mW - RHO_0) * IncompressibilityFactor + RHO_0;
+  sortedRhoPreMu[i_idx].x = (sum_mW / sum_mW_over_Rho - RHO_0) * IncompressibilityFactor + RHO_0;
+
   if (sortedRhoPreMu[i_idx].x < EPSILON) {
     printf("My density is %f, index= %d\n", sortedRhoPreMu[i_idx].x, i_idx);
     printf("My position = [%f %f %f]\n", sortedPosRad[i_idx].x, sortedPosRad[i_idx].y, sortedPosRad[i_idx].z);
 
     *isErrorD = true;
     return;
+  }
+
+  if (sortedRhoPreMu[i_idx].w == 0) {
+    sortedRhoPreMu[i_idx].x = RHO_0;
   }
 }
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -901,6 +958,7 @@ __global__ void Rho_np_AND_a_ii(Real3* sortedPosRad,
   }
   Real3 posi = sortedPosRad[i_idx];
   Real3 Veli_np = V_np[i_idx];
+  Real p_old_i = p_old[i_idx];
   Real Rho_i = sortedRhoPreMu[i_idx].x;
   Real3 my_d_ii = d_ii[i_idx];
   Real rho_temp = 0;
@@ -930,6 +988,7 @@ __global__ void Rho_np_AND_a_ii(Real3* sortedPosRad,
               continue;
             Real3 Velj_np = V_np[j];
             Real3 grad_i_wij = GradW(dist3);
+            Real Rho_j = sortedRhoPreMu[j].x;
             rho_temp += m_0 * dot((Veli_np - Velj_np), grad_i_wij);
             Real3 d_ji = m_0 * (-(dT * dT) / (Rho_i * Rho_i)) * (-grad_i_wij);
             my_a_ii += m_0 * dot((my_d_ii - d_ji), grad_i_wij);
@@ -940,7 +999,7 @@ __global__ void Rho_np_AND_a_ii(Real3* sortedPosRad,
   }
   rho_np[i_idx] = dT * rho_temp + sortedRhoPreMu[i_idx].x;
   a_ii[i_idx] = my_a_ii;
-  p_old[i_idx] = sortedRhoPreMu[i_idx].y * 1;
+  p_old[i_idx] = sortedRhoPreMu[i_idx].y;  // Note that this is outside of the for loop
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -955,15 +1014,15 @@ __global__ void Initialize_Variables(Real4* sortedRhoPreMu,
     return;
   }
 
-  p_old[i_idx] = sortedRhoPreMu[i_idx].y;  // This needs consistency p_old is old but v_new is new !!:D
-  if (sortedRhoPreMu[i_idx].w == 0)
-    sortedVelMas[i_idx] = V_new[i_idx];
+  p_old[i_idx] = sortedRhoPreMu[i_idx].y;  // This needs consistency p_old is old but v_new is new !!
+
   //  if (length(V_new[i_idx]) != 0)
   //    printf("This should be zero!");
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 
 __global__ void Calc_dij_pj(Real3* dij_pj,  // write
+                            Real3* F_p,     // Write
                             Real3* V_np,    // Read
                             Real3* d_ii,    // Read
                             Real3* sortedPosRad,
@@ -980,9 +1039,10 @@ __global__ void Calc_dij_pj(Real3* dij_pj,  // write
   if (i_idx >= numAllMarkers) {
     return;
   }
-
+  Real3 my_F_p = mR3(0);
+  Real p_i_old = p_old[i_idx];
   Real3 pos_i = sortedPosRad[i_idx];
-
+  Real Rho_i = sortedRhoPreMu[i_idx].x;
   if (sortedRhoPreMu[i_idx].x < EPSILON) {
     printf("My density is %f in Calc_dij_pj\n", sortedRhoPreMu[i_idx].x);
   }
@@ -1007,15 +1067,18 @@ __global__ void Calc_dij_pj(Real3* dij_pj,  // write
             ////CHECK THIS CONDITION!!!
             if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML || i_idx == j)
               continue;
+            Real3 grad_i_wij = GradW(dist3);
             Real Rho_j = sortedRhoPreMu[j].x;
             Real p_j_old = p_old[j];
-            My_dij_pj += m_0 * (-(dT * dT) / (Rho_j * Rho_j)) * GradW(dist3) * p_j_old;
+            My_dij_pj += m_0 * (-(dT * dT) / (Rho_j * Rho_j)) * grad_i_wij * p_j_old;
+            my_F_p += -m_0 * m_0 * ((p_i_old / (Rho_i * Rho_i)) + (p_j_old / (Rho_j * Rho_j))) * grad_i_wij;
           }
         }
       }
     }
   }
   dij_pj[i_idx] = My_dij_pj;
+  F_p[i_idx] = my_F_p;
 }
 
 ////--------------------------------------------------------------------------------------------------------------------------------
@@ -1024,6 +1087,8 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
                               Real3* d_ii,    // Read
                               Real3* dij_pj,  // Read
                               Real* rho_np,   // Read
+                              Real* rho_p,    // Write
+                              Real3* F_p,
                               Real3* sortedPosRad,
                               Real3* sortedVelMas,
                               Real4* sortedRhoPreMu,
@@ -1049,6 +1114,8 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
   Real p_i = p_old[i_idx];
   Real3 pos_i = sortedPosRad[i_idx];
   Real p_new = 0;
+  Real my_rho_p = 0;
+  Real3 F_i_p = F_p[i_idx];
 
   if (myType < 0) {
     if (Rho_i < 0.95 * RHO_0) {
@@ -1077,21 +1144,23 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
                 //                Real Rho_j = sortedRhoPreMu[j].x;
                 Real p_j_old = p_old[j];
                 Real3 djj = d_ii[j];
+                Real3 F_j_p = F_p[j];
                 Real3 grad_i_wij = GradW(dist3ij);
                 Real3 d_ji = m_0 * (-(dT * dT) / (Rho_i * Rho_i)) * (-grad_i_wij);
                 Real3 djk_pk = dij_pj[j] - d_ji * p_i;
                 sum_dij_pj += m_0 * dot(my_dij_pj, grad_i_wij);
                 sum_djj_pj += m_0 * dot(djj, grad_i_wij) * p_j_old;
                 sum_djk_pk += m_0 * dot(djk_pk, grad_i_wij);
+                my_rho_p += (dT * dT) * m_0 * dot((F_i_p / m_0 - F_j_p / m_0), grad_i_wij);
               }
             }
           }
         }
       }
 
-      p_new = (RHO_0 - rho_np[i_idx] - sum_dij_pj + sum_djj_pj + sum_djk_pk) / a_ii[i_idx];
+      p_new = (min(0.0, RHO_0 - rho_np[i_idx]) - sum_dij_pj + sum_djj_pj + sum_djk_pk) / a_ii[i_idx];
     }
-  } else if (myType = 0) {  // Do Adami BC
+  } else if (myType == 0) {  // Do Adami BC
 
     Real3 numeratorv = mR3(0);
     Real denumenator = 0;
@@ -1118,10 +1187,15 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
               // OLD VELOCITY IS SHOULD BE OBDATED NOT THE NEW ONE!!!!!
               Real3 Vel_j = sortedVelMas[j];
               Real p_j = p_old[j];
+              Real3 F_j_p = F_p[j];
+
               Real Wd = W3(d);
               numeratorv += Vel_j * Wd;
               numeratorp += p_j * Wd + dot(gravity, dist3) * Rho_i * Wd;
               denumenator += Wd;
+              Real3 TobeUsed = (F_i_p / m_0 - F_j_p / m_0);
+              my_rho_p += (dT * dT) * m_0 * dot(TobeUsed, GradW(dist3));
+
               if (isnan(numeratorp))
                 printf("Something is wrong here..., %f\n", numeratorp);
             }
@@ -1136,12 +1210,13 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
     } else {
       Vel_i = -numeratorv / denumenator;
       p_new = numeratorp / denumenator;
+
       if (isnan(denumenator) || isnan(numeratorp))
         printf("I cheated, something is wrong though ...\n");
     }
     V_new[i_idx] = Vel_i;
   }
-
+  rho_p[i_idx] = my_rho_p;
   sortedRhoPreMu[i_idx].y = p_new;
 }
 ////--------------------------------------------------------------------------------------------------------------------------------
@@ -1151,6 +1226,8 @@ __global__ void Update_AND_Calc_Res(Real3* sortedVelMas,
                                     Real4* sortedRhoPreMu,
                                     Real* p_old,
                                     Real3* V_new,
+                                    Real* rho_p,
+                                    Real* rho_np,
                                     Real* Residuals,
                                     const int numAllMarkers,
                                     const int Iteration,
@@ -1171,12 +1248,29 @@ __global__ void Update_AND_Calc_Res(Real3* sortedVelMas,
   else if (Iteration < 200)  // No relaxation
     relax = 0.5;
   else  // Under-relaxation
-    relax = 0.5;
+    relax = 0.4;
 
   //  p_i = (1 - relax) * p_old_i + relax * p_i;
   sortedRhoPreMu[i_idx].y = (1 - relax) * p_old[i_idx] + relax * sortedRhoPreMu[i_idx].y;
-  Real AbsRes = abs(sortedRhoPreMu[i_idx].y - p_old[i_idx]);
-  Residuals[i_idx] = AbsRes;
+  //  Real AbsRes = abs(sortedRhoPreMu[i_idx].y - p_old[i_idx]);
+
+  //  if (abs(sortedRhoPreMu[i_idx].y) < 1 && abs(p_old[i_idx]) < 1) {
+  //    p_res = abs(sortedRhoPreMu[i_idx].y - p_old[i_idx]) / (abs(p_old[i_idx]) + abs(sortedRhoPreMu[i_idx].y));
+  //    if (abs(sortedRhoPreMu[i_idx].y) < 1e-3 && abs(p_old[i_idx]) < 1e-3)
+  //      p_res = 0;
+  //    if (sortedRhoPreMu[i_idx].w == 0)
+  //      p_res = 0;
+  //  } else {
+  //    p_res = abs(sortedRhoPreMu[i_idx].y - p_old[i_idx]) / abs(sortedRhoPreMu[i_idx].y);
+  //  }
+
+  Real Updated_rho = rho_np[i_idx] + rho_p[i_idx];
+  Real rho_res = abs(1000 - Updated_rho);
+  Real p_res = 0;
+  p_res = abs(sortedRhoPreMu[i_idx].y - p_old[i_idx]) / (abs(p_old[i_idx]) + 0.0001);
+
+  Residuals[i_idx] = (p_res);
+  //  sortedRhoPreMu[i_idx].x = Updated_rho;
 
   if (sortedRhoPreMu[i_idx].w == 0)
     sortedVelMas[i_idx] = V_new[i_idx];
@@ -1228,12 +1322,12 @@ __global__ void CalcForces(Real3* new_Pos,       // Write
 
           Real3 grad_i_wij = GradW(dist3);
           Real3 V_ij = (Veli - Velj);
-          F_i_p += m_0 * ((p_i / (rho_i * rho_i)) + (p_j / (rho_j * rho_j))) * grad_i_wij;
+          F_i_p += -m_0 * ((p_i / (rho_i * rho_i)) + (p_j / (rho_j * rho_j))) * grad_i_wij;
           if (!isfinite(length(F_i_p))) {
             printf("F_i_p in CalcForces returns Nan or Inf");
           }
           Real Rho_bar = (rho_j + rho_i) * 0.5;
-          Real3 muNumerator = -2 * mu_0 * dot(dist3, grad_i_wij) * V_ij;
+          Real3 muNumerator = 2 * mu_0 * dot(dist3, grad_i_wij) * V_ij;
           Real muDenominator = (Rho_bar * Rho_bar) * (d * d + paramsD.HSML * paramsD.HSML * epsilon);
           F_i_np += m_0 * muNumerator / muDenominator;
           if (!isfinite(length(F_i_np))) {
@@ -1243,8 +1337,6 @@ __global__ void CalcForces(Real3* new_Pos,       // Write
       }
     }
   }
-  F_i_p = -F_i_p;
-  F_i_np = -F_i_np;
 
   new_vel[i_idx] = Veli + dT * (F_i_p + F_i_np) + gravity * dT;
   new_Pos[i_idx] = posi + dT * new_vel[i_idx];
@@ -1302,11 +1394,26 @@ void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
   int numAllMarkers = numObjects.numBoundaryMarkers + numObjects.numFluidMarkers;
   computeGridSize(numAllMarkers, 512, numBlocks, numThreads);
   printf("numBlocks: %d, numThreads: %d, numAllMarker:%d \n", numBlocks, numThreads, numAllMarkers);
+  thrust::device_vector<Real3> nonNormRho(numAllMarkers);
+
+  *isErrorH = false;
+  cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+  calcRho_kernel<<<numBlocks, numThreads>>>(mR3CAST(sortedPosRad), R1CAST(nonNormRho), U1CAST(cellStart),
+                                            U1CAST(cellEnd), updatePortion, numAllMarkers, paramsH.rho0,
+                                            paramsH.markerMass, isErrorD);
+
+  cudaThreadSynchronize();
+  cudaCheckError();
+  cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+  if (*isErrorH == true) {
+    throw std::runtime_error("Error! program crashed after F_i_np__AND__d_ii_kernel!\n");
+  }
 
   calcNormalizedRho_kernel<<<numBlocks, numThreads>>>(mR3CAST(sortedPosRad),
                                                       mR4CAST(sortedRhoPreMu),  // input: sorted velocities
-                                                      U1CAST(cellStart), U1CAST(cellEnd), updatePortion, numAllMarkers,
-                                                      paramsH.rho0, paramsH.markerMass, isErrorD);
+                                                      R1CAST(nonNormRho), U1CAST(cellStart), U1CAST(cellEnd),
+                                                      updatePortion, numAllMarkers, paramsH.rho0, paramsH.markerMass,
+                                                      isErrorD);
 
   // This is mandatory to sync here
   cudaThreadSynchronize();
@@ -1365,6 +1472,10 @@ void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
   thrust::fill(V_new.begin(), V_new.end(), mR3(0));
   thrust::device_vector<Real3> dij_pj(numAllMarkers);
   thrust::fill(dij_pj.begin(), dij_pj.end(), mR3(0));
+  thrust::device_vector<Real3> F_p(numAllMarkers);
+  thrust::fill(F_p.begin(), F_p.end(), mR3(0));
+  thrust::device_vector<Real> rho_p(numAllMarkers);
+  thrust::fill(rho_p.begin(), rho_p.end(), 0);
 
   while (MaxRes > RES || Iteration < 3) {
     *isErrorH = false;
@@ -1380,10 +1491,10 @@ void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
 
     *isErrorH = false;
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
-    Calc_dij_pj<<<numBlocks, numThreads>>>(mR3CAST(dij_pj), mR3CAST(V_np), mR3CAST(d_ii), mR3CAST(sortedPosRad),
-                                           mR3CAST(sortedVelMas), mR4CAST(sortedRhoPreMu), R1CAST(p_old),
-                                           U1CAST(cellStart), U1CAST(cellEnd), numAllMarkers, paramsH.markerMass, dT,
-                                           isErrorD);
+    Calc_dij_pj<<<numBlocks, numThreads>>>(mR3CAST(dij_pj), mR3CAST(F_p), mR3CAST(V_np), mR3CAST(d_ii),
+                                           mR3CAST(sortedPosRad), mR3CAST(sortedVelMas), mR4CAST(sortedRhoPreMu),
+                                           R1CAST(p_old), U1CAST(cellStart), U1CAST(cellEnd), numAllMarkers,
+                                           paramsH.markerMass, dT, isErrorD);
     cudaThreadSynchronize();
     cudaCheckError();
     cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
@@ -1393,10 +1504,11 @@ void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
 
     *isErrorH = false;
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
-    Calc_Pressure<<<numBlocks, numThreads>>>(
-        R1CAST(a_ii), mR3CAST(d_ii), mR3CAST(dij_pj), R1CAST(rho_np), mR3CAST(sortedPosRad), mR3CAST(sortedVelMas),
-        mR4CAST(sortedRhoPreMu), R1CAST(p_old), mR3CAST(V_new), U1CAST(cellStart), U1CAST(cellEnd), numAllMarkers,
-        paramsH.markerMass, paramsH.rho0, dT, paramsH.gravity, isErrorD);
+    Calc_Pressure<<<numBlocks, numThreads>>>(R1CAST(a_ii), mR3CAST(d_ii), mR3CAST(dij_pj), R1CAST(rho_np),
+                                             R1CAST(rho_p), mR3CAST(F_p), mR3CAST(sortedPosRad), mR3CAST(sortedVelMas),
+                                             mR4CAST(sortedRhoPreMu), R1CAST(p_old), mR3CAST(V_new), U1CAST(cellStart),
+                                             U1CAST(cellEnd), numAllMarkers, paramsH.markerMass, paramsH.rho0, dT,
+                                             paramsH.gravity, isErrorD);
     cudaThreadSynchronize();
     cudaCheckError();
     cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
@@ -1407,8 +1519,8 @@ void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
     *isErrorH = false;
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
     Update_AND_Calc_Res<<<numBlocks, numThreads>>>(mR3CAST(sortedVelMas), mR4CAST(sortedRhoPreMu), R1CAST(p_old),
-                                                   mR3CAST(V_new), R1CAST(Residuals), numAllMarkers, Iteration,
-                                                   isErrorD);
+                                                   mR3CAST(V_new), R1CAST(rho_p), R1CAST(rho_np), R1CAST(Residuals),
+                                                   numAllMarkers, Iteration, isErrorD);
     cudaThreadSynchronize();
     cudaCheckError();
     cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
@@ -1417,11 +1529,13 @@ void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
     }
 
     Iteration++;
-    //    MaxRes = thrust::reduce(Residuals.begin(), Residuals.end(), 0.0, thrust::plus<Real>()) / Residuals.size();
-    MaxRes = thrust::reduce(Residuals.begin(), Residuals.end(), 0.0, thrust::maximum<Real>());
-    //             thrust::reduce(p_old.begin(), p_old.end(), 0.0, thrust::maximum<Real>());
+    //    MaxRes = thrust::reduce(Residuals.begin(), Residuals.end(), 0.0, thrust::maximum<Real>());
+    Real PMAX = thrust::reduce(p_old.begin(), p_old.end(), 0.0, thrust::maximum<Real>());
+    MaxRes = thrust::reduce(Residuals.begin(), Residuals.end(), 0.0, thrust::plus<Real>()) / Residuals.size();
+    Real R_np = thrust::reduce(rho_np.begin(), rho_np.end(), 0.0, thrust::plus<Real>()) / rho_np.size();
+    Real R_p = thrust::reduce(rho_p.begin(), rho_p.end(), 0.0, thrust::plus<Real>()) / rho_p.size();
 
-    printf("Iteration= %d, residual= %f, \n", Iteration, MaxRes);
+    printf("Iter= %d, Res= %f, Max Comp= %f \n", Iteration, MaxRes, R_p);
   }
   //  printf("Iteration= %d, residual= %f, \n", Iteration, MaxRes);
 
