@@ -68,11 +68,14 @@ bool addGravity = false;
 bool addPressure = false;
 bool addForce = true;
 bool showTibia = true;
-bool showFemur = true;
+bool showFemur = false;
+bool tibiaCartilage = true;
+bool femurCartilage = true;
+
 // bool addConstrain = true;
 // bool addForce = true;
 // bool addFixed = false;
-double time_step = 0.0005;
+double time_step = 0.001;
 int scaleFactor = 1;
 double dz = 0.001;
 const double K_SPRINGS = 100e8;
@@ -81,6 +84,9 @@ double MeterToInch = 0.02539998628;
 double L0 = 0.01;  // Initial length
 double L0_t = 0.01;
 int write_interval = 20;
+
+void GetDataFile(const char* filename, std::vector<std::vector<double>>& DATA);
+void impose_TF_motion(std::vector<std::vector<double>> motionInfo, std::shared_ptr<ChLinkLockLock> my_link_TF);
 void ManipulateFemur(ChSystemDEM& my_system,
                      std::shared_ptr<ChBody> RigidBodyFemur,
                      std::shared_ptr<ChBody> RigidBodyTibia,
@@ -142,7 +148,8 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
                     K_sp[iii] * (c_length - l0[iii]) + C_dp[iii] * dc_length;  // Absolute value of spring-damper force
 
                 // Apply generalized force to node
-                //    GetLog() << " Vertical component and absolute value of force: " << dij.GetNormalized().y << "  "
+                //    GetLog() << " Vertical component and absolute value of force: " << dij.GetNormalized().y << "
+                //    "
                 //    << for_spdp;
                 this->load_Q(iii * 6 + 0) = -for_spdp * dij.GetNormalized().x;
                 this->load_Q(iii * 6 + 1) = -for_spdp * dij.GetNormalized().y;
@@ -232,8 +239,8 @@ int main(int argc, char* argv[]) {
     application.AddTypicalLights(core::vector3df(0, -5, 0), core::vector3df(0, 5, 0), 90, 90,
                                  irr::video::SColorf(0.5, 0.5, 0.5));
 
-    application.AddTypicalCamera(core::vector3df(-0.0f, -0.001f, 0.1f),  // camera location
-                                 core::vector3df(0.0f, 0.001f, -0.1f));  // "look at" location
+    application.AddTypicalCamera(core::vector3df(-0.2f, -0.000f, 0.0f),  // camera location
+                                 core::vector3df(0.2f, 0.000f, -0.0f));  // "look at" location
     application.SetContactsDrawMode(ChIrrTools::CONTACT_DISTANCES);
 #endif
 
@@ -242,7 +249,7 @@ int main(int argc, char* argv[]) {
                                                                   // material: troubles
     // Use this value for an outward additional layer around meshes, that can improve
     // robustness of mesh-mesh collision detection (at the cost of having unnatural inflate effect)
-    double sphere_swept_thickness = dz * 0.5;
+    double sphere_swept_thickness = dz * 0.01;
 
     double rho = 1000 * 0.005 / dz;  ///< material density
     double E = 40e7;                 ///< Young's modulus
@@ -253,13 +260,10 @@ int main(int argc, char* argv[]) {
     // all surfaces that might generate contacts.
     my_system.SetContactForceModel(ChSystemDEM::Hooke);
     auto mysurfmaterial = std::make_shared<ChMaterialSurfaceDEM>();
-    //    mysurfmaterial->SetYoungModulus(1e2);
-    //    mysurfmaterial->SetFriction(0.3f);
-    //    mysurfmaterial->SetRestitution(0.5f);
-    //    mysurfmaterial->SetAdhesion(0);
-    mysurfmaterial->SetKn(16e5);
+
+    mysurfmaterial->SetKn(1e4);
     mysurfmaterial->SetKt(1);
-    mysurfmaterial->SetGn(5e1);
+    mysurfmaterial->SetGn(2e0);
     mysurfmaterial->SetGt(1);
 
     GetLog() << "-----------------------------------------------------------\n";
@@ -271,11 +275,10 @@ int main(int argc, char* argv[]) {
     // Creating Rigid body
     GetLog() << "	Adding the Tibia as a Rigid Body ...\n";
     auto Tibia = std::make_shared<ChBody>();
-    Tibia->SetPos(ChVector<>(0, -0.001, 0));
-    Tibia->SetBodyFixed(true);
+    Tibia->SetBodyFixed(false);
     Tibia->SetMaterialSurface(mysurfmaterial);
     my_system.Add(Tibia);
-    Tibia->SetMass(0.1);
+    Tibia->SetMass(200);
     Tibia->SetInertiaXX(ChVector<>(0.004, 0.8e-4, 0.004));
     auto mobjmesh1 = std::make_shared<ChObjShapeFile>();
     mobjmesh1->SetFilename(GetChronoDataFile("fea/tibia.obj"));
@@ -284,12 +287,12 @@ int main(int argc, char* argv[]) {
     }
 
     //    GetLog() << "	Adding the Femur as a Rigid Body ...\n";
-    ChVector<> Center_Femur(0, 0.005, 0);
+    ChVector<> Center_Femur(0, 0.000, 0);
     auto Femur = std::make_shared<ChBody>();
     Femur->SetPos(Center_Femur);
-    Femur->SetBodyFixed(false);
+    Femur->SetBodyFixed(true);
     Femur->SetMaterialSurface(mysurfmaterial);
-    Femur->SetMass(200);
+    Femur->SetMass(0.2);
     Femur->SetInertiaXX(ChVector<>(0.004, 0.8e-4, 0.004));
     auto mobjmesh2 = std::make_shared<ChObjShapeFile>();
     mobjmesh2->SetFilename(GetChronoDataFile("fea/femur.obj"));
@@ -297,29 +300,40 @@ int main(int argc, char* argv[]) {
         Femur->AddAsset(mobjmesh2);
     }
 
-    auto MarkerFemurIn = std::make_shared<ChMarker>();
+    auto MarkerFemur = std::make_shared<ChMarker>();
     auto MarkerTibia = std::make_shared<ChMarker>();
-    Femur->AddMarker(MarkerFemurIn);
+    Femur->AddMarker(MarkerFemur);
     Tibia->AddMarker(MarkerTibia);
     my_system.Add(Femur);
 
-    auto my_link_FT = std::make_shared<ChLinkLockLock>();
-    my_link_FT->Initialize(MarkerFemurIn, MarkerTibia);
-    my_system.AddLink(my_link_FT);
+    auto my_link_TF = std::make_shared<ChLinkLockLock>();
+    my_link_TF->Initialize(MarkerTibia, MarkerFemur);
+    my_system.AddLink(my_link_TF);
 
-    class A_COSX : public ChFunction {
-      public:
-        ChFunction* new_Duplicate() { return new A_COSX; }
-        double A = 0.5;
-        double w = 2 * 3.1415 / 0.1;
-        virtual double Get_y(double x) {
-            double y = 0.5 * A * (1 - cos(w * x));
-            return y;
-        }
-    };
+    std::vector<std::vector<double>> motionInfo;
+    GetDataFile(GetChronoDataFile("fea/knee_kinematics.csv").c_str(), motionInfo);
+    //    // motionInfo: t,TF_tx,TF_ty,TF_tz,TF_rx,TF_ry,TF_rz,PF_tx,PF_ty,PF_tz,PF_rx,PF_ry,PF_rz
+    ////These
 
-    A_COSX* phi_motion = new A_COSX;
-    my_link_FT->SetMotion_ang(phi_motion);
+    double toRad = 3.1415 / 180;
+    ChQuaternion<> RotationZ;
+    RotationZ = Q_from_AngZ(toRad * motionInfo[0][6]);
+    ChQuaternion<> RotationY;
+    RotationY = Q_from_AngY(toRad * motionInfo[0][5]);
+    ChQuaternion<> RotationX;
+    RotationX = Q_from_AngX(toRad * motionInfo[0][4]);
+
+    ChMatrix33<> RotationZZ(0);
+    RotationZZ.SetElement(0, 0, cos(toRad * motionInfo[0][6]));
+    RotationZZ.SetElement(1, 1, cos(toRad * motionInfo[0][6]));
+    RotationZZ.SetElement(0, 1, -sin(toRad * motionInfo[0][6]));
+    RotationZZ.SetElement(1, 0, +sin(toRad * motionInfo[0][6]));
+    RotationZZ.SetElement(2, 2, 1);
+    //    //
+
+    Tibia->SetPos(ChVector<>(motionInfo[0][1], motionInfo[0][2], motionInfo[0][3]));
+    Tibia->SetRot(RotationZ);
+    impose_TF_motion(motionInfo, my_link_TF);
 
     //    ////Connect Fumer to Tibia through a plane-plane joint.
     //    ////The normal to the common plane is along the z global axis.
@@ -327,14 +341,6 @@ int main(int argc, char* argv[]) {
     //    my_system.AddLink(plane_plane);
     //    plane_plane->SetName("plane_plane");
     //    plane_plane->Initialize(Femur, Tibia, ChCoordsys<>(ChVector<>(0, 0, 0)));
-
-    //////Constraining the motion of the Fumer to y direction for now
-    //    if (true) {
-    //        // Prismatic joint between hub and suspended mass
-    //        auto primsJoint = std::make_shared<ChLinkLockPrismatic>();
-    //        my_system.AddLink(primsJoint);
-    //        primsJoint->Initialize(Femur, Tibia, ChCoordsys<>(ChVector<>(0, 0, 0), Q_from_AngX(-CH_C_PI_2)));
-    //    }
 
     GetLog() << "-----------------------------------------------------------\n\n";
 
@@ -347,11 +353,6 @@ int main(int argc, char* argv[]) {
     auto my_mesh_femur = std::make_shared<ChMesh>();
     auto my_mesh_tibia = std::make_shared<ChMesh>();
 
-    //    ChMatrix33<> rot_transform(0);
-    //    rot_transform.SetElement(0, 0, 1);
-    //    rot_transform.SetElement(1, 1, -1);
-    //    rot_transform.SetElement(2, 2, 1);
-
     ChMatrix33<> rot_transform(1);
     double Tottal_stiff = 0;
     double Tottal_damp = 0;
@@ -361,156 +362,149 @@ int main(int argc, char* argv[]) {
     ///////////////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////
     //    Import the Femur
-    //    try {
-    //        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_femur, GetChronoDataFile("fea/FemurCoarse.mesh").c_str(),
-    //                                               material, NODE_AVE_AREA_f, BC_NODES, Center_Femur, rot_transform,
-    //                                               MeterToInch, false, false);
-    //    } catch (ChException myerr) {
-    //        GetLog() << myerr.what();
-    //        return 0;
-    //    }
-    //
-    //    if (true) {
-    //        for (int node = 0; node < BC_NODES.size(); node++) {
-    //            auto NodePosBone = std::make_shared<ChLinkPointFrame>();
-    //            auto NodeDirBone = std::make_shared<ChLinkDirFrame>();
-    //            auto ConstrainedNode = std::make_shared<ChNodeFEAxyzD>();
-    //
-    //            ConstrainedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_femur->GetNode(BC_NODES[node]));
-    //            NodePosBone->Initialize(ConstrainedNode, Femur);
-    //            my_system.Add(NodePosBone);
-    //
-    //            NodeDirBone->Initialize(ConstrainedNode, Femur);
-    //            NodeDirBone->SetDirectionInAbsoluteCoords(ConstrainedNode->D);
-    //            my_system.Add(NodeDirBone);
-    //        }
-    //    }
-    //    printf("FEMUR WAS IMPORTET? NODE NUM= %d\n", my_mesh_femur->GetNnodes());
-    //
-    //    auto mloadcontainerFemur = std::make_shared<ChLoadContainer>();
-    //    if (true) {
-    //        // Select on which nodes we are going to apply a load
-    //        std::vector<std::shared_ptr<ChLoadable>> NodeList;
-    //        for (int iNode = 0; iNode < my_mesh_femur->GetNnodes(); iNode++) {
-    //            auto NodeLoad = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_femur->GetNode(iNode));
-    //            NodeList.push_back(NodeLoad);
-    //        }
-    //        auto OneLoadSpringDamperFemur = std::make_shared<MyLoadSpringDamper>(NodeList, Femur);
-    //        for (int iNode = 0; iNode < my_mesh_femur->GetNnodes(); iNode++) {
-    //            auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_femur->GetNode(iNode));
-    //            ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
-    //            // attachment point in the body in global coordiantes
-    //            // Stiffness of the Elastic Foundation
-    //            double K_S = K_SPRINGS * NODE_AVE_AREA_f[iNode];  // Stiffness Constant
-    //            double C_S = C_DAMPERS * NODE_AVE_AREA_f[iNode];  // Damper Constant
-    //            Tottal_stiff += K_S;
-    //            Tottal_damp += C_S;
-    //            // Initial length
-    //            OneLoadSpringDamperFemur->C_dp[iNode] = C_S;
-    //            OneLoadSpringDamperFemur->K_sp[iNode] = K_S;
-    //            OneLoadSpringDamperFemur->l0[iNode] = L0_t;
-    //            // Calculate the damping ratio zeta
-    //            double zeta, m_ele;
-    //            m_ele = rho * dz * NODE_AVE_AREA_f[iNode];
-    //            zeta = C_S / (2 * sqrt(K_S * m_ele));
-    //            //            GetLog() << "Zeta of node # " << iNode << " is set to : " << zeta << "\n";
-    //            OneLoadSpringDamperFemur->LocalBodyAtt[iNode] = Femur->Point_World2Body(AttachBodyGlobal);
-    //        }
-    //        mloadcontainerFemur->Add(OneLoadSpringDamperFemur);
-    //        GetLog() << "Total Stiffness (N/mm)= " << Tottal_stiff / 1e3 << " Total Damping = " << Tottal_damp
-    //                 << " Average zeta= " << Tottal_damp / (2 * sqrt(Tottal_stiff * (rho * dz * 1e-3))) << "\n";
-    //    }
-    //    my_system.Add(mloadcontainerFemur);
 
+    if (femurCartilage) {
+        try {
+            ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_femur, GetChronoDataFile("fea/Femur.mesh").c_str(), material,
+                                                   NODE_AVE_AREA_f, BC_NODES, Center_Femur, rot_transform, MeterToInch,
+                                                   false, false);
+        } catch (ChException myerr) {
+            GetLog() << myerr.what();
+            return 0;
+        }
+        for (int node = 0; node < BC_NODES.size(); node++) {
+            auto FixedNode = std::make_shared<ChNodeFEAxyzD>();
+            FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_femur->GetNode(BC_NODES[node]));
+            FixedNode->SetFixed(true);
+        }
+
+        //
+        auto mloadcontainerFemur = std::make_shared<ChLoadContainer>();
+        if (true) {
+            // Select on which nodes we are going to apply a load
+            std::vector<std::shared_ptr<ChLoadable>> NodeList;
+            for (int iNode = 0; iNode < my_mesh_femur->GetNnodes(); iNode++) {
+                auto NodeLoad = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_femur->GetNode(iNode));
+                NodeList.push_back(NodeLoad);
+            }
+            auto OneLoadSpringDamperFemur = std::make_shared<MyLoadSpringDamper>(NodeList, Femur);
+            for (int iNode = 0; iNode < my_mesh_femur->GetNnodes(); iNode++) {
+                auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_femur->GetNode(iNode));
+                ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
+                // attachment point in the body in global coordiantes
+                // Stiffness of the Elastic Foundation
+                double K_S = K_SPRINGS * NODE_AVE_AREA_f[iNode];  // Stiffness Constant
+                double C_S = C_DAMPERS * NODE_AVE_AREA_f[iNode];  // Damper Constant
+                Tottal_stiff += K_S;
+                Tottal_damp += C_S;
+                // Initial length
+                OneLoadSpringDamperFemur->C_dp[iNode] = C_S;
+                OneLoadSpringDamperFemur->K_sp[iNode] = K_S;
+                OneLoadSpringDamperFemur->l0[iNode] = L0_t;
+                // Calculate the damping ratio zeta
+                double zeta, m_ele;
+                m_ele = rho * dz * NODE_AVE_AREA_f[iNode];
+                zeta = C_S / (2 * sqrt(K_S * m_ele));
+                //            GetLog() << "Zeta of node # " << iNode << " is set to : " << zeta << "\n";
+                OneLoadSpringDamperFemur->LocalBodyAtt[iNode] = Femur->Point_World2Body(AttachBodyGlobal);
+            }
+            mloadcontainerFemur->Add(OneLoadSpringDamperFemur);
+            GetLog() << "Total Stiffness (N/mm)= " << Tottal_stiff / 1e3 << " Total Damping = " << Tottal_damp
+                     << " Average zeta= " << Tottal_damp / (2 * sqrt(Tottal_stiff * (rho * dz * 1e-3))) << "\n";
+        }
+        my_system.Add(mloadcontainerFemur);
+    }
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////////////////
     /////////////////////////// Tibia /////////////////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////
-    //    //    ChMatrix33<> rot_transform_2(1);
-    //    //    rot_transform_2.SetElement(0, 0, 1);
-    //    //    rot_transform_2.SetElement(1, 1, -1);
-    //    //    rot_transform_2.SetElement(2, 2, -1);
-    //    //    Center = ChVector<>(0, -0.2, 0.4);
+    if (tibiaCartilage) {
+        try {
+            ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-1.mesh").c_str(),
+                                                   material, NODE_AVE_AREA_t, BC_NODES1, Tibia->GetPos(), RotationZZ,
+                                                   MeterToInch, false, false);
+        } catch (ChException myerr) {
+            GetLog() << myerr.what();
+            return 0;
+        }
 
-    ChVector<> Center(0, 0.0, 0);
-    // Import the Tibia
-    //    try {
-    //        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-1.mesh").c_str(),
-    //        material,
-    //                                               NODE_AVE_AREA_t, BC_NODES1, Center, rot_transform, MeterToInch,
-    //                                               false,
-    //                                               false);
-    //    } catch (ChException myerr) {
-    //        GetLog() << myerr.what();
-    //        return 0;
-    //    }
-    //    for (int node = 0; node < BC_NODES1.size(); node++) {
-    //        auto FixedNode = std::make_shared<ChNodeFEAxyzD>();
-    //        FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_tibia->GetNode(BC_NODES1[node]));
-    //        FixedNode->SetFixed(true);
-    //    }
-    //
-    //    // Import the Tibia
-    //    try {
-    //        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-2.mesh").c_str(),
-    //        material,
-    //                                               NODE_AVE_AREA_t, BC_NODES2, Center, rot_transform, MeterToInch,
-    //                                               false,
-    //                                               false);
-    //    } catch (ChException myerr) {
-    //        GetLog() << myerr.what();
-    //        return 0;
-    //    }
-    //    for (int node = 0; node < BC_NODES2.size(); node++) {
-    //        auto FixedNode = std::make_shared<ChNodeFEAxyzD>();
-    //        FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_tibia->GetNode(BC_NODES2[node]));
-    //        FixedNode->SetFixed(true);
-    //    }
-    //
-    //    /// TEST TO INCLUDE SPRING-DAMPER GENERALIZED FORCES
-    //    auto mloadcontainerTibia = std::make_shared<ChLoadContainer>();
-    //    Tottal_stiff = 0;
-    //    Tottal_damp = 0;
-    //    if (true) {
-    //        // Select on which nodes we are going to apply a load
-    //        std::vector<std::shared_ptr<ChLoadable>> NodeList;
-    //        for (int iNode = 0; iNode < my_mesh_tibia->GetNnodes(); iNode++) {
-    //            auto NodeLoad = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_tibia->GetNode(iNode));
-    //            NodeList.push_back(NodeLoad);
-    //        }
-    //        auto OneLoadSpringDamperTibia = std::make_shared<MyLoadSpringDamper>(NodeList, Tibia);
-    //        for (int iNode = 0; iNode < my_mesh_tibia->GetNnodes(); iNode++) {
-    //            auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_tibia->GetNode(iNode));
-    //            ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
-    //            // attachment point in the body in global coordiantes
-    //            // Stiffness of the Elastic Foundation
-    //            double K_S = K_SPRINGS * NODE_AVE_AREA_t[iNode];  // Stiffness Constant
-    //            double C_S = C_DAMPERS * NODE_AVE_AREA_t[iNode];  // Damper Constant
-    //            Tottal_stiff += K_S;
-    //            Tottal_damp += C_S;
-    //            // Initial length
-    //            OneLoadSpringDamperTibia->C_dp[iNode] = C_S;
-    //            OneLoadSpringDamperTibia->K_sp[iNode] = K_S;
-    //            OneLoadSpringDamperTibia->l0[iNode] = L0_t;
-    //            // Calculate the damping ratio zeta
-    //            double zeta, m_ele;
-    //            m_ele = rho * dz * NODE_AVE_AREA_t[iNode];
-    //            zeta = C_S / (2 * sqrt(K_S * m_ele));
-    //            //            GetLog() << "Zeta of node # " << iNode << " is set to : " << zeta << "\n";
-    //            OneLoadSpringDamperTibia->LocalBodyAtt[iNode] = Tibia->Point_World2Body(AttachBodyGlobal);
-    //        }
-    //        GetLog() << "Total Stiffness (N/mm)= " << Tottal_stiff / 1e3 << " Total Damping = " << Tottal_damp
-    //                 << " Average zeta= " << Tottal_damp / (2 * sqrt(Tottal_stiff * (rho * dz * 1e-3))) << "\n";
-    //        mloadcontainerTibia->Add(OneLoadSpringDamperTibia);
-    //    }  // End loop over tires
-    //    my_system.Add(mloadcontainerTibia);
+        for (int node = 0; node < BC_NODES1.size(); node++) {
+            auto NodePosBone = std::make_shared<ChLinkPointFrame>();
+            auto NodeDirBone = std::make_shared<ChLinkDirFrame>();
+            auto ConstrainedNode = std::make_shared<ChNodeFEAxyzD>();
 
-    //    auto mcontactcloud = std::make_shared<ChContactSurfaceNodeCloud>();
-    //    my_mesh_femur->AddContactSurface(mcontactcloud);
-    //    mcontactcloud->AddAllNodes(0.025);  // use larger point size to match beam section radius
-    //    mcontactcloud->SetMaterialSurface(mysurfmaterial);
+            ConstrainedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_tibia->GetNode(BC_NODES1[node]));
+            NodePosBone->Initialize(ConstrainedNode, Tibia);
+            my_system.Add(NodePosBone);
 
+            NodeDirBone->Initialize(ConstrainedNode, Tibia);
+            NodeDirBone->SetDirectionInAbsoluteCoords(ConstrainedNode->D);
+            my_system.Add(NodeDirBone);
+        }
+
+        //   Import the Tibia
+        try {
+            ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-2.mesh").c_str(),
+                                                   material, NODE_AVE_AREA_t, BC_NODES2, Tibia->GetPos(), RotationZZ,
+                                                   MeterToInch, false, false);
+        } catch (ChException myerr) {
+            GetLog() << myerr.what();
+            return 0;
+        }
+
+        for (int node = 0; node < BC_NODES2.size(); node++) {
+            auto NodePosBone = std::make_shared<ChLinkPointFrame>();
+            auto NodeDirBone = std::make_shared<ChLinkDirFrame>();
+            auto ConstrainedNode = std::make_shared<ChNodeFEAxyzD>();
+
+            ConstrainedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_tibia->GetNode(BC_NODES2[node]));
+            NodePosBone->Initialize(ConstrainedNode, Tibia);
+            my_system.Add(NodePosBone);
+
+            NodeDirBone->Initialize(ConstrainedNode, Tibia);
+            NodeDirBone->SetDirectionInAbsoluteCoords(ConstrainedNode->D);
+            my_system.Add(NodeDirBone);
+        }
+
+        /// TEST TO INCLUDE SPRING-DAMPER GENERALIZED FORCES
+        auto mloadcontainerTibia = std::make_shared<ChLoadContainer>();
+        Tottal_stiff = 0;
+        Tottal_damp = 0;
+        if (true) {
+            // Select on which nodes we are going to apply a load
+            std::vector<std::shared_ptr<ChLoadable>> NodeList;
+            for (int iNode = 0; iNode < my_mesh_tibia->GetNnodes(); iNode++) {
+                auto NodeLoad = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_tibia->GetNode(iNode));
+                NodeList.push_back(NodeLoad);
+            }
+            auto OneLoadSpringDamperTibia = std::make_shared<MyLoadSpringDamper>(NodeList, Tibia);
+            for (int iNode = 0; iNode < my_mesh_tibia->GetNnodes(); iNode++) {
+                auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_tibia->GetNode(iNode));
+                ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
+                // attachment point in the body in global coordiantes
+                // Stiffness of the Elastic Foundation
+                double K_S = K_SPRINGS * NODE_AVE_AREA_t[iNode];  // Stiffness Constant
+                double C_S = C_DAMPERS * NODE_AVE_AREA_t[iNode];  // Damper Constant
+                Tottal_stiff += K_S;
+                Tottal_damp += C_S;
+                // Initial length
+                OneLoadSpringDamperTibia->C_dp[iNode] = C_S;
+                OneLoadSpringDamperTibia->K_sp[iNode] = K_S;
+                OneLoadSpringDamperTibia->l0[iNode] = L0_t;
+                // Calculate the damping ratio zeta
+                double zeta, m_ele;
+                m_ele = rho * dz * NODE_AVE_AREA_t[iNode];
+                zeta = C_S / (2 * sqrt(K_S * m_ele));
+                //            GetLog() << "Zeta of node # " << iNode << " is set to : " << zeta << "\n";
+                OneLoadSpringDamperTibia->LocalBodyAtt[iNode] = Tibia->Point_World2Body(AttachBodyGlobal);
+            }
+            GetLog() << "Total Stiffness (N/mm)= " << Tottal_stiff / 1e3 << " Total Damping = " << Tottal_damp
+                     << " Average zeta= " << Tottal_damp / (2 * sqrt(Tottal_stiff * (rho * dz * 1e-3))) << "\n";
+            mloadcontainerTibia->Add(OneLoadSpringDamperTibia);
+        }  // End loop over tires
+        my_system.Add(mloadcontainerTibia);
+    }
     double TotalNumNodes_Femur = my_mesh_femur->GetNnodes();
     double TotalNumElements_Femur = my_mesh_femur->GetNelements();
     for (int ele = 0; ele < TotalNumElements_Femur; ele++) {
@@ -612,11 +606,11 @@ int main(int argc, char* argv[]) {
     ///////////////////////////////////////////////////////////////////
     //////////////Tibia
     //////////////////////////////////////////////////////////////////
-    //    auto mvisualizemesh_tibia = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh_tibia.get()));
-    //    mvisualizemesh_tibia->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_NODE_SPEED_NORM);
-    //    mvisualizemesh_tibia->SetColorscaleMinMax(0.0, 5.50);
-    //    mvisualizemesh_tibia->SetSmoothFaces(true);
-    //    my_mesh_tibia->AddAsset(mvisualizemesh_tibia);
+    auto mvisualizemesh_tibia = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh_tibia.get()));
+    mvisualizemesh_tibia->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_NODE_SPEED_NORM);
+    mvisualizemesh_tibia->SetColorscaleMinMax(0.0, 5.50);
+    mvisualizemesh_tibia->SetSmoothFaces(true);
+    my_mesh_tibia->AddAsset(mvisualizemesh_tibia);
 
     //    auto mvisualizemeshcoll_tibia = std::make_shared<ChVisualizationFEAmesh>(*(my_mesh_tibia.get()));
     //    mvisualizemeshcoll_tibia->SetFEMdataType(ChVisualizationFEAmesh::E_PLOT_CONTACTSURFACES);
@@ -716,7 +710,7 @@ int main(int argc, char* argv[]) {
     mystepper->SetAlpha(-0.2);
     mystepper->SetMaxiters(20);
     //    mystepper->SetAbsTolerances(1e-04, 1e-3);  // For ACC
-    mystepper->SetAbsTolerances(1e-05, 1);           // For Pos
+    mystepper->SetAbsTolerances(1e-05, 3);           // For Pos
     mystepper->SetMode(ChTimestepperHHT::POSITION);  // POSITION //ACCELERATION
     mystepper->SetScaling(true);
     mystepper->SetVerbose(true);
@@ -732,9 +726,9 @@ int main(int argc, char* argv[]) {
     int step_count = 0;
 
 #endif
-    /////////////////////////////////////////////////////////////////
-    ChVector<> Initial_Pos = Femur->GetPos();
-    MarkerFemurIn->Impose_Rel_Coord(ChCoordsys<>(-Initial_Pos));
+/////////////////////////////////////////////////////////////////
+//    ChVector<> Initial_Pos = Femur->GetPos();
+//    MarkerFemur->Impose_Rel_Coord(ChCoordsys<>(-Initial_Pos));
 
 #ifdef USE_IRR
     while (application.GetDevice()->run()) {
@@ -746,40 +740,76 @@ int main(int argc, char* argv[]) {
         application.EndScene();
     }
 #else
+    ChQuaternion<> myRot = Tibia->GetRot();
+
+    printf("Tibia Rot= %f  %f  %f  %f \n", myRot.e1, myRot.e2, myRot.e3, myRot.e0);
+
     while (my_system.GetChTime() < 1) {
         ////////////////////////////////////////////////////////////////
-        if (addForce) {
-            ManipulateFemur(my_system, Femur, Initial_Pos);
-            my_system.DoStepDynamics(time_step);
-            step_count++;
-            ////////////////////////////////////////
-            ///////////Write to VTK/////////////////
-            ////////////////////////////////////////
-            if (step_count % write_interval == 0) {
-                char SaveAsBufferFemur[64];  // The filename buffer.
-                char SaveAsBufferTibia[64];  // The filename buffer.
-                snprintf(SaveAsBufferFemur, sizeof(char) * 64, "VTK_Animations/femur.%f.vtk", my_system.GetChTime());
-                snprintf(SaveAsBufferTibia, sizeof(char) * 64, "VTK_Animations/tibia.%f.vtk", my_system.GetChTime());
-                char MeshFileBufferFemur[32];  // The filename buffer.
-                char MeshFileBufferTibia[32];  // The filename buffer.
+        ChQuaternion<> myRot = Tibia->GetRot();
+        printf("Tibia Rot= %f  %f  %f  %f \n", myRot.e1, myRot.e2, myRot.e3, myRot.e0);
+        my_system.DoStepDynamics(time_step);
+        step_count++;
+        ////////////////////////////////////////
+        ///////////Write to VTK/////////////////
+        ////////////////////////////////////////
+        if (step_count % write_interval == 0) {
+            char SaveAsBufferFemur[64];  // The filename buffer.
+            char SaveAsBufferTibia[64];  // The filename buffer.
+            snprintf(SaveAsBufferFemur, sizeof(char) * 64, "VTK_Animations/femur.%f.vtk", my_system.GetChTime());
+            snprintf(SaveAsBufferTibia, sizeof(char) * 64, "VTK_Animations/tibia.%f.vtk", my_system.GetChTime());
+            char MeshFileBufferFemur[32];  // The filename buffer.
+            char MeshFileBufferTibia[32];  // The filename buffer.
 
-                snprintf(MeshFileBufferFemur, sizeof(char) * 32, "VTK_Animations/%s.vtk", saveAsFemur.c_str());
-                snprintf(MeshFileBufferTibia, sizeof(char) * 32, "VTK_Animations/%s.vtk", saveAsTibia.c_str());
+            snprintf(MeshFileBufferFemur, sizeof(char) * 32, "VTK_Animations/%s.vtk", saveAsFemur.c_str());
+            snprintf(MeshFileBufferTibia, sizeof(char) * 32, "VTK_Animations/%s.vtk", saveAsTibia.c_str());
 
-                writeFrame(my_mesh_femur, SaveAsBufferFemur, MeshFileBufferFemur, NodeNeighborElementFemur);
-                writeFrame(my_mesh_tibia, SaveAsBufferTibia, MeshFileBufferTibia, NodeNeighborElementTibia);
-            }
+            writeFrame(my_mesh_femur, SaveAsBufferFemur, MeshFileBufferFemur, NodeNeighborElementFemur);
+            writeFrame(my_mesh_tibia, SaveAsBufferTibia, MeshFileBufferTibia, NodeNeighborElementTibia);
         }
     }
 #endif
 
     return 0;
 }
+
+void GetDataFile(const char* filename, std::vector<std::vector<double>>& DATA) {
+    ifstream inputFile;
+    inputFile.open(filename);
+    int steps = 0;
+    string mline;
+    while (!inputFile.eof()) {
+        getline(inputFile, mline);
+        steps++;
+    }
+    steps--;
+    printf(" lines =%d\n", steps);
+    DATA.resize(steps);
+
+    std::fstream fin(filename);
+    if (!fin.good())
+        throw ChException("ERROR opening Mesh file: " + std::string(filename) + "\n");
+
+    std::string line;
+    for (int num_data = 0; num_data < steps; num_data++) {
+        getline(fin, line);
+        DATA[num_data].resize(14);
+        int ntoken = 0;
+        string token;
+        std::istringstream ss(line);
+        while (std::getline(ss, token, '\t') && ntoken < 20) {
+            std::istringstream stoken(token);
+            stoken >> DATA[num_data][ntoken];
+            ++ntoken;
+        }
+    }
+}
+
 void ManipulateFemur(ChSystemDEM& my_system,
                      std::shared_ptr<ChBody> RigidBodyFemur,
                      std::shared_ptr<ChBody> RigidBodyTibia,
                      ChVector<> Initial_Pos,
-                     std::shared_ptr<ChMarker> MarkerFemurIn) {
+                     std::shared_ptr<ChMarker> MarkerFemur) {
     ////Adding force
     double Time_Max = 0.001;  // Period of gate cycle is 2s
     double Period = 0.2;      // Period of gate cycle is 2s
@@ -973,4 +1003,216 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
     output.close();
+}
+
+void impose_TF_motion(std::vector<std::vector<double>> motionInfo, std::shared_ptr<ChLinkLockLock> my_link_TF) {
+    class TF_tx : public ChFunction {
+      public:
+        std::vector<std::vector<double>> myMotion;
+        TF_tx(std::vector<std::vector<double>> info) { myMotion = info; }
+        ChFunction* new_Duplicate() { return new TF_tx(myMotion); }
+        virtual double Get_y(double x) {
+            int i = 0;
+            int pos = 0;
+            while (i < myMotion.size()) {
+                if (x > myMotion[i][0] && x > myMotion[i + 1][0]) {
+                    i++;
+                    continue;
+                }
+                if (x <= myMotion[i + 1][0])
+                    break;
+            }
+
+            double t1 = myMotion[i][0];
+            double t2 = myMotion[i + 1][0];
+            double y1 = myMotion[i][1];
+            double y2 = myMotion[i + 1][1];
+            double y = y1 + (y2 - y1) / (t2 - t1) * (x - t1);
+
+            return (y);
+        }
+    };
+
+    class TF_ty : public ChFunction {
+      public:
+        std::vector<std::vector<double>> myMotion;
+        TF_ty(std::vector<std::vector<double>> info) { myMotion = info; }
+        ChFunction* new_Duplicate() { return new TF_ty(myMotion); }
+        virtual double Get_y(double x) {
+            int i = 0;
+            int pos = 0;
+            while (i < myMotion.size()) {
+                if (x > myMotion[i][0] && x > myMotion[i + 1][0]) {
+                    i++;
+                    continue;
+                }
+                if (x <= myMotion[i + 1][0])
+                    break;
+            }
+
+            double t1 = myMotion[i][0];
+            double t2 = myMotion[i + 1][0];
+            double y1 = myMotion[i][2];
+            double y2 = myMotion[i + 1][2];
+            double y = y1 + (y2 - y1) / (t2 - t1) * (x - t1);
+
+            return (y);
+        }
+    };
+
+    class TF_tz : public ChFunction {
+      public:
+        std::vector<std::vector<double>> myMotion;
+        TF_tz(std::vector<std::vector<double>> info) { myMotion = info; }
+        ChFunction* new_Duplicate() { return new TF_tz(myMotion); }
+        virtual double Get_y(double x) {
+            int i = 0;
+            int pos = 0;
+            while (i < myMotion.size()) {
+                if (x > myMotion[i][0] && x > myMotion[i + 1][0]) {
+                    i++;
+                    continue;
+                }
+                if (x <= myMotion[i + 1][0])
+                    break;
+            }
+
+            double t1 = myMotion[i][0];
+            double t2 = myMotion[i + 1][0];
+            double y1 = myMotion[i][3];
+            double y2 = myMotion[i + 1][3];
+            double y = y1 + (y2 - y1) / (t2 - t1) * (x - t1);
+
+            return (y);
+        }
+    };
+
+    class TF_rx : public ChFunction {
+      public:
+        std::vector<std::vector<double>> myMotion;
+        TF_rx(std::vector<std::vector<double>> info) { myMotion = info; }
+        ChFunction* new_Duplicate() { return new TF_rx(myMotion); }
+        virtual double Get_y(double x) {
+            int i = 0;
+            int pos = 0;
+            while (i < myMotion.size()) {
+                if (x > myMotion[i][0] && x > myMotion[i + 1][0]) {
+                    i++;
+                    continue;
+                }
+                if (x <= myMotion[i + 1][0])
+                    break;
+            }
+
+            double t1 = myMotion[i][0];
+            double t2 = myMotion[i + 1][0];
+            double y1 = myMotion[i][4];
+            double y2 = myMotion[i + 1][4];
+            double y = y1 + (y2 - y1) / (t2 - t1) * (x - t1);
+
+            return (y * CH_C_PI / 180);
+        }
+    };
+
+    class TF_ry : public ChFunction {
+      public:
+        std::vector<std::vector<double>> myMotion;
+        TF_ry(std::vector<std::vector<double>> info) { myMotion = info; }
+        ChFunction* new_Duplicate() { return new TF_ry(myMotion); }
+        virtual double Get_y(double x) {
+            int i = 0;
+            int pos = 0;
+            while (i < myMotion.size()) {
+                if (x > myMotion[i][0] && x > myMotion[i + 1][0]) {
+                    i++;
+                    continue;
+                }
+                if (x <= myMotion[i + 1][0])
+                    break;
+            }
+
+            double t1 = myMotion[i][0];
+            double t2 = myMotion[i + 1][0];
+            double y1 = myMotion[i][5];
+            double y2 = myMotion[i + 1][5];
+            double y = y1 + (y2 - y1) / (t2 - t1) * (x - t1);
+
+            return (y * CH_C_PI / 180);
+        }
+    };
+
+    class TF_rz : public ChFunction {
+      public:
+        std::vector<std::vector<double>> myMotion;
+        TF_rz(std::vector<std::vector<double>> info) { myMotion = info; }
+        ChFunction* new_Duplicate() { return new TF_rz(myMotion); }
+        virtual double Get_y(double x) {
+            int i = 0;
+            int pos = 0;
+            while (i < myMotion.size()) {
+                if (x > myMotion[i][0] && x > myMotion[i + 1][0]) {
+                    i++;
+                    continue;
+                }
+                if (x <= myMotion[i + 1][0])
+                    break;
+            }
+
+            double t1 = myMotion[i][0];
+            double t2 = myMotion[i + 1][0];
+            double y1 = myMotion[i][6];
+            double y2 = myMotion[i + 1][6];
+            double y = y1 + (y2 - y1) / (t2 - t1) * (x - t1);
+
+            return (y * CH_C_PI / 180);
+        }
+    };
+
+    TF_tx* TFtx = new TF_tx(motionInfo);
+    TF_ty* TFty = new TF_ty(motionInfo);
+    TF_tz* TFtz = new TF_tz(motionInfo);
+    TF_rx* TFrx = new TF_rx(motionInfo);
+    TF_ry* TFry = new TF_ry(motionInfo);
+    TF_rz* TFrz = new TF_rz(motionInfo);
+
+    my_link_TF->SetMotion_X(TFtx);
+    my_link_TF->SetMotion_Y(TFty);
+    my_link_TF->SetMotion_Z(TFtz);
+    my_link_TF->SetMotion_ang(TFrz);
+    //    my_link_TF->SetMotion_ang2(TFry);
+    //    my_link_TF->SetMotion_ang3(TFrx);
+
+    //    class A_COSX : public ChFunction {
+    //      public:
+    //        ChFunction* new_Duplicate() { return new A_COSX; }
+    //        double A = -0.5;
+    //        double w = 2 * 3.1415 / 0.1;
+    //        virtual double Get_y(double x) {
+    //            double y;
+    //            if (x < 0.05)  // This means time not position
+    //                y = 0;
+    //            else
+    //                y = 0.5 * A * (1 - cos(w * (x - 0.05)));
+    //            return (y);
+    //        }
+    //    };
+    //
+    //    class AXB : public ChFunction {
+    //      public:
+    //        ChFunction* new_Duplicate() { return new AXB; }
+    //        double Final_pos = +0.001;
+    //        virtual double Get_y(double x) {
+    //            double y;
+    //            if (x < 0.05)  // This means time not position
+    //                y = (0.24) * x - 0.01;
+    //            else
+    //                y = Final_pos;
+    //            return (y);
+    //        }
+    //    };
+    //
+    //    A_COSX* phi_motion = new A_COSX;
+    //    AXB* y_motion = new AXB;
+    //    my_link_TF->SetMotion_ang(phi_motion);
+    //    my_link_TF->SetMotion_Y(y_motion);
 }
