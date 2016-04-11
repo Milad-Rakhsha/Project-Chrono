@@ -189,9 +189,12 @@ void ForceSPH_implicit(thrust::device_vector<Real3>& posRadD,
   int2 updatePortion = mI2(referenceArray[0].y, referenceArray[2 + numObjects.numRigidBodies - 1].y);
 
   ///---------------------------------------------------------------------------------------------------------
-  double RESIDUAL = 0.005;
+  double RESIDUAL = 0.001;
+  //  enum SolutionType { IterativeJacobi, MatrixJacobi };
+  SolutionType mySolutionType = MatrixJacobi;
+
   calcPressureIISPH(m_dSortedPosRad, m_dSortedVelMas, m_dSortedRhoPreMu, m_dCellStart, m_dCellEnd, mapOriginalToSorted,
-                    paramsH, numObjects, updatePortion, dT, RESIDUAL);
+                    paramsH, numObjects, updatePortion, dT, RESIDUAL, mySolutionType);
 
   Update_FluidIISPH(m_dSortedPosRad, m_dSortedVelMas, m_dSortedRhoPreMu, m_dCellStart, m_dCellEnd, numAllMarkers,
                     paramsH, dT);

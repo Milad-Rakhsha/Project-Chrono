@@ -101,11 +101,22 @@ __device__ inline Real W3_Spline(
 //	}
 //	return 0;
 //}
+//
+//__device__ double MyAtomicAdd(double* address, double val) {
+//  unsigned long long int* address_as_ull = (unsigned long long int*)address;
+//  unsigned long long int old = *address_as_ull, assumed;
+//  do {
+//    assumed = old;
+//    old = atomicCAS(address_as_ull, assumed, __double_as_longlong(val + __longlong_as_double(assumed)));
+//  } while (assumed != old);
+//  return __longlong_as_double(old);
+//}
 //--------------------------------------------------------------------------------------------------------------------------------
 // Gradient of the kernel function
 // d: magnitude of the distance of the two particles
 // dW * dist3 gives the gradiant of W3_Quadratic, where dist3 is the distance vector of the two particles, (dist3)a =
 // pos_a - pos_b
+
 __device__ inline Real3 GradW_Spline(
     Real3 d) {  // d is positive. r is the sph particle radius (i.e. h in the document) d is the distance of 2 particles
   Real h = paramsD.HSML;
@@ -402,7 +413,8 @@ void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
                        const NumberOfObjects& numObjects,
                        const int2 updatePortion,
                        const Real dT,
-                       const Real RES);
+                       const Real RES,
+                       SolutionType mySolutionType);
 
 void RecalcSortedVelocityPressure_BCE(thrust::device_vector<Real3>& velMas_ModifiedBCE,
                                       thrust::device_vector<Real4>& rhoPreMu_ModifiedBCE,
