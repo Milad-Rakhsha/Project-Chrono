@@ -346,14 +346,14 @@ int main(int argc, char* argv[]) {
 #if haveFluid
         fsi_timer.start("DoStepDynamics_FSI");
 
-        double g0 = -0.1;
+        double g0 = -1;
         double g = 0;
         double T_MAX = 1;
         if (tStep * paramsH.dT < T_MAX)
             g = (1 - cos(tStep * paramsH.dT / T_MAX * 3.1415)) / 2 * g0;
         else
             g = g0;
-        paramsH.gravity = mR3(0, 0, g);  // mR3(0);//mR3(0, -9.81, 0);
+        // paramsH.gravity = mR3(0, 0, g);  // mR3(0);//mR3(0, -9.81, 0);
         DoStepFluid_implicit(posRadD, velMasD, rhoPresMuD,
 
                              posRadD2, velMasD2, rhoPresMuD2,

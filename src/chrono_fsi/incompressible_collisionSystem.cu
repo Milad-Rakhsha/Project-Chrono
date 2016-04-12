@@ -1200,16 +1200,14 @@ __global__ void Calc_Pressure_Matrix(Real* a_ii,    // Read
 
       sortedRhoPreMu[i_idx].y = (RHO_0 - rho_np[i_idx] - aij_pj) / a_ii[i_idx];
     }
-  }
-
-  else if (myType == 0) {  // Do Adami BC
+  } else if (myType == 0) {  // Do Adami BC
     Real Rho_i = sortedRhoPreMu[i_idx].x;
     Real3 pos_i = sortedPosRad[i_idx];
     Real p_new = 0;
     Real3 numeratorv = mR3(0);
     Real denumenator = 0;
     Real numeratorp = 0;
-    Real3 Vel_i;
+    Real3 Vel_i = mR3(0);
 
     // get address in grid
     int3 gridPos = calcGridPos(pos_i);
@@ -1270,9 +1268,6 @@ __global__ void Initialize_Variables(Real4* sortedRhoPreMu,
   }
 
   p_old[i_idx] = sortedRhoPreMu[i_idx].y;  // This needs consistency p_old is old but v_new is new !!
-
-  //  if (length(V_new[i_idx]) != 0)
-  //    printf("This should be zero!");
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 
@@ -1502,11 +1497,11 @@ __global__ void Update_AND_Calc_Res(Real3* sortedVelMas,
   Real relax_op = 2 / (1 + sin(3.1415 * paramsD.HSML));
   Real relax;
   if (Iteration < 100)  // Over Relax to speed up
-    relax = 0.5;
+    relax = 0.6;
   else if (Iteration < 200)  // No relaxation
+    relax = 0.6;
+  else  // Undr-relaxation
     relax = 0.5;
-  else  // Under-relaxation
-    relax = 0.4;
 
   //  p_i = (1 - relax) * p_old_i + relax * p_i;
   sortedRhoPreMu[i_idx].y = (1 - relax) * p_old[i_idx] + relax * sortedRhoPreMu[i_idx].y;

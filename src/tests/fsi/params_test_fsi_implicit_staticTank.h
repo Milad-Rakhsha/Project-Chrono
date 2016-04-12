@@ -37,13 +37,13 @@ Real maxFlowVelocity = 1;  // 12;  // in an ideal case, these two need to be the
 // Total simulation duration.
 Real time_end = 2;  // 15;
 
-Real fluidInitDimX = 0.3;
-Real fluidInitDimY = 0.03;  // This is half of the width
-Real fluidInitDimZ = 1.5;
+Real fluidInitDimX = 1;
+Real fluidInitDimY = 0.1;  // This is half of the width
+Real fluidInitDimZ = 1;
 // Dimensions
-Real hdimX = 0.3;
-Real hdimY = 0.03;  // Should be the same as fluidInitDimY, BCEs are taken care of later
-Real hdimZ = 1.8;
+Real hdimX = 1;
+Real hdimY = 0.1;  // Should be the same as fluidInitDimY, BCEs are taken care of later
+Real hdimZ = 1.2;
 int fluidCollisionFamily = 1;  // 2 and 3 are reserved for tire and chassis
 
 // -----------------------------------------------------------------------------
@@ -72,21 +72,21 @@ NumberOfObjects numObjects;
  */
 void SetupParamsH(SimParams& paramsH) {
     paramsH.sizeScale = 1;  // don't change it.
-    paramsH.HSML = 0.03;    // 0.06;    // 0.06;//0.04;
+    paramsH.HSML = 0.05;    // 0.06;    // 0.06;//0.04;
     paramsH.MULT_INITSPACE = 1.0;
     paramsH.epsMinMarkersDis = .001;
     paramsH.NUM_BOUNDARY_LAYERS = 3;
     paramsH.toleranceZone = paramsH.NUM_BOUNDARY_LAYERS * (paramsH.HSML * paramsH.MULT_INITSPACE);
-    paramsH.BASEPRES = 0;            // 10;
-    paramsH.LARGE_PRES = 0;          // paramsH.BASEPRES;//10000;
-    paramsH.deltaPress;              //** modified below
-    paramsH.multViscosity_FSI = 1;   // 5.0;
-    paramsH.gravity = mR3(0, 0, 0);  // mR3(0);//mR3(0, -9.81, 0);
+    paramsH.BASEPRES = 0;             // 10;
+    paramsH.LARGE_PRES = 0;           // paramsH.BASEPRES;//10000;
+    paramsH.deltaPress;               //** modified below
+    paramsH.multViscosity_FSI = 1;    // 5.0;
+    paramsH.gravity = mR3(0, 0, -1);  // mR3(0);//mR3(0, -9.81, 0);
     paramsH.bodyForce3 =
         mR3(0, 0, 0);  // mR4(3.2e-3,0,0,0);// mR4(0);;// /*Re = 100 */ //mR4(3.2e-4, 0, 0, 0);/*Re = 100 */
     paramsH.rho0 = 1000;
     paramsH.markerMass = pow(paramsH.MULT_INITSPACE * paramsH.HSML, 3) * paramsH.rho0;
-    paramsH.mu0 = 0.000;
+    paramsH.mu0 = 0.01;
     paramsH.v_Max = maxFlowVelocity;  // Arman, I changed it to 0.1 for vehicle. Check this
                                       // later;//10;//50e-3;//18e-3;//1.5;//2e-1; /*0.2 for Re = 100 */ //2e-3;
     paramsH.EPS_XSPH = .5f;
