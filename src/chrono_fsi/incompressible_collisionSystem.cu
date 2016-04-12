@@ -1105,6 +1105,7 @@ __global__ void a_ij123(Real* a_ij12,  // write
             a_ij12[j + numAllMarkers * i_idx] = My_a_ij_12;
             float My_a_ij_3 = 0;
             int3 gridPosJ = calcGridPos(pos_j);
+
             for (int zz = -1; zz <= 1; zz++) {
               for (int yy = -1; yy <= 1; yy++) {
                 for (int xx = -1; xx <= 1; xx++) {
