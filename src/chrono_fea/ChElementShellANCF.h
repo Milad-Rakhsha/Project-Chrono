@@ -199,7 +199,7 @@ class ChApiFea ChElementShellANCF : public ChElementShell, public ChLoadableUV, 
     // --------------------------------------
     // Interface to ChElementBase base class
     // -------------------------------------
-
+    ChVector<> EvaluateSectionStrains();
     virtual void EvaluateSectionDisplacement(const double u,
                                              const double v,
                                              const ChMatrix<>& displ,
