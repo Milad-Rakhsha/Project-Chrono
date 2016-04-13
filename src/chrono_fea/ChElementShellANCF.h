@@ -51,7 +51,10 @@ class ChApiFea ChMaterialShellANCF {
 
     /// Return the material density.
     double Get_rho() const { return m_rho; }
-
+    /// Return the material density.
+    double Get_E() const { return m_E; }
+    /// Return the material density.
+    double Get_nu() const { return m_nu; }
     /// Return the matrix of elastic coefficients.
     const ChMatrixNM<double, 6, 6>& Get_E_eps() const { return m_E_eps; }
 
@@ -60,6 +63,8 @@ class ChApiFea ChMaterialShellANCF {
     void Calc_E_eps(const ChVector<>& E, const ChVector<>& nu, const ChVector<>& G);
 
     double m_rho;                      ///< density
+    double m_E;  ///< matrix of elastic coefficients
+    double m_nu;
     ChMatrixNM<double, 6, 6> m_E_eps;  ///< matrix of elastic coefficients
 };
 
@@ -199,6 +204,8 @@ class ChApiFea ChElementShellANCF : public ChElementShell, public ChLoadableUV, 
     // --------------------------------------
     // Interface to ChElementBase base class
     // -------------------------------------
+    std::vector<ChVector<> >  GetPrincipalStresses();
+    ChVector<> GetStresses();
     ChVector<> EvaluateSectionStrains();
     virtual void EvaluateSectionDisplacement(const double u,
                                              const double v,

@@ -74,7 +74,7 @@ bool showFemur = true;
 // bool addConstrain = true;
 // bool addForce = true;
 // bool addFixed = false;
-double time_step = 0.00001;
+double time_step = 0.00004;
 int scaleFactor = 1;
 double dz = 0.001;
 const double K_SPRINGS = 100e8;
@@ -664,7 +664,7 @@ int main(int argc, char* argv[]) {
     mystepper->SetMode(ChTimestepperHHT::POSITION);  // POSITION //ACCELERATION
     mystepper->SetScaling(true);
     mystepper->SetVerbose(true);
-    mystepper->SetMaxItersSuccess(3);
+    mystepper->SetMaxItersSuccess(6);
 
 #ifndef USE_IRR
     std::vector<std::vector<int>> NodeNeighborElementFemur;
@@ -793,8 +793,8 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
         double dx, dy;
         for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
             int myelemInx = NodeNeighborElement[i][j];
-            std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))
-                ->EvaluateVonMisesStrain(scalar);
+            /*std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))
+                ->EvaluateVonMisesStrain(scalar);*/
             dx = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
             myarea += dx * dy / 4;
@@ -803,26 +803,61 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
 
         output << areaAve / myarea << "\n";
     }
-    output << "\nVECTORS strains-Def float\n";
-    for (int i = 0; i < my_mesh->GetNnodes(); i++) {
+    output << "\nVECTORS StrainXX_Def float\n";
+    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
         double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
-        double SX, SY, SZ = 0;
         double myarea = 0;
         double dx, dy;
         for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
             int myelemInx = NodeNeighborElement[i][j];
-            SX = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->EvaluateStrainX();
-            SY = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->EvaluateStrainY();
-            std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->EvaluateDeflection(SZ);
-
-            dx = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
-            dy = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
+            ChVector<> StrainVector(0);
+            StrainVector = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
+                               ->EvaluateSectionStrains();
+            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
+            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
             myarea += dx * dy / 4;
-            areaAve1 += SX * dx * dy / 4;
-            areaAve2 += SY * dx * dy / 4;
-            areaAve3 += SZ * dx * dy / 4;
+            areaAve1 += StrainVector.x * dx * dy / 4;
+            areaAve2 += StrainVector.y * dx * dy / 4;
+            areaAve3 += StrainVector.z * dx * dy / 4;
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
+    }
+    output << "\nVECTORS Ihat float\n";
+    std::vector<ChVector<>> MyResult;
+    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
+        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+        double myarea = 0;
+        double dx, dy;
+        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
+            int myelemInx = NodeNeighborElement[i][j];
+            MyResult =
+                std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetPrincipalStresses();
+        }
+        output << MyResult[1].x << " " << MyResult[1].y << " " << MyResult[1].z << "\n";
+    }
+    output << "\nVECTORS Jhat float\n";
+    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
+        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+        double myarea = 0;
+        double dx, dy;
+        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
+            int myelemInx = NodeNeighborElement[i][j];
+            MyResult =
+                std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetPrincipalStresses();
+        }
+        output << MyResult[2].x << " " << MyResult[2].y << " " << MyResult[2].z << "\n";
+    }
+    output << "\nVECTORS sigma12theta float\n";
+    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
+        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+        double myarea = 0;
+        double dx, dy;
+        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
+            int myelemInx = NodeNeighborElement[i][j];
+            MyResult =
+                std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetPrincipalStresses();
+        }
+        output << MyResult[0].x << " " << MyResult[0].y << " " << MyResult[0].z << "\n";
     }
     output.close();
 }

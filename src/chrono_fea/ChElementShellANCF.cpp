@@ -79,14 +79,56 @@ void ChElementShellANCF::AddLayer(double thickness, double theta, std::shared_pt
     m_layers.push_back(Layer(this, thickness, theta, material));
 }
 
-// -----------------------------------------------------------------------------
-// Interface to ChElementBase base class
-// -----------------------------------------------------------------------------
 // ---------------------------------------------------------------------------- -
 // Interface to ChElementShell base class
 // -----------------------------------------------------------------------------
-ChVector<> ChElementShellANCF::EvaluateSectionStrains() {
+ChVector<> ChElementShellANCF::GetStresses() {
+    ChVector<> Strains = this->EvaluateSectionStrains();
+    // double shear_xy = 
+    double G = this->m_layers[0].GetMaterial()->Get_E() / (2 * (1 - this->m_layers[0].GetMaterial()->Get_nu()));
+    double E = this->m_layers[0].GetMaterial()->Get_E();
 
+    double sigma_xx = E * Strains(0);
+    double sigma_yy = E * Strains(1);
+    double shear_xy = G * Strains(2);
+
+    return ChVector<>(sigma_xx, sigma_yy, shear_xy);
+}
+std::vector<ChVector<> > ChElementShellANCF::GetPrincipalStresses() {
+
+    ChVector<> Stresses = this->GetStresses();
+    double sigma_xx = Stresses(0);
+    double sigma_yy = Stresses(1);
+
+    double theta_p1 = std::atan2(2 * Stresses(2), (Stresses(0) - Stresses(1))) / 2.0;
+    double theta_p2 = theta_p1 + CH_C_PI_2;
+
+    double term1 = (sigma_xx + sigma_yy) / 2.0;
+    double term2 = std::sqrt(std::pow((sigma_xx - sigma_yy) / 2.0, 2) + std::pow(Stresses(2), 2));
+
+    double sigma_1 = term1 + term2;
+    double sigma_2 = term1 - term2;
+
+    ChVector<> Ihat(0);
+    Ihat(0) = m_d(0, 0) - m_d(2, 0);
+    Ihat(1) = m_d(0, 1) - m_d(2, 1);
+    Ihat(2) = m_d(0, 2) - m_d(2, 2);
+    Ihat.Normalize();
+    ChVector<> Jhat(0);
+    Jhat(0) = m_d(0, 0) - m_d(6, 0);
+    Jhat(1) = m_d(0, 1) - m_d(6, 1);
+    Jhat(2) = m_d(0, 2) - m_d(6, 2);
+    Jhat.Normalize();
+
+    std::vector<ChVector<> > Result;
+
+    Result.push_back(ChVector<>(sigma_1, sigma_2, theta_p1));
+    Result.push_back(Ihat);
+    Result.push_back(Jhat);
+
+    return Result;
+}
+ChVector<> ChElementShellANCF::EvaluateSectionStrains() {
     // Element shape function
     ChMatrixNM<double, 1, 8> N;
     this->ShapeFunctions(N, 0, 0, 0);
@@ -2025,7 +2067,7 @@ ChMaterialShellANCF::ChMaterialShellANCF(double rho,  // material density
                                          double E,    // Young's modulus
                                          double nu    // Poisson ratio
                                          )
-    : m_rho(rho) {
+                                         : m_rho(rho), m_E(E), m_nu(nu) {
     double G = 0.5 * E / (1 + nu);
     Calc_E_eps(ChVector<>(E), ChVector<>(nu), ChVector<>(G));
 }
@@ -2036,7 +2078,7 @@ ChMaterialShellANCF::ChMaterialShellANCF(double rho,            // material dens
                                          const ChVector<>& nu,  // Poisson ratios (nu_xy, nu_xz, nu_yz)
                                          const ChVector<>& G    // shear moduli (G_xy, G_xz, G_yz)
                                          )
-    : m_rho(rho) {
+    : m_rho(rho), m_E(E.x), m_nu(nu.x) {
     Calc_E_eps(E, nu, G);
 }
 
