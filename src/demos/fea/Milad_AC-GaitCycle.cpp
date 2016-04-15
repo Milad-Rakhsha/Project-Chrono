@@ -61,21 +61,21 @@ using namespace chrono::fea;
 using namespace chrono::irrlicht;
 using namespace irr;
 using namespace std;
-int num_threads = 3;
-#define USE_IRR ;
+int num_threads = 4;
+//#define USE_IRR ;
+enum ROT_SYS { XYZ, ZXY };  // Only these are supported for now ...
+
 bool outputData = true;
 bool addGravity = false;
 bool addPressure = false;
-bool addForce = true;
+bool addForce = false;
 bool showTibia = true;
-bool showFemur = false;
+bool showFemur = true;
 bool tibiaCartilage = true;
 bool femurCartilage = true;
 
-// bool addConstrain = true;
-// bool addForce = true;
-// bool addFixed = false;
-double time_step = 0.001;
+ROT_SYS myRot = XYZ;
+double time_step = 0.0001;
 int scaleFactor = 1;
 double dz = 0.001;
 const double K_SPRINGS = 100e8;
@@ -83,10 +83,12 @@ const double C_DAMPERS = 100e3;
 double MeterToInch = 0.02539998628;
 double L0 = 0.01;  // Initial length
 double L0_t = 0.01;
-int write_interval = 20;
+int write_interval = 10;
 
 void GetDataFile(const char* filename, std::vector<std::vector<double>>& DATA);
-void impose_TF_motion(std::vector<std::vector<double>> motionInfo, std::shared_ptr<ChLinkLockLock> my_link_TF);
+void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
+                      int angleset,
+                      std::shared_ptr<ChLinkLockLock> my_link_TF);
 void ManipulateFemur(ChSystemDEM& my_system,
                      std::shared_ptr<ChBody> RigidBodyFemur,
                      std::shared_ptr<ChBody> RigidBodyTibia,
@@ -239,8 +241,8 @@ int main(int argc, char* argv[]) {
     application.AddTypicalLights(core::vector3df(0, -5, 0), core::vector3df(0, 5, 0), 90, 90,
                                  irr::video::SColorf(0.5, 0.5, 0.5));
 
-    application.AddTypicalCamera(core::vector3df(-0.2f, -0.000f, 0.0f),  // camera location
-                                 core::vector3df(0.2f, 0.000f, -0.0f));  // "look at" location
+    application.AddTypicalCamera(core::vector3df(-0.1f, -0.000f, -0.0f),  // camera location
+                                 core::vector3df(0.1f, 0.000f, -0.0f));   // "look at" location
     application.SetContactsDrawMode(ChIrrTools::CONTACT_DISTANCES);
 #endif
 
@@ -249,7 +251,7 @@ int main(int argc, char* argv[]) {
                                                                   // material: troubles
     // Use this value for an outward additional layer around meshes, that can improve
     // robustness of mesh-mesh collision detection (at the cost of having unnatural inflate effect)
-    double sphere_swept_thickness = dz * 0.01;
+    double sphere_swept_thickness = dz * 0.1;
 
     double rho = 1000 * 0.005 / dz;  ///< material density
     double E = 40e7;                 ///< Young's modulus
@@ -261,10 +263,10 @@ int main(int argc, char* argv[]) {
     my_system.SetContactForceModel(ChSystemDEM::Hooke);
     auto mysurfmaterial = std::make_shared<ChMaterialSurfaceDEM>();
 
-    mysurfmaterial->SetKn(1e4);
-    mysurfmaterial->SetKt(1);
-    mysurfmaterial->SetGn(2e0);
-    mysurfmaterial->SetGt(1);
+    mysurfmaterial->SetKn(2e5);
+    mysurfmaterial->SetKt(0);
+    mysurfmaterial->SetGn(5);
+    mysurfmaterial->SetGt(0);
 
     GetLog() << "-----------------------------------------------------------\n";
     GetLog() << "-----------------------------------------------------------\n";
@@ -287,7 +289,7 @@ int main(int argc, char* argv[]) {
     }
 
     //    GetLog() << "	Adding the Femur as a Rigid Body ...\n";
-    ChVector<> Center_Femur(0, 0.000, 0);
+    ChVector<> Center_Femur(0, 0.0, 0);
     auto Femur = std::make_shared<ChBody>();
     Femur->SetPos(Center_Femur);
     Femur->SetBodyFixed(true);
@@ -307,33 +309,50 @@ int main(int argc, char* argv[]) {
     my_system.Add(Femur);
 
     auto my_link_TF = std::make_shared<ChLinkLockLock>();
+    //    my_link_TF->Initialize(MarkerFemur, MarkerTibia);
     my_link_TF->Initialize(MarkerTibia, MarkerFemur);
+    //    my_link_TF->Initialize(Tibia, Femur, ChCoordsys<>());
+
     my_system.AddLink(my_link_TF);
 
     std::vector<std::vector<double>> motionInfo;
-    GetDataFile(GetChronoDataFile("fea/knee_kinematics.csv").c_str(), motionInfo);
-    //    // motionInfo: t,TF_tx,TF_ty,TF_tz,TF_rx,TF_ry,TF_rz,PF_tx,PF_ty,PF_tz,PF_rx,PF_ry,PF_rz
-    ////These
+    double D2R = 3.1415 / 180;
+    ChVector<> RotAng(0, 0, 0);
+    ChMatrix33<> MeshRotate;
 
-    double toRad = 3.1415 / 180;
-    ChQuaternion<> RotationZ;
-    RotationZ = Q_from_AngZ(toRad * motionInfo[0][6]);
-    ChQuaternion<> RotationY;
-    RotationY = Q_from_AngY(toRad * motionInfo[0][5]);
-    ChQuaternion<> RotationX;
-    RotationX = Q_from_AngX(toRad * motionInfo[0][4]);
+    switch (myRot) {
+        case XYZ: {
+            GetDataFile(GetChronoDataFile("fea/XYZ.csv").c_str(), motionInfo);
+            // motionInfo: t,TF_tx,TF_ty,TF_tz,TF_rx,TF_ry,TF_rz,PF_tx,PF_ty,PF_tz,PF_rx,PF_ry,PF_rz
+            Tibia->SetPos(ChVector<>(motionInfo[0][1], motionInfo[0][2], motionInfo[0][3]));
+            RotAng = ChVector<>(-motionInfo[0][4], motionInfo[0][5], -motionInfo[0][6]) * D2R;
+            // why negative sign is needed here?
+            GetLog() << "\n RotAng is =" << RotAng << "\n ";
+            MeshRotate = Angle_to_Quat(4, RotAng);
 
-    ChMatrix33<> RotationZZ(0);
-    RotationZZ.SetElement(0, 0, cos(toRad * motionInfo[0][6]));
-    RotationZZ.SetElement(1, 1, cos(toRad * motionInfo[0][6]));
-    RotationZZ.SetElement(0, 1, -sin(toRad * motionInfo[0][6]));
-    RotationZZ.SetElement(1, 0, +sin(toRad * motionInfo[0][6]));
-    RotationZZ.SetElement(2, 2, 1);
-    //    //
+            Tibia->SetRot(MeshRotate);
+            impose_TF_motion(motionInfo, 4, my_link_TF);
+            break;
+        }
+        case ZXY: {
+            GetDataFile(GetChronoDataFile("fea/ZXY.csv").c_str(), motionInfo);
+            // motionInfo: t,TF_tx,TF_ty,TF_tz,TF_rx,TF_ry,TF_rz,PF_tx,PF_ty,PF_tz,PF_rx,PF_ry,PF_rz
+            RotAng = ChVector<>(-motionInfo[0][4], -motionInfo[0][5], -motionInfo[0][6]) * D2R;
+            MeshRotate = Angle_to_Quat(7, RotAng);
+            Tibia->SetPos(ChVector<>(motionInfo[0][1], motionInfo[0][2], motionInfo[0][3]));
+            Tibia->SetRot(MeshRotate);
+            impose_TF_motion(motionInfo, 7, my_link_TF);
+            break;
+        }
+    }
 
-    Tibia->SetPos(ChVector<>(motionInfo[0][1], motionInfo[0][2], motionInfo[0][3]));
-    Tibia->SetRot(RotationZ);
-    impose_TF_motion(motionInfo, my_link_TF);
+    //    ChQuaternion<> RotationZ;
+    //    RotationZ = Q_from_AngZ(toRad * motionInfo[0][6]);
+    //    ChQuaternion<> RotationY;
+    //    RotationY = Q_from_AngY(-toRad * motionInfo[0][5]);
+    //    ChQuaternion<> RotationX;
+    //    RotationX = Q_from_AngX(toRad * motionInfo[0][4]);
+    //
 
     //    ////Connect Fumer to Tibia through a plane-plane joint.
     //    ////The normal to the common plane is along the z global axis.
@@ -422,7 +441,7 @@ int main(int argc, char* argv[]) {
     if (tibiaCartilage) {
         try {
             ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-1.mesh").c_str(),
-                                                   material, NODE_AVE_AREA_t, BC_NODES1, Tibia->GetPos(), RotationZZ,
+                                                   material, NODE_AVE_AREA_t, BC_NODES1, Tibia->GetPos(), MeshRotate,
                                                    MeterToInch, false, false);
         } catch (ChException myerr) {
             GetLog() << myerr.what();
@@ -446,7 +465,7 @@ int main(int argc, char* argv[]) {
         //   Import the Tibia
         try {
             ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-2.mesh").c_str(),
-                                                   material, NODE_AVE_AREA_t, BC_NODES2, Tibia->GetPos(), RotationZZ,
+                                                   material, NODE_AVE_AREA_t, BC_NODES2, Tibia->GetPos(), MeshRotate,
                                                    MeterToInch, false, false);
         } catch (ChException myerr) {
             GetLog() << myerr.what();
@@ -708,9 +727,9 @@ int main(int argc, char* argv[]) {
     my_system.SetIntegrationType(ChSystem::INT_HHT);
     auto mystepper = std::dynamic_pointer_cast<ChTimestepperHHT>(my_system.GetTimestepper());
     mystepper->SetAlpha(-0.2);
-    mystepper->SetMaxiters(20);
+    mystepper->SetMaxiters(40);
     //    mystepper->SetAbsTolerances(1e-04, 1e-3);  // For ACC
-    mystepper->SetAbsTolerances(1e-05, 3);           // For Pos
+    mystepper->SetAbsTolerances(1e-05, 10);          // For Pos
     mystepper->SetMode(ChTimestepperHHT::POSITION);  // POSITION //ACCELERATION
     mystepper->SetScaling(true);
     mystepper->SetVerbose(true);
@@ -731,10 +750,23 @@ int main(int argc, char* argv[]) {
 //    MarkerFemur->Impose_Rel_Coord(ChCoordsys<>(-Initial_Pos));
 
 #ifdef USE_IRR
+    ChQuaternion<> myRot = Tibia->GetRot();
+    ChVector<> myPos = Tibia->GetPos();
+    printf("Tibia pos= %f  %f  %f  \n", myPos.x, myPos.y, myPos.z);
+    //    printf("Tibia Rot= %f  %f  %f  %f \n", myRot.e1, myRot.e2, myRot.e3, myRot.e0);
+
     while (application.GetDevice()->run()) {
         application.BeginScene();
         application.DrawAll();
         application.DoStep();
+        ChQuaternion<> myRot = Tibia->GetRot();
+        ChVector<> myPos = Tibia->GetPos();
+
+        //        printf("Tibia Rot= %f  %f  %f  %f \n", myRot.e1, myRot.e2, myRot.e3, myRot.e0);
+        printf("Tibia pos= %f  %f  %f  \n", myPos.x, myPos.y, myPos.z);
+
+        //        throw ChException("ERROR opening Mesh file: \n");
+
         //        ManipulateFemur(my_system, Femur, Tibia, Initial_Pos, MarkerFemurIn);
 
         application.EndScene();
@@ -744,7 +776,7 @@ int main(int argc, char* argv[]) {
 
     printf("Tibia Rot= %f  %f  %f  %f \n", myRot.e1, myRot.e2, myRot.e3, myRot.e0);
 
-    while (my_system.GetChTime() < 1) {
+    while (my_system.GetChTime() < 2) {
         ////////////////////////////////////////////////////////////////
         ChQuaternion<> myRot = Tibia->GetRot();
         printf("Tibia Rot= %f  %f  %f  %f \n", myRot.e1, myRot.e2, myRot.e3, myRot.e0);
@@ -797,12 +829,13 @@ void GetDataFile(const char* filename, std::vector<std::vector<double>>& DATA) {
         int ntoken = 0;
         string token;
         std::istringstream ss(line);
-        while (std::getline(ss, token, '\t') && ntoken < 20) {
+        while (std::getline(ss, token, ',') && ntoken < 20) {
             std::istringstream stoken(token);
             stoken >> DATA[num_data][ntoken];
             ++ntoken;
         }
     }
+    printf("%f %f %f %f", DATA[0][0], DATA[0][1], DATA[0][2], DATA[0][3]);
 }
 
 void ManipulateFemur(ChSystemDEM& my_system,
@@ -1005,7 +1038,9 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
     output.close();
 }
 
-void impose_TF_motion(std::vector<std::vector<double>> motionInfo, std::shared_ptr<ChLinkLockLock> my_link_TF) {
+void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
+                      int angleset,
+                      std::shared_ptr<ChLinkLockLock> my_link_TF) {
     class TF_tx : public ChFunction {
       public:
         std::vector<std::vector<double>> myMotion;
@@ -1056,6 +1091,7 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo, std::shared_p
             double y2 = myMotion[i + 1][2];
             double y = y1 + (y2 - y1) / (t2 - t1) * (x - t1);
 
+            //            printf(" outputting %f \n", y);
             return (y);
         }
     };
@@ -1110,7 +1146,7 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo, std::shared_p
             double y2 = myMotion[i + 1][4];
             double y = y1 + (y2 - y1) / (t2 - t1) * (x - t1);
 
-            return (y * CH_C_PI / 180);
+            return (-y * CH_C_PI / 180);
         }
     };
 
@@ -1163,8 +1199,7 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo, std::shared_p
             double y1 = myMotion[i][6];
             double y2 = myMotion[i + 1][6];
             double y = y1 + (y2 - y1) / (t2 - t1) * (x - t1);
-
-            return (y * CH_C_PI / 180);
+            return (-y * CH_C_PI / 180);
         }
     };
 
@@ -1174,13 +1209,13 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo, std::shared_p
     TF_rx* TFrx = new TF_rx(motionInfo);
     TF_ry* TFry = new TF_ry(motionInfo);
     TF_rz* TFrz = new TF_rz(motionInfo);
-
+    my_link_TF->Set_angleset(angleset);
     my_link_TF->SetMotion_X(TFtx);
     my_link_TF->SetMotion_Y(TFty);
     my_link_TF->SetMotion_Z(TFtz);
-    my_link_TF->SetMotion_ang(TFrz);
-    //    my_link_TF->SetMotion_ang2(TFry);
-    //    my_link_TF->SetMotion_ang3(TFrx);
+    my_link_TF->SetMotion_ang(TFrx);
+    my_link_TF->SetMotion_ang2(TFry);
+    my_link_TF->SetMotion_ang3(TFrz);
 
     //    class A_COSX : public ChFunction {
     //      public:
@@ -1215,4 +1250,25 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo, std::shared_p
     //    AXB* y_motion = new AXB;
     //    my_link_TF->SetMotion_ang(phi_motion);
     //    my_link_TF->SetMotion_Y(y_motion);
+
+    //            ChMatrix33<> RotationXX(0);
+    //            RotationXX.SetElement(0, 0, 1);
+    //            RotationXX.SetElement(1, 1, cos(D2R * motionInfo[0][4]));
+    //            RotationXX.SetElement(1, 2, +sin(D2R * motionInfo[0][4]));
+    //            RotationXX.SetElement(2, 1, -sin(D2R * motionInfo[0][4]));
+    //            RotationXX.SetElement(2, 2, cos(D2R * motionInfo[0][4]));
+    //            ChMatrix33<> RotationYY(0);
+    //            RotationYY.SetElement(1, 1, 1);
+    //            RotationYY.SetElement(0, 0, cos(D2R * motionInfo[0][5]));
+    //            RotationYY.SetElement(0, 2, -sin(D2R * motionInfo[0][5]));
+    //            RotationYY.SetElement(2, 0, +sin(D2R * motionInfo[0][5]));
+    //            RotationYY.SetElement(2, 2, cos(D2R * motionInfo[0][5]));
+    //            ChMatrix33<> RotationZZ(0);
+    //            RotationZZ.SetElement(2, 2, 1);
+    //            RotationZZ.SetElement(0, 0, cos(D2R * motionInfo[0][6]));
+    //            RotationZZ.SetElement(0, 1, +sin(D2R * motionInfo[0][6]));
+    //            RotationZZ.SetElement(1, 0, -sin(D2R * motionInfo[0][6]));
+    //            RotationZZ.SetElement(1, 1, cos(D2R * motionInfo[0][6]));
+    //            ChMatrix33<> MeshRotate2;
+    //            MeshRotate2.MatrMultiply(RotationXX, (RotationYY * RotationZZ));
 }
