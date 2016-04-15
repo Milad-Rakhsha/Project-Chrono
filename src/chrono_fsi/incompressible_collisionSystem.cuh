@@ -293,22 +293,18 @@ __device__ void Calc_Others(Real& rho_np_i,
                             const Real epsilon,
                             const Real dT);
 //--------------------------------------------------------------------------------------------------------------------------------
-__device__ void Calc_BC_ADAMI(const uint i_idx,
-                              const Real3 pos_i,
-                              const Real Rho_i,
-                              Real3* sortedPosRad,
-                              Real3* sortedVelMas,
-                              Real4* sortedRhoPreMu,
+__device__ void Calc_BC_ADAMI(Real& p_new,
+                              Real3& Vel_i,
+                              const uint i_idx,
+                              const Real3* sortedPosRad,
+                              const Real3* sortedVelMas,
+                              const Real4* sortedRhoPreMu,
                               Real* p_old,
-                              Real3* V_new,
-                              uint* cellStart,
-                              uint* cellEnd,
+                              const uint* cellStart,
+                              const uint* cellEnd,
                               const Real m_0,
-                              const Real mu_0,
                               const Real RHO_0,
-                              const Real epsilon,
-                              const Real dT,
-                              const Real3 g);
+                              const Real3 gravity);
 //--------------------------------------------------------------------------------------------------------------------------------
 
 /**
