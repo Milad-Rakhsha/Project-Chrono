@@ -184,12 +184,16 @@ int main(int argc, char* argv[]) {
 
     int startIndexSph = 0;
 #if haveFluid
-    thrust::device_vector<Real3> posRadD = posRadH;
-    thrust::device_vector<Real3> velMasD = velMasH;
-    thrust::device_vector<Real4> rhoPresMuD = rhoPresMuH;
-    thrust::device_vector<uint> bodyIndexD = bodyIndex;
+    thrust::device_vector<Real3> posRadD;     // = posRadH;
+    thrust::device_vector<Real3> velMasD;     //= velMasH;
+    thrust::device_vector<Real4> rhoPresMuD;  //= rhoPresMuH;
+    thrust::device_vector<uint> bodyIndexD;   // = bodyIndex;
     thrust::device_vector<Real4> derivVelRhoD;
     ResizeR4(derivVelRhoD, numObjects.numAllMarkers);
+    Real4CopyH2D(rhoPresMuH, rhoPresMuD);
+    Real3CopyH2D(velMasH, velMasD);
+    Real3CopyH2D(posRadH, posRadD);
+    uintCopyH2D(bodyIndex, bodyIndexD);
 
     int numFsiBodies = 0;  // FSI_Bodies.size();
     thrust::device_vector<Real3> posRigid_fsiBodies_D;
@@ -212,13 +216,20 @@ int main(int argc, char* argv[]) {
     thrust::host_vector<Real3> omegaVelLRF_fsiBodies_dummyH(numFsiBodies);
     thrust::host_vector<Real3> omegaAccLRF_fsiBodies_dummyH(numFsiBodies);
 
-    thrust::device_vector<Real3> posRigid_fsiBodies_D2 = posRigid_fsiBodies_D;
-    thrust::device_vector<Real4> velMassRigid_fsiBodies_D2 = velMassRigid_fsiBodies_D;
-    thrust::device_vector<Real3> accRigid_fsiBodies_D2 = accRigid_fsiBodies_D;
+    thrust::device_vector<Real3> posRigid_fsiBodies_D2;      // = posRigid_fsiBodies_D;
+    thrust::device_vector<Real4> velMassRigid_fsiBodies_D2;  // = velMassRigid_fsiBodies_D;
+    thrust::device_vector<Real3> accRigid_fsiBodies_D2;      // = accRigid_fsiBodies_D;
+    Real3CopyD2D(posRigid_fsiBodies_D, posRigid_fsiBodies_D2);
+    Real4CopyD2D(velMassRigid_fsiBodies_D, velMassRigid_fsiBodies_D2);
+    Real3CopyD2D(accRigid_fsiBodies_D, accRigid_fsiBodies_D2);
 
-    thrust::device_vector<Real4> q_fsiBodies_D2 = q_fsiBodies_D;
-    thrust::device_vector<Real3> omegaVelLRF_fsiBodies_D2 = omegaVelLRF_fsiBodies_D;
-    thrust::device_vector<Real3> omegaAccLRF_fsiBodies_D2 = omegaAccLRF_fsiBodies_D;
+    thrust::device_vector<Real4> q_fsiBodies_D2;            // = q_fsiBodies_D;
+    thrust::device_vector<Real3> omegaVelLRF_fsiBodies_D2;  // = omegaVelLRF_fsiBodies_D;
+    thrust::device_vector<Real3> omegaAccLRF_fsiBodies_D2;  //= omegaAccLRF_fsiBodies_D;
+
+    Real4CopyD2D(q_fsiBodies_D, q_fsiBodies_D2);
+    Real3CopyD2D(omegaVelLRF_fsiBodies_D, omegaVelLRF_fsiBodies_D2);
+    Real3CopyD2D(omegaAccLRF_fsiBodies_D, omegaAccLRF_fsiBodies_D2);
 
     thrust::device_vector<Real3> rigid_FSI_ForcesD;
     thrust::device_vector<Real3> rigid_FSI_TorquesD;
@@ -251,9 +262,12 @@ int main(int argc, char* argv[]) {
                                        paramsH);
 
     // ** initialize device mid step data
-    thrust::device_vector<Real3> posRadD2 = posRadD;
-    thrust::device_vector<Real3> velMasD2 = velMasD;
-    thrust::device_vector<Real4> rhoPresMuD2 = rhoPresMuD;
+    thrust::device_vector<Real3> posRadD2;     // = posRadD;
+    thrust::device_vector<Real3> velMasD2;     // = velMasD;
+    thrust::device_vector<Real4> rhoPresMuD2;  //= rhoPresMuD;
+    Real3CopyD2D(posRadD, posRadD2);
+    Real3CopyD2D(velMasD, velMasD2);
+    Real4CopyD2D(rhoPresMuD, rhoPresMuD2);
     thrust::device_vector<Real3> vel_XSPH_D;
     ResizeR3(vel_XSPH_D, numObjects.numAllMarkers);
     //    assert(posRadD.size() == numObjects.numAllMarkers && "(3) numObjects is not set correctly");
@@ -275,7 +289,7 @@ int main(int argc, char* argv[]) {
                                                      // currentParamsH.dT ;//0.7e6;//2.5e6;
                                                      // //200000;//10000;//50000;//100000;
 
-    stepEnd = 2000;
+    stepEnd = 20;
 
     printf("stepEnd %d\n", stepEnd);
     Real realTime = 0;
@@ -304,6 +318,9 @@ int main(int argc, char* argv[]) {
     fsi_timer.AddTimer("DoStepDynamics_FSI");
     fsi_timer.AddTimer("DoStepDynamics_ChronoRK2");
 
+    CpuTimer Total_simulation_time;
+    Total_simulation_time.Start();
+
     for (int tStep = 0; tStep < stepEnd; tStep++) {
         // -------------------
         // SPH Block
@@ -327,7 +344,7 @@ int main(int argc, char* argv[]) {
         fsi_timer.start("fluid_initialization");
 
         int out_steps = std::ceil((1.0 / paramsH.dT) / out_fps);
-        out_steps = 20;
+        out_steps = 5;
         PrintToFile(posRadD, velMasD, rhoPresMuD, referenceArray, currentParamsH, realTime, tStep, out_steps,
                     pov_dir_fluid);
 
@@ -401,6 +418,10 @@ int main(int argc, char* argv[]) {
         fflush(stdout);
         realTime += currentParamsH.dT;
     }
+
+    Total_simulation_time.Stop();
+
+    printf("Total Time (CPU): %f\n-----------------------------------------\n ", Total_simulation_time.Elapsed());
     posRadH.clear();
     velMasH.clear();
     rhoPresMuH.clear();
