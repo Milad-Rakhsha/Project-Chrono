@@ -41,6 +41,7 @@ Real fluidInitDimX = 1;
 Real fluidInitDimY = 0.02;  // This is half of the width
 Real fluidInitDimZ = 1;
 // Dimensions
+
 Real hdimX = 4;
 Real hdimY = 0.02;  // Should be the same as fluidInitDimY, BCEs are taken care of later
 Real hdimZ = 2;
@@ -86,11 +87,11 @@ void SetupParamsH(SimParams& paramsH) {
         mR3(0, 0, 0);  // mR4(3.2e-3,0,0,0);// mR4(0);;// /*Re = 100 */ //mR4(3.2e-4, 0, 0, 0);/*Re = 100 */
     paramsH.rho0 = 1000;
     paramsH.markerMass = pow(paramsH.MULT_INITSPACE * paramsH.HSML, 3) * paramsH.rho0;
-    paramsH.mu0 = 0.000;
+    paramsH.mu0 = 0.001;
     paramsH.v_Max = maxFlowVelocity;  // Arman, I changed it to 0.1 for vehicle. Check this
                                       // later;//10;//50e-3;//18e-3;//1.5;//2e-1; /*0.2 for Re = 100 */ //2e-3;
     paramsH.EPS_XSPH = .5f;
-    paramsH.dT = 0.0008;        // 0.2e-4;//1.0e-4;  // 2e-3;  // note you are using half of this for MBD system
+    paramsH.dT = 0.001;         // 0.2e-4;//1.0e-4;  // 2e-3;  // note you are using half of this for MBD system
     paramsH.tFinal = time_end;  // 20 * paramsH.dT; //400
     paramsH.timePause = time_pause_fluid_external_force;  //.0001 * paramsH.tFinal;//.0001 * paramsH.tFinal; 	// time
     // before applying any
