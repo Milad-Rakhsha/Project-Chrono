@@ -59,7 +59,7 @@ ChFsiModelData.cpp
 CreateBCE.cpp
 InitializeSphMarkers.cpp
 printToFile.cu
-SphInterface.cpp 
+#SphInterface.cpp 
 VehicleExtraProperties.cpp
 UtilsDeviceOperations.cu
 #SDKCollisionSystem.cu 
@@ -80,7 +80,7 @@ InitializeSphMarkers.h
 MyStructs.cuh
 printToFile.cu
 SPHCudaUtils.h
-SphInterface.h
+#SphInterface.h
 VehicleExtraProperties.h
 UtilsDeviceOperations.cuh
 #SDKCollisionSystem.cuh
