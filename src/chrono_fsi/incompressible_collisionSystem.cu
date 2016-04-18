@@ -1967,10 +1967,16 @@ void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
   //------------------------------------------------------------------------
   //------------- MatrixJacobi
   //------------------------------------------------------------------------
-  thrust::device_vector<Real> a_ij(numAllMarkers * numAllMarkers);
-  thrust::device_vector<Real> B_i(numAllMarkers);
-  thrust::device_vector<Real> a_ij3(numAllMarkers * numAllMarkers);
-  thrust::device_vector<Real3> summGradW(numAllMarkers);
+  thrust::device_vector<Real> a_ij(1);
+  thrust::device_vector<Real> B_i(1);
+  thrust::device_vector<Real> a_ij3(1);
+  thrust::device_vector<Real3> summGradW(1);
+  if (mySolutionType == MatrixJacobi || mySolutionType == FullMatrix) {
+    a_ij.resize(numAllMarkers * numAllMarkers);
+    a_ij.resize(numAllMarkers * numAllMarkers);
+    B_i.resize(numAllMarkers);
+    summGradW.resize(numAllMarkers);
+  }
 
   thrust::fill(a_ij.begin(), a_ij.end(), 0);
   thrust::fill(B_i.begin(), B_i.end(), 0);
@@ -2138,7 +2144,7 @@ void calcPressureIISPH(const thrust::device_vector<Real3>& sortedPosRad,
     //    Real R_np = thrust::reduce(rho_np.begin(), rho_np.end(), 0.0, thrust::plus<Real>()) / rho_np.size();
     Real R_p = thrust::reduce(rho_p.begin(), rho_p.end(), 0.0, thrust::maximum<Real>());
 
-    printf("Iter= %d, Res= %f, Max Comp= %f \n", Iteration, MaxRes, R_p);
+    //    printf("Iter= %d, Res= %f, Max Comp= %f \n", Iteration, MaxRes, R_p);
   }
   printf("Iteration= %d, residual= %f, \n", Iteration, MaxRes);
 
