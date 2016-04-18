@@ -205,7 +205,9 @@ ChQuaternion<double> Qdt_from_Wrel(const ChVector<double>& w, const ChQuaternion
 //	Gets the quaternion ddq/dtdt from the vector of angular acceleration
 //  with a specified in _absolute_ coords.
 
-ChQuaternion<double> Qdtdt_from_Aabs(const ChVector<double>& a, const ChQuaternion<double>& q, const ChQuaternion<double>& q_dt) {
+ChQuaternion<double> Qdtdt_from_Aabs(const ChVector<double>& a,
+                                     const ChQuaternion<double>& q,
+                                     const ChQuaternion<double>& q_dt) {
     ChQuaternion<double> ret;
     ret.Qdtdt_from_Aabs(a, q, q_dt);
     return ret;
@@ -214,7 +216,9 @@ ChQuaternion<double> Qdtdt_from_Aabs(const ChVector<double>& a, const ChQuaterni
 //	Gets the quaternion ddq/dtdt from the vector of angular acceleration
 //  with a specified in _relative_ coords.
 
-ChQuaternion<double> Qdtdt_from_Arel(const ChVector<double>& a, const ChQuaternion<double>& q, const ChQuaternion<double>& q_dt) {
+ChQuaternion<double> Qdtdt_from_Arel(const ChVector<double>& a,
+                                     const ChQuaternion<double>& q,
+                                     const ChQuaternion<double>& q_dt) {
     ChQuaternion<double> ret;
     ret.Qdtdt_from_Arel(a, q, q_dt);
     return ret;
@@ -234,7 +238,10 @@ ChQuaternion<double> Qdt_from_AngAxis(const ChQuaternion<double>& quat, double a
 // Gets the ddquaternion/dtdt from a quaternion, an angular
 // acceleration and an axis, defined in _abs_ coords.
 
-ChQuaternion<double> Qdtdt_from_AngAxis(double angle_dtdt, const ChVector<double>& axis, const ChQuaternion<double>& q, const ChQuaternion<double>& q_dt) {
+ChQuaternion<double> Qdtdt_from_AngAxis(double angle_dtdt,
+                                        const ChVector<double>& axis,
+                                        const ChQuaternion<double>& q,
+                                        const ChQuaternion<double>& q_dt) {
     ChVector<double> Acc;
 
     Acc = Vmul(axis, angle_dtdt);
@@ -276,7 +283,9 @@ ChQuaternion<double> ImmQ_dt_complete(ChQuaternion<double>* mq, ChVector<double>
     return (mqdt);
 }
 
-ChQuaternion<double> ImmQ_dtdt_complete(ChQuaternion<double>* mq, ChQuaternion<double>* mqdt, ChVector<double>* qimm_dtdt) {
+ChQuaternion<double> ImmQ_dtdt_complete(ChQuaternion<double>* mq,
+                                        ChQuaternion<double>* mqdt,
+                                        ChVector<double>* qimm_dtdt) {
     ChQuaternion<double> mqdtdt;
     mqdtdt.e1 = qimm_dtdt->x;
     mqdtdt.e2 = qimm_dtdt->y;
@@ -307,6 +316,9 @@ ChQuaternion<double> Angle_to_Quat(int angset, const ChVector<double>& mangles) 
         case ANGLESET_RXYZ:
             Acoord.Set_A_Rxyz(mangles);
             break;
+        case ANGLESET_RZXY:
+            Acoord.Set_A_Rzxy(mangles);
+            break;
         case ANGLESET_RODRIGUEZ:
             Acoord.Set_A_Rodriguez(mangles);
             break;
@@ -333,6 +345,9 @@ ChVector<double> Quat_to_Angle(int angset, const ChQuaternion<double>& mquat) {
             break;
         case ANGLESET_RXYZ:
             res = Acoord.Get_A_Rxyz();
+            break;
+        case ANGLESET_RZXY:
+            res = Acoord.Get_A_Rzxy();
             break;
         case ANGLESET_RODRIGUEZ:
             res = Acoord.Get_A_Rodriguez();
@@ -387,6 +402,9 @@ ChVector<double> Angle_to_Angle(int setfrom, int setto, const ChVector<double>& 
         case ANGLESET_RXYZ:
             Acoord.Set_A_Rxyz(mangles);
             break;
+        case ANGLESET_RZXY:
+            Acoord.Set_A_Rzxy(mangles);
+            break;
         case ANGLESET_RODRIGUEZ:
             Acoord.Set_A_Rodriguez(mangles);
             break;
@@ -404,6 +422,9 @@ ChVector<double> Angle_to_Angle(int setfrom, int setto, const ChVector<double>& 
             break;
         case ANGLESET_RXYZ:
             res = Acoord.Get_A_Rxyz();
+            break;
+        case ANGLESET_RZXY:
+            res = Acoord.Get_A_Rzxy();
             break;
         case ANGLESET_RODRIGUEZ:
             res = Acoord.Get_A_Rodriguez();

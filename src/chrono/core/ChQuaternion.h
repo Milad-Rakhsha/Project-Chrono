@@ -37,8 +37,8 @@ namespace chrono {
 // CONSTANTS
 //
 // Added this here as code was not compiling (under Swig parser)
-#define QNULL ChQuaternion<double>(0.,0.,0.,0.)
-#define QUNIT ChQuaternion<double>(1.,0.,0.,0.)
+#define QNULL ChQuaternion<double>(0., 0., 0., 0.)
+#define QUNIT ChQuaternion<double>(1., 0., 0., 0.)
 
 ///
 /// QUATERNION:
@@ -415,7 +415,7 @@ class ChQuaternion {
     ChQuaternion<Real> GetConjugate() const { return ChQuaternion<Real>(e0, -e1, -e2, -e3); }
 
     /// Returns the inverse of the quaternion
-    ChQuaternion<Real> GetInverse() const { 
+    ChQuaternion<Real> GetInverse() const {
         ChQuaternion<Real> invq = this->GetConjugate();
         invq.Scale(1.0 / this->Length());
         return invq;
@@ -466,10 +466,11 @@ class ChQuaternion {
     //
 
     /// Sets the quaternion from a rotation vector (ie. a 3D axis of rotation with length as agle of rotation)
-    /// defined in absolute coords. 
+    /// defined in absolute coords.
     /// If you need distinct axis and angle, use rather Q_from_AngAxis()
     void Q_from_Rotv(const ChVector<Real>& angle_axis) {
-        const Real theta_squared = angle_axis.x * angle_axis.x + angle_axis.y * angle_axis.y + angle_axis.z * angle_axis.z;
+        const Real theta_squared =
+            angle_axis.x * angle_axis.x + angle_axis.y * angle_axis.y + angle_axis.z * angle_axis.z;
         // For non-zero rotation:
         if (theta_squared > Real(0.0)) {
             const Real theta = sqrt(theta_squared);
@@ -490,7 +491,7 @@ class ChQuaternion {
     }
 
     /// Gets the rotation vector (ie. a 3D axis of rotation with length as agle of rotation)
-    /// from a quaternion. 
+    /// from a quaternion.
     /// If you need distinct axis and angle, use rather Q_to_AngAxis()
     ChVector<Real> Q_to_Rotv() {
         ChVector<Real> angle_axis;
@@ -722,8 +723,7 @@ class ChQuaternion {
     // STREAMING
     //
 
-    void ArchiveOUT(ChArchiveOut& marchive)
-    {
+    void ArchiveOUT(ChArchiveOut& marchive) {
         // version number
         marchive.VersionWrite(1);
         // stream out all member data
@@ -734,8 +734,7 @@ class ChQuaternion {
     }
 
     /// Method to allow de serialization of transient data from archives.
-    void ArchiveIN(ChArchiveIn& marchive) 
-    {
+    void ArchiveIN(ChArchiveIn& marchive) {
         // version number
         int version = marchive.VersionRead();
         // stream in all member data
@@ -744,7 +743,6 @@ class ChQuaternion {
         marchive >> CHNVP(e2);
         marchive >> CHNVP(e3);
     }
-
 };
 
 /// Shortcut for faster use of typical double-precision quaternion.
@@ -785,17 +783,28 @@ ChApi ChQuaternion<double> Q_from_AngY(double angleY);
 ChApi void Q_to_AngAxis(ChQuaternion<double>* quat, double* a_angle, ChVector<double>* a_axis);
 ChApi ChQuaternion<double> Qdt_from_Wrel(const ChVector<double>& w, const Quaternion& q);
 ChApi ChQuaternion<double> Qdt_from_Wabs(const ChVector<double>& w, const Quaternion& q);
-ChApi ChQuaternion<double> Qdt_from_AngAxis(const ChQuaternion<double>& quat, double angle_dt, const ChVector<double>& axis);
-ChApi ChQuaternion<double> Qdtdt_from_Aabs(const ChVector<double>& a, const ChQuaternion<double>& q, const ChQuaternion<double>& q_dt);
-ChApi ChQuaternion<double> Qdtdt_from_Arel(const ChVector<double>& a, const ChQuaternion<double>& q, const ChQuaternion<double>& q_dt);
-ChApi ChQuaternion<double> Qdtdt_from_AngAxis(double angle_dtdt, const ChVector<double>& axis, const ChQuaternion<double>& q, const ChQuaternion<double>& q_dt);
+ChApi ChQuaternion<double> Qdt_from_AngAxis(const ChQuaternion<double>& quat,
+                                            double angle_dt,
+                                            const ChVector<double>& axis);
+ChApi ChQuaternion<double> Qdtdt_from_Aabs(const ChVector<double>& a,
+                                           const ChQuaternion<double>& q,
+                                           const ChQuaternion<double>& q_dt);
+ChApi ChQuaternion<double> Qdtdt_from_Arel(const ChVector<double>& a,
+                                           const ChQuaternion<double>& q,
+                                           const ChQuaternion<double>& q_dt);
+ChApi ChQuaternion<double> Qdtdt_from_AngAxis(double angle_dtdt,
+                                              const ChVector<double>& axis,
+                                              const ChQuaternion<double>& q,
+                                              const ChQuaternion<double>& q_dt);
 ChApi ChQuaternion<double> Qconjugate(const ChQuaternion<double>& q);
 ChApi ChQuaternion<double> Qcross(const ChQuaternion<double>& qa, const ChQuaternion<double>& qb);
 ChApi bool Qequal(const ChQuaternion<double>& qa, const ChQuaternion<double>& qb);
 ChApi bool Qnotnull(const ChQuaternion<double>& qa);
 ChApi ChQuaternion<double> ImmQ_complete(ChVector<double>* qimm);
 ChApi ChQuaternion<double> ImmQ_dt_complete(ChQuaternion<double>* mq, ChVector<double>* qimm_dt);
-ChApi ChQuaternion<double> ImmQ_dtdt_complete(ChQuaternion<double>* mq, ChQuaternion<double>* mqdt, ChVector<double>* qimm_dtdt);
+ChApi ChQuaternion<double> ImmQ_dtdt_complete(ChQuaternion<double>* mq,
+                                              ChQuaternion<double>* mqdt,
+                                              ChVector<double>* qimm_dtdt);
 
 ChApi ChVector<double> VaxisXfromQuat(const ChQuaternion<double>& quat);
 
@@ -810,15 +819,19 @@ ChApi ChVector<double> VaxisXfromQuat(const ChQuaternion<double>& quat);
 #define ANGLESET_RXYZ 4
 #define ANGLESET_RODRIGUEZ 5
 #define ANGLESET_QUATERNION 6
+#define ANGLESET_RZXY 7
 
 // Angle conversion utilities
 
 ChApi ChVector<double> Quat_to_Angle(int angset, const ChQuaternion<double>& mquat);
 ChApi ChVector<double> Angle_to_Angle(int setfrom, int setto, const ChVector<double>& mangles);
 ChApi ChQuaternion<double> Angle_to_Quat(int angset, const ChVector<double>& mangles);
-ChApi ChQuaternion<double> AngleDT_to_QuatDT(int angset, const ChVector<double>& mangles, const ChQuaternion<double>& q);
-ChApi ChQuaternion<double> AngleDTDT_to_QuatDTDT(int angset, const ChVector<double>& mangles, const ChQuaternion<double>& q);
-
+ChApi ChQuaternion<double> AngleDT_to_QuatDT(int angset,
+                                             const ChVector<double>& mangles,
+                                             const ChQuaternion<double>& q);
+ChApi ChQuaternion<double> AngleDTDT_to_QuatDTDT(int angset,
+                                                 const ChVector<double>& mangles,
+                                                 const ChQuaternion<double>& q);
 
 }  // END_OF_NAMESPACE____
 

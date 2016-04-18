@@ -378,7 +378,7 @@ void ChLinkLock::UpdateTime(double time) {
         case ANGLESET_EULERO:
         case ANGLESET_CARDANO:
         case ANGLESET_HPB:
-        case ANGLESET_RXYZ:
+        case ANGLESET_RXYZ: {
             Vector vangles, vangles_dt, vangles_dtdt;
             vangles.x = motion_ang->Get_y(time);
             vangles.y = motion_ang2->Get_y(time);
@@ -393,6 +393,21 @@ void ChLinkLock::UpdateTime(double time) {
             deltaC_dt.rot = AngleDT_to_QuatDT(angleset, vangles_dt, deltaC.rot);
             deltaC_dtdt.rot = AngleDTDT_to_QuatDTDT(angleset, vangles_dtdt, deltaC.rot);
             break;
+        }
+        case ANGLESET_RZXY: {
+            Vector vangles, vangles_dt, vangles_dtdt;
+            vangles.x = motion_ang->Get_y(time);
+            vangles.y = motion_ang2->Get_y(time);
+            vangles.z = motion_ang3->Get_y(time);
+            vangles_dt.x = motion_ang->Get_y_dx(time);
+            vangles_dt.y = motion_ang2->Get_y_dx(time);
+            vangles_dt.z = motion_ang3->Get_y_dx(time);
+            vangles_dtdt.x = motion_ang->Get_y_dxdx(time);
+            vangles_dtdt.y = motion_ang2->Get_y_dxdx(time);
+            vangles_dtdt.z = motion_ang3->Get_y_dxdx(time);
+            deltaC.rot = Angle_to_Quat(angleset, vangles);
+            break;
+        }
     }
 }
 
@@ -1946,9 +1961,7 @@ void ChLinkLock::ConstraintsFetch_react(double factor) {
 ///////// FILE I/O
 /////////
 
-
-void ChLinkLock::ArchiveOUT(ChArchiveOut& marchive)
-{
+void ChLinkLock::ArchiveOUT(ChArchiveOut& marchive) {
     // version number
     marchive.VersionWrite(1);
 
@@ -1976,8 +1989,7 @@ void ChLinkLock::ArchiveOUT(ChArchiveOut& marchive)
 }
 
 /// Method to allow de serialization of transient data from archives.
-void ChLinkLock::ArchiveIN(ChArchiveIn& marchive) 
-{
+void ChLinkLock::ArchiveIN(ChArchiveIn& marchive) {
     // version number
     int version = marchive.VersionRead();
 
@@ -1987,7 +1999,7 @@ void ChLinkLock::ArchiveIN(ChArchiveIn& marchive)
     // deserialize all member data:
     int ifoo;
     marchive >> CHNVP(ifoo);
-    ChangeLinkType(ifoo); // this also setup mask flags and lot of stuff, simplifying the serialization
+    ChangeLinkType(ifoo);  // this also setup mask flags and lot of stuff, simplifying the serialization
     marchive >> CHNVP(motion_X);
     marchive >> CHNVP(motion_Y);
     marchive >> CHNVP(motion_Z);
@@ -2006,10 +2018,7 @@ void ChLinkLock::ArchiveIN(ChArchiveIn& marchive)
     marchive >> CHNVP(limit_D);
 }
 
-
-
 ///////////////////////////////////////////////////////////////
-
 
 // SOME WRAPPER CLASSES, TO MAKE 'LINK LOCK' CREATION EASIER...
 

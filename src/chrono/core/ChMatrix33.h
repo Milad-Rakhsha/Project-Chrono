@@ -491,6 +491,28 @@ class ChMatrix33 : public ChMatrixNM<Real, 3, 3> {
     }
 
     /// Fills a 3x3 matrix as a rotation matrix, given the three
+    /// angles of consecutive rotations about z,x,y axis.
+    template <class RealB>
+    void Set_A_Rzxy(const ChVector<RealB>& xyz) {
+        Real cx = cos((Real)xyz.x);
+        Real cy = cos((Real)xyz.y);
+        Real cz = cos((Real)xyz.z);
+        Real sx = sin((Real)xyz.x);
+        Real sy = sin((Real)xyz.y);
+        Real sz = sin((Real)xyz.z);
+
+        this->Set33Element(0, 0, cy * cz + sx * sy * sz);
+        this->Set33Element(0, 1, +(cx * sz));
+        this->Set33Element(0, 2, cy * sx * sz - cz * sy);
+        this->Set33Element(1, 0, -cy * sz + cz * sy * sx);
+        this->Set33Element(1, 1, cx * cz);
+        this->Set33Element(1, 2, sy * sz + cy * cz * sx);
+        this->Set33Element(2, 0, +cx * sy);
+        this->Set33Element(2, 1, -sx);
+        this->Set33Element(2, 2, cx * cy);
+    }
+
+    /// Fills a 3x3 matrix as a rotation matrix, given the three
     /// Rodriguez' parameters.
     template <class RealB>
     void Set_A_Rodriguez(const ChVector<RealB>& rod) {
@@ -730,6 +752,36 @@ class ChMatrix33 : public ChMatrixNM<Real, 3, 3> {
 
         Rxyz.z = asin(arg2);
         Rxyz.x = asin(arg3);
+
+        return Rxyz;
+    }
+
+    /// Given a 3x3 rotation matrix, returns the angles for
+    /// consecutive rotations on x,y,z axes..
+    ChVector<Real> Get_A_Rzxy() const {
+        ChVector<Real> Rxyz;
+
+        Real arg1 = -(this->GetElement(2, 1));
+        if (arg1 > 1)
+            arg1 = 1;
+        if (arg1 < -1)
+            arg1 = -1;
+        Rxyz.x = acos(arg1);
+
+        Real arg2 = (this->GetElement(2, 2)) / cos(Rxyz.x);
+        if (arg2 > 1)
+            arg2 = 1;
+        if (arg2 < -1)
+            arg2 = -1;
+        Rxyz.y = acos(arg2);
+
+        Real arg3 = (this->GetElement(1, 1)) / cos(Rxyz.x);
+        if (arg3 > 1)
+            arg3 = 1;
+        if (arg3 < -1)
+            arg3 = -1;
+
+        Rxyz.z = acos(arg3);
 
         return Rxyz;
     }
