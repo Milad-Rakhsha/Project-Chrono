@@ -79,10 +79,205 @@ void ChElementShellANCF::AddLayer(double thickness, double theta, std::shared_pt
     m_layers.push_back(Layer(this, thickness, theta, material));
 }
 
+// ---------------------------------------------------------------------------- -
+// Interface to ChElementShell base class
 // -----------------------------------------------------------------------------
-// Interface to ChElementBase base class
-// -----------------------------------------------------------------------------
+ChVector<> ChElementShellANCF::GetStresses() {
+    ChVector<> Strains = this->EvaluateSectionStrains();
+    // double shear_xy = 
+    double G = this->m_layers[0].GetMaterial()->Get_E() / (2 * (1 - this->m_layers[0].GetMaterial()->Get_nu()));
+    double E = this->m_layers[0].GetMaterial()->Get_E();
 
+    double sigma_xx = E * Strains(0);
+    double sigma_yy = E * Strains(1);
+    double shear_xy = G * Strains(2);
+
+    return ChVector<>(sigma_xx, sigma_yy, shear_xy);
+}
+std::vector<ChVector<> > ChElementShellANCF::GetPrincipalStresses() {
+
+    ChVector<> Stresses = this->GetStresses();
+    double sigma_xx = Stresses(0);
+    double sigma_yy = Stresses(1);
+
+    double theta_p1 = std::atan2(2 * Stresses(2), (Stresses(0) - Stresses(1))) / 2.0;
+    double theta_p2 = theta_p1 + CH_C_PI_2;
+
+    double term1 = (sigma_xx + sigma_yy) / 2.0;
+    double term2 = std::sqrt(std::pow((sigma_xx - sigma_yy) / 2.0, 2) + std::pow(Stresses(2), 2));
+
+    double sigma_1 = term1 + term2;
+    double sigma_2 = term1 - term2;
+
+    ChVector<> Ihat(0);
+    Ihat(0) = m_d(0, 0) - m_d(2, 0);
+    Ihat(1) = m_d(0, 1) - m_d(2, 1);
+    Ihat(2) = m_d(0, 2) - m_d(2, 2);
+    Ihat.Normalize();
+    ChVector<> Jhat(0);
+    Jhat(0) = m_d(0, 0) - m_d(6, 0);
+    Jhat(1) = m_d(0, 1) - m_d(6, 1);
+    Jhat(2) = m_d(0, 2) - m_d(6, 2);
+    Jhat.Normalize();
+
+    std::vector<ChVector<> > Result;
+
+    Result.push_back(ChVector<>(sigma_1, sigma_2, theta_p1));
+    Result.push_back(Ihat);
+    Result.push_back(Jhat);
+
+    return Result;
+}
+ChVector<> ChElementShellANCF::EvaluateSectionStrains() {
+    // Element shape function
+    ChMatrixNM<double, 1, 8> N;
+    this->ShapeFunctions(N, 0, 0, 0);
+
+    // Determinant of position vector gradient matrix: Initial configuration
+    ChMatrixNM<double, 1, 8> Nx;
+    ChMatrixNM<double, 1, 8> Ny;
+    ChMatrixNM<double, 1, 8> Nz;
+    ChMatrixNM<double, 1, 3> Nx_d0;
+    ChMatrixNM<double, 1, 3> Ny_d0;
+    ChMatrixNM<double, 1, 3> Nz_d0;
+    double detJ0 = this->Calc_detJ0(0, 0, 0, Nx, Ny, Nz, Nx_d0, Ny_d0, Nz_d0);
+
+    // ANS shape function
+    ChMatrixNM<double, 1, 4> S_ANS;  // Shape function vector for Assumed Natural Strain
+    ChMatrixNM<double, 6, 5> M;      // Shape function vector for Enhanced Assumed Strain
+    this->ShapeFunctionANSbilinearShell(S_ANS, 0, 0);
+    this->Basis_M(M, 0, 0, 0);
+
+    // Transformation : Orthogonal transformation (A and J)
+    ChVector<double> G1xG2;  // Cross product of first and second column of
+    double G1dotG1;          // Dot product of first column of position vector gradient
+
+    G1xG2.x = Nx_d0[0][1] * Ny_d0[0][2] - Nx_d0[0][2] * Ny_d0[0][1];
+    G1xG2.y = Nx_d0[0][2] * Ny_d0[0][0] - Nx_d0[0][0] * Ny_d0[0][2];
+    G1xG2.z = Nx_d0[0][0] * Ny_d0[0][1] - Nx_d0[0][1] * Ny_d0[0][0];
+    G1dotG1 = Nx_d0[0][0] * Nx_d0[0][0] + Nx_d0[0][1] * Nx_d0[0][1] + Nx_d0[0][2] * Nx_d0[0][2];
+
+    // Tangent Frame
+    ChVector<double> A1;
+    ChVector<double> A2;
+    ChVector<double> A3;
+    A1.x = Nx_d0[0][0];
+    A1.y = Nx_d0[0][1];
+    A1.z = Nx_d0[0][2];
+    A1 = A1 / sqrt(G1dotG1);
+    A3 = G1xG2.GetNormalized();
+    A2.Cross(A3, A1);
+
+    // Direction for orthotropic material
+    double theta = 0.0;  // Fiber angle
+    ChVector<double> AA1;
+    ChVector<double> AA2;
+    ChVector<double> AA3;
+    AA1 = A1;
+    AA2 = A2;
+    AA3 = A3;
+
+    /// Beta
+    ChMatrixNM<double, 3, 3> j0;
+    ChVector<double> j01;
+    ChVector<double> j02;
+    ChVector<double> j03;
+    ChMatrixNM<double, 9, 1> beta;
+    // Calculates inverse of rd0 (j0) (position vector gradient: Initial Configuration)
+    j0(0, 0) = Ny_d0[0][1] * Nz_d0[0][2] - Nz_d0[0][1] * Ny_d0[0][2];
+    j0(0, 1) = Ny_d0[0][2] * Nz_d0[0][0] - Ny_d0[0][0] * Nz_d0[0][2];
+    j0(0, 2) = Ny_d0[0][0] * Nz_d0[0][1] - Nz_d0[0][0] * Ny_d0[0][1];
+    j0(1, 0) = Nz_d0[0][1] * Nx_d0[0][2] - Nx_d0[0][1] * Nz_d0[0][2];
+    j0(1, 1) = Nz_d0[0][2] * Nx_d0[0][0] - Nx_d0[0][2] * Nz_d0[0][0];
+    j0(1, 2) = Nz_d0[0][0] * Nx_d0[0][1] - Nz_d0[0][1] * Nx_d0[0][0];
+    j0(2, 0) = Nx_d0[0][1] * Ny_d0[0][2] - Ny_d0[0][1] * Nx_d0[0][2];
+    j0(2, 1) = Ny_d0[0][0] * Nx_d0[0][2] - Nx_d0[0][0] * Ny_d0[0][2];
+    j0(2, 2) = Nx_d0[0][0] * Ny_d0[0][1] - Ny_d0[0][0] * Nx_d0[0][1];
+    j0.MatrDivScale(detJ0);
+
+    j01(0) = j0(0, 0);
+    j02(0) = j0(1, 0);
+    j03(0) = j0(2, 0);
+    j01(1) = j0(0, 1);
+    j02(1) = j0(1, 1);
+    j03(1) = j0(2, 1);
+    j01(2) = j0(0, 2);
+    j02(2) = j0(1, 2);
+    j03(2) = j0(2, 2);
+
+    // Coefficients of contravariant transformation
+    beta(0, 0) = Vdot(AA1, j01);
+    beta(1, 0) = Vdot(AA2, j01);
+    beta(2, 0) = Vdot(AA3, j01);
+    beta(3, 0) = Vdot(AA1, j02);
+    beta(4, 0) = Vdot(AA2, j02);
+    beta(5, 0) = Vdot(AA3, j02);
+    beta(6, 0) = Vdot(AA1, j03);
+    beta(7, 0) = Vdot(AA2, j03);
+    beta(8, 0) = Vdot(AA3, j03);
+
+    // Transformation matrix, function of fiber angle
+    const ChMatrixNM<double, 6, 6>& T0 = this->GetLayer(0).Get_T0();
+    // Determinant of the initial position vector gradient at the element center
+    double detJ0C = this->GetLayer(0).Get_detJ0C();
+
+    // Enhanced Assumed Strain
+    ChMatrixNM<double, 6, 5> G = T0 * M * (detJ0C / detJ0);
+    ChMatrixNM<double, 6, 1> strain_EAS = G * this->m_alphaEAS[0];
+
+    ChMatrixNM<double, 8, 1> ddNx;
+    ChMatrixNM<double, 8, 1> ddNy;
+    ChMatrixNM<double, 8, 1> ddNz;
+    ddNx.MatrMultiplyT(this->m_ddT, Nx);
+    ddNy.MatrMultiplyT(this->m_ddT, Ny);
+    ddNz.MatrMultiplyT(this->m_ddT, Nz);
+
+    ChMatrixNM<double, 8, 1> d0d0Nx;
+    ChMatrixNM<double, 8, 1> d0d0Ny;
+    ChMatrixNM<double, 8, 1> d0d0Nz;
+    d0d0Nx.MatrMultiplyT(this->m_d0d0T, Nx);
+    d0d0Ny.MatrMultiplyT(this->m_d0d0T, Ny);
+    d0d0Nz.MatrMultiplyT(this->m_d0d0T, Nz);
+
+    // Strain component
+    ChMatrixNM<double, 6, 1> strain_til;
+    strain_til(0, 0) = 0.5 * ((Nx * ddNx)(0, 0) - (Nx * d0d0Nx)(0, 0));
+    strain_til(1, 0) = 0.5 * ((Ny * ddNy)(0, 0) - (Ny * d0d0Ny)(0, 0));
+    strain_til(2, 0) = (Nx * ddNy)(0, 0) - (Nx * d0d0Ny)(0, 0);
+    strain_til(3, 0) = N(0, 0) * this->m_strainANS(0, 0) + N(0, 2) * this->m_strainANS(1, 0) + N(0, 4) * this->m_strainANS(2, 0) +
+        N(0, 6) * this->m_strainANS(3, 0);
+    strain_til(4, 0) = S_ANS(0, 2) * this->m_strainANS(6, 0) + S_ANS(0, 3) * this->m_strainANS(7, 0);
+    strain_til(5, 0) = S_ANS(0, 0) * this->m_strainANS(4, 0) + S_ANS(0, 1) * this->m_strainANS(5, 0);
+
+    // For orthotropic material
+    ChMatrixNM<double, 6, 1> strain;
+
+    strain(0, 0) = strain_til(0, 0) * beta(0) * beta(0) + strain_til(1, 0) * beta(3) * beta(3) +
+        strain_til(2, 0) * beta(0) * beta(3) + strain_til(3, 0) * beta(6) * beta(6) +
+        strain_til(4, 0) * beta(0) * beta(6) + strain_til(5, 0) * beta(3) * beta(6);
+    strain(1, 0) = strain_til(0, 0) * beta(1) * beta(1) + strain_til(1, 0) * beta(4) * beta(4) +
+        strain_til(2, 0) * beta(1) * beta(4) + strain_til(3, 0) * beta(7) * beta(7) +
+        strain_til(4, 0) * beta(1) * beta(7) + strain_til(5, 0) * beta(4) * beta(7);
+    strain(2, 0) = strain_til(0, 0) * 2.0 * beta(0) * beta(1) + strain_til(1, 0) * 2.0 * beta(3) * beta(4) +
+        strain_til(2, 0) * (beta(1) * beta(3) + beta(0) * beta(4)) +
+        strain_til(3, 0) * 2.0 * beta(6) * beta(7) +
+        strain_til(4, 0) * (beta(1) * beta(6) + beta(0) * beta(7)) +
+        strain_til(5, 0) * (beta(4) * beta(6) + beta(3) * beta(7));
+    strain(3, 0) = strain_til(0, 0) * beta(2) * beta(2) + strain_til(1, 0) * beta(5) * beta(5) +
+        strain_til(2, 0) * beta(2) * beta(5) + strain_til(3, 0) * beta(8) * beta(8) +
+        strain_til(4, 0) * beta(2) * beta(8) + strain_til(5, 0) * beta(5) * beta(8);
+    strain(4, 0) = strain_til(0, 0) * 2.0 * beta(0) * beta(2) + strain_til(1, 0) * 2.0 * beta(3) * beta(5) +
+        strain_til(2, 0) * (beta(2) * beta(3) + beta(0) * beta(5)) +
+        strain_til(3, 0) * 2.0 * beta(6) * beta(8) +
+        strain_til(4, 0) * (beta(2) * beta(6) + beta(0) * beta(8)) +
+        strain_til(5, 0) * (beta(5) * beta(6) + beta(3) * beta(8));
+    strain(5, 0) = strain_til(0, 0) * 2.0 * beta(1) * beta(2) + strain_til(1, 0) * 2.0 * beta(4) * beta(5) +
+        strain_til(2, 0) * (beta(2) * beta(4) + beta(1) * beta(5)) +
+        strain_til(3, 0) * 2.0 * beta(7) * beta(8) +
+        strain_til(4, 0) * (beta(2) * beta(7) + beta(1) * beta(8)) +
+        strain_til(5, 0) * (beta(5) * beta(7) + beta(4) * beta(8));
+    return ChVector<>(strain(0, 0), strain(1, 0), strain(2, 0));
+}
 // Initial element setup.
 void ChElementShellANCF::SetupInitial(ChSystem* system) {
     // Perform layer initialization and accumulate element thickness.
@@ -1872,7 +2067,7 @@ ChMaterialShellANCF::ChMaterialShellANCF(double rho,  // material density
                                          double E,    // Young's modulus
                                          double nu    // Poisson ratio
                                          )
-    : m_rho(rho) {
+                                         : m_rho(rho), m_E(E), m_nu(nu) {
     double G = 0.5 * E / (1 + nu);
     Calc_E_eps(ChVector<>(E), ChVector<>(nu), ChVector<>(G));
 }
@@ -1883,7 +2078,7 @@ ChMaterialShellANCF::ChMaterialShellANCF(double rho,            // material dens
                                          const ChVector<>& nu,  // Poisson ratios (nu_xy, nu_xz, nu_yz)
                                          const ChVector<>& G    // shear moduli (G_xy, G_xz, G_yz)
                                          )
-    : m_rho(rho) {
+    : m_rho(rho), m_E(E.x), m_nu(nu.x) {
     Calc_E_eps(E, nu, G);
 }
 
