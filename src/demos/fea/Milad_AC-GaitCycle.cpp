@@ -85,6 +85,19 @@ double L0 = 0.01;  // Initial length
 double L0_t = 0.01;
 int write_interval = 10;
 
+void ReadOBJConnectivity(const char* filename,
+                         string SaveAs,
+                         std::vector<std::vector<double>>& vCoor,
+                         std::vector<std::vector<int>>& faces);
+// void WriteOBJ(std::shared_ptr<ChBody> Body,
+//              std::vector<std::vector<double>>& vCoor,
+//              char SaveAsBuffer[64],
+//              char ConnectivityFileBuffer[32]);
+
+void WriteRigidBodyVTK(std::shared_ptr<ChBody> Body,
+                       std::vector<std::vector<double>>& vCoor,
+                       char SaveAsBuffer[64],
+                       char ConnectivityFileBuffer[32]);
 void GetDataFile(const char* filename, std::vector<std::vector<double>>& DATA);
 void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
                       int angleset,
@@ -251,7 +264,7 @@ int main(int argc, char* argv[]) {
                                                                   // material: troubles
     // Use this value for an outward additional layer around meshes, that can improve
     // robustness of mesh-mesh collision detection (at the cost of having unnatural inflate effect)
-    double sphere_swept_thickness = dz * 0.1;
+    double sphere_swept_thickness = dz * 0.2;
 
     double rho = 1000 * 0.005 / dz;  ///< material density
     double E = 40e7;                 ///< Young's modulus
@@ -743,6 +756,12 @@ int main(int argc, char* argv[]) {
     writeMesh(my_mesh_femur, saveAsFemur, NodeNeighborElementFemur);
     writeMesh(my_mesh_tibia, saveAsTibia, NodeNeighborElementTibia);
     int step_count = 0;
+    // Read Tibia Obj connectivity and positions
+    // Also save the connectivity somewhere to use later in the simulation loop
+    string saveAsTibiaObj = "TibiaConectivity";
+    std::vector<std::vector<double>> vCoor;
+    std::vector<std::vector<int>> faces;
+    ReadOBJConnectivity(GetChronoDataFile("fea/tibia.obj").c_str(), saveAsTibiaObj, vCoor, faces);
 
 #endif
 /////////////////////////////////////////////////////////////////
@@ -786,16 +805,32 @@ int main(int argc, char* argv[]) {
         ///////////Write to VTK/////////////////
         ////////////////////////////////////////
         if (step_count % write_interval == 0) {
-            char SaveAsBufferFemur[64];  // The filename buffer.
-            char SaveAsBufferTibia[64];  // The filename buffer.
-            snprintf(SaveAsBufferFemur, sizeof(char) * 64, "VTK_Animations/femur.%f.vtk", my_system.GetChTime());
-            snprintf(SaveAsBufferTibia, sizeof(char) * 64, "VTK_Animations/tibia.%f.vtk", my_system.GetChTime());
-            char MeshFileBufferFemur[32];  // The filename buffer.
-            char MeshFileBufferTibia[32];  // The filename buffer.
+            char SaveAsBufferFemur[64];        // The filename buffer.
+            char SaveAsBufferTibia[64];        // The filename buffer.
+            char SaveAsBufferTibiaObj[64];     // The filename buffer.
+            char SaveAsBufferTibiaObjVTK[64];  // The filename buffer.
+
+            snprintf(SaveAsBufferFemur, sizeof(char) * 64, "VTK_Animations/femur.%d.vtk", step_count / write_interval);
+            snprintf(SaveAsBufferTibia, sizeof(char) * 64, "VTK_Animations/tibia.%d.vtk", step_count / write_interval);
+            //            snprintf(SaveAsBufferTibiaObj, sizeof(char) * 64, "VTK_Animations/ObjTibia.%d.obj",
+            //                     step_count / write_interval);
+            snprintf(SaveAsBufferTibiaObjVTK, sizeof(char) * 64, "VTK_Animations/ObjTibia.%d.vtk",
+                     step_count / write_interval);
+
+            char MeshFileBufferFemur[32];     // The filename buffer.
+            char MeshFileBufferTibia[32];     // The filename buffer.
+                                              //            char FileBufferTibiaObj[32];      // The filename buffer.
+            char MeshFileBufferTibiaObj[64];  // The filename buffer.
 
             snprintf(MeshFileBufferFemur, sizeof(char) * 32, "VTK_Animations/%s.vtk", saveAsFemur.c_str());
             snprintf(MeshFileBufferTibia, sizeof(char) * 32, "VTK_Animations/%s.vtk", saveAsTibia.c_str());
+            snprintf(MeshFileBufferTibiaObj, sizeof(char) * 64, "VTK_Animations/%s.vtk", saveAsTibiaObj.c_str());
 
+            //            snprintf(FileBufferTibiaObj, sizeof(char) * 32, "VTK_Animations/%s.obj",
+            //            saveAsTibiaObj.c_str());
+            //            WriteOBJ(Tibia, vCoor, SaveAsBufferTibiaObj, FileBufferTibiaObj);
+            printf("%s from here\n", MeshFileBufferTibiaObj);
+            WriteRigidBodyVTK(Tibia, vCoor, SaveAsBufferTibiaObjVTK, MeshFileBufferTibiaObj);
             writeFrame(my_mesh_femur, SaveAsBufferFemur, MeshFileBufferFemur, NodeNeighborElementFemur);
             writeFrame(my_mesh_tibia, SaveAsBufferTibia, MeshFileBufferTibia, NodeNeighborElementTibia);
         }
@@ -838,95 +873,162 @@ void GetDataFile(const char* filename, std::vector<std::vector<double>>& DATA) {
     printf("%f %f %f %f", DATA[0][0], DATA[0][1], DATA[0][2], DATA[0][3]);
 }
 
-void ManipulateFemur(ChSystemDEM& my_system,
-                     std::shared_ptr<ChBody> RigidBodyFemur,
-                     std::shared_ptr<ChBody> RigidBodyTibia,
-                     ChVector<> Initial_Pos,
-                     std::shared_ptr<ChMarker> MarkerFemur) {
-    ////Adding force
-    double Time_Max = 0.001;  // Period of gate cycle is 2s
-    double Period = 0.2;      // Period of gate cycle is 2s
-
-    double t = my_system.GetChTime();
-    double theta_Max = 3.1415 / 180 * 40;
-
-    double F_Max = -1000;
-    double T_Max = 20;
-    double Ft, Tt;
-    if (t < Time_Max) {
-        Ft = (1 - cos((t / Time_Max) * 3.1415)) * F_Max / 2;
-    } else {
-        Ft = F_Max;
-        Tt = T_Max;
+void ReadOBJConnectivity(const char* filename,
+                         string SaveAs,
+                         std::vector<std::vector<double>>& vCoor,
+                         std::vector<std::vector<int>>& faces) {
+    ifstream inputFile;
+    inputFile.open(filename);
+    int numLines = 0;
+    string mline;
+    while (!inputFile.eof()) {
+        getline(inputFile, mline);
+        numLines++;
     }
-    double theta_t;
-    double y_t;
+    numLines--;
+    printf(" lines =%d\n", numLines);
 
-    //    double y_t = -(1 - cos((t * 2 * 3.1415 / Period))) * y_Max + 0.003;
-    if (t > Period / 2) {
-        theta_t = (1 - cos((t - Period / 2) * 2 * 3.1415 / Period)) * theta_Max / 2;
-    } else {
-        theta_t = 0;
+    std::fstream fin(filename);
+    if (!fin.good())
+        throw ChException("ERROR opening Mesh file: " + std::string(filename) + "\n");
+
+    std::string line;
+    int numF = 0;
+    int numV = 0;
+    for (int num_data = 0; num_data < numLines; num_data++) {
+        getline(fin, line);
+        if (line.find("v ") == 0) {
+            std::vector<double> ThisLineV;
+
+            ThisLineV.resize(4);
+            int ntoken = 0;
+            string token;
+            std::istringstream ss(line);
+            while (std::getline(ss, token, ' ') && ntoken < 4) {
+                std::istringstream stoken(token);
+                stoken >> ThisLineV[ntoken];
+                ++ntoken;
+            }
+            vCoor.push_back(ThisLineV);
+            numV++;
+            //            printf("%f %f %f %f\n", vCoor[numV - 1][0], vCoor[numV - 1][1], vCoor[numV - 1][2], vCoor[numV
+            //            - 1][3]);
+        }
+        if (line.find("f ") == 0) {
+            std::vector<int> ThisLineF;
+
+            ThisLineF.resize(4);
+            int ntoken = 0;
+            string token;
+            std::istringstream ss(line);
+            while (std::getline(ss, token, ' ') && ntoken < 4) {
+                std::istringstream stoken(token);
+                stoken >> ThisLineF[ntoken];
+                ++ntoken;
+            }
+            faces.push_back(ThisLineF);
+            numF++;
+            //            printf("%d %d %d\n", faces[numF - 1][1], faces[numF - 1][2], faces[numF - 1][3]);
+        }
     }
 
-    double current_y = RigidBodyFemur->GetPos().y;
-    double Final_pos = +0.0012;  // This is local coordinate of Femur
-    if (t < Period / 2) {
-        y_t = sin((t * 3.1415 / Period)) * (Final_pos + Initial_Pos.y) - Initial_Pos.y;
-    } else {
-        y_t = Final_pos;
+    //    utils::CSV_writer OBJ(" ");
+    //    OBJ.stream().setf(std::ios::scientific | std::ios::showpos);
+    //    OBJ.stream().precision(6);
+    utils::CSV_writer VTK(" ");
+    VTK.stream().setf(std::ios::scientific | std::ios::showpos);
+    VTK.stream().precision(6);
+
+    VTK << "CELLS " << (unsigned int)numF << (unsigned int)4 * numF << "\n";
+
+    for (int iele = 0; iele < numF; iele++) {
+        VTK << "3 " << (unsigned int)faces[iele][1] - 1 << " " << (unsigned int)faces[iele][2] - 1 << " "
+            << (unsigned int)faces[iele][3] - 1 << "\n";
+    }
+    VTK << "\nCELL_TYPES " << numF << "\n";
+
+    for (int iele = 0; iele < numF; iele++) {
+        VTK << "5\n";
     }
 
-    /////////////////////////////////////////////////////////////////////////////
-    //    double angle0 = RigidBodyFemur->GetRotAngle();
-    //    class A_COSX : public ChFunction {
-    //      public:
-    //        ChFunction* new_Duplicate() { return new A_COSX; }
-    //        double A = 0.2;
-    //        double w = 2 * 3.1415 / 0.1;
-    //        double phi0 = 90;
-    //        //        void Set_phi0(double myphi0) { phi0 = myphi0; }
-    //        virtual double Get_y(double x) {
-    //            //            printf("I was called I am returning %f\n: ", 0.5 * A * (1 - cos(w * x)));
-    //            return (0.5 * A * (1 - cos(w * x)));
-    //        }
-    //    };
-    //
-    //    A_COSX y_motion;
-    //    A_COSX* phi_motion = new A_COSX;
-    //    phi_motion->Set_phi0(angle0);
-    //    auto Lock_Lock = std::make_shared<ChLinkLockLock>();
-    //    Lock_Lock->Initialize(RigidBodyFemur, RigidBodyTibia, ChCoordsys<>(ChVector<>(0, 0, 0), QUNIT));
-    //    Lock_Lock->SetMotion_ang(phi_motion);
-    //    my_system.AddLink(Lock_Lock);
-    //
-    //    ChVector<> Quat = Lock_Lock->GetMotion_axis();
-    //    printf("angle0 is %f, Quat= %f %f %f ", angle0, Quat.x, Quat.y, Quat.z);
+    //    for (int i = 0; i < numF; i++) {
+    //        OBJ << "f " << (unsigned int)faces[i][1] << " " << (unsigned int)faces[i][2] << " " << (unsigned
+    //        int)faces[i][3]
+    //            << " \n";
+    //    }
+    if (ChFileutils::MakeDirectory("VTK_Animations") < 0) {
+        GetLog() << "Error creating directory VTK_Animations\n";
+    }
+    //    char bufferOBJ[64];  // The filename buffer.
+    //    snprintf(bufferOBJ, sizeof(char) * 32, "VTK_Animations/");
+    //    sprintf(bufferOBJ + strlen(bufferOBJ), SaveAs.c_str());
+    //    sprintf(bufferOBJ + strlen(bufferOBJ), ".obj");
+    //    OBJ.write_to_file(bufferOBJ);
+    char bufferVTK[64];  // The filename buffer.
+    snprintf(bufferVTK, sizeof(char) * 32, "VTK_Animations/");
+    sprintf(bufferVTK + strlen(bufferVTK), SaveAs.c_str());
+    sprintf(bufferVTK + strlen(bufferVTK), ".vtk");
+    VTK.write_to_file(bufferVTK);
 
-    //    auto MarkerFemur = std::make_shared<ChMarker>();
-    //    RigidBodyFemur->AddMarker(MarkerFemur);
-    //    MarkerFemur->Impose_Abs_Coord(MyCoordinate);
-    //    MarkerFemur->SetMotion_Y(y_motion);
-    //    MarkerFemurIn->Impose_Abs_Coord(ChCoordsys<>(ChVector<>(0, -0.2, 0), Q_from_AngX(-0.5)));
-    //    MarkerFemurIn->Impose_Rel_Coord(ChCoordsys<>(ChVector<>(0, y_t, 0), Q_from_AngZ(-theta_t)));
+    int step_count = 0;
+}
+////////////////////////////////////////
+///////////Write to OBJ/////////////////
+////////////////////////////////////////
+void WriteOBJ(std::shared_ptr<ChBody> Body,
+              std::vector<std::vector<double>>& vCoor,
+              char SaveAsBuffer[64],
+              char ConnectivityFileBuffer[32]) {
+    std::ofstream output;
+    output.open(SaveAsBuffer, std::ios::app);
 
-    //    MarkerFemur->SetMotion_ang(phi_motion);
-    //    my_system.AddBody(RigidBodyFemur);
+    ChVector<> position = Body->GetPos();
+    ChMatrix33<> Rotation = Body->GetRot();
 
-    //    // Body is moving inside x-y plane
-    // Please note that if you have the ChLinkLockLock between femur and Tibia no force should be applied here
-    //    RigidBodyFemur->Empty_forces_accumulators();
-    //    RigidBodyFemur->Set_Scr_force(ChVector<>(0, 0, 1000));
-    //    RigidBody->Set_Scr_torque(ChVector<>(0, 0, Tt));
-    //    RigidBody->SetPos(ChVector<>(0, y_t, 0) + Initial_Pos);
+    std::vector<ChVector<double>> writeV;
+    writeV.resize(vCoor.size());
 
-    //    ChMatrix33<> Rotation(0);
-    //    Rotation.SetElement(0, 0, cos(theta_t));
-    //    Rotation.SetElement(1, 1, cos(theta_t));
-    //    Rotation.SetElement(0, 1, -sin(theta_t));
-    //    Rotation.SetElement(1, 0, +sin(theta_t));
-    //    Rotation.SetElement(2, 2, 1);
-    //    RigidBodyFemur->SetRot(Rotation);
+    for (int i = 0; i < vCoor.size(); i++) {
+        ChVector<double> thisNode;
+        thisNode.x = vCoor[i][1];
+        thisNode.y = vCoor[i][2];
+        thisNode.z = vCoor[i][3];
+
+        writeV[i] = Rotation * thisNode + position;  // rotate/scale, if needed
+        output << "v " << writeV[i].x << " " << writeV[i].y << " " << writeV[i].z << "\n";
+    }
+    std::ifstream CopyFrom(ConnectivityFileBuffer);
+    output << CopyFrom.rdbuf();
+    output.close();
+}
+
+void WriteRigidBodyVTK(std::shared_ptr<ChBody> Body,
+                       std::vector<std::vector<double>>& vCoor,
+                       char SaveAsBuffer[64],
+                       char ConnectivityFileBuffer[32]) {
+    std::ofstream output;
+    output.open(SaveAsBuffer, std::ios::app);
+
+    ChVector<> position = Body->GetPos();
+    ChMatrix33<> Rotation = Body->GetRot();
+
+    std::vector<ChVector<double>> writeV;
+    writeV.resize(vCoor.size());
+    output << "# vtk DataFile Version 1.0\nUnstructured Grid Example\nASCII\n\n" << std::endl;
+    output << "DATASET UNSTRUCTURED_GRID\nPOINTS " << vCoor.size() << " float\n";
+    for (int i = 0; i < vCoor.size(); i++) {
+        ChVector<double> thisNode;
+        thisNode.x = vCoor[i][1];
+        thisNode.y = vCoor[i][2];
+        thisNode.z = vCoor[i][3];
+        writeV[i] = Rotation * thisNode + position;  // rotate/scale, if needed
+        output << writeV[i].x << " " << writeV[i].y << " " << writeV[i].z << "\n";
+    }
+
+    std::ifstream CopyFrom(ConnectivityFileBuffer);
+    output << CopyFrom.rdbuf();
+    printf("%s\n", ConnectivityFileBuffer);
+    output.close();
 }
 void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement) {
     utils::CSV_writer MESH(" ");
