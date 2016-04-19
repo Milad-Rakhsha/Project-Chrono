@@ -83,17 +83,12 @@ const double C_DAMPERS = 100e3;
 double MeterToInch = 0.02539998628;
 double L0 = 0.01;  // Initial length
 double L0_t = 0.01;
-int write_interval = 10;
+int write_interval = 0.01 / time_step;  // write every 0.01s
 
 void ReadOBJConnectivity(const char* filename,
                          string SaveAs,
                          std::vector<std::vector<double>>& vCoor,
                          std::vector<std::vector<int>>& faces);
-// void WriteOBJ(std::shared_ptr<ChBody> Body,
-//              std::vector<std::vector<double>>& vCoor,
-//              char SaveAsBuffer[64],
-//              char ConnectivityFileBuffer[32]);
-
 void WriteRigidBodyVTK(std::shared_ptr<ChBody> Body,
                        std::vector<std::vector<double>>& vCoor,
                        char SaveAsBuffer[64],
@@ -102,12 +97,6 @@ void GetDataFile(const char* filename, std::vector<std::vector<double>>& DATA);
 void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
                       int angleset,
                       std::shared_ptr<ChLinkLockLock> my_link_TF);
-void ManipulateFemur(ChSystemDEM& my_system,
-                     std::shared_ptr<ChBody> RigidBodyFemur,
-                     std::shared_ptr<ChBody> RigidBodyTibia,
-                     ChVector<> Initial_Pos,
-                     std::shared_ptr<ChMarker> MarkerFemurIn);
-
 void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement);
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[64],
@@ -235,7 +224,6 @@ int main(int argc, char* argv[]) {
         num_threads = max_threads;
 
     CHOMPfunctions::SetNumThreads(num_threads);
-    GetLog() << "Using " << num_threads << " thread(s)\n";
 #else
     GetLog() << "No OpenMP\n";
 #endif
@@ -589,13 +577,11 @@ int main(int argc, char* argv[]) {
     // Switch off mesh class gravity
     my_mesh_femur->SetAutomaticGravity(addGravity);
     my_mesh_tibia->SetAutomaticGravity(addGravity);
-
     if (addGravity) {
         my_system.Set_G_acc(ChVector<>(0, -9.8, 0));
     } else {
         my_system.Set_G_acc(ChVector<>(0, 0, 0));
     }
-    // Add the mesh to the system
 
     // Create the contact surface(s).
     // In this case it is a ChContactSurfaceMesh, that allows mesh-mesh collsions.
@@ -607,26 +593,9 @@ int main(int argc, char* argv[]) {
     mcontactsurf_tibia->SetMaterialSurface(mysurfmaterial);            // use the DEM penalty contacts
     mcontactsurf_femur->AddFacesFromBoundary(sphere_swept_thickness);  // do this after my_mesh->AddContactSurface
     mcontactsurf_femur->SetMaterialSurface(mysurfmaterial);            // use the DEM penalty contacts
-    //                                                                       //
-    //    auto mcontactcloud_tibia = std::make_shared<ChContactSurfaceNodeCloud>();
-    //    auto mcontactcloud_femur = std::make_shared<ChContactSurfaceNodeCloud>();
-    //    my_mesh_tibia->AddContactSurface(mcontactcloud_tibia);
-    //    my_mesh_femur->AddContactSurface(mcontactcloud_femur);
-    //    mcontactcloud_tibia->AddAllNodes(0.005);  // use larger point size to match beam section radius
-    //    mcontactcloud_femur->AddAllNodes(0.005);  // use larger point size to match beam section radius
-    //    mcontactcloud_tibia->SetMaterialSurface(mysurfmaterial);
-    //    mcontactcloud_femur->SetMaterialSurface(mysurfmaterial);
-
-    //    auto mcontactcloud = std::make_shared<ChContactSurfaceNodeCloud>();
-    //    my_mesh_tibia->AddContactSurface(mcontactcloud);
-    //    my_mesh_femur->AddContactSurface(mcontactcloud);
-    //    mcontactcloud->AddAllNodes(0.01);  // use larger point size to match beam section radius
-    //    mcontactcloud->SetMaterialSurface(mysurfmaterial);
 
     my_system.Add(my_mesh_tibia);
     my_system.Add(my_mesh_femur);
-
-// Mark completion of system construction
 
 #ifdef USE_IRR
 
@@ -812,23 +781,17 @@ int main(int argc, char* argv[]) {
 
             snprintf(SaveAsBufferFemur, sizeof(char) * 64, "VTK_Animations/femur.%d.vtk", step_count / write_interval);
             snprintf(SaveAsBufferTibia, sizeof(char) * 64, "VTK_Animations/tibia.%d.vtk", step_count / write_interval);
-            //            snprintf(SaveAsBufferTibiaObj, sizeof(char) * 64, "VTK_Animations/ObjTibia.%d.obj",
-            //                     step_count / write_interval);
             snprintf(SaveAsBufferTibiaObjVTK, sizeof(char) * 64, "VTK_Animations/ObjTibia.%d.vtk",
                      step_count / write_interval);
 
             char MeshFileBufferFemur[32];     // The filename buffer.
             char MeshFileBufferTibia[32];     // The filename buffer.
-                                              //            char FileBufferTibiaObj[32];      // The filename buffer.
             char MeshFileBufferTibiaObj[64];  // The filename buffer.
 
             snprintf(MeshFileBufferFemur, sizeof(char) * 32, "VTK_Animations/%s.vtk", saveAsFemur.c_str());
             snprintf(MeshFileBufferTibia, sizeof(char) * 32, "VTK_Animations/%s.vtk", saveAsTibia.c_str());
             snprintf(MeshFileBufferTibiaObj, sizeof(char) * 64, "VTK_Animations/%s.vtk", saveAsTibiaObj.c_str());
 
-            //            snprintf(FileBufferTibiaObj, sizeof(char) * 32, "VTK_Animations/%s.obj",
-            //            saveAsTibiaObj.c_str());
-            //            WriteOBJ(Tibia, vCoor, SaveAsBufferTibiaObj, FileBufferTibiaObj);
             printf("%s from here\n", MeshFileBufferTibiaObj);
             WriteRigidBodyVTK(Tibia, vCoor, SaveAsBufferTibiaObjVTK, MeshFileBufferTibiaObj);
             writeFrame(my_mesh_femur, SaveAsBufferFemur, MeshFileBufferFemur, NodeNeighborElementFemur);
@@ -928,13 +891,8 @@ void ReadOBJConnectivity(const char* filename,
             }
             faces.push_back(ThisLineF);
             numF++;
-            //            printf("%d %d %d\n", faces[numF - 1][1], faces[numF - 1][2], faces[numF - 1][3]);
         }
     }
-
-    //    utils::CSV_writer OBJ(" ");
-    //    OBJ.stream().setf(std::ios::scientific | std::ios::showpos);
-    //    OBJ.stream().precision(6);
     utils::CSV_writer VTK(" ");
     VTK.stream().setf(std::ios::scientific | std::ios::showpos);
     VTK.stream().precision(6);
@@ -951,19 +909,10 @@ void ReadOBJConnectivity(const char* filename,
         VTK << "5\n";
     }
 
-    //    for (int i = 0; i < numF; i++) {
-    //        OBJ << "f " << (unsigned int)faces[i][1] << " " << (unsigned int)faces[i][2] << " " << (unsigned
-    //        int)faces[i][3]
-    //            << " \n";
-    //    }
     if (ChFileutils::MakeDirectory("VTK_Animations") < 0) {
         GetLog() << "Error creating directory VTK_Animations\n";
     }
-    //    char bufferOBJ[64];  // The filename buffer.
-    //    snprintf(bufferOBJ, sizeof(char) * 32, "VTK_Animations/");
-    //    sprintf(bufferOBJ + strlen(bufferOBJ), SaveAs.c_str());
-    //    sprintf(bufferOBJ + strlen(bufferOBJ), ".obj");
-    //    OBJ.write_to_file(bufferOBJ);
+
     char bufferVTK[64];  // The filename buffer.
     snprintf(bufferVTK, sizeof(char) * 32, "VTK_Animations/");
     sprintf(bufferVTK + strlen(bufferVTK), SaveAs.c_str());
@@ -972,36 +921,6 @@ void ReadOBJConnectivity(const char* filename,
 
     int step_count = 0;
 }
-////////////////////////////////////////
-///////////Write to OBJ/////////////////
-////////////////////////////////////////
-void WriteOBJ(std::shared_ptr<ChBody> Body,
-              std::vector<std::vector<double>>& vCoor,
-              char SaveAsBuffer[64],
-              char ConnectivityFileBuffer[32]) {
-    std::ofstream output;
-    output.open(SaveAsBuffer, std::ios::app);
-
-    ChVector<> position = Body->GetPos();
-    ChMatrix33<> Rotation = Body->GetRot();
-
-    std::vector<ChVector<double>> writeV;
-    writeV.resize(vCoor.size());
-
-    for (int i = 0; i < vCoor.size(); i++) {
-        ChVector<double> thisNode;
-        thisNode.x = vCoor[i][1];
-        thisNode.y = vCoor[i][2];
-        thisNode.z = vCoor[i][3];
-
-        writeV[i] = Rotation * thisNode + position;  // rotate/scale, if needed
-        output << "v " << writeV[i].x << " " << writeV[i].y << " " << writeV[i].z << "\n";
-    }
-    std::ifstream CopyFrom(ConnectivityFileBuffer);
-    output << CopyFrom.rdbuf();
-    output.close();
-}
-
 void WriteRigidBodyVTK(std::shared_ptr<ChBody> Body,
                        std::vector<std::vector<double>>& vCoor,
                        char SaveAsBuffer[64],
@@ -1116,26 +1035,61 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
 
         output << areaAve / myarea << "\n";
     }
-    output << "\nVECTORS strains-Def float\n";
-    for (int i = 0; i < my_mesh->GetNnodes(); i++) {
+    output << "\nVECTORS StrainXX_Def float\n";
+    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
         double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
-        double SX, SY, SZ = 0;
         double myarea = 0;
         double dx, dy;
         for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
             int myelemInx = NodeNeighborElement[i][j];
-            SX = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->EvaluateStrainX();
-            SY = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->EvaluateStrainY();
-            std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->EvaluateDeflection(SZ);
-
-            dx = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
-            dy = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
+            ChVector<> StrainVector(0);
+            StrainVector = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
+                               ->EvaluateSectionStrains();
+            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
+            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
             myarea += dx * dy / 4;
-            areaAve1 += SX * dx * dy / 4;
-            areaAve2 += SY * dx * dy / 4;
-            areaAve3 += SZ * dx * dy / 4;
+            areaAve1 += StrainVector.x * dx * dy / 4;
+            areaAve2 += StrainVector.y * dx * dy / 4;
+            areaAve3 += StrainVector.z * dx * dy / 4;
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
+    }
+    output << "\nVECTORS Ihat float\n";
+    std::vector<ChVector<>> MyResult;
+    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
+        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+        double myarea = 0;
+        double dx, dy;
+        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
+            int myelemInx = NodeNeighborElement[i][j];
+            MyResult =
+                std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetPrincipalStresses();
+        }
+        output << MyResult[1].x << " " << MyResult[1].y << " " << MyResult[1].z << "\n";
+    }
+    output << "\nVECTORS Jhat float\n";
+    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
+        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+        double myarea = 0;
+        double dx, dy;
+        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
+            int myelemInx = NodeNeighborElement[i][j];
+            MyResult =
+                std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetPrincipalStresses();
+        }
+        output << MyResult[2].x << " " << MyResult[2].y << " " << MyResult[2].z << "\n";
+    }
+    output << "\nVECTORS sigma12theta float\n";
+    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
+        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+        double myarea = 0;
+        double dx, dy;
+        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
+            int myelemInx = NodeNeighborElement[i][j];
+            MyResult =
+                std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetPrincipalStresses();
+        }
+        output << MyResult[0].x << " " << MyResult[0].y << " " << MyResult[0].z << "\n";
     }
     output.close();
 }
@@ -1374,3 +1328,32 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
     //            ChMatrix33<> MeshRotate2;
     //            MeshRotate2.MatrMultiply(RotationXX, (RotationYY * RotationZZ));
 }
+//////////////////////////////////////////
+/////////////Write to OBJ/////////////////
+//////////////////////////////////////////
+// void WriteOBJ(std::shared_ptr<ChBody> Body,
+//              std::vector<std::vector<double>>& vCoor,
+//              char SaveAsBuffer[64],
+//              char ConnectivityFileBuffer[32]) {
+//    std::ofstream output;
+//    output.open(SaveAsBuffer, std::ios::app);
+//
+//    ChVector<> position = Body->GetPos();
+//    ChMatrix33<> Rotation = Body->GetRot();
+//
+//    std::vector<ChVector<double>> writeV;
+//    writeV.resize(vCoor.size());
+//
+//    for (int i = 0; i < vCoor.size(); i++) {
+//        ChVector<double> thisNode;
+//        thisNode.x = vCoor[i][1];
+//        thisNode.y = vCoor[i][2];
+//        thisNode.z = vCoor[i][3];
+//
+//        writeV[i] = Rotation * thisNode + position;  // rotate/scale, if needed
+//        output << "v " << writeV[i].x << " " << writeV[i].y << " " << writeV[i].z << "\n";
+//    }
+//    std::ifstream CopyFrom(ConnectivityFileBuffer);
+//    output << CopyFrom.rdbuf();
+//    output.close();
+//}
