@@ -265,6 +265,10 @@ void ChContactContainerDEM::ComputeContactForces() {
     SumAllContactForces(contactlist_6_6, contact_forces);
     SumAllContactForces(contactlist_6_3, contact_forces);
     SumAllContactForces(contactlist_333_6, contact_forces);
+    SumAllContactForces(contactlist_3_3, contact_forces);
+    SumAllContactForces(contactlist_333_3, contact_forces);
+    SumAllContactForces(contactlist_333_333, contact_forces);
+
 }
 
 template <class Tcont>
