@@ -9,7 +9,7 @@
 // http://projectchrono.org/license-chrono.txt.
 //
 // =============================================================================
-// Authors: Radu Serban, Hammad Mazhar
+// Authors: Radu Serban, Hammad Mazhar, Arman Pazouki
 // =============================================================================
 //
 // =============================================================================
@@ -232,6 +232,10 @@ void MixtureIngredient::calcGeometricProps(const ChVector<>& size, double& volum
             volume = CalcConeVolume(size.x, size.y);
             gyration = CalcConeGyration(size.x, size.y).Get_Diag();
             break;
+        case BISPHERE:
+            volume = CalcBiSphereVolume(size.x, size.y);
+            gyration = CalcBiSphereGyration(size.x, size.y).Get_Diag();
+            break;
         case CAPSULE:
             volume = CalcCapsuleVolume(size.x, size.y);
             gyration = CalcCapsuleGyration(size.x, size.y).Get_Diag();
@@ -268,7 +272,7 @@ Generator::~Generator() {
 // Add a new ingredient to the current mixture by specifying its type
 // and the ratio in the final mixture. A smart pointer to the new
 // mixture ingredient is returned to allow modifying its properties.
-std::shared_ptr<MixtureIngredient>& Generator::AddMixtureIngredient(MixtureType type, double ratio) {
+std::shared_ptr<MixtureIngredient> Generator::AddMixtureIngredient(MixtureType type, double ratio) {
     m_mixture.push_back(std::make_shared<MixtureIngredient>(this, type, ratio));
     return m_mixture.back();
 }
@@ -461,7 +465,7 @@ void Generator::normalizeMixture() {
 int Generator::selectIngredient() {
     double val = m_mixDist(rengine());
 
-    for (int i = m_mixture.size() - 1; i >= 0; i--) {
+    for (int i = (int)m_mixture.size() - 1; i >= 0; i--) {
         if (val > m_mixture[i]->m_cumRatio)
             return i;
     }
@@ -552,6 +556,9 @@ void Generator::createObjects(const PointVector& points, const ChVector<>& vel) 
             case CONE:
                 AddConeGeometry(body, size.x, size.y);
                 break;
+            case BISPHERE:
+            	AddBiSphereGeometry(body, size.x, size.y);
+                break;
             case CAPSULE:
                 AddCapsuleGeometry(body, size.x, size.y);
                 break;
@@ -575,7 +582,7 @@ void Generator::createObjects(const PointVector& points, const ChVector<>& vel) 
         m_bodies.push_back(BodyInfo(m_mixture[index]->m_type, density, size, bodyPtr));
     }
 
-    m_totalNumBodies += points.size();
+    m_totalNumBodies += (unsigned int)points.size();
 }
 
 // Write body information to a CSV file

@@ -25,23 +25,12 @@
 #include "chrono_fea/ChMeshSurface.h"
 #include "chrono_fea/ChNodeFEAbase.h"
 
-/**
-    @defgroup fea Chrono::FEA
-    @brief Finite Element Analysis
-    @{
-        @defgroup fea_nodes Nodes
-        @defgroup fea_elements Elements
-        @defgroup fea_constraints Constraints
-        @defgroup fea_math Mathematical support
-    @}
-*/
 
 namespace chrono {
 
-/// Namespace with classes for the Chrono::FEA module.
 namespace fea {
 
-/// @addtogroup fea
+/// @addtogroup fea_module
 /// @{
 
 /// Class which defines a mesh of finite elements of class ChFelem,
@@ -259,7 +248,7 @@ class ChApiFea ChMesh : public ChIndexedNodes {
     virtual void SetupInitial() override;
 };
 
-/// @} fea
+/// @} fea_module
 
 }  // END_OF_NAMESPACE____
 }  // END_OF_NAMESPACE____

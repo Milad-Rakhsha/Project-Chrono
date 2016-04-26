@@ -40,7 +40,11 @@
 #include "chrono_parallel/collision/ChCNarrowphaseR.h"
 #include "chrono_parallel/math/ChParallelMath.h"
 #include "chrono_parallel/physics/ChNodeFluid.h"
+
 namespace chrono {
+
+/// @addtogroup parallel_module
+/// @{
 
 class CH_PARALLEL_API ChSystemParallel : public ChSystem {
   CH_RTTI(ChSystemParallel, ChSystem);
@@ -94,8 +98,17 @@ class CH_PARALLEL_API ChSystemParallel : public ChSystem {
   /// Gets the total time for the collision detection step
   double GetTimerCollision() { return data_manager->system_timer.GetTime("collision"); }
 
+  /// Calculate cummulative contact forces for all bodies in the system.
+  virtual void CalculateContactForces() {}
+
+  /// Get the contact force on the body with specified id.
   virtual real3 GetBodyContactForce(uint body_id) const = 0;
+  /// Get the contact torque on the body with specified id.
   virtual real3 GetBodyContactTorque(uint body_id) const = 0;
+  /// Get the contact force on the specified body.
+  real3 GetBodyContactForce(std::shared_ptr<ChBody> body) const { return GetBodyContactForce(body->GetId()); }
+  /// Get the contact torque on the specified body.
+  real3 GetBodyContactTorque(std::shared_ptr<ChBody> body) const { return GetBodyContactTorque(body->GetId()); }
 
   settings_container* GetSettings() { return &(data_manager->settings); }
 
@@ -142,10 +155,12 @@ class CH_PARALLEL_API ChSystemParallelDVI : public ChSystemParallel {
   virtual void AddMaterialSurfaceData(std::shared_ptr<ChBody> newbody) override;
   virtual void UpdateMaterialSurfaceData(int index, ChBody* body) override;
 
-  void CalculateContactForces();
+  virtual void CalculateContactForces() override;
 
   virtual real3 GetBodyContactForce(uint body_id) const;
   virtual real3 GetBodyContactTorque(uint body_id) const;
+  using ChSystemParallel::GetBodyContactForce;
+  using ChSystemParallel::GetBodyContactTorque;
 
   virtual void AssembleSystem();
   virtual void SolveSystem();
@@ -168,6 +183,8 @@ class CH_PARALLEL_API ChSystemParallelDEM : public ChSystemParallel {
 
   virtual real3 GetBodyContactForce(uint body_id) const;
   virtual real3 GetBodyContactTorque(uint body_id) const;
+  using ChSystemParallel::GetBodyContactForce;
+  using ChSystemParallel::GetBodyContactTorque;
 
   virtual void PrintStepStats();
 
@@ -176,4 +193,5 @@ class CH_PARALLEL_API ChSystemParallelDEM : public ChSystemParallel {
   }
 };
 
+/// @} parallel_module
 }  // end namespace chrono
