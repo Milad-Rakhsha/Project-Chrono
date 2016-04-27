@@ -54,6 +54,7 @@
 #include <string>
 #include <algorithm>
 #include <functional>
+#include <stdio.h>
 
 using namespace chrono;
 using namespace chrono::geometry;
@@ -101,7 +102,7 @@ void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[64],
                 char MeshFileBuffer[32],
-                std::vector<std::vector<int>> NodeNeighborElement);
+                std::vector<std::vector<int>> NodeNeighborElement, std::vector<ChVector<>> NodeFrc);
 class MyLoadSpringDamper : public ChLoadCustomMultiple {
   public:
     MyLoadSpringDamper(std::vector<std::shared_ptr<ChLoadable>>& mloadables, std::shared_ptr<ChBody> AttachBodyInput)
@@ -769,6 +770,24 @@ int main(int argc, char* argv[]) {
 
     while (my_system.GetChTime() < 2) {
         ////////////////////////////////////////////////////////////////
+        // To compute pressure forces
+        my_system.GetContactContainer()->ComputeContactForces();
+        std::vector<ChVector<>> TibiaNodeFrc;
+        std::vector<ChVector<>> FemurNodeFrc;
+        TibiaNodeFrc.empty();
+        FemurNodeFrc.empty();
+        for (int i = 0; i < my_mesh_tibia->GetNnodes(); i++) {
+            auto nodetibia = std::dynamic_pointer_cast<ChNodeFEAxyz>(my_mesh_tibia->GetNode(i));
+            ChVector<> contact_force = mcontactsurf_tibia->GetContactForce(&my_system, nodetibia.get());
+            TibiaNodeFrc.push_back(contact_force);
+        }
+
+        for (int i = 0; i < my_mesh_femur->GetNnodes(); i++) {
+            auto nodefemur = std::dynamic_pointer_cast<ChNodeFEAxyz>(my_mesh_femur->GetNode(i));
+            ChVector<> contact_force = mcontactsurf_femur->GetContactForce(&my_system, nodefemur.get());
+            FemurNodeFrc.push_back(contact_force);
+        }
+        // End compute pressure forces
         ChQuaternion<> myRot = Tibia->GetRot();
         printf("Tibia Rot= %f  %f  %f  %f \n", myRot.e1, myRot.e2, myRot.e3, myRot.e0);
         my_system.DoStepDynamics(time_step);
@@ -797,8 +816,8 @@ int main(int argc, char* argv[]) {
 
             printf("%s from here\n", MeshFileBufferTibiaObj);
             WriteRigidBodyVTK(Tibia, vCoor, SaveAsBufferTibiaObjVTK, MeshFileBufferTibiaObj);
-            writeFrame(my_mesh_femur, SaveAsBufferFemur, MeshFileBufferFemur, NodeNeighborElementFemur);
-            writeFrame(my_mesh_tibia, SaveAsBufferTibia, MeshFileBufferTibia, NodeNeighborElementTibia);
+            writeFrame(my_mesh_femur, SaveAsBufferFemur, MeshFileBufferFemur, NodeNeighborElementFemur, FemurNodeFrc);
+            writeFrame(my_mesh_tibia, SaveAsBufferTibia, MeshFileBufferTibia, NodeNeighborElementTibia, TibiaNodeFrc);
         }
     }
 #endif
@@ -1006,7 +1025,7 @@ void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[64],
                 char MeshFileBuffer[32],
-                std::vector<std::vector<int>> NodeNeighborElement) {
+                std::vector<std::vector<int>> NodeNeighborElement, std::vector<ChVector<>> NodeFrc) {
     std::ofstream output;
     output.open(SaveAsBuffer, std::ios::app);
 
@@ -1166,6 +1185,22 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             areaAve3 += MyResult[2].z * dx * dy / 4;
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
+    }
+    output << "\nVECTORS Force float\n";
+    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
+        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+        double myarea = 0;
+        double dx, dy;
+        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
+            int myelemInx = NodeNeighborElement[i][j];
+            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
+            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
+            myarea += dx * dy / 4;
+            areaAve1 += NodeFrc[i].x * dx * dy / 4;
+            areaAve2 += NodeFrc[i].y * dx * dy / 4;
+            areaAve3 += NodeFrc[i].z * dx * dy / 4;
+        }
+        output << areaAve1 / (myarea*myarea) << " " << areaAve2 / (myarea*myarea) << " " << areaAve3 / (myarea*myarea) << "\n";
     }
 
     output.close();
