@@ -889,7 +889,7 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             areaAve2 += NodeFrc[i].y * dx * dy / 4;
             areaAve3 += NodeFrc[i].z * dx * dy / 4;
         }
-        output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
+        output << areaAve1 / (myarea*myarea) << " " << areaAve2 / (myarea*myarea) << " " << areaAve3 / (myarea*myarea) << "\n";
     }
     output.close();
 }

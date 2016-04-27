@@ -288,7 +288,6 @@ class ChApiFea ChContactSurfaceMesh : public ChContactSurface {
         for (std::shared_ptr<ChContactTriangleXYZ> face : vfaces) {
             if (m_node == face->GetNode1().get() || m_node == face->GetNode2().get() || m_node == face->GetNode3().get())
                 ForceVector += m_system->GetContactContainer()->GetContactableForce(face.get()) / 3.0;
-            
         }
         return ForceVector;
         
