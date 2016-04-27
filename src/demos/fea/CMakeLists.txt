@@ -40,6 +40,8 @@ SET(FEA_DEMOS_IRR_MKL
     demo_4HumveeTires
     demo_FEA_HMMWVLuGre
     demo_FEA_ContactANCF
+    Milad_AC-PlainContact
+    Milad_AC-GaitCycle
 )
 
 # List all FEA demos that use Irrlicht, Matlab, and MKL
