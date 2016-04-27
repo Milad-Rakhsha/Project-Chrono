@@ -88,7 +88,7 @@ void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[64],
                 char MeshFileBuffer[32],
-                std::vector<std::vector<int>> NodeNeighborElement);
+                std::vector<std::vector<int>> NodeNeighborElement, std::vector<ChVector<>> NodeFrc);
 class MyLoadSpringDamper : public ChLoadCustomMultiple {
   public:
     MyLoadSpringDamper(std::vector<std::shared_ptr<ChLoadable>>& mloadables, std::shared_ptr<ChBody> AttachBodyInput)
@@ -688,6 +688,22 @@ int main(int argc, char* argv[]) {
 #else
     while (my_system.GetChTime() < 1) {
         ////////////////////////////////////////////////////////////////
+        my_system.GetContactContainer()->ComputeContactForces();
+        std::vector<ChVector<>> TibiaNodeFrc; 
+        std::vector<ChVector<>> FemurNodeFrc;
+
+        for (int i = 0; i < my_mesh_tibia->GetNnodes(); i++) {
+            auto nodetibia = std::dynamic_pointer_cast<ChNodeFEAxyz>(my_mesh_tibia->GetNode(i));
+            ChVector<> contact_force = mcontactsurf_tibia->GetContactForce(&my_system, nodetibia.get());
+            TibiaNodeFrc.push_back(contact_force);
+        }
+
+        for (int i = 0; i < my_mesh_femur->GetNnodes(); i++) {
+            auto nodefemur = std::dynamic_pointer_cast<ChNodeFEAxyz>(my_mesh_tibia->GetNode(i));
+            ChVector<> contact_force = mcontactsurf_femur->GetContactForce(&my_system, nodefemur.get());
+            FemurNodeFrc.push_back(contact_force);
+        }
+
         if (addForce) {
             Femur->Empty_forces_accumulators();
             Femur->Set_Scr_force(ChVector<>(0, -1000, 0));
@@ -707,8 +723,8 @@ int main(int argc, char* argv[]) {
                 snprintf(MeshFileBufferFemur, sizeof(char) * 32, "VTK_Animations/%s.vtk", saveAsFemur.c_str());
                 snprintf(MeshFileBufferTibia, sizeof(char) * 32, "VTK_Animations/%s.vtk", saveAsTibia.c_str());
 
-                writeFrame(my_mesh_femur, SaveAsBufferFemur, MeshFileBufferFemur, NodeNeighborElementFemur);
-                writeFrame(my_mesh_tibia, SaveAsBufferTibia, MeshFileBufferTibia, NodeNeighborElementTibia);
+                writeFrame(my_mesh_femur, SaveAsBufferFemur, MeshFileBufferFemur, NodeNeighborElementFemur, FemurNodeFrc);
+                writeFrame(my_mesh_tibia, SaveAsBufferTibia, MeshFileBufferTibia, NodeNeighborElementTibia, TibiaNodeFrc);
             }
         }
     }
@@ -771,7 +787,7 @@ void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[64],
                 char MeshFileBuffer[32],
-                std::vector<std::vector<int>> NodeNeighborElement) {
+                std::vector<std::vector<int>> NodeNeighborElement, std::vector<ChVector<>> NodeFrc) {
     std::ofstream output;
     output.open(SaveAsBuffer, std::ios::app);
 
@@ -858,6 +874,22 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetPrincipalStresses();
         }
         output << MyResult[0].x << " " << MyResult[0].y << " " << MyResult[0].z << "\n";
+    }
+    output << "\nVECTORS Force float\n";
+    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
+        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+        double myarea = 0;
+        double dx, dy;
+        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
+            int myelemInx = NodeNeighborElement[i][j];
+            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
+            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
+            myarea += dx * dy / 4;
+            areaAve1 += NodeFrc[i].x * dx * dy / 4;
+            areaAve2 += NodeFrc[i].y * dx * dy / 4;
+            areaAve3 += NodeFrc[i].z * dx * dy / 4;
+        }
+        output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
     output.close();
 }

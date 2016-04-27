@@ -25,17 +25,12 @@
 #include "chrono_irrlicht/ChIrrTools.h"
 #include "chrono_irrlicht/ChIrrWizard.h"
 
-/**
-    @defgroup irrlicht Chrono::Irrlicht
-    @brief Runtime visualization with Irrlicht
-*/
 
 namespace chrono {
 
-/// Namespace with classes for the Chrono::Irrlicht module.
 namespace irrlicht {
 
-/// @addtogroup irrlicht
+/// @addtogroup irrlicht_module
 /// @{
 
 // Forward reference
@@ -294,7 +289,7 @@ class ChApiIrr ChIrrAppInterface {
     friend class ChIrrAppEventReceiver;
 };
 
-/// @} irrlicht
+/// @} irrlicht_module
 
 }  // end namespace irrlicht
 }  // end namespace chrono

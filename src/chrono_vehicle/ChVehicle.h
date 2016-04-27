@@ -30,14 +30,9 @@
 #include "chrono_vehicle/ChApiVehicle.h"
 #include "chrono_vehicle/ChSubsysDefs.h"
 
-/**
-    @defgroup vehicle Chrono::Vehicle
-    @brief Ground vehicle modeling
-*/
 
 namespace chrono {
 
-/// Namespace for the Chrono::Vehicle module.
 namespace vehicle {
 
 /// @addtogroup vehicle

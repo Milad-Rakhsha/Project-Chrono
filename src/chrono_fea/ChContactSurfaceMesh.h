@@ -17,6 +17,7 @@
 #include "chrono_fea/ChNodeFEAxyz.h"
 #include "chrono/collision/ChCCollisionModel.h"
 #include "chrono/collision/ChCCollisionUtils.h"
+#include "chrono/physics/ChSystem.h"
 
 namespace chrono {
 namespace fea {
@@ -268,12 +269,30 @@ class ChApiFea ChContactSurfaceMesh : public ChContactSurface {
     /// As AddFacesFromBoundary, but only for faces containing selected nodes in node_set.
     //void AddFacesFromNodeSet(std::vector<std::shared_ptr<ChNodeFEAbase> >& node_set); ***TODO***
 
+    /// Get the list of triangles.
     std::vector<std::shared_ptr<ChContactTriangleXYZ> >& GetTriangleList() { return vfaces; }
+
+    /// Get the number of triangles.
+    unsigned int GetNumTriangles() const { return (unsigned int)vfaces.size(); }
+
+    /// Get the number of vertices.
+    unsigned int GetNumVertices() const;
 
     // Functions to interface this with ChPhysicsItem container
     virtual void SurfaceSyncCollisionModels();
     virtual void SurfaceAddCollisionModelsToSystem(ChSystem* msys);
     virtual void SurfaceRemoveCollisionModelsFromSystem(ChSystem* msys);
+
+    ChVector<> GetContactForce(ChSystem* m_system, ChNodeFEAxyz* m_node) {
+        ChVector<> ForceVector(0);
+        for (std::shared_ptr<ChContactTriangleXYZ> face : vfaces) {
+            if (m_node == face->GetNode1().get() || m_node == face->GetNode2().get() || m_node == face->GetNode3().get())
+                ForceVector += m_system->GetContactContainer()->GetContactableForce(face.get()) / 3.0;
+            
+        }
+        return ForceVector;
+        
+    }
 
   private:
     std::vector<std::shared_ptr<ChContactTriangleXYZ> > vfaces;  //  faces that collide
