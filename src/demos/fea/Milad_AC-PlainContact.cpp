@@ -74,7 +74,7 @@ bool showFemur = true;
 // bool addConstrain = true;
 // bool addForce = true;
 // bool addFixed = false;
-double time_step = 0.00004;
+double time_step = 0.00001;
 int scaleFactor = 1;
 double dz = 0.001;
 const double K_SPRINGS = 100e8;
@@ -251,9 +251,9 @@ int main(int argc, char* argv[]) {
     my_system.SetContactForceModel(ChSystemDEM::Hooke);
     auto mysurfmaterial = std::make_shared<ChMaterialSurfaceDEM>();
 
-    mysurfmaterial->SetKn(16e5);
+    mysurfmaterial->SetKn(2e5);
     mysurfmaterial->SetKt(1);
-    mysurfmaterial->SetGn(5e1);
+    mysurfmaterial->SetGn(9e2);
     mysurfmaterial->SetGt(1);
 
     GetLog() << "-----------------------------------------------------------\n";
@@ -691,7 +691,8 @@ int main(int argc, char* argv[]) {
         my_system.GetContactContainer()->ComputeContactForces();
         std::vector<ChVector<>> TibiaNodeFrc; 
         std::vector<ChVector<>> FemurNodeFrc;
-
+        TibiaNodeFrc.empty();
+        FemurNodeFrc.empty();
         for (int i = 0; i < my_mesh_tibia->GetNnodes(); i++) {
             auto nodetibia = std::dynamic_pointer_cast<ChNodeFEAxyz>(my_mesh_tibia->GetNode(i));
             ChVector<> contact_force = mcontactsurf_tibia->GetContactForce(&my_system, nodetibia.get());
@@ -699,7 +700,7 @@ int main(int argc, char* argv[]) {
         }
 
         for (int i = 0; i < my_mesh_femur->GetNnodes(); i++) {
-            auto nodefemur = std::dynamic_pointer_cast<ChNodeFEAxyz>(my_mesh_tibia->GetNode(i));
+            auto nodefemur = std::dynamic_pointer_cast<ChNodeFEAxyz>(my_mesh_femur->GetNode(i));
             ChVector<> contact_force = mcontactsurf_femur->GetContactForce(&my_system, nodefemur.get());
             FemurNodeFrc.push_back(contact_force);
         }
