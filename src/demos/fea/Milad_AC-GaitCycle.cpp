@@ -62,7 +62,7 @@ using namespace chrono::fea;
 using namespace chrono::irrlicht;
 using namespace irr;
 using namespace std;
-int num_threads = 3;
+int num_threads = 4;
 //#define USE_IRR ;
 enum ROT_SYS { XYZ, ZXY };  // Only these are supported for now ...
 
@@ -79,8 +79,8 @@ ROT_SYS myRot = XYZ;
 double time_step = 0.0001;
 int scaleFactor = 1;
 double dz = 0.001;
-const double K_SPRINGS = 100e8;
-const double C_DAMPERS = 100e3;
+const double K_SPRINGS = 40e8;
+const double C_DAMPERS = 40e3;
 double MeterToInch = 0.02539998628;
 double L0 = 0.01;  // Initial length
 double L0_t = 0.01;
@@ -102,7 +102,8 @@ void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[64],
                 char MeshFileBuffer[32],
-                std::vector<std::vector<int>> NodeNeighborElement, std::vector<ChVector<>> NodeFrc);
+                std::vector<std::vector<int>> NodeNeighborElement,
+                std::vector<ChVector<>> NodeFrc);
 class MyLoadSpringDamper : public ChLoadCustomMultiple {
   public:
     MyLoadSpringDamper(std::vector<std::shared_ptr<ChLoadable>>& mloadables, std::shared_ptr<ChBody> AttachBodyInput)
@@ -327,7 +328,7 @@ int main(int argc, char* argv[]) {
             GetDataFile(GetChronoDataFile("fea/XYZ.csv").c_str(), motionInfo);
             // motionInfo: t,TF_tx,TF_ty,TF_tz,TF_rx,TF_ry,TF_rz,PF_tx,PF_ty,PF_tz,PF_rx,PF_ry,PF_rz
             Tibia->SetPos(ChVector<>(motionInfo[0][1], motionInfo[0][2], motionInfo[0][3]));
-            RotAng = ChVector<>(-motionInfo[0][4], motionInfo[0][5], -motionInfo[0][6]) * D2R;
+            RotAng = ChVector<>(-motionInfo[0][4], -motionInfo[0][5], -motionInfo[0][6]) * D2R;
             // why negative sign is needed here?
             GetLog() << "\n RotAng is =" << RotAng << "\n ";
             MeshRotate = Angle_to_Quat(4, RotAng);
@@ -769,33 +770,51 @@ int main(int argc, char* argv[]) {
     printf("Tibia Rot= %f  %f  %f  %f \n", myRot.e1, myRot.e2, myRot.e3, myRot.e0);
 
     while (my_system.GetChTime() < 2) {
-        ////////////////////////////////////////////////////////////////
-        // To compute pressure forces
-        my_system.GetContactContainer()->ComputeContactForces();
-        std::vector<ChVector<>> TibiaNodeFrc;
-        std::vector<ChVector<>> FemurNodeFrc;
-        TibiaNodeFrc.empty();
-        FemurNodeFrc.empty();
-        for (int i = 0; i < my_mesh_tibia->GetNnodes(); i++) {
-            auto nodetibia = std::dynamic_pointer_cast<ChNodeFEAxyz>(my_mesh_tibia->GetNode(i));
-            ChVector<> contact_force = mcontactsurf_tibia->GetContactForce(&my_system, nodetibia.get());
-            TibiaNodeFrc.push_back(contact_force);
-        }
-
-        for (int i = 0; i < my_mesh_femur->GetNnodes(); i++) {
-            auto nodefemur = std::dynamic_pointer_cast<ChNodeFEAxyz>(my_mesh_femur->GetNode(i));
-            ChVector<> contact_force = mcontactsurf_femur->GetContactForce(&my_system, nodefemur.get());
-            FemurNodeFrc.push_back(contact_force);
-        }
-        // End compute pressure forces
         ChQuaternion<> myRot = Tibia->GetRot();
         printf("Tibia Rot= %f  %f  %f  %f \n", myRot.e1, myRot.e2, myRot.e3, myRot.e0);
         my_system.DoStepDynamics(time_step);
         step_count++;
+        std::ofstream output_femur;
+        std::ofstream output_tibia;
+        std::ofstream output_femur_Rigid;
+        std::ofstream output_tibia_Rigid;
+        output_femur.open("AC-Data/femur.txt", std::ios::app);
+        output_tibia.open("AC-Data/tibia.txt", std::ios::app);
+        output_femur_Rigid.open("TimeVPlots/femur_rigid.txt");
+        output_tibia_Rigid.open("TimeVPlots/tibia_rigid.txt");
         ////////////////////////////////////////
         ///////////Write to VTK/////////////////
         ////////////////////////////////////////
         if (step_count % write_interval == 0) {
+            ////////////////////////////////////////////////////////////////
+            // To compute pressure forces
+            my_system.GetContactContainer()->ComputeContactForces();
+            std::vector<ChVector<>> TibiaNodeFrc;
+            std::vector<ChVector<>> FemurNodeFrc;
+            TibiaNodeFrc.empty();
+            FemurNodeFrc.empty();
+            ChVector<> contact_force_total_tibia;
+            for (int i = 0; i < my_mesh_tibia->GetNnodes(); i++) {
+                auto nodetibia = std::dynamic_pointer_cast<ChNodeFEAxyz>(my_mesh_tibia->GetNode(i));
+                ChVector<> contact_force = mcontactsurf_tibia->GetContactForce(&my_system, nodetibia.get());
+                TibiaNodeFrc.push_back(contact_force);
+                contact_force_total_tibia += contact_force;
+            }
+            output_tibia << my_system.GetChTime() << " " << contact_force_total_tibia.x << " "
+                         << contact_force_total_tibia.y << " " << contact_force_total_tibia.z << "\n";
+            output_tibia.close();
+
+            ChVector<> contact_force_total_femur;
+            for (int i = 0; i < my_mesh_femur->GetNnodes(); i++) {
+                auto nodefemur = std::dynamic_pointer_cast<ChNodeFEAxyz>(my_mesh_femur->GetNode(i));
+                ChVector<> contact_force = mcontactsurf_femur->GetContactForce(&my_system, nodefemur.get());
+                FemurNodeFrc.push_back(contact_force);
+                contact_force_total_femur += contact_force;
+            }
+            output_femur << my_system.GetChTime() << " " << contact_force_total_femur.x << " "
+                         << contact_force_total_femur.y << " " << contact_force_total_femur.z << "\n";
+            output_femur.close();
+            // End compute pressure forces
             char SaveAsBufferFemur[64];        // The filename buffer.
             char SaveAsBufferTibia[64];        // The filename buffer.
             char SaveAsBufferTibiaObj[64];     // The filename buffer.
@@ -1025,7 +1044,8 @@ void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[64],
                 char MeshFileBuffer[32],
-                std::vector<std::vector<int>> NodeNeighborElement, std::vector<ChVector<>> NodeFrc) {
+                std::vector<std::vector<int>> NodeNeighborElement,
+                std::vector<ChVector<>> NodeFrc) {
     std::ofstream output;
     output.open(SaveAsBuffer, std::ios::app);
 
@@ -1076,7 +1096,7 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
     std::vector<ChVector<>> MyResult;
-    output << "\nVECTORS ep12_theta float\n";
+    output << "\nVECTORS ep12_ratio float\n";
     for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
         double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
         double myarea = 0;
@@ -1090,7 +1110,16 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             myarea += dx * dy / 4;
             areaAve1 += MyResult[0].x * dx * dy / 4;
             areaAve2 += MyResult[0].y * dx * dy / 4;
-            areaAve3 += MyResult[0].z * dx * dy / 4;
+            if (abs(MyResult[0].x) > 1e-3 && abs(MyResult[0].y) > 1e-3) {
+                double ratio = abs(areaAve1 / areaAve2);
+                if (ratio > 10)
+                    ratio = 10;
+                if (ratio < 0.1)
+                    ratio = 0.1;
+                areaAve3 += log10(ratio) * dx * dy / 4;
+            } else {
+                areaAve3 += 0.0 * dx * dy / 4;
+            }
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
@@ -1130,7 +1159,55 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
+    output << "\nVECTORS WAve_T_dir float\n";
+    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
+        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+        double myarea = 0;
+        double dx, dy;
+        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
+            int myelemInx = NodeNeighborElement[i][j];
+            MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
+                           ->GetPrincipalStrains();
 
+            std::vector<ChVector<>> MyResult_mag =
+                std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
+                    ->GetPrincipalStrains();
+            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
+            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
+            myarea += dx * dy / 4;
+
+            if (MyResult_mag[0].y < 0) {
+                MyResult_mag[0].y = 0;
+            }
+            areaAve1 += (MyResult_mag[0].x * MyResult[1].x + MyResult_mag[0].y * MyResult[2].x) * dx * dy / 4;
+            areaAve2 += (MyResult_mag[0].x * MyResult[1].y + MyResult_mag[0].y * MyResult[2].y) * dx * dy / 4;
+            areaAve3 += (MyResult_mag[0].x * MyResult[1].z + MyResult_mag[0].y * MyResult[2].z) * dx * dy / 4;
+        }
+        output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
+    }
+    output << "\nVECTORS WAve_dir float\n";
+    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
+        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+        double myarea = 0;
+        double dx, dy;
+        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
+            int myelemInx = NodeNeighborElement[i][j];
+            MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
+                           ->GetPrincipalStrains();
+
+            std::vector<ChVector<>> MyResult_mag =
+                std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
+                    ->GetPrincipalStrains();
+            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
+            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
+            myarea += dx * dy / 4;
+
+            areaAve1 += (MyResult_mag[0].x * MyResult[1].x + MyResult_mag[0].y * MyResult[2].x) * dx * dy / 4;
+            areaAve2 += (MyResult_mag[0].x * MyResult[1].y + MyResult_mag[0].y * MyResult[2].y) * dx * dy / 4;
+            areaAve3 += (MyResult_mag[0].x * MyResult[1].z + MyResult_mag[0].y * MyResult[2].z) * dx * dy / 4;
+        }
+        output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
+    }
     output << "\nVECTORS sigma12_theta float\n";
     for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
         double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
@@ -1200,7 +1277,8 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             areaAve2 += NodeFrc[i].y * dx * dy / 4;
             areaAve3 += NodeFrc[i].z * dx * dy / 4;
         }
-        output << areaAve1 / (myarea*myarea) << " " << areaAve2 / (myarea*myarea) << " " << areaAve3 / (myarea*myarea) << "\n";
+        output << areaAve1 / (myarea * myarea) << " " << areaAve2 / (myarea * myarea) << " "
+               << areaAve3 / (myarea * myarea) << "\n";
     }
 
     output.close();
@@ -1341,7 +1419,7 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
             double y2 = myMotion[i + 1][5];
             double y = y1 + (y2 - y1) / (t2 - t1) * (x - t1);
 
-            return (y * CH_C_PI / 180);
+            return (-y * CH_C_PI / 180);
         }
     };
 
