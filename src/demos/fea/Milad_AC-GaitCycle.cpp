@@ -65,7 +65,7 @@ using namespace std;
 int num_threads = 3;
 //#define USE_IRR ;
 enum ROT_SYS { XYZ, ZXY };  // Only these are supported for now ...
-
+#define NormalSP            // Defines whether spring and dampers will always remain normal to the surface
 bool outputData = true;
 bool addGravity = false;
 bool addPressure = false;
@@ -102,7 +102,8 @@ void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[64],
                 char MeshFileBuffer[32],
-                std::vector<std::vector<int>> NodeNeighborElement, std::vector<ChVector<>> NodeFrc);
+                std::vector<std::vector<int>> NodeNeighborElement,
+                std::vector<ChVector<>> NodeFrc);
 class MyLoadSpringDamper : public ChLoadCustomMultiple {
   public:
     MyLoadSpringDamper(std::vector<std::shared_ptr<ChLoadable>>& mloadables, std::shared_ptr<ChBody> AttachBodyInput)
@@ -152,10 +153,25 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
                 double for_spdp =
                     K_sp[iii] * (c_length - l0[iii]) + C_dp[iii] * dc_length;  // Absolute value of spring-damper force
 
-                // Apply generalized force to node
-                //    GetLog() << " Vertical component and absolute value of force: " << dij.GetNormalized().y << "
-                //    "
-                //    << for_spdp;
+#ifdef NormalSP
+
+                ChVector<> UnitNormal = Node_Grad.GetNormalized();
+                this->load_Q(iii * 6 + 0) = -for_spdp * UnitNormal.x;
+                this->load_Q(iii * 6 + 1) = -for_spdp * UnitNormal.y;
+                this->load_Q(iii * 6 + 2) = -for_spdp * UnitNormal.z;
+
+                ChVectorDynamic<> Qi(6);  // Vector of generalized forces from spring and damper
+                ChVectorDynamic<> Fi(6);  // Vector of applied forces and torques (6 components)
+                double detJi = 0;         // Determinant of transformation (Not used)
+
+                Fi(0) = for_spdp * UnitNormal.x;
+                Fi(1) = for_spdp * UnitNormal.y;
+                Fi(2) = for_spdp * UnitNormal.z;
+                Fi(3) = 0.0;
+                Fi(4) = 0.0;
+                Fi(5) = 0.0;
+#else
+
                 this->load_Q(iii * 6 + 0) = -for_spdp * dij.GetNormalized().x;
                 this->load_Q(iii * 6 + 1) = -for_spdp * dij.GetNormalized().y;
                 this->load_Q(iii * 6 + 2) = -for_spdp * dij.GetNormalized().z;
@@ -170,7 +186,7 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
                 Fi(3) = 0.0;
                 Fi(4) = 0.0;
                 Fi(5) = 0.0;
-
+#endif
                 ChState stateBody_x(7, NULL);
                 ChStateDelta stateBody_w(6, NULL);
 
@@ -192,7 +208,6 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
                 // Apply generalized force to rigid body (opposite sign)
                 AttachBody->ComputeNF(BodyAttachWorld.x, BodyAttachWorld.y, BodyAttachWorld.z, Qi, detJi, Fi,
                                       &stateBody_x, &stateBody_w);
-
                 // Apply forces to body (If body fixed, we should set those to zero not Qi(coordinate))
                 if (!AttachBody->GetBodyFixed()) {
                     this->load_Q((loadables.size() - 1) * 6) = -for_spdp * dij.GetNormalized().x;
@@ -1025,7 +1040,8 @@ void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[64],
                 char MeshFileBuffer[32],
-                std::vector<std::vector<int>> NodeNeighborElement, std::vector<ChVector<>> NodeFrc) {
+                std::vector<std::vector<int>> NodeNeighborElement,
+                std::vector<ChVector<>> NodeFrc) {
     std::ofstream output;
     output.open(SaveAsBuffer, std::ios::app);
 
@@ -1200,7 +1216,8 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             areaAve2 += NodeFrc[i].y * dx * dy / 4;
             areaAve3 += NodeFrc[i].z * dx * dy / 4;
         }
-        output << areaAve1 / (myarea*myarea) << " " << areaAve2 / (myarea*myarea) << " " << areaAve3 / (myarea*myarea) << "\n";
+        output << areaAve1 / (myarea * myarea) << " " << areaAve2 / (myarea * myarea) << " "
+               << areaAve3 / (myarea * myarea) << "\n";
     }
 
     output.close();
