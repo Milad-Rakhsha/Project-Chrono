@@ -1,0 +1,117 @@
+#!/bin/bash
+
+NFrame=242
+rm deflection*
+###################################################################################################
+###################################################################################################
+# rm E_Princ_Dir1*
+# # The following lines go through all the nodal value of a certain field for certain node at different time frames.
+# # It gets the value of that node and stores it in a file that is specified for that node.
+# for j in `seq 1 613`;
+# do
+# for i in `seq 1 241`;
+# do grep -R -A 615 "VECTORS E_Princ_Dir1" femur.$i.vtk| tail -n +2 | head -n $j | tail -n +$j >> E_Princ_Dir1.$j
+# done
+# done
+
+# # We need to create the average field using the headers that we had before
+# grep -R -A 615 "VECTORS E_Princ_Dir1" femur.1.vtk| sed  "s/E_Princ_Dir1/E_Princ_Dir1Mean/g" |head -n 1 >> E_Princ_Dir1Mean
+# for j in `seq 1 613`; do
+# first=$(awk '{ sum += $1 } END { if (NR > 0) print sum / NR }' E_Princ_Dir1.$j)
+# second=$(awk '{ sum += $2 } END { if (NR > 0) print sum / NR }' E_Princ_Dir1.$j)
+# third=$(awk '{ sum += $3 } END { if (NR > 0) print sum / NR }' E_Princ_Dir1.$j)
+# echo $first $second $third >>E_Princ_Dir1Mean
+# done
+
+# for i in `seq 1 241`; do 
+# cat E_Princ_Dir1Mean >> femur.$i.vtk;
+# done
+
+###################################################################################################
+###################################################################################################
+# rm E_Princ_Dir2*
+# # The following lines go through all the nodal value of a certain field for certain node at different time frames.
+# # It gets the value of that node and stores it in a file that is specified for that node.
+# for j in `seq 1 613`;
+# do
+# for i in `seq 1 241`;
+# do grep -R -A 615 "VECTORS E_Princ_Dir2" femur.$i.vtk| tail -n +2 | head -n $j | tail -n +$j >> E_Princ_Dir2.$j
+# done
+# done
+
+# # We need to create the average field using the headers that we had before
+# grep -R -A 615 "VECTORS E_Princ_Dir2" femur.1.vtk| sed  "s/E_Princ_Dir2/E_Princ_Dir2Mean/g" |head -n 1 >> E_Princ_Dir2Mean
+# for j in `seq 1 613`; do
+# first=$(awk '{ sum += $1 } END { if (NR > 0) print sum / NR }' E_Princ_Dir2.$j)
+# second=$(awk '{ sum += $2 } END { if (NR > 0) print sum / NR }' E_Princ_Dir2.$j)
+# third=$(awk '{ sum += $3 } END { if (NR > 0) print sum / NR }' E_Princ_Dir2.$j)
+# echo $first $second $third >>E_Princ_Dir2Mean
+# done
+
+# for i in `seq 1 241`; do 
+# cat E_Princ_Dir2Mean >> femur.$i.vtk;
+# done
+###################################################################################################
+rm ep12_ratio*
+
+## Do the averaging...
+# The following lines go through all the nodal value of a certain field for certain node at different time frames.
+# It gets the value of that node and stores it in a file that is specified for that node. 987 -> numNodes, 241 -> numFrames
+for j in `seq 1 987`;
+do
+for i in `seq 1 241`;
+do grep -R -A 989 "VECTORS ep12_ratio" femur.$i.vtk| tail -n +2 | head -n $j | tail -n +$j >> ep12_ratio.$j;
+done
+done
+
+for j in `seq 1 987`;
+do
+for i in `seq 1 241`;
+do grep -R -A 989 "VECTORS WAve_T_dir" femur.$i.vtk| tail -n +2 | head -n $j | tail -n +$j >> WAve_T_dir.$j; 
+done
+done
+
+
+for j in `seq 1 987`;
+do
+for i in `seq 1 241`;
+do grep -R -A 989 "VECTORS WAve_dir" femur.$i.vtk| tail -n +2 | head -n $j | tail -n +$j >> WAve_dir.$j;
+done
+done
+
+# We need to create the average field using the headers that we had before
+# T indicate that extra condition ep<0 -> ep=0 is imposed 
+echo " "> TimeAve_WAve
+echo " "> TimeAve_WAveT
+
+grep -R -A 989 "VECTORS ep12_ratio" femur.1.vtk| sed  "s/ep12_ratio/TimeAve_WAve/g" |head -n 1 >> TimeAve_WAve
+grep -R -A 989 "VECTORS ep12_ratio" femur.1.vtk| sed  "s/ep12_ratio/TimeAve_WAveT/g" |head -n 1 >> TimeAve_WAveT
+
+for j in `seq 1 989`; do
+
+awk {'print $3'} ep12_ratio.$j > test
+paste WAve_dir.$j WAve_T_dir.$j  test> PosWAve
+awk '{ print  $1, $2, $3, $4, $5, $6}' PosWAve > MyOutput
+
+first=$(awk '{ sum += $1 } END { if (NR > 0) print sum / NR }' MyOutput)
+second=$(awk '{ sum += $2 } END { if (NR > 0) print sum / NR }' MyOutput)
+third=$(awk '{ sum += $3 } END { if (NR > 0) print sum / NR }' MyOutput)
+echo $first $second $third >>TimeAve_WAve
+fourth=$(awk '{ sum += $4 } END { if (NR > 0) print sum / NR }' MyOutput)
+fifth=$(awk '{ sum += $5 } END { if (NR > 0) print sum / NR }' MyOutput)
+sixth=$(awk '{ sum += $6 } END { if (NR > 0) print sum / NR }' MyOutput)
+echo $fourth $fifth $sixth >>TimeAve_WAveT
+done
+
+for i in `seq 1 241`; do 
+cat TimeAve_WAveT >> femur.$i.vtk;
+cat TimeAve_WAve >> femur.$i.vtk;
+done
+
+# if you want to do the averaging differntly you can use something like this
+# $7 here is a scalar field (max/min ratio) which can be used for wighted averaging
+# awk '{ print  $1*$7, $2*$7, $3*$7, $4*$7, $5*$7, $6*$7}' PosWAve > MyOutput
+
+
+
+
