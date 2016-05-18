@@ -760,31 +760,31 @@ class ChMatrix33 : public ChMatrixNM<Real, 3, 3> {
     /// Given a 3x3 rotation matrix, returns the angles for
     /// consecutive rotations on x,y,z axes..
     ChVector<Real> Get_A_Rzxy() const {
-        ChVector<Real> Rxyz;
+        ChVector<Real> Rzxy;
 
         Real arg1 = -(this->GetElement(2, 1));
         if (arg1 > 1)
             arg1 = 1;
         if (arg1 < -1)
             arg1 = -1;
-        Rxyz.x = acos(arg1);
+        Rzxy.x = asin(arg1);
 
-        Real arg2 = (this->GetElement(2, 2)) / cos(Rxyz.x);
+        Real arg2 = (this->GetElement(2, 2)) / cos(Rzxy.x);
         if (arg2 > 1)
             arg2 = 1;
         if (arg2 < -1)
             arg2 = -1;
-        Rxyz.y = acos(arg2);
+        Rzxy.y = acos(arg2);
 
-        Real arg3 = (this->GetElement(1, 1)) / cos(Rxyz.x);
+        Real arg3 = (this->GetElement(1, 1)) / cos(Rzxy.x);
         if (arg3 > 1)
             arg3 = 1;
         if (arg3 < -1)
             arg3 = -1;
 
-        Rxyz.z = acos(arg3);
+        Rzxy.z = acos(arg3);
 
-        return Rxyz;
+        return Rzxy;
     }
 
     /// Given a 3x3 rotation matrix, returns the Rodriguez parameters.
