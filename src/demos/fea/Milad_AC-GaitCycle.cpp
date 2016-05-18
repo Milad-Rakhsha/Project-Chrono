@@ -62,10 +62,10 @@ using namespace chrono::fea;
 using namespace chrono::irrlicht;
 using namespace irr;
 using namespace std;
-int num_threads = 4;
+int num_threads = 3;
 //#define USE_IRR ;
 enum ROT_SYS { XYZ, ZXY };  // Only these are supported for now ...
-#define NormalSP            // Defines whether spring and dampers will always remain normal to the surface
+//#define NormalSP            // Defines whether spring and dampers will always remain normal to the surface
 bool outputData = true;
 bool addGravity = false;
 bool addPressure = false;
@@ -79,8 +79,8 @@ ROT_SYS myRot = XYZ;
 double time_step = 0.0001;
 int scaleFactor = 1;
 double dz = 0.001;
-const double K_SPRINGS = 40e8;
-const double C_DAMPERS = 40e3;
+const double K_SPRINGS = 50e8;
+const double C_DAMPERS = 50e3;
 double MeterToInch = 0.02539998628;
 double L0 = 0.01;  // Initial length
 double L0_t = 0.01;
@@ -268,7 +268,7 @@ int main(int argc, char* argv[]) {
                                                                   // material: troubles
     // Use this value for an outward additional layer around meshes, that can improve
     // robustness of mesh-mesh collision detection (at the cost of having unnatural inflate effect)
-    double sphere_swept_thickness = dz * 0.2;
+    double sphere_swept_thickness = dz * 0.1;
 
     double rho = 1000 * 0.005 / dz;  ///< material density
     double E = 40e7;                 ///< Young's modulus
@@ -282,7 +282,7 @@ int main(int argc, char* argv[]) {
 
     mysurfmaterial->SetKn(2e5);
     mysurfmaterial->SetKt(0);
-    mysurfmaterial->SetGn(5);
+    mysurfmaterial->SetGn(2);
     mysurfmaterial->SetGt(0);
 
     GetLog() << "-----------------------------------------------------------\n";
@@ -455,6 +455,7 @@ int main(int argc, char* argv[]) {
     /////////////////////////// Tibia /////////////////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////
     ///////////////////////////////////////////////////////////////////////////////////////////////////////
+    int tibia1NumNodes;
     if (tibiaCartilage) {
         try {
             ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-1.mesh").c_str(),
@@ -479,6 +480,7 @@ int main(int argc, char* argv[]) {
             my_system.Add(NodeDirBone);
         }
 
+        tibia1NumNodes = my_mesh_tibia->GetNnodes();
         //   Import the Tibia
         try {
             ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_tibia, GetChronoDataFile("fea/Tibia-2.mesh").c_str(),
@@ -727,7 +729,7 @@ int main(int argc, char* argv[]) {
     mystepper->SetAlpha(-0.2);
     mystepper->SetMaxiters(20);
     //    mystepper->SetAbsTolerances(1e-04, 1e-3);  // For ACC
-    mystepper->SetAbsTolerances(1e-05, 10);          // For Pos
+    mystepper->SetAbsTolerances(1e-05, 0.1);         // For Pos
     mystepper->SetMode(ChTimestepperHHT::POSITION);  // POSITION //ACCELERATION
     mystepper->SetScaling(true);
     mystepper->SetVerbose(true);
@@ -794,8 +796,6 @@ int main(int argc, char* argv[]) {
         std::ofstream output_tibia_Rigid;
         output_femur.open("AC-Data/femur.txt", std::ios::app);
         output_tibia.open("AC-Data/tibia.txt", std::ios::app);
-        output_femur_Rigid.open("TimeVPlots/femur_rigid.txt");
-        output_tibia_Rigid.open("TimeVPlots/tibia_rigid.txt");
         ////////////////////////////////////////
         ///////////Write to VTK/////////////////
         ////////////////////////////////////////
@@ -808,7 +808,9 @@ int main(int argc, char* argv[]) {
             TibiaNodeFrc.empty();
             FemurNodeFrc.empty();
             ChVector<> contact_force_total_tibia;
-            for (int i = 0; i < my_mesh_tibia->GetNnodes(); i++) {
+            // Only store the lateral forces for tibia;
+            // The medial force is the femur force + this force
+            for (int i = 0; i < tibia1NumNodes; i++) {
                 auto nodetibia = std::dynamic_pointer_cast<ChNodeFEAxyz>(my_mesh_tibia->GetNode(i));
                 ChVector<> contact_force = mcontactsurf_tibia->GetContactForce(&my_system, nodetibia.get());
                 TibiaNodeFrc.push_back(contact_force);
