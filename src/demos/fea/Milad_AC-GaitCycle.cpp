@@ -62,7 +62,7 @@ using namespace chrono::fea;
 using namespace chrono::irrlicht;
 using namespace irr;
 using namespace std;
-int num_threads = 3;
+int num_threads = 12;
 //#define USE_IRR ;
 enum ROT_SYS { XYZ, ZXY };  // Only these are supported for now ...
 //#define NormalSP            // Defines whether spring and dampers will always remain normal to the surface
@@ -75,12 +75,12 @@ bool showFemur = true;
 bool tibiaCartilage = true;
 bool femurCartilage = true;
 
-ROT_SYS myRot = XYZ;
+ROT_SYS myRot = ZXY;
 double time_step = 0.0001;
 int scaleFactor = 1;
 double dz = 0.001;
-const double K_SPRINGS = 50e8;
-const double C_DAMPERS = 50e3;
+const double K_SPRINGS = 70e8;
+const double C_DAMPERS = 70e3;
 double MeterToInch = 0.02539998628;
 double L0 = 0.01;  // Initial length
 double L0_t = 0.01;
@@ -401,9 +401,9 @@ int main(int argc, char* argv[]) {
 
     if (femurCartilage) {
         try {
-            ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_femur, GetChronoDataFile("fea/Femur.mesh").c_str(), material,
-                                                   NODE_AVE_AREA_f, BC_NODES, Center_Femur, rot_transform, MeterToInch,
-                                                   false, false);
+            ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_femur, GetChronoDataFile("fea/FemurFine.mesh").c_str(),
+                                                   material, NODE_AVE_AREA_f, BC_NODES, Center_Femur, rot_transform,
+                                                   MeterToInch, false, false);
         } catch (ChException myerr) {
             GetLog() << myerr.what();
             return 0;
@@ -729,7 +729,7 @@ int main(int argc, char* argv[]) {
     mystepper->SetAlpha(-0.2);
     mystepper->SetMaxiters(20);
     //    mystepper->SetAbsTolerances(1e-04, 1e-3);  // For ACC
-    mystepper->SetAbsTolerances(1e-05, 0.1);         // For Pos
+    mystepper->SetAbsTolerances(1e-05, 1);           // For Pos
     mystepper->SetMode(ChTimestepperHHT::POSITION);  // POSITION //ACCELERATION
     mystepper->SetScaling(true);
     mystepper->SetVerbose(true);
@@ -791,11 +791,14 @@ int main(int argc, char* argv[]) {
         my_system.DoStepDynamics(time_step);
         step_count++;
         std::ofstream output_femur;
-        std::ofstream output_tibia;
+        std::ofstream output_tibia_1;
+        std::ofstream output_tibia_2;
         std::ofstream output_femur_Rigid;
         std::ofstream output_tibia_Rigid;
         output_femur.open("AC-Data/femur.txt", std::ios::app);
-        output_tibia.open("AC-Data/tibia.txt", std::ios::app);
+        output_tibia_1.open("AC-Data/tibia1.txt", std::ios::app);
+        output_tibia_2.open("AC-Data/tibia2.txt", std::ios::app);
+
         ////////////////////////////////////////
         ///////////Write to VTK/////////////////
         ////////////////////////////////////////
@@ -807,18 +810,33 @@ int main(int argc, char* argv[]) {
             std::vector<ChVector<>> FemurNodeFrc;
             TibiaNodeFrc.empty();
             FemurNodeFrc.empty();
-            ChVector<> contact_force_total_tibia;
+            ChVector<> contact_force_total_tibia1;
             // Only store the lateral forces for tibia;
             // The medial force is the femur force + this force
             for (int i = 0; i < tibia1NumNodes; i++) {
                 auto nodetibia = std::dynamic_pointer_cast<ChNodeFEAxyz>(my_mesh_tibia->GetNode(i));
                 ChVector<> contact_force = mcontactsurf_tibia->GetContactForce(&my_system, nodetibia.get());
                 TibiaNodeFrc.push_back(contact_force);
-                contact_force_total_tibia += contact_force;
+                contact_force_total_tibia1 += contact_force;
             }
-            output_tibia << my_system.GetChTime() << " " << contact_force_total_tibia.x << " "
-                         << contact_force_total_tibia.y << " " << contact_force_total_tibia.z << "\n";
-            output_tibia.close();
+            output_tibia_1 << my_system.GetChTime() << " " << contact_force_total_tibia1.x << " "
+                           << contact_force_total_tibia1.y << " " << contact_force_total_tibia1.z << "\n";
+
+            output_tibia_1.close();
+
+            ChVector<> contact_force_total_tibia2;
+            // Only store the lateral forces for tibia;
+            // The medial force is the femur force + this force
+            for (int i = tibia1NumNodes; i < my_mesh_tibia->GetNnodes(); i++) {
+                auto nodetibia = std::dynamic_pointer_cast<ChNodeFEAxyz>(my_mesh_tibia->GetNode(i));
+                ChVector<> contact_force = mcontactsurf_tibia->GetContactForce(&my_system, nodetibia.get());
+                TibiaNodeFrc.push_back(contact_force);
+                contact_force_total_tibia2 += contact_force;
+            }
+            output_tibia_2 << my_system.GetChTime() << " " << contact_force_total_tibia2.x << " "
+                           << contact_force_total_tibia2.y << " " << contact_force_total_tibia2.z << "\n";
+
+            output_tibia_2.close();
 
             ChVector<> contact_force_total_femur;
             for (int i = 0; i < my_mesh_femur->GetNnodes(); i++) {
