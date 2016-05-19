@@ -15,6 +15,7 @@
 // This is a more involved model of Interaction of tiba-femoral contact.
 // This model the gait cycle and evaluate tibia-femoral contact.
 // =============================================================================
+
 #include "chrono/lcp/ChLcpIterativeMINRES.h"
 #include "chrono_mkl/ChLcpMklSolver.h"
 #include "chrono/physics/ChBodyEasy.h"
@@ -23,6 +24,9 @@
 #include "chrono/physics/ChLoadBodyMesh.h"
 #include "chrono/core/ChFileutils.h"
 #include "chrono/ChConfig.h"
+
+#include "thirdparty/rapidjson/document.h"
+#include "thirdparty/rapidjson/filereadstream.h"
 
 #include "chrono/utils/ChUtilsInputOutput.h"
 #include "chrono_fea/ChElementShellANCF.h"
@@ -40,7 +44,6 @@
 #include "chrono_fea/ChContactSurfaceMesh.h"
 #include "chrono_fea/ChLoadContactSurfaceMesh.h"
 #include "chrono_fea/ChContactSurfaceNodeCloud.h"
-
 #include "chrono_irrlicht/ChBodySceneNode.h"
 #include "chrono_irrlicht/ChBodySceneNodeTools.h"
 #include "chrono_irrlicht/ChIrrAppInterface.h"
@@ -62,7 +65,8 @@ using namespace chrono::fea;
 using namespace chrono::irrlicht;
 using namespace irr;
 using namespace std;
-int num_threads = 12;
+using namespace rapidjson;
+
 //#define USE_IRR ;
 enum ROT_SYS { XYZ, ZXY };  // Only these are supported for now ...
 //#define NormalSP            // Defines whether spring and dampers will always remain normal to the surface
@@ -74,17 +78,54 @@ bool showTibia = true;
 bool showFemur = true;
 bool tibiaCartilage = true;
 bool femurCartilage = true;
+const double MeterToInch = 0.02539998628;
+const int scaleFactor = 1;
+const ROT_SYS myRot = ZXY;
 
-ROT_SYS myRot = ZXY;
-double time_step = 0.0001;
-int scaleFactor = 1;
-double dz = 0.001;
-const double K_SPRINGS = 70e8;
-const double C_DAMPERS = 70e3;
-double MeterToInch = 0.02539998628;
-double L0 = 0.01;  // Initial length
-double L0_t = 0.01;
-int write_interval = 0.005 / time_step;  // write every 0.01s
+int num_threads;
+double time_step;
+int write_interval;                             // write every 0.01s
+double dz, AlphaDamp;                           // ANCF SHELL
+double K_SPRINGS, C_DAMPERS, L0, L0_t;          // Elastic Foundation
+double rho, E, nu;                              // Material Properties
+double sphere_swept_thickness, Kn, Kt, Gn, Gt;  // Contact
+ChSystemDEM::ContactForceModel ContactModel;
+double TibiaMass, femurMass;                                  // Rigid Bodies
+ChVector<> TibiaInertia, femurInertia;                        // Rigid Bodies
+double AlphaHHT, AbsToleranceHHT, AbsToleranceHHTConstraint;  // HHT Solver
+int MaxitersHHT, MaxItersSuccessHHT;                          // HHT Solver
+std::string RootFolder, simulationFolder;
+
+void SetParamFromJSON(const std::string& filename,
+                      std::string& RootFolder,
+                      std::string& simulationFolder,
+                      int& num_threads,
+                      double& time_step,
+                      int& write_interval_time,
+                      double& dz,
+                      double& AlphaDamp,
+                      double& K_SPRINGS,
+                      double& C_DAMPERS,
+                      double& L0,
+                      double& L0_t,
+                      double& TibiaMass,
+                      double& femurMass,
+                      ChVector<>& TibiaInertia,
+                      ChVector<>& femurInertia,
+                      double& rho,
+                      double& E,
+                      double& nu,
+                      ChSystemDEM::ContactForceModel& ContactModel,
+                      double& sphere_swept_thickness,
+                      double& Kn,
+                      double& Kt,
+                      double& Gn,
+                      double& Gt,
+                      double& AlphaHHT,
+                      int& MaxitersHHT,
+                      double& AbsToleranceHHT,
+                      double& AbsToleranceHHTConstraint,
+                      int& MaxItersSuccessHHT);
 
 void ReadOBJConnectivity(const char* filename,
                          string SaveAs,
@@ -92,16 +133,16 @@ void ReadOBJConnectivity(const char* filename,
                          std::vector<std::vector<int>>& faces);
 void WriteRigidBodyVTK(std::shared_ptr<ChBody> Body,
                        std::vector<std::vector<double>>& vCoor,
-                       char SaveAsBuffer[64],
-                       char ConnectivityFileBuffer[32]);
+                       char SaveAsBuffer[256],
+                       char ConnectivityFileBuffer[256]);
 void GetDataFile(const char* filename, std::vector<std::vector<double>>& DATA);
 void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
                       int angleset,
                       std::shared_ptr<ChLinkLockLock> my_link_TF);
 void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement);
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
-                char SaveAsBuffer[64],
-                char MeshFileBuffer[32],
+                char SaveAsBuffer[256],
+                char MeshFileBuffer[256],
                 std::vector<std::vector<int>> NodeNeighborElement,
                 std::vector<ChVector<>> NodeFrc);
 class MyLoadSpringDamper : public ChLoadCustomMultiple {
@@ -230,6 +271,33 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
 int main(int argc, char* argv[]) {
     ChSystemDEM my_system(false, true, 16000, 500);
 
+    //    std::string inputParameters = "Milad_AC-GaitCycle_JSON/1.json";
+    //    pass this to the below function -> inputParameters.c_str()
+    SetParamFromJSON(argv[1], RootFolder, simulationFolder, num_threads, time_step, write_interval, dz, AlphaDamp,
+                     K_SPRINGS, C_DAMPERS, L0, L0_t, TibiaMass, femurMass, TibiaInertia, femurInertia, rho, E, nu,
+                     ContactModel, sphere_swept_thickness, Kn, Kt, Gn, Gt, AlphaHHT, MaxitersHHT, AbsToleranceHHT,
+                     AbsToleranceHHTConstraint, MaxItersSuccessHHT);
+
+    if (ChFileutils::MakeDirectory(RootFolder.c_str()) < 0) {
+        std::cout << "Error creating directory " << RootFolder << std::endl;
+        return 1;
+    }
+
+    //    remove((RootFolder + simulationFolder).c_str());
+    //    system("rm -r  (RootFolder + simulationFolder).c_str()");
+
+    if (ChFileutils::MakeDirectory((RootFolder + simulationFolder).c_str()) < 0) {
+        std::cout << "Error creating directory " << RootFolder + simulationFolder << std::endl;
+        return 1;
+    }
+
+    std::ofstream SaveJASON;
+    cout << RootFolder + simulationFolder + "/" + simulationFolder + ".json" << endl;
+    SaveJASON.open((RootFolder + simulationFolder + "/" + simulationFolder + ".json").c_str());
+    std::ifstream CopyFrom(argv[1]);
+    SaveJASON << CopyFrom.rdbuf();
+    SaveJASON.close();
+
 // --------------------------
 // Set number of threads
 // --------------------------
@@ -268,22 +336,22 @@ int main(int argc, char* argv[]) {
                                                                   // material: troubles
     // Use this value for an outward additional layer around meshes, that can improve
     // robustness of mesh-mesh collision detection (at the cost of having unnatural inflate effect)
-    double sphere_swept_thickness = dz * 0.1;
-
-    double rho = 1000 * 0.005 / dz;  ///< material density
-    double E = 40e7;                 ///< Young's modulus
-    double nu = 0.3;                 ///< Poisson ratio
+    //    double sphere_swept_thickness = dz * 0.1;
+    //
+    //    double rho = 1000 * 0.005 / dz;  ///< material density
+    //    double E = 40e7;                 ///< Young's modulus
+    //    double nu = 0.3;                 ///< Poisson ratio
     // Create the surface material, containing information
     // about friction etc.
     // It is a DEM-p (penalty) material that we will assign to
     // all surfaces that might generate contacts.
-    my_system.SetContactForceModel(ChSystemDEM::Hooke);
+    my_system.SetContactForceModel(ContactModel);
     auto mysurfmaterial = std::make_shared<ChMaterialSurfaceDEM>();
 
-    mysurfmaterial->SetKn(2e5);
-    mysurfmaterial->SetKt(0);
-    mysurfmaterial->SetGn(2);
-    mysurfmaterial->SetGt(0);
+    mysurfmaterial->SetKn(Kn);
+    mysurfmaterial->SetKt(Kt);
+    mysurfmaterial->SetGn(Gn);
+    mysurfmaterial->SetGt(Gt);
 
     GetLog() << "-----------------------------------------------------------\n";
     GetLog() << "-----------------------------------------------------------\n";
@@ -551,8 +619,8 @@ int main(int argc, char* argv[]) {
         // Add a single layers with a fiber angle of 0 degrees.
         element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, material);
         // Set other element properties
-        element->SetAlphaDamp(0.05);   // Structural damping for this element
-        element->SetGravityOn(false);  // gravitational forces
+        element->SetAlphaDamp(AlphaDamp);  // Structural damping for this element
+        element->SetGravityOn(false);      // gravitational forces
     }
     double TotalNumNodes_tibia = my_mesh_tibia->GetNnodes();
     double TotalNumElements_tibia = my_mesh_tibia->GetNelements();
@@ -562,8 +630,8 @@ int main(int argc, char* argv[]) {
         // Add a single layers with a fiber angle of 0 degrees.
         element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, material);
         // Set other element properties
-        element->SetAlphaDamp(0.05);   // Structural damping for this element
-        element->SetGravityOn(false);  // gravitational forces
+        element->SetAlphaDamp(AlphaDamp);  // Structural damping for this element
+        element->SetGravityOn(false);      // gravitational forces
     }
 
     if (addPressure) {
@@ -726,26 +794,41 @@ int main(int argc, char* argv[]) {
 
     my_system.SetIntegrationType(ChSystem::INT_HHT);
     auto mystepper = std::dynamic_pointer_cast<ChTimestepperHHT>(my_system.GetTimestepper());
-    mystepper->SetAlpha(-0.2);
-    mystepper->SetMaxiters(20);
+    mystepper->SetAlpha(AlphaHHT);
+    mystepper->SetMaxiters(MaxitersHHT);
     //    mystepper->SetAbsTolerances(1e-04, 1e-3);  // For ACC
-    mystepper->SetAbsTolerances(1e-05, 1);           // For Pos
-    mystepper->SetMode(ChTimestepperHHT::POSITION);  // POSITION //ACCELERATION
+    mystepper->SetAbsTolerances(AbsToleranceHHT, AbsToleranceHHTConstraint);  // For Pos
+    mystepper->SetMode(ChTimestepperHHT::POSITION);                           // POSITION //ACCELERATION
     mystepper->SetScaling(true);
     mystepper->SetVerbose(true);
-    mystepper->SetMaxItersSuccess(3);
+    mystepper->SetMaxItersSuccess(MaxItersSuccessHHT);
 
 #ifndef USE_IRR
+
+    std::string VTKFolder, plots2D_Folder;
+    VTKFolder = RootFolder + simulationFolder + "/VTK/";
+    plots2D_Folder = RootFolder + simulationFolder + "/2DPlots/";
+
+    printf(" VTKFolder IS %s \n\n\n", VTKFolder.c_str());
+
+    if (ChFileutils::MakeDirectory(VTKFolder.c_str()) < 0) {
+        std::cout << "Error creating directory " << VTKFolder << std::endl;
+        return 1;
+    }
+    if (ChFileutils::MakeDirectory(plots2D_Folder.c_str()) < 0) {
+        std::cout << "Error creating directory " << plots2D_Folder << std::endl;
+        return 1;
+    }
     std::vector<std::vector<int>> NodeNeighborElementFemur;
     std::vector<std::vector<int>> NodeNeighborElementTibia;
-    string saveAsFemur = "Femur";
-    string saveAsTibia = "Tibia";
+    string saveAsFemur = VTKFolder + "Femur.vtk";
+    string saveAsTibia = VTKFolder + "Tibia.vtk";
     writeMesh(my_mesh_femur, saveAsFemur, NodeNeighborElementFemur);
     writeMesh(my_mesh_tibia, saveAsTibia, NodeNeighborElementTibia);
     int step_count = 0;
     // Read Tibia Obj connectivity and positions
     // Also save the connectivity somewhere to use later in the simulation loop
-    string saveAsTibiaObj = "TibiaConectivity";
+    string saveAsTibiaObj = VTKFolder + "TibiaConectivity.vtk";
     std::vector<std::vector<double>> vCoor;
     std::vector<std::vector<int>> faces;
     ReadOBJConnectivity(GetChronoDataFile("fea/tibia.obj").c_str(), saveAsTibiaObj, vCoor, faces);
@@ -795,9 +878,9 @@ int main(int argc, char* argv[]) {
         std::ofstream output_tibia_2;
         std::ofstream output_femur_Rigid;
         std::ofstream output_tibia_Rigid;
-        output_femur.open("AC-Data/femur.txt", std::ios::app);
-        output_tibia_1.open("AC-Data/tibia1.txt", std::ios::app);
-        output_tibia_2.open("AC-Data/tibia2.txt", std::ios::app);
+        output_femur.open(plots2D_Folder + "/femur.txt", std::ios::app);
+        output_tibia_1.open(plots2D_Folder + "/tibia1.txt", std::ios::app);
+        output_tibia_2.open(plots2D_Folder + "/tibia2.txt", std::ios::app);
 
         ////////////////////////////////////////
         ///////////Write to VTK/////////////////
@@ -849,25 +932,27 @@ int main(int argc, char* argv[]) {
                          << contact_force_total_femur.y << " " << contact_force_total_femur.z << "\n";
             output_femur.close();
             // End compute pressure forces
-            char SaveAsBufferFemur[64];        // The filename buffer.
-            char SaveAsBufferTibia[64];        // The filename buffer.
-            char SaveAsBufferTibiaObj[64];     // The filename buffer.
-            char SaveAsBufferTibiaObjVTK[64];  // The filename buffer.
+            char SaveAsBufferFemur[256];        // The filename buffer.
+            char SaveAsBufferTibia[256];        // The filename buffer.
+            char SaveAsBufferTibiaObj[256];     // The filename buffer.
+            char SaveAsBufferTibiaObjVTK[256];  // The filename buffer.
 
-            snprintf(SaveAsBufferFemur, sizeof(char) * 64, "VTK_Animations/femur.%d.vtk", step_count / write_interval);
-            snprintf(SaveAsBufferTibia, sizeof(char) * 64, "VTK_Animations/tibia.%d.vtk", step_count / write_interval);
-            snprintf(SaveAsBufferTibiaObjVTK, sizeof(char) * 64, "VTK_Animations/ObjTibia.%d.vtk",
+            snprintf(SaveAsBufferFemur, sizeof(char) * 256, (VTKFolder + "/femur.%d.vtk").c_str(),
+                     step_count / write_interval);
+            snprintf(SaveAsBufferTibia, sizeof(char) * 256, (VTKFolder + "/tibia.%d.vtk").c_str(),
+                     step_count / write_interval);
+            snprintf(SaveAsBufferTibiaObjVTK, sizeof(char) * 256, (VTKFolder + "/ObjTibia.%d.vtk").c_str(),
                      step_count / write_interval);
 
-            char MeshFileBufferFemur[32];     // The filename buffer.
-            char MeshFileBufferTibia[32];     // The filename buffer.
-            char MeshFileBufferTibiaObj[64];  // The filename buffer.
+            char MeshFileBufferFemur[256];     // The filename buffer.
+            char MeshFileBufferTibia[256];     // The filename buffer.
+            char MeshFileBufferTibiaObj[256];  // The filename buffer.
 
-            snprintf(MeshFileBufferFemur, sizeof(char) * 32, "VTK_Animations/%s.vtk", saveAsFemur.c_str());
-            snprintf(MeshFileBufferTibia, sizeof(char) * 32, "VTK_Animations/%s.vtk", saveAsTibia.c_str());
-            snprintf(MeshFileBufferTibiaObj, sizeof(char) * 64, "VTK_Animations/%s.vtk", saveAsTibiaObj.c_str());
+            snprintf(MeshFileBufferFemur, sizeof(char) * 256, ("%s"), saveAsFemur.c_str());
+            snprintf(MeshFileBufferTibia, sizeof(char) * 256, ("%s"), saveAsTibia.c_str());
+            snprintf(MeshFileBufferTibiaObj, sizeof(char) * 256, ("%s"), saveAsTibiaObj.c_str());
 
-            printf("%s from here\n", MeshFileBufferTibiaObj);
+            printf("%s from here\n", MeshFileBufferFemur);
             WriteRigidBodyVTK(Tibia, vCoor, SaveAsBufferTibiaObjVTK, MeshFileBufferTibiaObj);
             writeFrame(my_mesh_femur, SaveAsBufferFemur, MeshFileBufferFemur, NodeNeighborElementFemur, FemurNodeFrc);
             writeFrame(my_mesh_tibia, SaveAsBufferTibia, MeshFileBufferTibia, NodeNeighborElementTibia, TibiaNodeFrc);
@@ -984,22 +1069,14 @@ void ReadOBJConnectivity(const char* filename,
         VTK << "5\n";
     }
 
-    if (ChFileutils::MakeDirectory("VTK_Animations") < 0) {
-        GetLog() << "Error creating directory VTK_Animations\n";
-    }
-
-    char bufferVTK[64];  // The filename buffer.
-    snprintf(bufferVTK, sizeof(char) * 32, "VTK_Animations/");
-    sprintf(bufferVTK + strlen(bufferVTK), SaveAs.c_str());
-    sprintf(bufferVTK + strlen(bufferVTK), ".vtk");
-    VTK.write_to_file(bufferVTK);
+    VTK.write_to_file(SaveAs);
 
     int step_count = 0;
 }
 void WriteRigidBodyVTK(std::shared_ptr<ChBody> Body,
                        std::vector<std::vector<double>>& vCoor,
-                       char SaveAsBuffer[64],
-                       char ConnectivityFileBuffer[32]) {
+                       char SaveAsBuffer[256],
+                       char ConnectivityFileBuffer[256]) {
     std::ofstream output;
     output.open(SaveAsBuffer, std::ios::app);
 
@@ -1060,15 +1137,8 @@ void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::
     for (int iele = 0; iele < my_mesh->GetNelements(); iele++) {
         MESH << "9\n";
     }
-    // Create output directory (if it does not already exist).
-    if (ChFileutils::MakeDirectory("VTK_Animations") < 0) {
-        GetLog() << "Error creating directory VTK_Animations\n";
-    }
-    char buffer[32];  // The filename buffer.
-    snprintf(buffer, sizeof(char) * 32, "VTK_Animations/");
-    sprintf(buffer + strlen(buffer), SaveAs.c_str());
-    sprintf(buffer + strlen(buffer), ".vtk");
-    MESH.write_to_file(buffer);
+
+    MESH.write_to_file(SaveAs);
     int step_count = 0;
 }
 
@@ -1076,8 +1146,8 @@ void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::
 ///////////Write to VTK/////////////////
 ////////////////////////////////////////
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
-                char SaveAsBuffer[64],
-                char MeshFileBuffer[32],
+                char SaveAsBuffer[256],
+                char MeshFileBuffer[256],
                 std::vector<std::vector<int>> NodeNeighborElement,
                 std::vector<ChVector<>> NodeFrc) {
     std::ofstream output;
@@ -1552,6 +1622,113 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
     //            ChMatrix33<> MeshRotate2;
     //            MeshRotate2.MatrMultiply(RotationXX, (RotationYY * RotationZZ));
 }
+
+// double time_step = 0.0001;
+// int scaleFactor = 1;
+// double dz = 0.001;
+// const double K_SPRINGS = 70e8;
+// const double C_DAMPERS = 70e3;
+// double MeterToInch = 0.02539998628;
+// double L0 = 0.01;  // Initial length
+// double L0_t = 0.01;
+// int write_interval = 0.005 / time_step;  // write every 0.01s
+
+void SetParamFromJSON(const std::string& filename,
+                      std::string& RootFolder,
+                      std::string& simulationFolder,
+
+                      int& num_threads,          ///< material density
+                      double& time_step,         ///< material density
+                      int& write_interval_time,  ///< material density
+
+                      double& dz,  ///< material density
+                      double& AlphaDamp,
+
+                      double& K_SPRINGS,  ///< material density
+                      double& C_DAMPERS,  ///< material density
+                      double& L0,
+                      double& L0_t,
+
+                      double& TibiaMass,
+                      double& femurMass,
+                      ChVector<>& TibiaInertia,
+                      ChVector<>& femurInertia,
+
+                      double& rho,  ///< material density
+                      double& E,    ///< Young's modulus
+                      double& nu,
+
+                      ChSystemDEM::ContactForceModel& ContactModel,
+                      double& sphere_swept_thickness,
+                      double& Kn,
+                      double& Kt,
+                      double& Gn,
+                      double& Gt,
+
+                      double& AlphaHHT,
+                      int& MaxitersHHT,
+                      double& AbsToleranceHHT,
+                      double& AbsToleranceHHTConstraint,
+                      int& MaxItersSuccessHHT) {
+    // -------------------------------------------
+    // Open and parse the input file
+    // -------------------------------------------
+    FILE* fp = fopen(filename.c_str(), "r");
+
+    char readBuffer[65536];
+    FileReadStream is(fp, readBuffer, sizeof(readBuffer));
+
+    fclose(fp);
+
+    Document d;
+    d.ParseStream(is);
+
+    // Read top-level data
+    assert(d.HasMember("RootFolder"));
+    RootFolder = d["RootFolder"].GetString();
+    assert(d.HasMember("Simulation#"));
+    simulationFolder = d["Simulation#"].GetString();
+
+    assert(d.HasMember("Solution Control"));
+    time_step = d["Solution Control"]["Time Step"].GetDouble();
+    write_interval_time = d["Solution Control"]["Write Interval Step"].GetDouble() / time_step;
+    num_threads = d["Solution Control"]["OMP Threads"].GetDouble();
+
+    assert(d.HasMember("ANCF Shell"));
+    AlphaDamp = d["ANCF Shell"]["Alpha Damp"].GetDouble();
+    dz = d["ANCF Shell"]["Thickness"].GetDouble();
+
+    assert(d.HasMember("Material Properties"));
+    E = d["Material Properties"]["Elastisity"].GetDouble();
+    rho = d["Material Properties"]["Density"].GetDouble() * 0.005 / dz;
+    nu = d["Material Properties"]["poisson"].GetDouble();
+
+    assert(d.HasMember("Elastic Foundation"));
+    K_SPRINGS = d["Elastic Foundation"]["Stiffness"].GetDouble();
+    C_DAMPERS = d["Elastic Foundation"]["Damping"].GetDouble();
+    L0 = d["Elastic Foundation"]["Springs_L0"].GetDouble();
+    L0_t = d["Elastic Foundation"]["Dampers_L0"].GetDouble();
+
+    assert(d.HasMember("Contact Properties"));
+    ChSystemDEM::ContactForceModel* c_model = new ChSystemDEM::ContactForceModel;
+    c_model = (ChSystemDEM::ContactForceModel*)d["Contact Properties"]["Contact Model"].GetString();
+    ContactModel = *c_model;
+    sphere_swept_thickness = d["Contact Properties"]["Contact thickness"].GetDouble() * dz;
+    Kn = d["Contact Properties"]["Kn"].GetDouble();
+    Kt = d["Contact Properties"]["Kt"].GetDouble();
+    Gn = d["Contact Properties"]["Gn"].GetDouble();
+    Gt = d["Contact Properties"]["Gt"].GetDouble();
+
+    assert(d.HasMember("HHT Control"));
+    AlphaHHT = d["HHT Control"]["Alpha"].GetDouble();
+    MaxitersHHT = d["HHT Control"]["Maxiters"].GetDouble();
+    AbsToleranceHHT = d["HHT Control"]["AbsTolerance"].GetDouble();
+    AbsToleranceHHTConstraint = d["HHT Control"]["AbsTolerance Constraints"].GetDouble();
+    MaxItersSuccessHHT = d["HHT Control"]["MaxItersSuccessHHT"].GetDouble();
+
+    GetLog() << "Loaded JSON: " << filename.c_str() << "\n";
+}
+
 //////////////////////////////////////////
 /////////////Write to OBJ/////////////////
 //////////////////////////////////////////
