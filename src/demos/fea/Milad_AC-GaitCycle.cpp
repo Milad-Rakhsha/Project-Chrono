@@ -345,7 +345,7 @@ int main(int argc, char* argv[]) {
     // about friction etc.
     // It is a DEM-p (penalty) material that we will assign to
     // all surfaces that might generate contacts.
-    my_system.SetContactForceModel(ContactModel);
+    my_system.SetContactForceModel(ChSystemDEM::Hooke);
     auto mysurfmaterial = std::make_shared<ChMaterialSurfaceDEM>();
 
     mysurfmaterial->SetKn(Kn);
@@ -819,6 +819,13 @@ int main(int argc, char* argv[]) {
         std::cout << "Error creating directory " << plots2D_Folder << std::endl;
         return 1;
     }
+
+    std::ofstream plotForces;
+    plotForces.open((plots2D_Folder + "PlotForces.p").c_str());
+    std::ifstream CopyFromGnuplot(GetChronoDataFile("fea/ShortCodes/PlotForces-GaitCycle.p").c_str());
+    plotForces << CopyFromGnuplot.rdbuf();
+    plotForces.close();
+
     std::vector<std::vector<int>> NodeNeighborElementFemur;
     std::vector<std::vector<int>> NodeNeighborElementTibia;
     string saveAsFemur = VTKFolder + "Femur.vtk";
