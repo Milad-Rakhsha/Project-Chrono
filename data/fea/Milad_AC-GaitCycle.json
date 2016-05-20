@@ -5,7 +5,7 @@
   {
     "Time Step":              0.0001,
     "Write Interval Step":    0.005,
-    "OMP Threads":            2
+    "OMP Threads":            4
   },
 
   "ANCF Shell":
@@ -34,7 +34,7 @@
   {
   	"Contact Model":    	"Hooke",
     "Contact thickness":    0.1,
-    "Kn":                   20e5,
+    "Kn":                   2e5,
     "Kt":                   0.0,
     "Gn":                   5.0,
     "Gt":                   0.0

@@ -69,7 +69,7 @@ using namespace rapidjson;
 
 //#define USE_IRR ;
 enum ROT_SYS { XYZ, ZXY };  // Only these are supported for now ...
-//#define NormalSP            // Defines whether spring and dampers will always remain normal to the surface
+#define NormalSP            // Defines whether spring and dampers will always remain normal to the surface
 bool outputData = true;
 bool addGravity = false;
 bool addPressure = false;
@@ -277,6 +277,14 @@ int main(int argc, char* argv[]) {
                      K_SPRINGS, C_DAMPERS, L0, L0_t, TibiaMass, femurMass, TibiaInertia, femurInertia, rho, E, nu,
                      ContactModel, sphere_swept_thickness, Kn, Kt, Gn, Gt, AlphaHHT, MaxitersHHT, AbsToleranceHHT,
                      AbsToleranceHHTConstraint, MaxItersSuccessHHT);
+
+    printf("time_step= %f, write_interval_time=%d, num_threads=%d\n", time_step, write_interval, num_threads);
+    printf("AlphaDamp= %f, dz=%f\n", AlphaDamp, dz);
+    printf("E= %f, rho=%f, nu=%f\n", E, rho, nu);
+    printf("K_SPRINGS= %f, C_DAMPERS=%f, L0=%f\n", K_SPRINGS, C_DAMPERS, L0);
+    printf("Kn= %f, Kt=%f, Gn=%f, Gt=%f, sphere_swept_thickness=%f\n", Kn, Kt, Gn, Gt, sphere_swept_thickness);
+    printf("AlphaHHT= %f, AbsToleranceHHT=%f, AbsToleranceHHTConstraint=%f, MaxItersSuccessHHT=%d, MaxitersHHT=%d\n",
+           AlphaHHT, AbsToleranceHHT, AbsToleranceHHTConstraint, MaxItersSuccessHHT, MaxitersHHT);
 
     if (ChFileutils::MakeDirectory(RootFolder.c_str()) < 0) {
         std::cout << "Error creating directory " << RootFolder << std::endl;
@@ -969,6 +977,18 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+//======================================================================================================================================
+//======================================================================================================================================
+//======================================================================================================================================
+//======================================================================================================================================
+//======================================================================================================================================
+//======================================================================================================================================
+//======================================================================================================================================
+//======================================================================================================================================
+//======================================================================================================================================
+//======================================================================================================================================
+//======================================================================================================================================
+//======================================================================================================================================
 
 void GetDataFile(const char* filename, std::vector<std::vector<double>>& DATA) {
     ifstream inputFile;
@@ -1643,35 +1663,28 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
 void SetParamFromJSON(const std::string& filename,
                       std::string& RootFolder,
                       std::string& simulationFolder,
-
-                      int& num_threads,          ///< material density
-                      double& time_step,         ///< material density
-                      int& write_interval_time,  ///< material density
-
-                      double& dz,  ///< material density
+                      int& num_threads,
+                      double& time_step,
+                      int& write_interval_time,
+                      double& dz,
                       double& AlphaDamp,
-
-                      double& K_SPRINGS,  ///< material density
-                      double& C_DAMPERS,  ///< material density
+                      double& K_SPRINGS,
+                      double& C_DAMPERS,
                       double& L0,
                       double& L0_t,
-
                       double& TibiaMass,
                       double& femurMass,
                       ChVector<>& TibiaInertia,
                       ChVector<>& femurInertia,
-
-                      double& rho,  ///< material density
-                      double& E,    ///< Young's modulus
+                      double& rho,
+                      double& E,
                       double& nu,
-
                       ChSystemDEM::ContactForceModel& ContactModel,
                       double& sphere_swept_thickness,
                       double& Kn,
                       double& Kt,
                       double& Gn,
                       double& Gt,
-
                       double& AlphaHHT,
                       int& MaxitersHHT,
                       double& AbsToleranceHHT,
@@ -1741,10 +1754,10 @@ void SetParamFromJSON(const std::string& filename,
 
     assert(d.HasMember("HHT Control"));
     AlphaHHT = d["HHT Control"]["Alpha"].GetDouble();
-    MaxitersHHT = d["HHT Control"]["Maxiters"].GetDouble();
+    MaxitersHHT = d["HHT Control"]["Maxiters"].GetInt();
     AbsToleranceHHT = d["HHT Control"]["AbsTolerance"].GetDouble();
     AbsToleranceHHTConstraint = d["HHT Control"]["AbsTolerance Constraints"].GetDouble();
-    MaxItersSuccessHHT = d["HHT Control"]["MaxItersSuccessHHT"].GetDouble();
+    MaxItersSuccessHHT = d["HHT Control"]["MaxItersSuccessHHT"].GetInt();
 
     GetLog() << "Loaded JSON: " << filename.c_str() << "\n";
 }
