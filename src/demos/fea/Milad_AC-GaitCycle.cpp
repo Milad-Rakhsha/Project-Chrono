@@ -1693,8 +1693,21 @@ void SetParamFromJSON(const std::string& filename,
     // Read top-level data
     assert(d.HasMember("RootFolder"));
     RootFolder = d["RootFolder"].GetString();
-    assert(d.HasMember("Simulation#"));
-    simulationFolder = d["Simulation#"].GetString();
+    simulationFolder = filename.c_str();
+
+    unsigned first = simulationFolder.find_last_of("/") + 1;
+    bool DidFind = (simulationFolder.find_last_of("/") != std::string::npos);
+    unsigned last = simulationFolder.find_last_of(".");
+
+    string strNew;
+    if (DidFind) {
+        strNew = simulationFolder.substr(first, last - first);
+        cout << "simulation folder is SUCC " << strNew << "\n\n\n";
+    } else {
+        strNew = simulationFolder.substr(0, last);
+        cout << "simulation folder is NOT " << strNew << "\n\n\n";
+    }
+    simulationFolder = strNew;
 
     assert(d.HasMember("Solution Control"));
     time_step = d["Solution Control"]["Time Step"].GetDouble();
