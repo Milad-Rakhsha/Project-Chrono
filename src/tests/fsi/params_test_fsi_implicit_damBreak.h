@@ -37,14 +37,14 @@ Real maxFlowVelocity = 1;  // 12;  // in an ideal case, these two need to be the
 // Total simulation duration.
 Real time_end = 2;  // 15;
 
+Real h_size = 0.05;
 Real fluidInitDimX = 1;
-Real fluidInitDimY = 0.02;  // This is half of the width
+Real fluidInitDimY = h_size;  // This is half of the width
 Real fluidInitDimZ = 1;
 // Dimensions
-
-Real hdimX = 4;
-Real hdimY = 0.02;  // Should be the same as fluidInitDimY, BCEs are taken care of later
-Real hdimZ = 2;
+Real hdimX = 1.8;
+Real hdimY = h_size;  // Should be the same as fluidInitDimY, BCEs are taken care of later
+Real hdimZ = 1.8;
 int fluidCollisionFamily = 1;  // 2 and 3 are reserved for tire and chassis
 
 // -----------------------------------------------------------------------------
@@ -73,7 +73,7 @@ NumberOfObjects numObjects;
  */
 void SetupParamsH(SimParams& paramsH) {
     paramsH.sizeScale = 1;  // don't change it.
-    paramsH.HSML = 0.01;    // 0.06;    // 0.06;//0.04;
+    paramsH.HSML = h_size;  // 0.06;    // 0.06;//0.04;
     paramsH.MULT_INITSPACE = 1.0;
     paramsH.epsMinMarkersDis = .001;
     paramsH.NUM_BOUNDARY_LAYERS = 3;

@@ -109,6 +109,7 @@ struct NumberOfObjects {
   int numFlex_SphMarkers;  /* */
   int numAllMarkers;       /* Total number of SPH markers */
 };
-enum SolutionType { IterativeJacobi, MatrixJacobi, FullMatrix };
+enum SolutionType { IterativeJacobi, MatrixJacobi, FullMatrix, SPARSE_MATRIX };
+enum SparseMatrixType { CSR, COO };
 
 #endif /* MYSTRUCTS_CUH_ */

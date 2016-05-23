@@ -189,12 +189,19 @@ void ForceSPH_implicit(thrust::device_vector<Real3>& posRadD,
   int2 updatePortion = mI2(referenceArray[0].y, referenceArray[2 + numObjects.numRigidBodies - 1].y);
 
   ///---------------------------------------------------------------------------------------------------------
-  double RESIDUAL = 0.0001;
-  //  enum SolutionType { IterativeJacobi, MatrixJacobi, FullMatrix};
-  SolutionType mySolutionType = MatrixJacobi;
-
-  calcPressureIISPH(m_dSortedPosRad, m_dSortedVelMas, m_dSortedRhoPreMu, m_dCellStart, m_dCellEnd, mapOriginalToSorted,
-                    paramsH, numObjects, updatePortion, dT, RESIDUAL, mySolutionType);
+  double RESIDUAL = 0.001;
+  //  enum SolutionType { IterativeJacobi, MatrixJacobi, FullMatrix, SPARSE_MATRIX};
+  //  enum SparseMatrixType { CSR, COO };
+  SolutionType mySolutionType = SPARSE_MATRIX;
+  SparseMatrixType myMatrixType = COO;
+  if (mySolutionType == IterativeJacobi) {
+    calcPressureIISPH_Iterative(m_dSortedPosRad, m_dSortedVelMas, m_dSortedRhoPreMu, m_dCellStart, m_dCellEnd,
+                                mapOriginalToSorted, paramsH, numObjects, updatePortion, dT, RESIDUAL, mySolutionType);
+  } else {
+    calcPressureIISPH_AXB(m_dSortedPosRad, m_dSortedVelMas, m_dSortedRhoPreMu, m_dCellStart, m_dCellEnd,
+                          mapOriginalToSorted, paramsH, numObjects, updatePortion, dT, RESIDUAL, mySolutionType,
+                          myMatrixType);
+  }
 
   Update_FluidIISPH(m_dSortedPosRad, m_dSortedVelMas, m_dSortedRhoPreMu, m_dCellStart, m_dCellEnd, numAllMarkers,
                     paramsH, dT);
