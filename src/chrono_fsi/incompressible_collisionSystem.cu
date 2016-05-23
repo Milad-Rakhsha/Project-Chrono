@@ -40,6 +40,11 @@
  * @brief calcGridHash
  * @details  See SDKCollisionSystem.cuh
  */
+
+#include <sap/common.h>
+#include <sap/spmv.h>
+#include <sap/solver.h>
+
 __device__ double MiladatomicAdd(double* address, double val) {
   unsigned long long int* address_as_ull = (unsigned long long int*)address;
   unsigned long long int old = *address_as_ull, assumed;
@@ -2639,31 +2644,51 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
     //    Biout.close();
 
     // allocate storage for solution (x) and right handside(b)
-    cusp::array1d<double, cusp::device_memory> x = p_old;
+    cusp::array1d<double, cusp::device_memory> x(AMatrix.num_rows, 0);
     cusp::array1d<double, cusp::device_memory> b = B_i;
     // set stopping criteria:
     //  iteration_limit    = 100
     //  relative_tolerance = 1e-3
-    cusp::verbose_monitor<double> monitor(b, 2000, 1e-7, 0);
+    //    cusp::verbose_monitor<double> monitor(b, 2000, 1e-7, 0);
     //    cusp::default_monitor<double> monitor(b, 20000, 1e-7, 0);
     //    cusp::transpose(AMatrix, AT);
-    cusp::io::write_matrix_market_file(AMatrix, "A.mtx");
+    //    cusp::io::write_matrix_market_file(AMatrix, "A.mtx");
     //    cusp::print(AT);
 
     // set preconditioner (identity)
-    cusp::precond::aggregation::smoothed_aggregation<int, double, cusp::device_memory> M1(AMatrix);
+    // cusp::precond::aggregation::smoothed_aggregation<int, double, cusp::device_memory> M1(AMatrix);
     // cusp::precond::scaled_bridson_ainv<double, cusp::device_memory> M(AMatrix, .1);
     // cusp::precond::diagonal<double, cusp::device_memory> M2(AMatrix);
     // cusp::identity_operator<double, cusp::device_memory> M(AMatrix.num_rows, AMatrix.num_rows);
 
     // solve the linear system A * x = b with the Conjugate Gradient method
     //    cusp::krylov::cg(AMatrix, x, b, monitor, M);
-    int restart = 200;
+    // int restart = 200;
 
     //    cusp::krylov::cg_m(AMatrix, x, b, restart, monitor, M);
-    cusp::krylov::gmres(AMatrix, x, b, restart, monitor);
+    // cusp::krylov::gmres(AMatrix, x, b, restart, monitor);
     //    cusp::krylov::bicgstab(AMatrix, x, b, monitor, M);
     //    cusp::krylov::cr(AMatrix, AMatrix, x, b, monitor, M);
+
+    sap::Options opts;
+    opts.relTol = 1e-9;
+    opts.maxNumIterations = 500;
+    sap::Solver<cusp::array1d<double, cusp::device_memory>, double> sap_solver(1, opts);
+    sap::SpmvCusp<cusp::csr_matrix<int, double, cusp::device_memory>> my_spmv_functor(AMatrix);
+
+    try {
+      sap_solver.setup(AMatrix);
+      cudaCheckError();
+
+    } catch (const std::bad_alloc&) {
+      std::cerr << "N = " << AMatrix.num_rows << std::endl;
+    } catch (const sap::system_error& se) {
+      std::cerr << se.reason() << std::endl;
+    }
+    sap_solver.solve(my_spmv_functor, b, x);
+    cudaCheckError();
+
+    printf("I got here!\n");
     cudaThreadSynchronize();
     *isErrorH = false;
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
