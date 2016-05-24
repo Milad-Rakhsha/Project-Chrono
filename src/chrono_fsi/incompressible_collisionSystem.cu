@@ -1068,7 +1068,7 @@ __global__ void CalcNumber_Contacts(uint* numContacts,
   }
   int myType = sortedRhoPreMu[i_idx].w;
   Real3 pos_i = sortedPosRad[i_idx];
-  uint numCol[500];
+  uint numCol[200];
   int counter = 1;
   numCol[0] = i_idx;  // The first one is always the idx of the marker itself
   int3 gridPos = calcGridPos(pos_i);
@@ -1143,6 +1143,7 @@ __global__ void CalcNumber_Contacts(uint* numContacts,
     }
   }
   // No contact with any one! so P=0 should be imposed...
+
   numContacts[i_idx] = counter + 10;
   //  if (numContacts[i_idx] == 1)
   //    printf("counted 1 contact for i_idx : %d .\n", i_idx);
@@ -1346,13 +1347,14 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
 
   int counter = 0;  // There is always one non-zero at each row- The marker itself
   B_i[i_idx] = RHO_0 - rho_np[i_idx];
-  if (sortedRhoPreMu[i_idx].x < 0.95 * RHO_0)
-    B_i[i_idx] = 0;
 
   //  printf("%d is fluid\n", i_idx);
 
   uint csrStartIdx = numContacts[i_idx] + 1;  // Reserve the starting index for the A_ii
   uint csrEndIdx = numContacts[i_idx + 1];
+
+  if (sortedRhoPreMu[i_idx].x < 0.98 * RHO_0)
+    B_i[i_idx] = 0;
 
   if (IsSPARSE) {
     for (int c = csrStartIdx; c < csrEndIdx; c++) {
@@ -1473,6 +1475,8 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
     csrColIndA[csrStartIdx - 1] = i_idx;
     GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
 
+    if (sortedRhoPreMu[i_idx].x < 0.995 * RHO_0)
+      csrValA[csrStartIdx - 1] = 10e20;
     //    for (int j = csrStartIdx; j < csrEndIdx; j++) {
     //      csrValA[j] += csrValA2[j];
     //    }
@@ -2671,9 +2675,26 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
     //    cusp::krylov::cr(AMatrix, AMatrix, x, b, monitor, M);
 
     sap::Options opts;
-    opts.relTol = 1e-9;
-    opts.maxNumIterations = 500;
-    sap::Solver<cusp::array1d<double, cusp::device_memory>, double> sap_solver(1, opts);
+    opts.relTol = 1e-7;
+    opts.maxNumIterations = 30000;
+    opts.safeFactorization = true;
+
+    // The default is SaP-C
+    // To use SaP-B, uncomment this line
+    //// opts.useBCR = true;
+    // To use SaP-D, uncomment this line
+    opts.precondType = sap::Block;
+
+    // To use different Krylov solvers, do something like the following line. (The following line specifies CG)
+    //// opts.solverType = sap::CG_C;
+
+    // Use 1 for sapB arbitrary value for sapC and SapD;
+    // The value `1` indicates that we are using one SaP partition s.t. we directly solve the linear system.
+    // Otherwise, we are preconditioning the system using SaP.
+    sap::Solver<cusp::array1d<double, cusp::device_memory>, double> sap_solver(16, opts);
+
+    // For other solving options, refer to `examples/test_bcr/driver_test_bcr.cu` in SaP library.
+
     sap::SpmvCusp<cusp::csr_matrix<int, double, cusp::device_memory>> my_spmv_functor(AMatrix);
 
     try {
