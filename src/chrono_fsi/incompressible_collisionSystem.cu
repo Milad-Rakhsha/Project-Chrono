@@ -17,13 +17,16 @@
 #include <stdio.h>
 #include <time.h>
 
-//#include "extraOptionalFunctions.cuh"
-//#include "SDKCollisionSystemAdditional.cuh"
-/* CUSP library*/
+#define USE_CUSP true
+#define USE_SAP false
 //// For the Linear Solver
 #include <cusp/csr_matrix.h>
-#include <cusp/coo_matrix.h>
-
+#include <cusp/io/matrix_market.h>
+#include <cusp/print.h>
+#include <cusp/monitor.h>
+//==========================================================================================================================================
+#if USE_CUSP
+#include <cusp/linear_operator.h>
 #include <cusp/krylov/cg.h>
 #include <cusp/krylov/bicgstab.h>
 #include <cusp/krylov/gmres.h>
@@ -32,19 +35,16 @@
 #include <cusp/krylov/bicg.h>
 #include <cusp/precond/aggregation/smoothed_aggregation.h>
 #include <cusp/precond/diagonal.h>
-#include <cusp/io/matrix_market.h>
-#include <cusp/print.h>
-#include <cusp/monitor.h>
-#include <cusp/transpose.h>
-/**
- * @brief calcGridHash
- * @details  See SDKCollisionSystem.cuh
- */
-
+#include <cusp/relaxation/jacobi.h>
+#include <cusp/multiply.h>
+#include <cusp/precond/ainv.h>
+#endif
+#if USE_SAP
 #include <sap/common.h>
 #include <sap/spmv.h>
 #include <sap/solver.h>
-
+#endif
+//==========================================================================================================================================
 __device__ double MiladatomicAdd(double* address, double val) {
   unsigned long long int* address_as_ull = (unsigned long long int*)address;
   unsigned long long int old = *address_as_ull, assumed;
@@ -1055,7 +1055,7 @@ __global__ void Rho_np_AND_a_ii(Real3* sortedPosRad,
 }
 
 ////--------------------------------------------------------------------------------------------------------------------------------
-__global__ void CalcNumber_Contacts(uint* numContacts,
+__global__ void CalcNumber_Contacts(unsigned long int* numContacts,
                                     Real3* sortedPosRad,
                                     Real4* sortedRhoPreMu,
                                     uint* cellStart,
@@ -1068,7 +1068,7 @@ __global__ void CalcNumber_Contacts(uint* numContacts,
   }
   int myType = sortedRhoPreMu[i_idx].w;
   Real3 pos_i = sortedPosRad[i_idx];
-  uint numCol[200];
+  uint numCol[500];
   int counter = 1;
   numCol[0] = i_idx;  // The first one is always the idx of the marker itself
   int3 gridPos = calcGridPos(pos_i);
@@ -1144,7 +1144,12 @@ __global__ void CalcNumber_Contacts(uint* numContacts,
   }
   // No contact with any one! so P=0 should be imposed...
 
-  numContacts[i_idx] = counter + 10;
+  if (myType == -1)
+    numContacts[i_idx] = counter + 5;
+  else
+    numContacts[i_idx] = counter;
+
+  //+(sortedRhoPreMu[i_idx].w == -1 ? 2 : 0);
   //  if (numContacts[i_idx] == 1)
   //    printf("counted 1 contact for i_idx : %d .\n", i_idx);
 }
@@ -1206,8 +1211,8 @@ __global__ void Calc_summGradW(Real3* summGradW,  // write
 __device__ void Calc_BC_aij_Bi(const uint i_idx,
                                Real* csrValA,
                                uint* csrColIndA,
-                               uint* GlobalcsrColIndA,
-                               uint* numContacts,
+                               unsigned long int* GlobalcsrColIndA,
+                               unsigned long int* numContacts,
                                ///> The above 4 vectors are used for CSR form.
 
                                Real* a_ij,  // write
@@ -1232,12 +1237,13 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
   //  if (i_idx == numAllMarkers - 1)
   //    printf("end ----start and end are %d, %d\n", csrStartIdx, csrStartIdx);
   if (IsSPARSE) {
-    for (int c = csrStartIdx; c < csrEndIdx; c++) {
+    for (int c = csrStartIdx - 1; c < csrEndIdx; c++) {
       csrValA[c] = 0;
       csrColIndA[c] = i_idx;
       GlobalcsrColIndA[c] = i_idx + numAllMarkers * i_idx;
     }
   }
+
   // if ((csrEndIdx - csrStartIdx) != uint(0)) {
   Real3 numeratorv = mR3(0);
   Real denumenator = 0;
@@ -1291,6 +1297,16 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
       csrValA[csrStartIdx - 1] = 1;
       csrColIndA[csrStartIdx - 1] = i_idx;
       GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
+      //      if (i_idx == 40762) {
+      //        printf("i_idx + numAllMarkers * i_idx:%lu, i_idx: %d, numAllMarkers: %d\n", i_idx + numAllMarkers *
+      //        i_idx,
+      //               i_idx, numAllMarkers);
+      //        printf(
+      //            "GlobalcsrColIndA[csrStartIdx - 1] :%lu,GlobalcsrColIndA[csrStartIdx] "
+      //            ":%lu,GlobalcsrColIndA[csrStartIdx + 1] :%lu, i_idx + numAllMarkers * i_idx:%lu\n",
+      //            GlobalcsrColIndA[csrStartIdx - 1], GlobalcsrColIndA[csrStartIdx], GlobalcsrColIndA[csrStartIdx + 1],
+      //            i_idx + numAllMarkers * i_idx);
+      //      }
     }
   } else {
     V_new[i_idx] = -numeratorv / denumenator;
@@ -1305,6 +1321,20 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
       GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
     }
   }
+
+  //  if (GlobalcsrColIndA[csrStartIdx - 1] == 83882)
+  //    printf(
+  //        "i_idx: %d, csrStartIdx - 1,: %d csrEndIdx: %d, csrColIndA[csrStartIdx - 1] :%d,
+  //        GlobalcsrColIndA[csrStartIdx "
+  //        "- 1]: %lu\n",
+  //        i_idx, csrStartIdx - 1, csrEndIdx, csrColIndA[csrStartIdx - 1], GlobalcsrColIndA[csrStartIdx - 1]);
+  //
+  //  if (i_idx == 2)
+  //    printf(
+  //        "csrStartIdx-1: %d, csrEndIdx: %d, csrColIndA[csrStartIdx - 1] :%d,csrColIndA[csrStartIdx] "
+  //        ":%d,csrColIndA[csrStartIdx + 1] :%d\n",
+  //        csrStartIdx - 1, csrEndIdx, csrColIndA[csrStartIdx - 1], csrColIndA[csrStartIdx - 1],
+  //        csrColIndA[csrStartIdx - 1]);
   // } else {
   //   csrValA[csrStartIdx - 1] = 1;
   //   csrColIndA[csrStartIdx - 1] = i_idx;
@@ -1317,10 +1347,9 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
 ////--------------------------------------------------------------------------------------------------------------------------------
 __device__ void Calc_fluid_aij_Bi(const uint i_idx,
                                   Real* csrValA,
-                                  Real* csrValA2,
                                   uint* csrColIndA,
-                                  uint* GlobalcsrColIndA,
-                                  uint* numContacts,
+                                  unsigned long int* GlobalcsrColIndA,
+                                  unsigned long int* numContacts,
                                   ///> The above 4 vectors are used for CSR form.
                                   Real* a_ij,   // write
                                   Real* a_ij3,  // write
@@ -1363,7 +1392,7 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
       GlobalcsrColIndA[c] = i_idx + numAllMarkers * i_idx;
     }
   }
-
+  double INSIDE_COUNTER = 1;
   int3 gridPos = calcGridPos(pos_i);
   for (int z = -1; z <= 1; z++) {
     for (int y = -1; y <= 1; y++) {
@@ -1396,6 +1425,10 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
                   csrValA[findCol] += My_a_ij_12;
                   csrColIndA[findCol] = j;
                   GlobalcsrColIndA[findCol] = j + numAllMarkers * i_idx;
+                  //                  if (i_idx == 2)
+                  //                    printf("findCol: %d, csrEndIdx: %d, csrColIndA[csrStartIdx - 1] :%d ",
+                  //                    csrStartIdx - 1, csrEndIdx,
+                  //                           csrColIndA[findCol]);
                   DONE1 = true;
                   continue;
                 }
@@ -1475,8 +1508,12 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
     csrColIndA[csrStartIdx - 1] = i_idx;
     GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
 
-    if (sortedRhoPreMu[i_idx].x < 0.995 * RHO_0)
-      csrValA[csrStartIdx - 1] = 10e20;
+    if (sortedRhoPreMu[i_idx].x < 0.995 * RHO_0) {
+      csrValA[csrStartIdx - 1] = 1;
+      for (int c = csrStartIdx; c < csrEndIdx; c++) {
+        csrValA[c] = 0;
+      }
+    }
     //    for (int j = csrStartIdx; j < csrEndIdx; j++) {
     //      csrValA[j] += csrValA2[j];
     //    }
@@ -1488,14 +1525,18 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
       a_ij[j + i_idx * numAllMarkers] += -a_ij3[j + i_idx * numAllMarkers];
     }
   }
+
+  if (i_idx == 2) {
+    printf("csrStartIdx-1: %d, csrEndIdx: %d, csrColIndA[csrStartIdx - 1] :%d \n ", csrStartIdx - 1, csrEndIdx,
+           csrColIndA[csrStartIdx - 1]);
+    printf("counter reports:%d, it should be %d", csrEndIdx - csrStartIdx + 1);
+  }
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void FormAXB(Real* csrValA,
-                        Real* csrValA2,
-                        uint* row_indices,
                         uint* csrColIndA,
-                        uint* GlobalcsrColIndA,
-                        uint* numContacts,
+                        unsigned long int* GlobalcsrColIndA,
+                        unsigned long int* numContacts,
                         ///> The above 4 vectors are used for CSR form.
                         Real* a_ij,   // write
                         Real* a_ij3,  // write
@@ -1522,11 +1563,10 @@ __global__ void FormAXB(Real* csrValA,
   if (i_idx >= numAllMarkers) {
     return;
   }
-  row_indices[i_idx] = i_idx;
   if (sortedRhoPreMu[i_idx].w == -1)
-    Calc_fluid_aij_Bi(i_idx, csrValA, csrValA2, csrColIndA, GlobalcsrColIndA, numContacts, a_ij, a_ij3, B_i, d_ii, a_ii,
-                      rho_np, summGradW, sortedPosRad, sortedRhoPreMu, cellStart, cellEnd, numAllMarkers, m_0, RHO_0,
-                      dT, IsSPARSE);
+    Calc_fluid_aij_Bi(i_idx, csrValA, csrColIndA, GlobalcsrColIndA, numContacts, a_ij, a_ij3, B_i, d_ii, a_ii, rho_np,
+                      summGradW, sortedPosRad, sortedRhoPreMu, cellStart, cellEnd, numAllMarkers, m_0, RHO_0, dT,
+                      IsSPARSE);
   if (sortedRhoPreMu[i_idx].w == 0)
     Calc_BC_aij_Bi(i_idx, csrValA, csrColIndA, GlobalcsrColIndA, numContacts, a_ij, a_ii, B_i, sortedPosRad,
                    sortedVelMas, sortedRhoPreMu, V_new, p_old, cellStart, cellEnd, numAllMarkers, gravity, IsSPARSE);
@@ -2161,7 +2201,7 @@ void calcPressureIISPH_Iterative(const thrust::device_vector<Real3>& sortedPosRa
   // thread per particle
   uint numThreads, numBlocks;
   int numAllMarkers = numObjects.numBoundaryMarkers + numObjects.numFluidMarkers;
-  computeGridSize(numAllMarkers, 128, numBlocks, numThreads);
+  computeGridSize(numAllMarkers, 256, numBlocks, numThreads);
   printf("numBlocks: %d, numThreads: %d, numAllMarker:%d \n", numBlocks, numThreads, numAllMarkers);
   thrust::device_vector<Real3> nonNormRho(numAllMarkers);
 
@@ -2333,6 +2373,7 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
                            const Real RES,
                            SolutionType mySolutionType,
                            SparseMatrixType myMatrixType) {
+  double total_step_timeClock = clock();
   bool *isErrorH, *isErrorD;
   isErrorH = (bool*)malloc(sizeof(bool));
   cudaMalloc((void**)&isErrorD, sizeof(bool));
@@ -2342,7 +2383,7 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
   // thread per particle
   uint numThreads, numBlocks;
   int numAllMarkers = numObjects.numBoundaryMarkers + numObjects.numFluidMarkers;
-  computeGridSize(numAllMarkers, 128, numBlocks, numThreads);
+  computeGridSize(numAllMarkers, 256, numBlocks, numThreads);
   printf("numBlocks: %d, numThreads: %d, numAllMarker:%d \n", numBlocks, numThreads, numAllMarkers);
   thrust::device_vector<Real3> nonNormRho(numAllMarkers);
 
@@ -2417,7 +2458,7 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
   thrust::device_vector<Real3> summGradW(numAllMarkers);
   thrust::device_vector<uint> csrColIndA;
   thrust::device_vector<uint> row_indices;
-  thrust::device_vector<uint> GlobalcsrColIndA;
+  thrust::device_vector<unsigned long int> GlobalcsrColIndA;
   thrust::device_vector<Real> csrValA;
   thrust::device_vector<Real> csrValA2;
 
@@ -2427,7 +2468,7 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
   thrust::fill(summGradW.begin(), summGradW.end(), mR3(0));
   thrust::device_vector<Real3> V_new(numAllMarkers);
   thrust::fill(V_new.begin(), V_new.end(), mR3(0));
-  thrust::device_vector<uint> numContacts(numAllMarkers);
+  thrust::device_vector<unsigned long int> numContacts(numAllMarkers);
   thrust::fill(numContacts.begin(), numContacts.end(), 0);
 
   //------------------------------------------------------------------------
@@ -2483,12 +2524,12 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
     row_indices.resize(numAllMarkers);
     csrColIndA.resize(numAllMarkers);
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
-    FormAXB<<<numBlocks, numThreads>>>(
-        R1CAST(csrValA), R1CAST(csrValA2), U1CAST(row_indices), U1CAST(csrColIndA), U1CAST(GlobalcsrColIndA),
-        U1CAST(numContacts), R1CAST(a_ij), R1CAST(a_ij3), R1CAST(B_i), mR3CAST(d_ii), R1CAST(a_ii), mR3CAST(summGradW),
-        mR3CAST(sortedPosRad), mR3CAST(sortedVelMas), mR4CAST(sortedRhoPreMu), mR3CAST(V_new), R1CAST(p_old),
-        R1CAST(rho_np), U1CAST(cellStart), U1CAST(cellEnd), numAllMarkers, paramsH.markerMass, paramsH.rho0, dT,
-        paramsH.gravity, SPARSE_FLAG, isErrorD);
+    FormAXB<<<numBlocks, numThreads>>>(R1CAST(csrValA), U1CAST(csrColIndA), LU1CAST(GlobalcsrColIndA),
+                                       LU1CAST(numContacts), R1CAST(a_ij), R1CAST(a_ij3), R1CAST(B_i), mR3CAST(d_ii),
+                                       R1CAST(a_ii), mR3CAST(summGradW), mR3CAST(sortedPosRad), mR3CAST(sortedVelMas),
+                                       mR4CAST(sortedRhoPreMu), mR3CAST(V_new), R1CAST(p_old), R1CAST(rho_np),
+                                       U1CAST(cellStart), U1CAST(cellEnd), numAllMarkers, paramsH.markerMass,
+                                       paramsH.rho0, dT, paramsH.gravity, SPARSE_FLAG, isErrorD);
 
     cudaThreadSynchronize();
     cudaCheckError();
@@ -2518,6 +2559,7 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
   }
   if (mySolutionType == SPARSE_MATRIX) {
     bool SPARSE_FLAG = true;
+    double FormAXBClock = clock();
     thrust::device_vector<Real> Residuals(numAllMarkers);
     thrust::fill(Residuals.begin(), Residuals.end(), 1);
     thrust::device_vector<Real> rho_p(numAllMarkers);
@@ -2536,7 +2578,7 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
     }
 
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
-    CalcNumber_Contacts<<<numBlocks, numThreads>>>(U1CAST(numContacts), mR3CAST(sortedPosRad), mR4CAST(sortedRhoPreMu),
+    CalcNumber_Contacts<<<numBlocks, numThreads>>>(LU1CAST(numContacts), mR3CAST(sortedPosRad), mR4CAST(sortedRhoPreMu),
                                                    U1CAST(cellStart), U1CAST(cellEnd), numAllMarkers, isErrorD);
 
     cudaThreadSynchronize();
@@ -2554,9 +2596,6 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
     printf("NNZ is %d\n", NNZ);
     csrValA.resize(NNZ);
     //    printf("first is OK");
-    csrValA2.resize(NNZ);
-    //    printf("second is OK");
-    row_indices.resize(NNZ);
     //    printf("third is OK");
     csrColIndA.resize(NNZ);
     //    printf("forth is OK");
@@ -2565,10 +2604,6 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
 
     thrust::fill(csrValA.begin(), csrValA.end(), 0);
     //    printf("first fill is OK");
-
-    thrust::fill(csrValA2.begin(), csrValA2.end(), 0);
-    //    printf("second fill is OK");
-
     thrust::fill(GlobalcsrColIndA.begin(), GlobalcsrColIndA.end(), 0);
     //    printf("third fill is OK");
 
@@ -2576,12 +2611,12 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
     //    printf("forth fill is OK");
 
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
-    FormAXB<<<numBlocks, numThreads>>>(
-        R1CAST(csrValA), R1CAST(csrValA2), U1CAST(row_indices), U1CAST(csrColIndA), U1CAST(GlobalcsrColIndA),
-        U1CAST(numContacts), R1CAST(a_ij), R1CAST(a_ij3), R1CAST(B_i), mR3CAST(d_ii), R1CAST(a_ii), mR3CAST(summGradW),
-        mR3CAST(sortedPosRad), mR3CAST(sortedVelMas), mR4CAST(sortedRhoPreMu), mR3CAST(V_new), R1CAST(p_old),
-        R1CAST(rho_np), U1CAST(cellStart), U1CAST(cellEnd), numAllMarkers, paramsH.markerMass, paramsH.rho0, dT,
-        paramsH.gravity, SPARSE_FLAG, isErrorD);
+    FormAXB<<<numBlocks, numThreads>>>(R1CAST(csrValA), U1CAST(csrColIndA), LU1CAST(GlobalcsrColIndA),
+                                       LU1CAST(numContacts), R1CAST(a_ij), R1CAST(a_ij3), R1CAST(B_i), mR3CAST(d_ii),
+                                       R1CAST(a_ii), mR3CAST(summGradW), mR3CAST(sortedPosRad), mR3CAST(sortedVelMas),
+                                       mR4CAST(sortedRhoPreMu), mR3CAST(V_new), R1CAST(p_old), R1CAST(rho_np),
+                                       U1CAST(cellStart), U1CAST(cellEnd), numAllMarkers, paramsH.markerMass,
+                                       paramsH.rho0, dT, paramsH.gravity, SPARSE_FLAG, isErrorD);
 
     cudaThreadSynchronize();
     cudaCheckError();
@@ -2590,12 +2625,14 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
       throw std::runtime_error("Error! program crashed after F_i_np__AND__d_ii_kernel!\n");
     }
 
-    //    cusp::coo_matrix<int, double, cusp::device_memory> AMatrix(numAllMarkers, numAllMarkers, NNZ);
+    printf("GlobalcsrColIndA[end] :%ld\n", GlobalcsrColIndA[numContacts[40762] - 1]);
+    //    cusp::coo_matrix<int, double, cusp::device_memory> AMatrix(numAllMarkers,
+    //    numAllMarkers, NNZ);
     //    AMatrix.row_indices = row_indices;
     //    AMatrix.column_indices = csrColIndA;
     //    AMatrix.values = csrValA;
 
-    //    thrust::device_vector<uint> key = GlobalcsrColIndA;
+    //    thrust::device_vector<unsigned long int> key = GlobalcsrColIndA;
     //    thrust::sort_by_key(key.begin(), key.end(), csrValA.begin());
     //    thrust::sort_by_key(GlobalcsrColIndA.begin(), GlobalcsrColIndA.end(), csrColIndA.begin());
 
@@ -2604,30 +2641,46 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
         csrValA[i] = 0;
     }
 
-    thrust::sort_by_key(GlobalcsrColIndA.begin(), GlobalcsrColIndA.end(),
-                        make_zip_iterator(make_tuple(csrValA.begin(), csrColIndA.begin())));
+    //    thrust::sort_by_key(GlobalcsrColIndA.begin(), GlobalcsrColIndA.end(),
+    //                        make_zip_iterator(make_tuple(csrValA.begin(), csrColIndA.begin())));
 
-    cusp::csr_matrix<int, double, cusp::device_memory> AMatrix(numAllMarkers, numAllMarkers, NNZ);
+    cusp::csr_matrix<unsigned long int, double, cusp::device_memory> AMatrix(numAllMarkers, numAllMarkers, NNZ);
     AMatrix.row_offsets = numContacts;
     AMatrix.column_indices = csrColIndA;
     AMatrix.values = csrValA;
+    double durationFormAXB = (clock() - FormAXBClock) / (double)CLOCKS_PER_SEC;
 
-    std::ofstream output, Biout;
-    output.open("saveCSR");
-    Biout.open("saveCSRBi");
+    cusp::io::write_matrix_market_file(AMatrix, "ALarge.mtx");
+    //
+    //    std::cout << "(" << GlobalcsrColIndA[0] / numAllMarkers << "," << csrColIndA[0] << "," << csrValA[0] << ") ";
+    //    std::cout << "(" << GlobalcsrColIndA[1] / numAllMarkers << "," << csrColIndA[1] << "," << csrValA[1] << ") ";
+    //    std::cout << "(" << GlobalcsrColIndA[2] / numAllMarkers << "," << csrColIndA[2] << "," << csrValA[2] << ") ";
+    //    std::cout << "(" << GlobalcsrColIndA[3] / numAllMarkers << "," << csrColIndA[3] << "," << csrValA[3] << ") ";
+    //    std::cout << "(" << GlobalcsrColIndA[4] / numAllMarkers << "," << csrColIndA[4] << "," << csrValA[4] << ") ";
+    //    std::cout << "(" << GlobalcsrColIndA[5] / numAllMarkers << "," << csrColIndA[5] << "," << csrValA[5] << ") ";
+    //    std::cout << "(" << GlobalcsrColIndA[6] / numAllMarkers << "," << csrColIndA[6] << "," << csrValA[6] << ") ";
+    //    std::cout << "(" << GlobalcsrColIndA[7] / numAllMarkers << "," << csrColIndA[7] << "," << csrValA[7] << ") ";
+    //    std::cout << "(" << GlobalcsrColIndA[8] / numAllMarkers << "," << csrColIndA[8] << "," << csrValA[8] << ") ";
+    //    std::cout << "(" << GlobalcsrColIndA[9] / numAllMarkers << "," << csrColIndA[9] << "," << csrValA[9] << ") ";
+    //
 
+    //    std::ofstream output, Biout, oldFormat;
+    //    output.open("saveCSR");
+    //    Biout.open("saveCSRBi");
+    //    oldFormat.open("oldFormat");
+    //    //
     //    for (int i = 0; i < AMatrix.row_offsets.size(); i++) {
-    //      output << "ROWs are:" << AMatrix.row_offsets[i] << "\n";
+    //      oldFormat << "ROWs are:" << AMatrix.row_offsets[i] << "\n";
     //    }
-
+    //
     //    for (int i = 0; i < numAllMarkers; i++) {
-    //      output << "  IDX_R:" << GlobalcsrColIndA[AMatrix.row_offsets[i]] / numAllMarkers
-    //             << "  IDX_C:" << AMatrix.column_indices[AMatrix.row_offsets[i]]
-    //             << "  VAL:" << AMatrix.values[AMatrix.row_offsets[i]] << "\n";
+    //      oldFormat << "  IDX_R:" << GlobalcsrColIndA[AMatrix.row_offsets[i]] / numAllMarkers
+    //                << "  IDX_C:" << AMatrix.column_indices[AMatrix.row_offsets[i]]
+    //                << "  VAL:" << AMatrix.values[AMatrix.row_offsets[i]] << "  NumCont:" << AMatrix.row_offsets[i] <<
+    //                "\n";
     //    }
-    //    output << "-------------------\n";
-    ////////////////////////////////////////////////////////////////////////////////////////////
-    /////////////////////////////////////////////////////////////////////////////////
+    //    ////////////////////////////////////////////////////////////////////////////////////////////
+    //    /////////////////////////////////////////////////////////////////////////////////
     //    int thisRow = 0;
     //    for (int i = 0; i < NNZ; i++) {
     //      //      if (GlobalcsrColIndA[i] / numAllMarkers == AMatrix.column_indices[i])
@@ -2636,8 +2689,7 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
     //        thisRow++;
     //      }
     //      if (AMatrix.values[i] != 0)
-    //        output << "(" << GlobalcsrColIndA[i] / numAllMarkers << "," << AMatrix.column_indices[i] << ","
-    //               << AMatrix.values[i] << ") ";
+    //        output << "(" << GlobalcsrColIndA[i] / numAllMarkers << "," << csrColIndA[i] << "," << csrValA[i] << ") ";
     //    }
     //
     //    for (int i = 0; i < numAllMarkers; i++) {
@@ -2646,36 +2698,48 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
     //    }
     //    output.close();
     //    Biout.close();
-
+    //    oldFormat.close();
     // allocate storage for solution (x) and right handside(b)
-    cusp::array1d<double, cusp::device_memory> x(AMatrix.num_rows, 0);
+    cusp::array1d<double, cusp::device_memory> x = p_old;
     cusp::array1d<double, cusp::device_memory> b = B_i;
     // set stopping criteria:
-    //  iteration_limit    = 100
-    //  relative_tolerance = 1e-3
-    //    cusp::verbose_monitor<double> monitor(b, 2000, 1e-7, 0);
+    double LinearSystemClock = clock();
+#if USE_CUSP
+    cusp::verbose_monitor<double> monitor(b, 2000, 1e-8, 1e-5);
     //    cusp::default_monitor<double> monitor(b, 20000, 1e-7, 0);
     //    cusp::transpose(AMatrix, AT);
     //    cusp::io::write_matrix_market_file(AMatrix, "A.mtx");
     //    cusp::print(AT);
-
     // set preconditioner (identity)
-    // cusp::precond::aggregation::smoothed_aggregation<int, double, cusp::device_memory> M1(AMatrix);
-    // cusp::precond::scaled_bridson_ainv<double, cusp::device_memory> M(AMatrix, .1);
-    // cusp::precond::diagonal<double, cusp::device_memory> M2(AMatrix);
-    // cusp::identity_operator<double, cusp::device_memory> M(AMatrix.num_rows, AMatrix.num_rows);
+    //    cusp::precond::aggregation::smoothed_aggregation<int, double, cusp::device_memory> M4(AMatrix);
+    //    cusp::precond::scaled_bridson_ainv<double, cusp::device_memory> M3(AMatrix, .1);
+    //    cusp::precond::diagonal<double, cusp::device_memory> M2(AMatrix);
+    //    cusp::identity_operator<double, cusp::device_memory> M(AMatrix.num_rows, AMatrix.num_rows);
 
     // solve the linear system A * x = b with the Conjugate Gradient method
     //    cusp::krylov::cg(AMatrix, x, b, monitor, M);
-    // int restart = 200;
-
+    int restart = 400;
     //    cusp::krylov::cg_m(AMatrix, x, b, restart, monitor, M);
-    // cusp::krylov::gmres(AMatrix, x, b, restart, monitor);
-    //    cusp::krylov::bicgstab(AMatrix, x, b, monitor, M);
-    //    cusp::krylov::cr(AMatrix, AMatrix, x, b, monitor, M);
+    cusp::krylov::gmres(AMatrix, x, b, restart, monitor);
+//    cusp::krylov::bicgstab(AMatrix, x, b, monitor, M);
+//    cusp::krylov::cr(AMatrix, x, b, monitor, M2);
 
+//    cusp::array1d<double, cusp::device_memory> r(AMatrix.num_rows);
+//    cusp::relaxation::jacobi<double, cusp::device_memory> M(AMatrix);
+//    cusp::blas::axpy(b, r, float(-1));
+//
+//    while (!monitor.finished(r)) {
+//      M(AMatrix, b, x, 1.2);
+//      cusp::multiply(AMatrix, x, r);
+//      cusp::blas::axpy(b, r, float(-1));
+//      ++monitor;
+//    }
+
+#endif
+////============================================================================================================================================
+#if USE_SAP
     sap::Options opts;
-    opts.relTol = 1e-7;
+    opts.relTol = 1e-9;
     opts.maxNumIterations = 30000;
     opts.safeFactorization = true;
 
@@ -2686,7 +2750,7 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
     opts.precondType = sap::Block;
 
     // To use different Krylov solvers, do something like the following line. (The following line specifies CG)
-    //// opts.solverType = sap::CG_C;
+    opts.solverType = sap::BiCGStab_C;
 
     // Use 1 for sapB arbitrary value for sapC and SapD;
     // The value `1` indicates that we are using one SaP partition s.t. we directly solve the linear system.
@@ -2695,7 +2759,7 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
 
     // For other solving options, refer to `examples/test_bcr/driver_test_bcr.cu` in SaP library.
 
-    sap::SpmvCusp<cusp::csr_matrix<int, double, cusp::device_memory>> my_spmv_functor(AMatrix);
+    sap::SpmvCusp<cusp::csr_matrix<unsigned long int, double, cusp::device_memory>> my_spmv_functor(AMatrix);
 
     try {
       sap_solver.setup(AMatrix);
@@ -2708,11 +2772,14 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
     }
     sap_solver.solve(my_spmv_functor, b, x);
     cudaCheckError();
-
-    printf("I got here!\n");
     cudaThreadSynchronize();
     *isErrorH = false;
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+#endif
+    double durationLinearSystem = (clock() - LinearSystemClock) / (double)CLOCKS_PER_SEC;
+
+    ////============================================================================================================================================
+
     Update_AND_Calc_Res<<<numBlocks, numThreads>>>(mR3CAST(sortedVelMas), mR4CAST(sortedRhoPreMu), R1CAST(x),
                                                    R1CAST(p_old), mR3CAST(V_new), R1CAST(rho_p), R1CAST(rho_np),
                                                    R1CAST(Residuals), numAllMarkers, 0, SPARSE_FLAG, isErrorD);
@@ -2722,6 +2789,13 @@ void calcPressureIISPH_AXB(const thrust::device_vector<Real3>& sortedPosRad,
     if (*isErrorH == true) {
       throw std::runtime_error("Error! program crashed after Iterative_pressure_update!\n");
     }
+
+    double durationtotal_step_time = (clock() - total_step_timeClock) / (double)CLOCKS_PER_SEC;
+
+    printf("--------IISPH CLOCK-----------\n");
+    printf(" Total: %f \n FormAXB: %f \n Linear System: %f \n", durationtotal_step_time, durationFormAXB,
+           durationLinearSystem);
+    printf("------------------------------\n");
   }
   if (mySolutionType != SPARSE_MATRIX) {
     //------------------------------------------------------------------------
