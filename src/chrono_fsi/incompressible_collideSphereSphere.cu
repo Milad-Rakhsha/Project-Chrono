@@ -189,10 +189,10 @@ void ForceSPH_implicit(thrust::device_vector<Real3>& posRadD,
   int2 updatePortion = mI2(referenceArray[0].y, referenceArray[2 + numObjects.numRigidBodies - 1].y);
 
   ///---------------------------------------------------------------------------------------------------------
-  double RESIDUAL = 0.001;
-  //  enum SolutionType { IterativeJacobi, MatrixJacobi, FullMatrix, SPARSE_MATRIX};
+  double RESIDUAL = 0.00001;
+  //  enum SolutionType { IterativeJacobi, MatrixJacobi, FullMatrix, SPARSE_MATRIX,SPARSE_MATRIX_JACOBI};
   //  enum SparseMatrixType { CSR, COO };
-  SolutionType mySolutionType = SPARSE_MATRIX;
+  SolutionType mySolutionType = SPARSE_MATRIX_JACOBI;
   SparseMatrixType myMatrixType = COO;
   if (mySolutionType == IterativeJacobi) {
     calcPressureIISPH_Iterative(m_dSortedPosRad, m_dSortedVelMas, m_dSortedRhoPreMu, m_dCellStart, m_dCellEnd,
