@@ -58,19 +58,19 @@ int num_threads;
 double time_step;
 double dz;
 double rho, E, nu;
-double Input;
+double Input1, Input2;
 
-void SetParamFromJSON(const std::string& filename, double& Input);
+void SetParamFromJSON(const std::string& filename, double& Input1, double& Input2);
 
 int main(int argc, char* argv[]) {
     ChSystem my_system(false, true);
 
-    SetParamFromJSON(GetChronoDataFile("fea/HeedsInput.json").c_str(), Input);
+    SetParamFromJSON(GetChronoDataFile("fea/HeedsInput.json").c_str(), Input1, Input2);
     std::ofstream output_femur;
     output_femur.open("output.txt");
-    output_femur << sin(Input) << "\n";
+    output_femur << sin(Input1) + sin(Input2) << "\n";
     output_femur.close();
-
+    cout << "The Output is: " << sin(Input1) + sin(Input2) << "\n\n\n";
 // --------------------------
 // Set number of threads
 // --------------------------
@@ -154,7 +154,7 @@ int main(int argc, char* argv[]) {
 //======================================================================================================================================
 //======================================================================================================================================
 
-void SetParamFromJSON(const std::string& filename, double& Input) {
+void SetParamFromJSON(const std::string& filename, double& Input1, double& Input2) {
     // -------------------------------------------
     // Open and parse the input file
     // -------------------------------------------
@@ -170,7 +170,7 @@ void SetParamFromJSON(const std::string& filename, double& Input) {
 
     // Read top-level data
     assert(d.HasMember("Chrono Inputs"));
-    Input = d["Chrono Inputs"]["x"].GetDouble();
-
+    Input1 = d["Chrono Inputs"]["x"].GetDouble();
+    Input2 = d["Chrono Inputs"]["y"].GetDouble();
     GetLog() << "Loaded JSON: " << filename.c_str() << "\n";
 }
