@@ -20,6 +20,7 @@
 #include "chrono_fea/ChNodeFEAxyz.h"
 #include "chrono_fea/ChNodeFEAxyzP.h"
 #include "chrono_fea/ChNodeFEAxyzrot.h"
+#include "chrono_fea/ChElementShellANCF.h"
 
 namespace chrono {
 namespace fea {
@@ -61,6 +62,7 @@ class ChApiFea ChVisualizationFEAmesh : public ChAssetLevel {
         E_PLOT_NODE_P,  // scalar field for Poisson problems (ex. temperature if thermal FEM)
         E_PLOT_ANCF_BEAM_AX,
         E_PLOT_ANCF_BEAM_BD,
+        E_PLOT_ANCF_SECTION_DISPLACEMENT,
     };
 
     enum eChFemGlyphs {

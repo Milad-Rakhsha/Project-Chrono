@@ -79,10 +79,126 @@ void ChElementShellANCF::AddLayer(double thickness, double theta, std::shared_pt
     m_layers.push_back(Layer(this, thickness, theta, material));
 }
 
+// ---------------------------------------------------------------------------- -
+// Interface to ChElementShell base class
 // -----------------------------------------------------------------------------
-// Interface to ChElementBase base class
-// -----------------------------------------------------------------------------
+ChVector<> ChElementShellANCF::GetStresses() {
+    ChVector<> Strains = this->EvaluateSectionStrains();
+    // double shear_xy =
+    double G = this->m_layers[0].GetMaterial()->Get_E() / (2 * (1 - this->m_layers[0].GetMaterial()->Get_nu()));
+    double E = this->m_layers[0].GetMaterial()->Get_E();
 
+    double sigma_xx = E * Strains(0);
+    double sigma_yy = E * Strains(1);
+    double shear_xy = G * Strains(2);
+
+    return ChVector<>(sigma_xx, sigma_yy, shear_xy);
+}
+std::vector<ChVector<> > ChElementShellANCF::GetPrincipalStresses() {
+    ChVector<> Stresses = this->GetStresses();
+    double sigma_xx = Stresses(0);
+    double sigma_yy = Stresses(1);
+
+    double theta_p1 = std::atan2(2 * Stresses(2), (Stresses(0) - Stresses(1))) / 2.0;
+    double theta_p2 = theta_p1 + CH_C_PI_2;
+
+    double term1 = (sigma_xx + sigma_yy) / 2.0;
+    double term2 = std::sqrt(std::pow((sigma_xx - sigma_yy) / 2.0, 2) + std::pow(Stresses(2), 2));
+
+    double sigma_1 = term1 + term2;
+    double sigma_2 = term1 - term2;
+
+    ChVector<> Ihat1(0);
+    Ihat1(0) = m_d(0, 0) - m_d(2, 0);
+    Ihat1(1) = m_d(0, 1) - m_d(2, 1);
+    Ihat1(2) = m_d(0, 2) - m_d(2, 2);
+    Ihat1.Normalize();
+    ChVector<> Ihat2 = Ihat1;
+    ChVector<> Ihat3(0);
+    Ihat3(0) = m_d(6, 0) - m_d(4, 0);
+    Ihat3(1) = m_d(6, 1) - m_d(4, 1);
+    Ihat3(2) = m_d(6, 2) - m_d(4, 2);
+    Ihat3.Normalize();
+    ChVector<> Ihat4 = Ihat3;
+
+    ChVector<> Jhat1(0);
+    Jhat1(0) = m_d(0, 0) - m_d(6, 0);
+    Jhat1(1) = m_d(0, 1) - m_d(6, 1);
+    Jhat1(2) = m_d(0, 2) - m_d(6, 2);
+    Jhat1.Normalize();
+    ChVector<> Jhat2(0);
+    Jhat2(0) = m_d(2, 0) - m_d(4, 0);
+    Jhat2(1) = m_d(2, 1) - m_d(4, 1);
+    Jhat2(2) = m_d(2, 2) - m_d(4, 2);
+    Jhat2.Normalize();
+    ChVector<> Jhat3 = Jhat2;
+    ChVector<> Jhat4 = Jhat1;
+    ChVector<> Ihat = (Ihat1 + Ihat2 + Ihat3 + Ihat4) / 4;
+    ChVector<> Jhat = (Jhat1 + Jhat2 + Jhat3 + Jhat4) / 4;
+
+    std::vector<ChVector<> > Result;
+    double VonMissesStrain = std::sqrt(pow(sigma_1 - sigma_2, 2) / 2 + pow(sigma_2, 2) / 2 + pow(sigma_1, 2) / 2);
+    Result.push_back(ChVector<>(sigma_1, sigma_2, VonMissesStrain));
+    Result.push_back(Ihat * std::cos(theta_p1) + Jhat * std::sin(theta_p1));
+    Result.push_back(Ihat * std::cos(theta_p2) + Jhat * std::sin(theta_p2));
+    Result.push_back(Ihat);
+    Result.push_back(Jhat);
+
+    return (Result);
+}
+std::vector<ChVector<> > ChElementShellANCF::GetPrincipalStrains() {
+    ChVector<> Strains = this->EvaluateSectionStrains();
+    double ep_xx = Strains(0);
+    double ep_yy = Strains(1);
+
+    double theta_p1 = std::atan2(2 * Strains(2), (Strains(0) - Strains(1))) / 2.0;
+    //    if (theta_p1 < 0) {
+    //        theta_p1 += 180;
+    //    }
+    double theta_p2 = theta_p1 + CH_C_PI_2;
+
+    double term1 = (ep_xx + ep_yy) / 2.0;
+    double term2 = std::sqrt(std::pow((ep_xx - ep_yy) / 2.0, 2) + std::pow(Strains(2), 2));
+
+    double sigma_1 = term1 + term2;
+    double sigma_2 = term1 - term2;
+
+    ChVector<> Ihat1(0);
+    Ihat1(0) = m_d(0, 0) - m_d(2, 0);
+    Ihat1(1) = m_d(0, 1) - m_d(2, 1);
+    Ihat1(2) = m_d(0, 2) - m_d(2, 2);
+    Ihat1.Normalize();
+    ChVector<> Ihat2 = Ihat1;
+    ChVector<> Ihat3(0);
+    Ihat3(0) = m_d(6, 0) - m_d(4, 0);
+    Ihat3(1) = m_d(6, 1) - m_d(4, 1);
+    Ihat3(2) = m_d(6, 2) - m_d(4, 2);
+    Ihat3.Normalize();
+    ChVector<> Ihat4 = Ihat3;
+
+    ChVector<> Jhat1(0);
+    Jhat1(0) = m_d(0, 0) - m_d(6, 0);
+    Jhat1(1) = m_d(0, 1) - m_d(6, 1);
+    Jhat1(2) = m_d(0, 2) - m_d(6, 2);
+    Jhat1.Normalize();
+    ChVector<> Jhat2(0);
+    Jhat2(0) = m_d(2, 0) - m_d(4, 0);
+    Jhat2(1) = m_d(2, 1) - m_d(4, 1);
+    Jhat2(2) = m_d(2, 2) - m_d(4, 2);
+    Jhat2.Normalize();
+    ChVector<> Jhat3 = Jhat2;
+    ChVector<> Jhat4 = Jhat1;
+    ChVector<> Ihat = (Ihat1 + Ihat2 + Ihat3 + Ihat4) / 4;
+    ChVector<> Jhat = (Jhat1 + Jhat2 + Jhat3 + Jhat4) / 4;
+    std::vector<ChVector<> > Result;
+    Result.push_back(ChVector<>(sigma_1, sigma_2, theta_p1));
+    Result.push_back(Ihat * cos(theta_p1) + Jhat * sin(theta_p1));  // Direction1
+    Result.push_back(Ihat * cos(theta_p2) + Jhat * sin(theta_p2));  // Direction2
+    Result.push_back(Ihat);
+    Result.push_back(Jhat);
+
+    return (Result);
+}
 // Initial element setup.
 void ChElementShellANCF::SetupInitial(ChSystem* system) {
     // Perform layer initialization and accumulate element thickness.
@@ -1349,6 +1465,27 @@ void ChElementShellANCF::CalcStrainANSbilinearShell() {
 // -----------------------------------------------------------------------------
 // Interface to ChElementShell base class
 // -----------------------------------------------------------------------------
+void ChElementShellANCF::EvaluateDeflection(double& def) {
+    ChVector<> oldPos;
+    ChVector<> newPos;
+    ChVector<> defVec;
+
+    for (int i = 0; i < 4; i++) {
+        oldPos.x += this->m_d0(2 * i, 0);
+        oldPos.y += this->m_d0(2 * i, 1);
+        oldPos.z += this->m_d0(2 * i, 2);
+    }
+
+    for (int i = 0; i < 4; i++) {
+        newPos.x += this->m_d(2 * i, 0);
+        newPos.y += this->m_d(2 * i, 1);
+        newPos.z += this->m_d(2 * i, 2);
+    }
+
+    defVec = (newPos - oldPos) / 4;
+    def = defVec.Length();
+}
+
 ChVector<> ChElementShellANCF::EvaluateSectionStrains() {
     // Element shape function
     ChMatrixNM<double, 1, 8> N;
