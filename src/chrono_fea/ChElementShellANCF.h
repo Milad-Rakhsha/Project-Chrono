@@ -253,6 +253,8 @@ class ChApiFea ChElementShellANCF : public ChElementShell, public ChLoadableUV, 
 
     // Set M as the global mass matrix.
     virtual void ComputeMmatrixGlobal(ChMatrix<>& M) override;
+    /// Return a vector with three strain components
+    ChVector<> EvaluateSectionStrains();
 
   private:
     std::vector<std::shared_ptr<ChNodeFEAxyzD> > m_nodes;  ///< element nodes
@@ -281,7 +283,26 @@ class ChApiFea ChElementShellANCF : public ChElementShell, public ChLoadableUV, 
     double strainYplot;
     static const double m_toleranceEAS;   ///< tolerance for nonlinear EAS solver (on residual)
     static const int m_maxIterationsEAS;  ///< maximum number of nonlinear EAS iterations
+  public:
+    // Interface to ChElementBase base class
+    // -------------------------------------
 
+    // Fill the D vector (column matrix) with the current field values at the
+    // nodes of the element, with proper ordering.
+    // If the D vector has not the size of this->GetNdofs(), it will be resized.
+    //  {x_a y_a z_a Dx_a Dx_a Dx_a x_b y_b z_b Dx_b Dy_b Dz_b}
+    virtual void GetStateBlock(ChMatrixDynamic<>& mD) override;
+
+    // Set H as a linear combination of M, K, and R.
+    //   H = Mfactor * [M] + Kfactor * [K] + Rfactor * [R],
+    // where [M] is the mass matrix, [K] is the stiffness matrix, and [R] is the damping matrix.
+    virtual void ComputeKRMmatricesGlobal(ChMatrix<>& H,
+                                          double Kfactor,
+                                          double Rfactor = 0,
+                                          double Mfactor = 0) override;
+
+    // Set M as the global mass matrix.
+    virtual void ComputeMmatrixGlobal(ChMatrix<>& M) override;
     /// Add contribution of element inertia to total nodal masses
     virtual void ComputeNodalMass() override;
 
