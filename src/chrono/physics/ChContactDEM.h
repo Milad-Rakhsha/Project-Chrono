@@ -94,7 +94,7 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
 
         // Calculate contact force.
         //        printf("distance is = %f\n", -this->norm_dist);
-        
+
         // double DIST = -this->norm_dist;
         // ChVector<> p1 = this->GetContactP1();
         // ChVector<> p2 = this->GetContactP2();
@@ -110,13 +110,11 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
         // Point2.close();
         // printf("Contact Distance=%f\n", CD);
 
-        CalculateForce(-this->norm_dist,                            // overlap (here, always positive)
-                       this->normal,                                // normal contact direction
-                       this->objA->GetContactPointSpeed(this->p1),  // velocity of contact point on objA
-                       this->objB->GetContactPointSpeed(this->p2),  // velocity of contact point on objB
-                       m_force                                      // computed force
-                       );
-
+        m_force = CalculateForce(-this->norm_dist,                            // overlap (here, always positive)
+                                 this->normal,                                // normal contact direction
+                                 this->objA->GetContactPointSpeed(this->p1),  // velocity of contact point on objA
+                                 this->objB->GetContactPointSpeed(this->p2)   // velocity of contact point on objB
+                                 );
         // Set up and compute Jacobian matrices.
         if (static_cast<ChSystemDEM*>(this->container->GetSystem())->GetStiffContact()) {
             CreateJacobians();
@@ -125,16 +123,15 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
     }
 
     /// Calculate contact force, expressed in absolute coordinates.
-    void CalculateForce(double delta,                  ///< overlap in normal direction (positive)
-                        const ChVector<>& normal_dir,  ///< normal contact direction (expressed in global frame)
-                        const ChVector<>& vel1,  ///< velocity of contact point on objA (expressed in global frame)
-                        const ChVector<>& vel2,  ///< velocity of contact point on objB (expressed in global frame)
-                        ChVector<>& force        ///< output force vector
-                        ) {
-        // Set contact force to zero if overlap is non-positive.
+    ChVector<> CalculateForce(
+        double delta,                  ///< overlap in normal direction
+        const ChVector<>& normal_dir,  ///< normal contact direction (expressed in global frame)
+        const ChVector<>& vel1,        ///< velocity of contact point on objA (expressed in global frame)
+        const ChVector<>& vel2         ///< velocity of contact point on objB (expressed in global frame)
+        ) {
+        // Set contact force to zero if no penetration.
         if (delta <= 0) {
-            force = ChVector<>(0, 0, 0);
-            return;
+            return ChVector<>(0, 0, 0);
         }
 
         // Extract parameters from containing system
@@ -175,7 +172,7 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
         double gn;
         double gt;
 
-        double delta_t = use_history ? relvel_t_mag * dT : 0;
+        //        double delta_t = use_history ? relvel_t_mag * dT : 0;
 
         // Include contact force
         switch (contact_model) {
@@ -193,8 +190,8 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
                 } else {
                     kn = mat.kn;
                     kt = mat.kt;
-                    gn = mat.gn;
-                    gt = mat.gt;
+                    gn = m_eff * mat.gn;
+                    gt = m_eff * mat.gt;
                 }
 
                 break;
