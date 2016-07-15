@@ -15,9 +15,8 @@
 // This is a more involved model of Interaction of tiba-femoral contact.
 // This model the gait cycle and evaluate tibia-femoral contact.
 // =============================================================================
-
-#include "chrono/lcp/ChLcpIterativeMINRES.h"
-#include "chrono_mkl/ChLcpMklSolver.h"
+#include "chrono/solver/ChSolverMINRES.h"
+#include "chrono_mkl/ChSolverMKL.h"
 #include "chrono/physics/ChBodyEasy.h"
 #include "chrono/physics/ChSystem.h"
 #include "chrono/physics/ChSystemDEM.h"
@@ -40,7 +39,6 @@
 #include "chrono/physics/ChLoaderUV.h"
 #include "chrono/physics/ChLoadContainer.h"
 #include "chrono_fea/ChVisualizationFEAmesh.h"
-#include "chrono/geometry/ChCTriangleMeshConnected.h"
 #include "chrono_fea/ChContactSurfaceMesh.h"
 #include "chrono_fea/ChLoadContactSurfaceMesh.h"
 #include "chrono_fea/ChContactSurfaceNodeCloud.h"
@@ -49,6 +47,7 @@
 #include "chrono_irrlicht/ChIrrAppInterface.h"
 #include "chrono_irrlicht/ChIrrTools.h"
 #include "chrono_irrlicht/ChIrrWizard.h"
+#include "chrono/motion_functions/ChFunction.h"
 
 #include <iostream>
 #include <math.h>
@@ -67,9 +66,10 @@ using namespace irr;
 using namespace std;
 using namespace rapidjson;
 
-//#define USE_IRR ;
 enum ROT_SYS { XYZ, ZXY };  // Only these are supported for now ...
 #define NormalSP            // Defines whether spring and dampers will always remain normal to the surface
+//#define USE_IRR ;
+
 bool outputData = true;
 bool addGravity = false;
 bool addPressure = false;
@@ -269,14 +269,14 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
 };
 
 int main(int argc, char* argv[]) {
-    ChSystemDEM my_system(false, true, 16000, 500);
+    ChSystemDEM my_system(false, 16000, 500);
 
-    //    std::string inputParameters = "Milad_AC-GaitCycle_JSON/1.json";
+    std::string inputParameters = "Milad_AC-GaitCycle.json";
     //    pass this to the below function -> inputParameters.c_str()
-    SetParamFromJSON(argv[1], RootFolder, simulationFolder, num_threads, time_step, write_interval, dz, AlphaDamp,
-                     K_SPRINGS, C_DAMPERS, L0, L0_t, TibiaMass, femurMass, TibiaInertia, femurInertia, rho, E, nu,
-                     ContactModel, sphere_swept_thickness, Kn, Kt, Gn, Gt, AlphaHHT, MaxitersHHT, AbsToleranceHHT,
-                     AbsToleranceHHTConstraint, MaxItersSuccessHHT);
+    SetParamFromJSON(inputParameters, RootFolder, simulationFolder, num_threads, time_step, write_interval, dz,
+                     AlphaDamp, K_SPRINGS, C_DAMPERS, L0, L0_t, TibiaMass, femurMass, TibiaInertia, femurInertia, rho,
+                     E, nu, ContactModel, sphere_swept_thickness, Kn, Kt, Gn, Gt, AlphaHHT, MaxitersHHT,
+                     AbsToleranceHHT, AbsToleranceHHTConstraint, MaxItersSuccessHHT);
 
     printf("time_step= %f, write_interval_time=%d, num_threads=%d\n", time_step, write_interval, num_threads);
     printf("AlphaDamp= %f, dz=%f\n", AlphaDamp, dz);
@@ -772,15 +772,14 @@ int main(int argc, char* argv[]) {
 #endif
     my_system.SetupInitial();
 
-    // ---------------
-    // Simulation loop
-    // ---------------
-    ChLcpMklSolver* mkl_solver_stab = new ChLcpMklSolver;
-    ChLcpMklSolver* mkl_solver_speed = new ChLcpMklSolver;
-    my_system.ChangeLcpSolverStab(mkl_solver_stab);
-    my_system.ChangeLcpSolverSpeed(mkl_solver_speed);
-    mkl_solver_stab->SetSparsityPatternLock(true);
+    ChSolverMKL* mkl_solver_stab = nullptr;
+    ChSolverMKL* mkl_solver_speed = nullptr;
+    mkl_solver_stab = new ChSolverMKL;
+    mkl_solver_speed = new ChSolverMKL;
+    my_system.ChangeSolverStab(mkl_solver_stab);
+    my_system.ChangeSolverSpeed(mkl_solver_speed);
     mkl_solver_speed->SetSparsityPatternLock(true);
+    mkl_solver_stab->SetSparsityPatternLock(true);
 
 #ifdef USE_IRR
     application.GetSystem()->Update();
@@ -800,13 +799,16 @@ int main(int argc, char* argv[]) {
     // INT_HHT or INT_EULER_IMPLICIT
     //    my_system.SetIntegrationType(ChSystem::INT_EULER_IMPLICIT_LINEARIZED);  // fast, less precise
 
+    // Set up integrator
     my_system.SetIntegrationType(ChSystem::INT_HHT);
-    auto mystepper = std::dynamic_pointer_cast<ChTimestepperHHT>(my_system.GetTimestepper());
+    auto mystepper = std::static_pointer_cast<ChTimestepperHHT>(my_system.GetTimestepper());
     mystepper->SetAlpha(AlphaHHT);
     mystepper->SetMaxiters(MaxitersHHT);
     //    mystepper->SetAbsTolerances(1e-04, 1e-3);  // For ACC
     mystepper->SetAbsTolerances(AbsToleranceHHT, AbsToleranceHHTConstraint);  // For Pos
-    mystepper->SetMode(ChTimestepperHHT::POSITION);                           // POSITION //ACCELERATION
+    mystepper->SetMode(ChTimestepperHHT::POSITION);
+    mystepper->SetStepControl(true);
+    mystepper->SetModifiedNewton(true);
     mystepper->SetScaling(true);
     mystepper->SetVerbose(true);
     mystepper->SetMaxItersSuccess(MaxItersSuccessHHT);
@@ -866,7 +868,7 @@ int main(int argc, char* argv[]) {
         ChQuaternion<> myRot = Tibia->GetRot();
         ChVector<> myPos = Tibia->GetPos();
 
-        if (my_system.GetChTime() > 0.01)
+        if (my_system.GetChTime() > 2)
             throw ChException("--------------------\n");
 
         printf("Tibia pos= %f  %f  %f  \n", myPos.x, myPos.y, myPos.z);
@@ -1421,9 +1423,12 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
     class TF_tx : public ChFunction {
       public:
         std::vector<std::vector<double>> myMotion;
-        TF_tx(std::vector<std::vector<double>> info) { myMotion = info; }
-        ChFunction* new_Duplicate() { return new TF_tx(myMotion); }
-        virtual double Get_y(double x) {
+        TF_tx(std::vector<std::vector<double>> motion) {
+            myMotion = motion;
+            printf("it is called\n");
+        }
+        virtual TF_tx* Clone() const override { return new TF_tx(myMotion); }
+        virtual double Get_y(double x) const override {
             int i = 0;
             int pos = 0;
             while (i < myMotion.size()) {
@@ -1448,9 +1453,9 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
     class TF_ty : public ChFunction {
       public:
         std::vector<std::vector<double>> myMotion;
-        TF_ty(std::vector<std::vector<double>> info) { myMotion = info; }
-        ChFunction* new_Duplicate() { return new TF_ty(myMotion); }
-        virtual double Get_y(double x) {
+        TF_ty(std::vector<std::vector<double>> motion) { myMotion = motion; }
+        virtual TF_ty* Clone() const override { return new TF_ty(myMotion); }
+        virtual double Get_y(double x) const override {
             int i = 0;
             int pos = 0;
             while (i < myMotion.size()) {
@@ -1467,8 +1472,6 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
             double y1 = myMotion[i][2];
             double y2 = myMotion[i + 1][2];
             double y = y1 + (y2 - y1) / (t2 - t1) * (x - t1);
-
-            //            printf(" outputting %f \n", y);
             return (y);
         }
     };
@@ -1476,9 +1479,10 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
     class TF_tz : public ChFunction {
       public:
         std::vector<std::vector<double>> myMotion;
-        TF_tz(std::vector<std::vector<double>> info) { myMotion = info; }
-        ChFunction* new_Duplicate() { return new TF_tz(myMotion); }
-        virtual double Get_y(double x) {
+        TF_tz(std::vector<std::vector<double>> motion) { myMotion = motion; }
+
+        virtual TF_tz* Clone() const override { return new TF_tz(myMotion); }
+        virtual double Get_y(double x) const override {
             int i = 0;
             int pos = 0;
             while (i < myMotion.size()) {
@@ -1503,9 +1507,11 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
     class TF_rx : public ChFunction {
       public:
         std::vector<std::vector<double>> myMotion;
-        TF_rx(std::vector<std::vector<double>> info) { myMotion = info; }
-        ChFunction* new_Duplicate() { return new TF_rx(myMotion); }
-        virtual double Get_y(double x) {
+        TF_rx(std::vector<std::vector<double>> motion) { myMotion = motion; }
+
+        virtual TF_rx* Clone() const override { return new TF_rx(myMotion); }
+
+        virtual double Get_y(double x) const override {
             int i = 0;
             int pos = 0;
             while (i < myMotion.size()) {
@@ -1530,9 +1536,11 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
     class TF_ry : public ChFunction {
       public:
         std::vector<std::vector<double>> myMotion;
-        TF_ry(std::vector<std::vector<double>> info) { myMotion = info; }
-        ChFunction* new_Duplicate() { return new TF_ry(myMotion); }
-        virtual double Get_y(double x) {
+        TF_ry(std::vector<std::vector<double>> motion) { myMotion = motion; }
+
+        virtual TF_ry* Clone() const override { return new TF_ry(myMotion); }
+
+        virtual double Get_y(double x) const override {
             int i = 0;
             int pos = 0;
             while (i < myMotion.size()) {
@@ -1549,7 +1557,6 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
             double y1 = myMotion[i][5];
             double y2 = myMotion[i + 1][5];
             double y = y1 + (y2 - y1) / (t2 - t1) * (x - t1);
-
             return (-y * CH_C_PI / 180);
         }
     };
@@ -1557,9 +1564,11 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
     class TF_rz : public ChFunction {
       public:
         std::vector<std::vector<double>> myMotion;
-        TF_rz(std::vector<std::vector<double>> info) { myMotion = info; }
-        ChFunction* new_Duplicate() { return new TF_rz(myMotion); }
-        virtual double Get_y(double x) {
+        TF_rz(std::vector<std::vector<double>> motion) { myMotion = motion; }
+
+        virtual TF_rz* Clone() const override { return new TF_rz(myMotion); }
+
+        virtual double Get_y(double x) const override {
             int i = 0;
             int pos = 0;
             while (i < myMotion.size()) {
