@@ -15,12 +15,11 @@
 
 #include "chrono/assets/ChAssetLevel.h"
 #include "chrono/assets/ChColor.h"
-#include "chrono/geometry/ChCTriangleMeshConnected.h"
+#include "chrono/geometry/ChTriangleMeshConnected.h"
 #include "chrono_fea/ChMesh.h"
 #include "chrono_fea/ChNodeFEAxyz.h"
 #include "chrono_fea/ChNodeFEAxyzP.h"
 #include "chrono_fea/ChNodeFEAxyzrot.h"
-#include "chrono_fea/ChElementShellANCF.h"
 
 namespace chrono {
 namespace fea {
@@ -62,7 +61,6 @@ class ChApiFea ChVisualizationFEAmesh : public ChAssetLevel {
         E_PLOT_NODE_P,  // scalar field for Poisson problems (ex. temperature if thermal FEM)
         E_PLOT_ANCF_BEAM_AX,
         E_PLOT_ANCF_BEAM_BD,
-        E_PLOT_ANCF_SECTION_DISPLACEMENT,
     };
 
     enum eChFemGlyphs {
@@ -158,7 +156,7 @@ class ChApiFea ChVisualizationFEAmesh : public ChAssetLevel {
     void SetBeamResolution(int mres) { this->beam_resolution = mres; }
     int GetBeamResolution() { return this->beam_resolution; }
 
-    /// Set the resolution of beam triangulated drawing, along the section
+    /// Set the resolution of beam triangulated drawing, along the section 
     /// (i.e. for circular section= number of points along the circle)
     void SetBeamResolutionSection(int mres) { this->beam_resolution_section = mres; }
     int GetBeamResolutionSection() { return this->beam_resolution_section; }
@@ -199,14 +197,18 @@ class ChApiFea ChVisualizationFEAmesh : public ChAssetLevel {
     virtual void Update(ChPhysicsItem* updater, const ChCoordsys<>& coords);
 
   private:
-    double ComputeScalarOutput(std::shared_ptr<ChNodeFEAxyz> mnode,
-                               int nodeID,
-                               std::shared_ptr<ChElementBase> melement);
-    double ComputeScalarOutput(std::shared_ptr<ChNodeFEAxyzP> mnode,
-                               int nodeID,
-                               std::shared_ptr<ChElementBase> melement);
+    double
+    ComputeScalarOutput(std::shared_ptr<ChNodeFEAxyz> mnode, int nodeID, std::shared_ptr<ChElementBase> melement);
+    double
+    ComputeScalarOutput(std::shared_ptr<ChNodeFEAxyzP> mnode, int nodeID, std::shared_ptr<ChElementBase> melement);
     ChVector<float> ComputeFalseColor(double in);
     ChColor ComputeFalseColor2(double in);
+    void UpdateBuffers_Hex(std::shared_ptr<ChElementBase> element,
+                           geometry::ChTriangleMeshConnected& trianglemesh,
+                           unsigned int& i_verts,
+                           unsigned int& i_vnorms,
+                           unsigned int& i_vcols,
+                           unsigned int& i_triindex);
 };
 
 }  // END_OF_NAMESPACE____

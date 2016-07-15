@@ -24,12 +24,12 @@
 #include "chrono_vehicle/tracked_vehicle/ChTrackSubsysDefs.h"
 #include "chrono_vehicle/tracked_vehicle/utils/ChTrackedVehicleIrrApp.h"
 
-#include "m113/M113_SimplePowertrain.h"
-#include "m113/M113_Vehicle.h"
+#include "models/vehicle/m113/M113_SimplePowertrain.h"
+#include "models/vehicle/m113/M113_Vehicle.h"
 
 using namespace chrono;
 using namespace chrono::vehicle;
-using namespace m113;
+using namespace chrono::vehicle::m113;
 
 // =============================================================================
 // USER SETTINGS
@@ -84,7 +84,7 @@ int main(int argc, char* argv[]) {
     // --------------------------
     // Construct the M113 vehicle
     // --------------------------
-    M113_Vehicle vehicle(false, ChMaterialSurfaceBase::DEM);
+    M113_Vehicle vehicle(false, SINGLE_PIN, ChMaterialSurfaceBase::DEM);
 
     // Set visualization type for vehicle components (default: PRIMITIVES).
     ////vehicle.SetRoadWheelVisType(NONE);
@@ -94,14 +94,14 @@ int main(int argc, char* argv[]) {
     ////vehicle.GetDriveline()->SetGyrationMode(true);
 
     // Solver settings.
-    ////vehicle.GetSystem()->SetLcpSolverType(ChSystem::LCP_ITERATIVE_MINRES);
-    vehicle.GetSystem()->SetIterLCPmaxItersSpeed(50);
-    vehicle.GetSystem()->SetIterLCPmaxItersStab(50);
+    ////vehicle.GetSystem()->SetSolverType(ChSystem::SOLVER_MINRES);
+    vehicle.GetSystem()->SetMaxItersSolverSpeed(50);
+    vehicle.GetSystem()->SetMaxItersSolverStab(50);
     ////vehicle.GetSystem()->SetTol(0);
     ////vehicle.GetSystem()->SetMaxPenetrationRecoverySpeed(1.5);
     ////vehicle.GetSystem()->SetMinBounceSpeed(2.0);
-    ////vehicle.GetSystem()->SetIterLCPomega(0.8);
-    ////vehicle.GetSystem()->SetIterLCPsharpnessLambda(1.0);
+    ////vehicle.GetSystem()->SetSolverOverrelaxationParam(0.8);
+    ////vehicle.GetSystem()->SetSolverSharpnessParam(1.0);
 
     // Initialize the vehicle at the specified position.
     vehicle.Initialize(ChCoordsys<>(initLoc, initRot));

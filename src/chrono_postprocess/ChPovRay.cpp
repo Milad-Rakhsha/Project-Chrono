@@ -10,30 +10,21 @@
 // and at http://projectchrono.org/license-chrono.txt.
 //
 
-//////////////////////////////////////////////////
-//
-//   ChPovRay.cpp
-//
-// ------------------------------------------------
-//             www.deltaknowledge.com
-// ------------------------------------------------
-///////////////////////////////////////////////////
-
+#include "chrono/assets/ChAssetLevel.h"
+#include "chrono/assets/ChBoxShape.h"
+#include "chrono/assets/ChCamera.h"
+#include "chrono/assets/ChColorAsset.h"
+#include "chrono/assets/ChCylinderShape.h"
+#include "chrono/assets/ChObjShapeFile.h"
+#include "chrono/assets/ChSphereShape.h"
+#include "chrono/assets/ChTexture.h"
+#include "chrono/assets/ChTriangleMeshShape.h"
+#include "chrono/geometry/ChTriangleMeshConnected.h"
+#include "chrono/physics/ChLinkMate.h"
+#include "chrono/physics/ChParticlesClones.h"
 #include "chrono_postprocess/ChPovRay.h"
 #include "chrono_postprocess/ChPovRayAsset.h"
-#include "geometry/ChCTriangleMeshConnected.h"
-#include "assets/ChObjShapeFile.h"
-#include "assets/ChTriangleMeshShape.h"
-#include "assets/ChSphereShape.h"
-#include "assets/ChCylinderShape.h"
-#include "assets/ChBoxShape.h"
-#include "assets/ChTexture.h"
-#include "assets/ChAssetLevel.h"
-#include "assets/ChCamera.h"
-#include "assets/ChColorAsset.h"
 #include "chrono_postprocess/ChPovRayAssetCustom.h"
-#include "physics/ChParticlesClones.h"
-#include "physics/ChLinkMate.h"
 
 using namespace chrono;
 using namespace postprocess;
@@ -152,7 +143,7 @@ void ChPovRay::SetupLists() {
 
     // See if some asset in exporter cache is not used anymore (except for 1 reference from this cache),
     // this would mean that the body/bodies that owned such asset have been removed.
-    ChHashTable<size_t, std::shared_ptr<ChAsset> >::iterator mcachedasset = pov_assets.begin();
+    std::unordered_map<size_t, std::shared_ptr<ChAsset> >::iterator mcachedasset = pov_assets.begin();
     while (mcachedasset != pov_assets.end()) {
         if (mcachedasset->second.use_count() == 1) {
             // cached asset not used anymore! remove from hashtable...
@@ -434,11 +425,11 @@ void ChPovRay::_recurseExportAssets(std::vector<std::shared_ptr<ChAsset> >& asse
     for (unsigned int k = 0; k < assetlist.size(); k++) {
         std::shared_ptr<ChAsset> k_asset = assetlist[k];
 
-        ChHashTable<size_t, std::shared_ptr<ChAsset> >::iterator mcached = pov_assets.find((size_t)k_asset.get());
+        std::unordered_map<size_t, std::shared_ptr<ChAsset> >::iterator mcached = pov_assets.find((size_t)k_asset.get());
         if (mcached == pov_assets.end()) {
             // Ok, add the asset in POV file, it was not already saved.
             // Otherwise it was a shared asset.
-            pov_assets.insert((size_t)k_asset.get(), k_asset);
+            pov_assets.insert({(size_t)k_asset.get(), k_asset});
 
             // Do dynamic casting of the shared pointer to see which type
             // of asset is contained...

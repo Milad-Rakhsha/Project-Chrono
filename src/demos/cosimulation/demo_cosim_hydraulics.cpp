@@ -1,12 +1,12 @@
 ///////////////////////////////////////////////////
 //
 //   Advanced demo showing how to implement a cosimulation
-//   with C::E and Simulink. The SimHydraulics toolbox
+//   with Chrono and Simulink. The SimHydraulics toolbox
 //   of Simulink is used here to simulate an hydraulic
-//   circuit that interacts with a C::E mechanism.
+//   circuit that interacts with a Chrono mechanism.
 //
 //   This example needs test_cosim_hydraulics.mdl to be
-//   load and run in Simulink!!!
+//   loaded and run in Simulink
 //
 //	 CHRONO
 //   ------
@@ -79,8 +79,8 @@ int main(int argc, char* argv[]) {
         my_system.AddLink(my_link_springdamper);
 
         my_system.Set_G_acc(ChVector<>(0, 0, 0));
-        my_system.SetIterLCPmaxItersSpeed(20);
-        my_system.SetLcpSolverType(ChSystem::LCP_ITERATIVE_BARZILAIBORWEIN);
+        my_system.SetMaxItersSolverSpeed(20);
+        my_system.SetSolverType(ChSystem::SOLVER_BARZILAIBORWEIN);
 
         // 2) Add a socket framework object
         ChSocketFramework socket_tools;
@@ -92,7 +92,7 @@ int main(int argc, char* argv[]) {
                                          2);  // n.output values to Simulink
 
         // Prepare the two column vectors of data that will be swapped
-        // back and forth between C::E and Simulink. In detail we will
+        // back and forth between Chrono and Simulink. In detail we will
         // - receive 1 variable from Simulink (the hydraulic cylinder force)
         // - send 2 variables to Simulink (the hydraulic cylinder velocity and displacement)
         ChMatrixDynamic<double> data_in(1, 1);
@@ -111,14 +111,14 @@ int main(int argc, char* argv[]) {
         double histime = 0;
 
         // Here the 'dt' must be the same of the sampling period that is
-        // entered in the CEcosimulation block!
+        // entered in the CEcosimulation block
 
         double dt = 0.001;
 
         // 5) Run the co-simulation
 
         while (true) {
-            // A) ----------------- ADVANCE THE C::E SIMULATION
+            // A) ----------------- ADVANCE THE Chrono SIMULATION
 
             if (dt > 0)
                 my_system.DoStepDynamics(dt);
@@ -129,7 +129,7 @@ int main(int argc, char* argv[]) {
 
             // B.1) - SEND data
 
-            // - Set the multibody variables into the vector that must
+            // - Set the Chrono variables into the vector that must
             //   be sent to Simulink at the next timestep:
             //      * the velocity of the hydraulic actuator
             //      * the displacement of the hydraulic actuator
@@ -146,7 +146,7 @@ int main(int argc, char* argv[]) {
             // GetLog() << "Receive \n";
             cosimul_interface.ReceiveData(histime, &data_in);  // <-- from Simulink
 
-            // - Update the multibody system with the force value that we received
+            // - Update the Chrono system with the force value that we received
             //   from Simulink using the data_in vector, that contains:
             //      * the force of the hydraulic actuator
 

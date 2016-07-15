@@ -21,8 +21,8 @@
 
 #include <math.h>
 
-#include "physics/ChNodeXYZ.h"
-#include "lcp/ChLcpVariablesNode.h"
+#include "chrono/physics/ChNodeXYZ.h"
+#include "chrono/solver/ChVariablesNode.h"
 #include "chrono_parallel/ChParallelDefines.h"
 #include "chrono_parallel/math/real.h"
 #include "chrono_parallel/ChDataManager.h"
@@ -38,6 +38,9 @@ class CH_PARALLEL_API ChNodeFluid : public ChPhysicsItem {
 
   ChNodeFluid(const ChNodeFluid& other);             // Copy constructor
   ChNodeFluid& operator=(const ChNodeFluid& other);  // Assignment operator
+
+  /// "Virtual" copy constructor (covariant return type).
+  virtual ChNodeFluid* Clone() const override { return new ChNodeFluid(*this); }
 
   //
   // FUNCTIONS

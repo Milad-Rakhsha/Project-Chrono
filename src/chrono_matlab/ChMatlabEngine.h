@@ -23,16 +23,13 @@
 //  Multibody dynamics engine
 //
 // ------------------------------------------------
-//             www.deltaknowledge.com
+//             http://www.projectchrono.org
 // ------------------------------------------------
 ///////////////////////////////////////////////////
 
 #include "chrono_matlab/ChApiMatlab.h"
 #include "core/ChMath.h"
 #include "core/ChLinkedListMatrix.h"
-//#include "lcp/ChLcpSystemDescriptor.h"
-
-// include also the Matlab header..
 
 // Following namespace trick is a fix for VS2010+ and Matlab: avoid error with typedef in matrix.h
 namespace matlabengine {

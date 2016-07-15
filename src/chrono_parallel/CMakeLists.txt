@@ -35,7 +35,6 @@ set(CH_PARALLEL_C_FLAGS "")
 # Additional dependencies, specific to this module
 # ------------------------------------------------------------------------------
 
-
 OPTION(USE_PARALLEL_DOUBLE "Compile Chrono::Parallel with double precision math (no SSE support)" ON)
 
 IF(USE_PARALLEL_DOUBLE)
@@ -84,6 +83,7 @@ ENDIF()
 # ----------------------------------------------------------------------------
 # Generate and install configuration header file.
 # ----------------------------------------------------------------------------
+
 # Generate the configuration header file using substitution variables.
 # Place the header file in the library output directory and make sure it can
 # be found at compile time.
@@ -143,16 +143,6 @@ SET(ChronoEngine_Parallel_PHYSICS
 
 SOURCE_GROUP(physics FILES ${ChronoEngine_Parallel_PHYSICS})
 
-SET(ChronoEngine_Parallel_LCP
-    lcp/ChLcpSolverParallel.h
-    lcp/ChLcpSystemDescriptorParallel.h
-    lcp/ChLcpSolverParallel.cpp
-    lcp/ChLcpSolverParallelDVI.cpp
-    lcp/ChLcpSolverParallelDEM.cpp
-    )
-
-SOURCE_GROUP(lcp FILES ${ChronoEngine_Parallel_LCP})
-
 SET(ChronoEngine_Parallel_MATH
     math/ChParallelMath.h
     math/ChThrustLinearAlgebra.h
@@ -166,33 +156,37 @@ SET(ChronoEngine_Parallel_MATH
 SOURCE_GROUP(math FILES ${ChronoEngine_Parallel_MATH})
 
 SET(ChronoEngine_Parallel_SOLVER
+    solver/ChSystemDescriptorParallel.h
+    solver/ChIterativeSolverParallel.h
+    solver/ChIterativeSolverParallel.cpp
+    solver/ChIterativeSolverParallelDVI.cpp
+    solver/ChIterativeSolverParallelDEM.cpp
     solver/ChSolverParallel.h
-    solver/ChSolverJacobi.h
-    solver/ChSolverCG.h
-    solver/ChSolverCGS.h
-    solver/ChSolverPGS.h
-    solver/ChSolverGD.h
-    solver/ChSolverSD.h
-    solver/ChSolverAPGD.h
-    solver/ChSolverAPGDREF.h
-    solver/ChSolverMinRes.h
-    solver/ChSolverBiCG.h
-    solver/ChSolverBiCGStab.h
-    solver/ChSolverPDIP.h
     solver/ChSolverParallel.cpp
-    solver/ChSolverJacobi.cpp
-    solver/ChSolverCG.cpp
-    solver/ChSolverCGS.cpp
-    solver/ChSolverPGS.cpp
-    solver/ChSolverGD.cpp
-    solver/ChSolverSD.cpp
-    #solver/ChSolverFN.cpp
-    solver/ChSolverAPGD.cpp
-    solver/ChSolverAPGDREF.cpp
-    solver/ChSolverMinRes.cpp
-    solver/ChSolverBiCG.cpp
-    solver/ChSolverBiCGStab.cpp
-    solver/ChSolverPDIP.cpp
+    solver/ChSolverParallelJacobi.h
+    solver/ChSolverParallelCG.h
+    solver/ChSolverParallelCGS.h
+    solver/ChSolverParallelPGS.h
+    solver/ChSolverParallelGD.h
+    solver/ChSolverParallelSD.h
+    solver/ChSolverParallelAPGD.h
+    solver/ChSolverParallelAPGDREF.h
+    solver/ChSolverParallelMinRes.h
+    solver/ChSolverParallelBiCG.h
+    solver/ChSolverParallelBiCGStab.h
+    solver/ChSolverParallelPDIP.h
+    solver/ChSolverParallelJacobi.cpp
+    solver/ChSolverParallelCG.cpp
+    solver/ChSolverParallelCGS.cpp
+    solver/ChSolverParallelPGS.cpp
+    solver/ChSolverParallelGD.cpp
+    solver/ChSolverParallelSD.cpp
+    solver/ChSolverParallelAPGD.cpp
+    solver/ChSolverParallelAPGDREF.cpp
+    solver/ChSolverParallelMinRes.cpp
+    solver/ChSolverParallelBiCG.cpp
+    solver/ChSolverParallelBiCGStab.cpp
+    solver/ChSolverParallelPDIP.cpp
     )
 
 SOURCE_GROUP(solver FILES ${ChronoEngine_Parallel_SOLVER})
@@ -360,7 +354,6 @@ IF (MSVC)
         )
 ENDIF()
 
-
 # ------------------------------------------------------------------------------
 # Add the ChronoEngine_parallel library
 # ------------------------------------------------------------------------------
@@ -368,13 +361,11 @@ ENDIF()
 ADD_LIBRARY(ChronoEngine_parallel SHARED
             ${ChronoEngine_Parallel_BASE}
             ${ChronoEngine_Parallel_PHYSICS}
-            ${ChronoEngine_Parallel_LCP}
             ${ChronoEngine_Parallel_COLLISION}
             ${ChronoEngine_Parallel_CONSTRAINTS}
             ${ChronoEngine_Parallel_SOLVER}
             ${ChronoEngine_Parallel_MATH}
             )
-
 
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     SET_TARGET_PROPERTIES( ChronoEngine_parallel PROPERTIES XCODE_ATTRIBUTE_ENABLE_OPENMP_SUPPORT YES)

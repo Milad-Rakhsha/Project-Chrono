@@ -20,13 +20,14 @@
 #define CHCONTACTDEM_H
 
 #include <cmath>
+#include <algorithm>
 
 #include "chrono/collision/ChCCollisionModel.h"
 #include "chrono/core/ChFrame.h"
 #include "chrono/core/ChMatrixDynamic.h"
 #include "chrono/core/ChVectorDynamic.h"
-#include "chrono/lcp/ChLcpKblockGeneric.h"
-#include "chrono/lcp/ChLcpSystemDescriptor.h"
+#include "chrono/solver/ChKblockGeneric.h"
+#include "chrono/solver/ChSystemDescriptor.h"
 #include "chrono/physics/ChContactContainerBase.h"
 #include "chrono/physics/ChContactTuple.h"
 #include "chrono/physics/ChMaterialSurfaceDEM.h"
@@ -45,7 +46,7 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
 
   private:
     struct ChContactJacobian {
-        ChLcpKblockGeneric m_KRM;     ///< sum of scaled K and R, with pointers to sparse variables
+        ChKblockGeneric m_KRM;        ///< sum of scaled K and R, with pointers to sparse variables
         ChMatrixDynamic<double> m_K;  ///< K = dQ/dx
         ChMatrixDynamic<double> m_R;  ///< R = dQ/dv
     };
@@ -65,7 +66,9 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
         Reset(mobjA, mobjB, cinfo);
     }
 
-    ~ChContactDEM() { delete m_Jac; }
+    ~ChContactDEM() {
+        delete m_Jac;
+    }
 
     /// Get the contact force, if computed, in contact coordinate system
     virtual ChVector<> GetContactForce() override { return this->contact_plane.MatrT_x_Vect(m_force); }
@@ -77,7 +80,7 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
     ChVector<> GetContactForceAbs() const { return m_force; }
 
     /// Access the proxy to the Jacobian.
-    const ChLcpKblockGeneric* GetJacobianKRM() const { return m_Jac ? &(m_Jac->m_KRM) : NULL; }
+    const ChKblockGeneric* GetJacobianKRM() const { return m_Jac ? &(m_Jac->m_KRM) : NULL; }
     const ChMatrixDynamic<double>* GetJacobianK() const { return m_Jac ? &(m_Jac->m_K) : NULL; }
     const ChMatrixDynamic<double>* GetJacobianR() const { return m_Jac ? &(m_Jac->m_R) : NULL; }
 
@@ -93,28 +96,12 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
         assert(cinfo.distance < 0);
 
         // Calculate contact force.
-        //        printf("distance is = %f\n", -this->norm_dist);
-
-        // double DIST = -this->norm_dist;
-        // ChVector<> p1 = this->GetContactP1();
-        // ChVector<> p2 = this->GetContactP2();
-        // double CD = this->GetContactDistance();
-        // char buffer1[32], buffer2[32];  // The filename buffer.
-
-        // std::ofstream Point1, Point2;
-        // Point1.open(buffer1, std::ios::app);
-        // Point2.open(buffer2, std::ios::app);
-        // Point1 << p1.x << ", " << p1.y << ", " << p1.z << std::endl;
-        // Point2 << p2.x << ", " << p2.y << ", " << p2.z << std::endl;
-        // Point1.close();
-        // Point2.close();
-        // printf("Contact Distance=%f\n", CD);
-
         m_force = CalculateForce(-this->norm_dist,                            // overlap (here, always positive)
                                  this->normal,                                // normal contact direction
                                  this->objA->GetContactPointSpeed(this->p1),  // velocity of contact point on objA
                                  this->objB->GetContactPointSpeed(this->p2)   // velocity of contact point on objB
                                  );
+
         // Set up and compute Jacobian matrices.
         if (static_cast<ChSystemDEM*>(this->container->GetSystem())->GetStiffContact()) {
             CreateJacobians();
@@ -138,9 +125,9 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
         ChSystemDEM* sys = static_cast<ChSystemDEM*>(this->container->GetSystem());
         double dT = sys->GetStep();
         bool use_mat_props = sys->UsingMaterialProperties();
-        bool use_history = sys->UsingContactHistory();
         ChSystemDEM::ContactForceModel contact_model = sys->GetContactForceModel();
         ChSystemDEM::AdhesionForceModel adhesion_model = sys->GetAdhesionForceModel();
+        ChSystemDEM::TangentialDisplacementModel tdispl_model = sys->GetTangentialDisplacementModel();
 
         // Relative velocity at contact
         ChVector<> relvel = vel2 - vel1;
@@ -148,6 +135,7 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
         ChVector<> relvel_n = relvel_n_mag * normal_dir;
         ChVector<> relvel_t = relvel - relvel_n;
         double relvel_t_mag = relvel_t.Length();
+
         // Calculate effective mass
         double m_eff = this->objA->GetContactableMass() * this->objB->GetContactableMass() /
                        (this->objA->GetContactableMass() + this->objB->GetContactableMass());
@@ -156,14 +144,14 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
         //// TODO:  how can I get this with current collision system!?!?!?
         double R_eff = 1;
 
-        // Just casting, now, since we are sure that this contact was created only if dynamic casting was fine
+        // Use static casting now, since we are sure that this contact was created only if dynamic casting was fine
         auto mmatA = std::static_pointer_cast<ChMaterialSurfaceDEM>(this->objA->GetMaterialSurfaceBase());
         auto mmatB = std::static_pointer_cast<ChMaterialSurfaceDEM>(this->objB->GetMaterialSurfaceBase());
 
         // Calculate composite material properties
         ChCompositeMaterialDEM mat = ChMaterialSurfaceDEM::CompositeMaterial(mmatA, mmatB);
 
-        // Contact forces.
+        // Calculate stiffness and viscous damping coefficients.
         // All models use the following formulas for normal and tangential forces:
         //     Fn = kn * delta_n - gn * v_n
         //     Ft = kt * delta_t - gt * v_t
@@ -172,9 +160,6 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
         double gn;
         double gt;
 
-        //        double delta_t = use_history ? relvel_t_mag * dT : 0;
-
-        // Include contact force
         switch (contact_model) {
             case ChSystemDEM::Hooke:
                 if (use_mat_props) {
@@ -219,34 +204,61 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
 
             case ChSystemDEM::PlainCoulomb:
                 if (use_mat_props) {
-                    double tmp_k = (16.0 / 15) * std::sqrt(R_eff) * mat.E_eff;
-                    double v2 = sys->GetCharacteristicImpactVelocity() * sys->GetCharacteristicImpactVelocity();
+                    double sqrt_Rd = std::sqrt(delta);
+                    double Sn = 2 * mat.E_eff * sqrt_Rd;
+                    double St = 8 * mat.G_eff * sqrt_Rd;
                     double loge = (mat.cr_eff < CH_MICROTOL) ? std::log(CH_MICROTOL) : std::log(mat.cr_eff);
-                    loge = (mat.cr_eff > 1 - CH_MICROTOL) ? std::log(1 - CH_MICROTOL) : loge;
-                    double tmp_g = 1 + std::pow(CH_C_PI / loge, 2);
-                    kn = tmp_k * std::pow(m_eff * v2 / tmp_k, 1.0 / 5);
-                    gn = std::sqrt(4 * m_eff * kn / tmp_g);
+                    double beta = loge / std::sqrt(loge * loge + CH_C_PI * CH_C_PI);
+                    kn = (2.0 / 3) * Sn;
+                    gn = -2 * std::sqrt(5.0 / 6) * beta * std::sqrt(Sn * m_eff);
                 } else {
                     double tmp = std::sqrt(delta);
                     kn = tmp * mat.kn;
                     gn = tmp * mat.gn;
                 }
 
+                kt = 0;
+                gt = 0;
+
                 {
                     double forceN = kn * delta - gn * relvel_n_mag;
-                    double forceT = mat.mu_eff * std::atan(2.0 * relvel_t_mag) * 2.0 / CH_C_PI * forceN;
-                    force = forceN * normal_dir;
-                    force -= (forceT)*relvel_t;
-                    return;
+                    if (forceN < 0)
+                        forceN = 0;
+                    double forceT = mat.mu_eff * std::tanh(5.0 * relvel_t_mag) * forceN;
+                    switch (adhesion_model) {
+                        case ChSystemDEM::Constant:
+                            forceN -= mat.adhesion_eff;
+                            break;
+                        case ChSystemDEM::DMT:
+                            forceN -= mat.adhesionMultDMT_eff * sqrt(R_eff);
+                            break;
+                    }
+                    ChVector<> force = forceN * normal_dir;
+                    if (relvel_t_mag >= sys->GetSlipVelocitythreshold())
+                        force -= (forceT / relvel_t_mag) * relvel_t;
+
+                    return force;
                 }
+        }
+
+        // Tangential displacement (magnitude)
+        double delta_t = 0;
+        switch (tdispl_model) {
+            case ChSystemDEM::OneStep:
+                delta_t = relvel_t_mag * dT;
+                break;
+            case ChSystemDEM::MultiStep:
+                //// TODO: implement proper MultiStep mode
+                delta_t = relvel_t_mag * dT;
+                break;
         }
 
         // Calculate the magnitudes of the normal and tangential contact forces
         double forceN = kn * delta - gn * relvel_n_mag;
         double forceT = kt * delta_t + gt * relvel_t_mag;
 
-        // If the resulting force is negative, the two shapes are moving away from
-        // each other so fast that no contact force is generated.
+        // If the resulting normal contact force is negative, the two shapes are moving
+        // away from each other so fast that no contact force is generated.
         if (forceN < 0) {
             forceN = 0;
             forceT = 0;
@@ -263,15 +275,14 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
         }
 
         // Coulomb law
-        double forceT_mag = std::abs(forceT);
-        double forceT_max = mat.mu_eff * std::abs(forceN);
-        double ratio = ((forceT_mag > forceT_max) && (forceT_max > CH_MICROTOL)) ? forceT_max / forceT_mag : 0;
-        forceT *= ratio;
+        forceT = std::min<double>(forceT, mat.mu_eff * std::abs(forceN));
 
         // Accumulate normal and tangential forces
-        force = forceN * normal_dir;
+        ChVector<> force = forceN * normal_dir;
         if (relvel_t_mag >= sys->GetSlipVelocitythreshold())
-            force -= (forceT / std::max(relvel_t_mag, CH_MICROTOL)) * relvel_t;
+            force -= (forceT / relvel_t_mag) * relvel_t;
+
+        return force;
     }
 
     /// Compute all forces in a contiguous array.
@@ -306,10 +317,6 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
         // Calculate penetration depth
         double delta = (p1_abs - p2_abs).Length();
 
-        printf("A position is = (%f %f %f )", p1_abs.x, p1_abs.y, p1_abs.z);
-        printf("B position is = (%f %f %f )", p2_abs.x, p2_abs.y, p2_abs.z);
-        printf("delta is = %f", delta);
-
         // If the normal direction flipped sign, change sign of delta
         if (Vdot(normal_dir, this->normal) < 0)
             delta = -delta;
@@ -319,8 +326,7 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
         ChVector<> vel2 = this->objB->GetContactPointSpeed(p2_loc, stateB_x, stateB_w);
 
         // Compute the contact force.
-        ChVector<> force;
-        CalculateForce(delta, normal_dir, vel1, vel2, force);
+        ChVector<> force = CalculateForce(delta, normal_dir, vel1, vel2);
 
         // Compute and load the generalized contact forces.
         this->objA->ContactForceLoadQ(-force, p1_abs, stateA_x, Q, 0);
@@ -337,7 +343,7 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
         // NOTE: currently, only contactable objects derived from ChContactable_1vars<6>,
         //       ChContactable_1vars<3>, and ChContactable_3vars<3,3,3> are supported.
         int ndof_w = 0;
-        std::vector<ChLcpVariables*> vars;
+        std::vector<ChVariables*> vars;
 
         vars.push_back(this->objA->GetVariables1());
         if (auto objA_333 = dynamic_cast<ChContactable_3vars<3, 3, 3>*>(this->objA)) {
@@ -450,9 +456,9 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
     }
 
     /// Inject Jacobian blocks into the system descriptor.
-    /// Tell to a system descriptor that there are item(s) of type ChLcpKblock in this object
-    /// (for further passing it to a LCP solver)
-    virtual void ContInjectKRMmatrices(ChLcpSystemDescriptor& mdescriptor) override {
+    /// Tell to a system descriptor that there are item(s) of type ChKblock in this object
+    /// (for further passing it to a solver)
+    virtual void ContInjectKRMmatrices(ChSystemDescriptor& mdescriptor) override {
         if (m_Jac)
             mdescriptor.InsertKblock(&m_Jac->m_KRM);
     }
@@ -468,6 +474,6 @@ class ChContactDEM : public ChContactTuple<Ta, Tb> {
     }
 };
 
-}  // END_OF_NAMESPACE____
+}  // end namespace chrono
 
 #endif

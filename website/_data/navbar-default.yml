@@ -22,6 +22,9 @@ main:
        -
          title: White Papers
          url: 'http://api.chrono.projectchrono.org/whitepaper_root.html'
+       -
+         title: PDF Version
+         url: '/docpdf/'
     - title: Movies
       url: '/gallery/'
       sub:
@@ -42,10 +45,12 @@ main:
       url: '/about/'
       sub:
        -
-         title: What is ProjectChrono
+         title: Quick facts
          url: '/about/'
        -
-         title: Users
+         title: Current/Past users
          url: '/testimonials/'
-    - title: Old Website
-      url: 'http://old.projectchrono.org'
+    # - title: Old Website
+    #   url: 'http://old.projectchrono.org'
+    - title: Status
+      url: '/status'

@@ -10,15 +10,15 @@
 //
 
 #include "chrono/ChConfig.h"
-#include "chrono/lcp/ChLcpIterativeMINRES.h"
-#include "chrono/lcp/ChLcpSolverDEM.h"
+#include "chrono/solver/ChSolverMINRES.h"
+#include "chrono/solver/ChSolverDEM.h"
 #include "chrono/physics/ChContactContainerDEM.h"
 #include "chrono/physics/ChSystemDEM.h"
 
 #include "chrono_irrlicht/ChIrrApp.h"
 
 #ifdef CHRONO_MKL
-#include "chrono_mkl/ChLcpMklSolver.h"
+#include "chrono_mkl/ChSolverMKL.h"
 #endif
 
 #include <irrlicht.h>
@@ -55,7 +55,7 @@ public:
             }
 
             
-            const ChLcpKblockGeneric* KRM = (*iter)->GetJacobianKRM();
+            const ChKblockGeneric* KRM = (*iter)->GetJacobianKRM();
             const ChMatrixDynamic<double>* K = (*iter)->GetJacobianK();
             const ChMatrixDynamic<double>* R = (*iter)->GetJacobianR();
 
@@ -97,8 +97,8 @@ int main(int argc, char* argv[]) {
     // ---------------------------
 
     bool use_mat_properties = false;
-    bool use_history = false;
     ChSystemDEM::ContactForceModel force_model = ChSystemDEM::Hooke;
+    ChSystemDEM::TangentialDisplacementModel tdispl_model = ChSystemDEM::None;
 
     float young_modulus = 2e9f;
     float friction = 0.4f;
@@ -135,10 +135,13 @@ int main(int argc, char* argv[]) {
     // Create the system
     // -----------------
 
-    ChSystemDEM system(use_mat_properties, use_history);
+    ChSystemDEM system(use_mat_properties);
 
     // Set the DEM contact force model 
     system.SetContactForceModel(force_model);
+
+    // Set tangential displacement model
+    system.SetTangentialDisplacementModel(tdispl_model);
 
     // Set contact forces as stiff (to force Jacobian computation) or non-stiff
     system.SetStiffContact(stiff_contact);
@@ -234,7 +237,7 @@ int main(int argc, char* argv[]) {
     // Setup linear solver
     // -------------------
 
-    // Note that not all solvers support stiffness matrices (that includes the default LcpSolverDEM).
+    // Note that not all solvers support stiffness matrices (that includes the default SolverDEM).
 #ifndef CHRONO_MKL
     if (solver_type == MKL_SOLVER) {
         GetLog() << "MKL support not enabled.  Solver reset to default.\n";
@@ -245,24 +248,24 @@ int main(int argc, char* argv[]) {
     switch (solver_type) {
         case DEFAULT_SOLVER: {
             GetLog() << "Using DEFAULT solver.\n";
-            system.SetIterLCPmaxItersSpeed(100);
+            system.SetMaxItersSolverSpeed(100);
             system.SetTolForce(1e-6);
             break;
         }
         case MINRES_SOLVER: {
             GetLog() << "Using MINRES solver.\n";
-            ChLcpIterativeMINRES* minres_solver = new ChLcpIterativeMINRES;
+            ChSolverMINRES* minres_solver = new ChSolverMINRES;
             minres_solver->SetDiagonalPreconditioning(true);
-            system.ChangeLcpSolverSpeed(minres_solver);
-            system.SetIterLCPmaxItersSpeed(100);
+            system.ChangeSolverSpeed(minres_solver);
+            system.SetMaxItersSolverSpeed(100);
             system.SetTolForce(1e-6);
             break;
         }
         case MKL_SOLVER: {
 #ifdef CHRONO_MKL
             GetLog() << "Using MKL solver.\n";
-            ChLcpMklSolver* mkl_solver = new ChLcpMklSolver;
-            system.ChangeLcpSolverSpeed(mkl_solver);
+            ChSolverMKL* mkl_solver = new ChSolverMKL;
+            system.ChangeSolverSpeed(mkl_solver);
             mkl_solver->SetSparsityPatternLock(true);
 #endif
             break;

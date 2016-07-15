@@ -29,12 +29,12 @@
 #include "chrono_vehicle/driver/ChPathFollowerDriver.h"
 #include "chrono_vehicle/wheeled_vehicle/utils/ChWheeledVehicleIrrApp.h"
 
-#include "hmmwv/HMMWV.h"
+#include "models/vehicle/hmmwv/HMMWV.h"
 
 using namespace chrono;
+using namespace chrono::geometry;
 using namespace chrono::vehicle;
-using namespace hmmwv;
-using namespace geometry;
+using namespace chrono::vehicle::hmmwv;
 
 // =============================================================================
 // Problem parameters

@@ -24,7 +24,7 @@
 //   Multibody dinamics engine
 //
 // ------------------------------------------------
-//             www.deltaknowledge.com
+//             http://www.projectchrono.org
 // ------------------------------------------------
 ///////////////////////////////////////////////////
 
@@ -185,14 +185,6 @@ int main(int argc, char* argv[]) {
     //
     // Configure the solver with non-default settings
     //
-
-    // Note that default iterative solvers cannot guarantee 100% precision in
-    // satisfying the constraints, expecially in some cases (ex. LCP_ITERATIVE_SOR)
-    // In this case, we rather choose to use the _direct_ solver of simplex
-    // type (LCP_SIMPLEX) that is very precise. NOTE!! The LCP_SIMPLEX cannot
-    // be used for systems with unilateral constraints or collisions!!! So it
-    // good for simple mechanisms like this one.
-    my_system.SetLcpSolverType(ChSystem::LCP_SIMPLEX);
 
     // By default, the solver uses the INT_ANITESCU stepper, that is very
     // fast, but may allow some geometric error in constraints (because it is

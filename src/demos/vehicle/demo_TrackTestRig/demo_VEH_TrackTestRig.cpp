@@ -25,11 +25,12 @@
 #include "chrono_vehicle/tracked_vehicle/utils/ChTrackTestRig.h"
 #include "chrono_vehicle/tracked_vehicle/utils/ChIrrGuiDriverTTR.h"
 
-#include "m113/M113_TrackAssembly.h"
+#include "models/vehicle/m113/M113_TrackAssemblySinglePin.h"
+#include "models/vehicle/m113/M113_TrackAssemblyDoublePin.h"
 
 using namespace chrono;
 using namespace chrono::vehicle;
-using namespace m113;
+using namespace chrono::vehicle::m113;
 
 // =============================================================================
 // USER SETTINGS
@@ -51,28 +52,62 @@ int side = 0;
 // =============================================================================
 int main(int argc, char* argv[]) {
     // Create an M113 track assembly.
-    auto track_assembly = std::make_shared<M113_TrackAssembly>(LEFT);
+    VehicleSide side = LEFT;
+    TrackShoeType type = SINGLE_PIN;
+    VisualizationType shoe_vis = PRIMITIVES;
+
+    std::shared_ptr<ChTrackAssembly> track_assembly;
+    switch (type) {
+        case SINGLE_PIN: {
+            auto assembly = std::make_shared<M113_TrackAssemblySinglePin>(side);
+            assembly->SetTrackShoeVisType(shoe_vis);
+            track_assembly = assembly;
+            break;
+        }
+        case DOUBLE_PIN: {
+            auto assembly = std::make_shared<M113_TrackAssemblyDoublePin>(side);
+            assembly->SetTrackShoeVisType(shoe_vis);
+            track_assembly = assembly;
+            break;
+        }
+    }
 
     // Create and initialize the testing mechanism.
-    ChVector<> sprocket_loc(0, 1, 0);
-    ChVector<> idler_loc(-3.92, 1, -0.12);  //// Original x value: -3.97
+    ChVector<> sprocket_loc;
+    ChVector<> idler_loc;
     std::vector<ChVector<> > susp_locs(5);
-    susp_locs[0] = ChVector<>(-0.65, 1, -0.215);
-    susp_locs[1] = ChVector<>(-1.3175, 1, -0.215);
-    susp_locs[2] = ChVector<>(-1.985, 1, -0.215);
-    susp_locs[3] = ChVector<>(-2.6525, 1, -0.215);
-    susp_locs[4] = ChVector<>(-3.32, 1, -0.215);
+
+    switch (side) {
+        case LEFT:
+            sprocket_loc = ChVector<>(0, 1, 0);
+            idler_loc = ChVector<>(-3.92, 1, -0.12);  //// Original x value: -3.97
+            susp_locs[0] = ChVector<>(-0.655, 1, -0.215);
+            susp_locs[1] = ChVector<>(-1.322, 1, -0.215);
+            susp_locs[2] = ChVector<>(-1.989, 1, -0.215);
+            susp_locs[3] = ChVector<>(-2.656, 1, -0.215);
+            susp_locs[4] = ChVector<>(-3.322, 1, -0.215);
+            break;
+        case RIGHT:
+            sprocket_loc = ChVector<>(0, -1, 0);
+            idler_loc = ChVector<>(-3.92, -1, -0.12);  //// Original x value: -3.97
+            susp_locs[0] = ChVector<>(-0.740, -1, -0.215);
+            susp_locs[1] = ChVector<>(-1.407, -1, -0.215);
+            susp_locs[2] = ChVector<>(-2.074, -1, -0.215);
+            susp_locs[3] = ChVector<>(-2.740, -1, -0.215);
+            susp_locs[4] = ChVector<>(-3.407, -1, -0.215);
+            break;
+    }
 
     ChTrackTestRig rig(track_assembly, sprocket_loc, idler_loc, susp_locs, ChMaterialSurfaceBase::DVI);
     //rig.GetSystem()->Set_G_acc(ChVector<>(0, 0, 0));
-    rig.GetSystem()->SetLcpSolverType(ChSystem::LCP_ITERATIVE_SOR);
-    rig.GetSystem()->SetIterLCPmaxItersSpeed(50);
-    rig.GetSystem()->SetIterLCPmaxItersStab(50);
+    rig.GetSystem()->SetSolverType(ChSystem::SOLVER_SOR);
+    rig.GetSystem()->SetMaxItersSolverSpeed(50);
+    rig.GetSystem()->SetMaxItersSolverStab(50);
     rig.GetSystem()->SetTol(0);
     rig.GetSystem()->SetMaxPenetrationRecoverySpeed(1.5);
     rig.GetSystem()->SetMinBounceSpeed(2.0);
-    rig.GetSystem()->SetIterLCPomega(0.8);
-    rig.GetSystem()->SetIterLCPsharpnessLambda(1.0);
+    rig.GetSystem()->SetSolverOverrelaxationParam(0.8);
+    rig.GetSystem()->SetSolverSharpnessParam(1.0);
 
     rig.Initialize(ChCoordsys<>());
 

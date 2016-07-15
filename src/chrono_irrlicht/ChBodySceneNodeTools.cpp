@@ -10,9 +10,9 @@
 // and at http://projectchrono.org/license-chrono.txt.
 //
 
-#include "chrono/geometry/ChCSphere.h"
-#include "chrono/geometry/ChCBox.h"
-#include "chrono/geometry/ChCTriangleMeshSoup.h"
+#include "chrono/geometry/ChSphere.h"
+#include "chrono/geometry/ChBox.h"
+#include "chrono/geometry/ChTriangleMeshSoup.h"
 
 #include "chrono_irrlicht/ChBodySceneNodeTools.h"
 
@@ -211,10 +211,11 @@ ISceneNode* addChBodySceneNode_easyClone(ChSystem* asystem,
                                                                        0,  // source->GetChildMesh()->getMesh(),
                                                                        1, position, rotation, aparent, mid);
 
-    rigidBodyZ->GetBody()->Copy(source->GetBody().get());  // copy all settings of the original body (masses, inertia, etc.)
-    rigidBodyZ->GetBody()->SetSystem(source->GetBody()->GetSystem());  // because Copy() set system to null..
-    rigidBodyZ->GetBody()->SetPos(position);                           // because Copy() changed it
-    rigidBodyZ->GetBody()->SetRot(rotation);                           // because Copy() changed it
+    // copy all settings of the original body (masses, inertia, etc.)
+    rigidBodyZ->GetBody() = std::shared_ptr<ChBody>(source->GetBody().get()->Clone());
+    rigidBodyZ->GetBody()->SetSystem(source->GetBody()->GetSystem());
+    rigidBodyZ->GetBody()->SetPos(position);
+    rigidBodyZ->GetBody()->SetRot(rotation);
 
     rigidBodyZ->setScale(source->getScale());
 

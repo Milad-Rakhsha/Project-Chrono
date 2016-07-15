@@ -25,8 +25,8 @@
 #include <vector>
 
 #include "chrono/ChConfig.h"
-#include "chrono/lcp/ChLcpIterativeMINRES.h"
-#include "chrono/lcp/ChLcpSolverDEM.h"
+#include "chrono/solver/ChSolverMINRES.h"
+#include "chrono/solver/ChSolverDEM.h"
 #include "chrono/physics/ChContactContainerDEM.h"
 #include "chrono/physics/ChSystemDEM.h"
 #include "chrono/utils/ChUtilsCreators.h"
@@ -56,8 +56,8 @@ double rtol = 1e-3;  // validation relative error
 // ---------------------------
 
 bool use_mat_properties = false;
-bool use_history = false;
 ChSystemDEM::ContactForceModel force_model = ChSystemDEM::Hooke;
+ChSystemDEM::TangentialDisplacementModel tdispl_model = ChSystemDEM::OneStep;
 
 float young_modulus = 2e4f;
 float friction = 0.4f;
@@ -120,8 +120,8 @@ bool test_computecontact(ChMaterialSurfaceBase::ContactMethod method) {
 
             ChSystemDEM* sys = new ChSystemDEM;
             sys->UseMaterialProperties(use_mat_properties);
-            sys->UseContactHistory(use_history);
             sys->SetContactForceModel(force_model);
+            sys->SetTangentialDisplacementModel(tdispl_model);
             sys->SetStiffContact(stiff_contact);
             system = sys;
 
@@ -195,16 +195,16 @@ bool test_computecontact(ChMaterialSurfaceBase::ContactMethod method) {
     switch (solver_type) {
         case DEFAULT_SOLVER: {
             GetLog() << "Using DEFAULT solver.\n";
-            system->SetIterLCPmaxItersSpeed(100);
+            system->SetMaxItersSolverSpeed(100);
             system->SetTolForce(1e-6);
             break;
         }
         case MINRES_SOLVER: {
             GetLog() << "Using MINRES solver.\n";
-            ChLcpIterativeMINRES* minres_solver = new ChLcpIterativeMINRES;
+            ChSolverMINRES* minres_solver = new ChSolverMINRES;
             minres_solver->SetDiagonalPreconditioning(true);
-            system->ChangeLcpSolverSpeed(minres_solver);
-            system->SetIterLCPmaxItersSpeed(100);
+            system->ChangeSolverSpeed(minres_solver);
+            system->SetMaxItersSolverSpeed(100);
             system->SetTolForce(1e-6);
             break;
         }

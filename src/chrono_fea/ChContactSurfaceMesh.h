@@ -17,7 +17,6 @@
 #include "chrono_fea/ChNodeFEAxyz.h"
 #include "chrono/collision/ChCCollisionModel.h"
 #include "chrono/collision/ChCCollisionUtils.h"
-#include "chrono/physics/ChSystem.h"
 
 namespace chrono {
 namespace fea {
@@ -25,7 +24,7 @@ namespace fea {
 /// Contact element of triangular type.
 /// This can be used to 'tesselate' a generic surface like the
 /// outer of tetrahedral meshes
-class ChApiFea ChContactTriangleXYZ : public ChContactable_3vars<3, 3, 3> {
+class ChApiFea ChContactTriangleXYZ : public ChContactable_3vars<3,3,3> {
     // Chrono simulation of RTTI, needed for serialization
     CH_RTTI_ROOT(ChContactTriangleXYZ);
 
@@ -68,11 +67,11 @@ class ChApiFea ChContactTriangleXYZ : public ChContactable_3vars<3, 3, 3> {
     //
 
     /// Access variables for node 1
-    virtual ChLcpVariables* GetVariables1() override { return &mnode1->Variables(); }
+    virtual ChVariables* GetVariables1() override { return &mnode1->Variables(); }
     /// Access variables for node 2
-    virtual ChLcpVariables* GetVariables2() override { return &mnode2->Variables(); }
+    virtual ChVariables* GetVariables2() override { return &mnode2->Variables(); }
     /// Access variables for node 3
-    virtual ChLcpVariables* GetVariables3() override { return &mnode3->Variables(); }
+    virtual ChVariables* GetVariables3() override { return &mnode3->Variables(); }
 
     /// Tell if the object must be considered in collision detection
     virtual bool IsContactActive() override { return true; }
@@ -108,7 +107,7 @@ class ChApiFea ChContactTriangleXYZ : public ChContactable_3vars<3, 3, 3> {
     /// Express the local point in absolute frame, for the given state position.
     virtual ChVector<> GetContactPoint(const ChVector<>& loc_point, const ChState& state_x) override {
         // Note: because the reference coordinate system for a ChcontactTriangleXYZ is the identity,
-        // the given point loc_point is actually expressed in the global frame. In this case, we
+        // the given point loc_point is actually expressed in the global frame. In this case, we 
         // calculate the output point here by assuming that its barycentric coordinates do not change
         // with a change in the states of this object.
         double s2, s3;
@@ -129,7 +128,7 @@ class ChApiFea ChContactTriangleXYZ : public ChContactable_3vars<3, 3, 3> {
                                             const ChState& state_x,
                                             const ChStateDelta& state_w) override {
         // Note: because the reference coordinate system for a ChcontactTriangleXYZ is the identity,
-        // the given point loc_point is actually expressed in the global frame. In this case, we
+        // the given point loc_point is actually expressed in the global frame. In this case, we 
         // calculate the output point here by assuming that its barycentric coordinates do not change
         // with a change in the states of this object.
         double s2, s3;
@@ -215,7 +214,7 @@ class ChApiFea ChContactTriangleXYZ : public ChContactable_3vars<3, 3, 3> {
     }
 
     /// Return the pointer to the surface material.
-    virtual std::shared_ptr<ChMaterialSurfaceBase>& GetMaterialSurfaceBase() override;
+    virtual std::shared_ptr<ChMaterialSurfaceBase>& GetMaterialSurfaceBase() override ;
 
     /// This is only for backward compatibility
     virtual ChPhysicsItem* GetPhysicsItem() override;
@@ -228,11 +227,10 @@ class ChApiFea ChContactTriangleXYZ : public ChContactable_3vars<3, 3, 3> {
         double dist;
         int is_into;
         ChVector<> p_projected;
-        dist = collision::ChCollisionUtils::PointTriangleDistance(P, mnode1->pos, mnode2->pos, mnode3->pos, u, v,
-                                                                  is_into, p_projected);
+        dist = collision::ChCollisionUtils::PointTriangleDistance(P, mnode1->pos, mnode2->pos, mnode3->pos, u, v, is_into, p_projected);
     }
 
-  private:
+private:
     collision::ChCollisionModel* collision_model;
 
     std::shared_ptr<ChNodeFEAxyz> mnode1;
@@ -254,21 +252,25 @@ class ChApiFea ChContactSurfaceMesh : public ChContactSurface {
 
     virtual ~ChContactSurfaceMesh() {}
 
-    //
+    // 
     // FUNCTIONS
     //
 
     /// Given a solid mesh (ex a mesh of tetrahetrons) it finds the faces on the outer boundary.
     /// That is, it scans all the finite elements already added in the parent ChMesh and adds the faces
     /// that are not shared (ie. the faces on the boundary 'skin').
+    /// The argument 'ccw' indicates whether the face vertices are provided in a counter-clockwise (default)
+    /// or clockwise order. This is currently used only for ANCF shell elements.
     /// Supported solids that generate boundary skin:
     /// - tetrahedrons
     /// - ANCF shells (only one side)
     /// - more will follow in future
-    void AddFacesFromBoundary(double sphere_swept = 0.0, bool ccw);
+    void AddFacesFromBoundary(double sphere_swept = 0.0,  ///< radius of swept sphere
+                              bool ccw = true             ///< indicate clockwise or counterclockwise vertex ordering
+                              );
 
     /// As AddFacesFromBoundary, but only for faces containing selected nodes in node_set.
-    // void AddFacesFromNodeSet(std::vector<std::shared_ptr<ChNodeFEAbase> >& node_set); ***TODO***
+    //void AddFacesFromNodeSet(std::vector<std::shared_ptr<ChNodeFEAbase> >& node_set); ***TODO***
 
     /// Get the list of triangles.
     std::vector<std::shared_ptr<ChContactTriangleXYZ> >& GetTriangleList() { return vfaces; }
@@ -283,16 +285,6 @@ class ChApiFea ChContactSurfaceMesh : public ChContactSurface {
     virtual void SurfaceSyncCollisionModels();
     virtual void SurfaceAddCollisionModelsToSystem(ChSystem* msys);
     virtual void SurfaceRemoveCollisionModelsFromSystem(ChSystem* msys);
-
-    ChVector<> GetContactForce(ChSystem* m_system, ChNodeFEAxyz* m_node) {
-        ChVector<> ForceVector(0);
-        for (std::shared_ptr<ChContactTriangleXYZ> face : vfaces) {
-            if (m_node == face->GetNode1().get() || m_node == face->GetNode2().get() ||
-                m_node == face->GetNode3().get())
-                ForceVector += m_system->GetContactContainer()->GetContactableForce(face.get()) / 3.0;
-        }
-        return ForceVector;
-    }
 
   private:
     std::vector<std::shared_ptr<ChContactTriangleXYZ> > vfaces;  //  faces that collide

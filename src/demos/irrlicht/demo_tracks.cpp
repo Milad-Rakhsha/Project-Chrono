@@ -25,7 +25,7 @@
 //   Multibody dinamics engine
 //
 // ------------------------------------------------
-//             www.deltaknowledge.com
+//             http://www.projectchrono.org
 // ------------------------------------------------
 ///////////////////////////////////////////////////
 
@@ -35,7 +35,7 @@
 #include "chrono_irrlicht/ChBodySceneNodeTools.h"
 #include "chrono_irrlicht/ChIrrApp.h"
 #include "chrono/core/ChRealtimeStep.h"
-#include "chrono/geometry/ChCTriangleMeshSoup.h"
+#include "chrono/geometry/ChTriangleMeshSoup.h"
 
 #include <irrlicht.h>
 
@@ -369,22 +369,19 @@ class MySimpleTank {
     }
 
     // Utility function to create quickly a track shoe connected to the previous one
-    std::shared_ptr<ChBody> MakeShoe(
-      std::shared_ptr<ChBody> previous_shoe,  ///< will be linked with this one with revolute joint
-      std::shared_ptr<ChBody> template_shoe,  ///< collision geometry will be shared with this body, to save memory&cpu time.
-        ChVector<> position,
-        ChQuaternion<> rotation,                /// pos. and rotation
-        ChSystem& my_system,                    ///< the chrono::engine physical system
-        chrono::ChVector<> joint_displacement  // position of shoe-shoe constraint, relative to COG.
-        ) 
-                        {
-
-      std::shared_ptr<ChBody> rigidBodyShoe(new ChBody);
+    std::shared_ptr<ChBody>
+    MakeShoe(std::shared_ptr<ChBody> previous_shoe,  // will be linked with this one with revolute joint
+             std::shared_ptr<ChBody> template_shoe,  // collision geometry will be shared with this body, to save memory&cpu time.
+             ChVector<> position,                    // position
+             ChQuaternion<> rotation,                // orientation
+             ChSystem& my_system,                    // the physical system
+             chrono::ChVector<> joint_displacement   // position of shoe-shoe constraint, relative to COG.
+             ) {
+        auto rigidBodyShoe = std::shared_ptr<ChBody>(template_shoe.get()->Clone());
+        ////rigidBodyShoe->SetSystem(template_shoe->GetSystem()); //// RADU: this seems redundant as the system will be set when adding the body
+        rigidBodyShoe->SetPos(position);
+        rigidBodyShoe->SetRot(rotation);
         my_system.Add(rigidBodyShoe);
-        rigidBodyShoe->Copy(template_shoe.get());  // copy all settings from the template body
-        rigidBodyShoe->SetSystem(template_shoe->GetSystem());  // because Copy() set system to null..
-        rigidBodyShoe->SetPos(position);              // because Copy() changed it
-        rigidBodyShoe->SetRot(rotation);              // because Copy() changed it
 
         rigidBodyShoe->GetCollisionModel()->ClearModel();
         rigidBodyShoe->GetCollisionModel()->AddCopyOfAnotherModel(template_shoe->GetCollisionModel());
@@ -550,8 +547,8 @@ int main(int argc, char* argv[]) {
     // SETTINGS
     //
 
-    my_system.SetIterLCPmaxItersSpeed(100);  // the higher, the easier to keep the constraints 'mounted'.
-    my_system.SetLcpSolverType(ChSystem::LCP_ITERATIVE_SOR);
+    my_system.SetMaxItersSolverSpeed(100);  // the higher, the easier to keep the constraints 'mounted'.
+    my_system.SetSolverType(ChSystem::SOLVER_SOR);
 
     //
     // THE SOFT-REAL-TIME CYCLE, SHOWING THE SIMULATION

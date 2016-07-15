@@ -1,10 +1,10 @@
-Chrono: Brief Intro {#introduction_chrono}
+Brief Intro {#introduction_chrono}
 ==========================
 
 
 The following is a short list of main attributes of Chrono.
 
-### Physical modeling
+### Physics modeling
 
 -   Rigid body support
 -   Flexible body support via Chrono::FEA module - both for ANCF and co-rotational nonlinear finite element analysis

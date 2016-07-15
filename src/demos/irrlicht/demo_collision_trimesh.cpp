@@ -21,7 +21,7 @@
 //   Multibody dinamics engine
 //
 // ------------------------------------------------
-//             www.deltaknowledge.com
+//             http://www.projectchrono.org
 // ------------------------------------------------
 ///////////////////////////////////////////////////
 
@@ -30,7 +30,7 @@
 #include "chrono/physics/ChParticlesClones.h"
 #include "chrono/assets/ChTexture.h"
 #include "chrono/assets/ChTriangleMeshShape.h"
-#include "chrono/geometry/ChCTriangleMeshConnected.h"
+#include "chrono/geometry/ChTriangleMeshConnected.h"
 
 #include "chrono_irrlicht/ChIrrApp.h"
 
