@@ -147,7 +147,9 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 std::vector<ChVector<>> NodeFrc);
 class MyLoadSpringDamper : public ChLoadCustomMultiple {
   public:
-    MyLoadSpringDamper(std::vector<std::shared_ptr<ChLoadable>>& mloadables, std::shared_ptr<ChBody> AttachBodyInput)
+    MyLoadSpringDamper(std::vector<std::shared_ptr<ChLoadable>>& mloadables,
+                       std::shared_ptr<ChBody> AttachBodyInput,
+                       double init_sp_def)
         : ChLoadCustomMultiple(mloadables),
           AttachBody(AttachBodyInput),
           K_sp(mloadables.size(), 1e4),
@@ -160,6 +162,7 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
             auto Node = std::static_pointer_cast<ChNodeFEAxyzD>(mloadables[i]);
             l0.push_back((Node->GetPos() - AttachBody->GetPos()).Length());
         }
+        init_spring_def = init_sp_def;
     }
 
     std::shared_ptr<ChBody> AttachBody;    // Body to attach springs and dampers
@@ -167,6 +170,7 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
     std::vector<double> C_dp;              // Damping coefficient of dampers
     std::vector<double> l0;                // Initial, undeformed spring-damper length
     std::vector<ChVector<>> LocalBodyAtt;  // Local Body Attachment
+    double init_spring_def;
 
     virtual void ComputeQ(ChState* state_x,      ///< state position to evaluate Q
                           ChStateDelta* state_w  ///< state speed to evaluate Q
@@ -191,8 +195,8 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
                 double c_length = dij.Length();    // l
                 ddij = Node_Vel - AttachBody->PointSpeedLocalToParent(LocalBodyAtt[iii]);  // Time derivative of dij
                 double dc_length = 1 / c_length * (dij.x * ddij.x + dij.y * ddij.y + dij.z * ddij.z);  // ldot
-                double for_spdp =
-                    K_sp[iii] * (c_length - l0[iii]) + C_dp[iii] * dc_length;  // Absolute value of spring-damper force
+                double for_spdp = K_sp[iii] * (c_length - l0[iii] - init_spring_def) +
+                                  C_dp[iii] * dc_length;  // Absolute value of spring-damper force
 
 #ifdef NormalSP
 
@@ -271,12 +275,12 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
 int main(int argc, char* argv[]) {
     ChSystemDEM my_system(false, 16000, 500);
 
-    std::string inputParameters = "Milad_AC-GaitCycle.json";
+    //    std::string inputParameters = "Milad_AC-GaitCycle.json";
     //    pass this to the below function -> inputParameters.c_str()
-    SetParamFromJSON(inputParameters, RootFolder, simulationFolder, num_threads, time_step, write_interval, dz,
-                     AlphaDamp, K_SPRINGS, C_DAMPERS, L0, L0_t, TibiaMass, femurMass, TibiaInertia, femurInertia, rho,
-                     E, nu, ContactModel, sphere_swept_thickness, Kn, Kt, Gn, Gt, AlphaHHT, MaxitersHHT,
-                     AbsToleranceHHT, AbsToleranceHHTConstraint, MaxItersSuccessHHT);
+    SetParamFromJSON(argv[1], RootFolder, simulationFolder, num_threads, time_step, write_interval, dz, AlphaDamp,
+                     K_SPRINGS, C_DAMPERS, L0, L0_t, TibiaMass, femurMass, TibiaInertia, femurInertia, rho, E, nu,
+                     ContactModel, sphere_swept_thickness, Kn, Kt, Gn, Gt, AlphaHHT, MaxitersHHT, AbsToleranceHHT,
+                     AbsToleranceHHTConstraint, MaxItersSuccessHHT);
 
     printf("time_step= %f, write_interval_time=%d, num_threads=%d\n", time_step, write_interval, num_threads);
     printf("AlphaDamp= %f, dz=%f\n", AlphaDamp, dz);
@@ -499,7 +503,7 @@ int main(int argc, char* argv[]) {
                 auto NodeLoad = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_femur->GetNode(iNode));
                 NodeList.push_back(NodeLoad);
             }
-            auto OneLoadSpringDamperFemur = std::make_shared<MyLoadSpringDamper>(NodeList, Femur);
+            auto OneLoadSpringDamperFemur = std::make_shared<MyLoadSpringDamper>(NodeList, Femur, 0.0);
             for (int iNode = 0; iNode < my_mesh_femur->GetNnodes(); iNode++) {
                 auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_femur->GetNode(iNode));
                 ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
@@ -592,7 +596,7 @@ int main(int argc, char* argv[]) {
                 auto NodeLoad = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_tibia->GetNode(iNode));
                 NodeList.push_back(NodeLoad);
             }
-            auto OneLoadSpringDamperTibia = std::make_shared<MyLoadSpringDamper>(NodeList, Tibia);
+            auto OneLoadSpringDamperTibia = std::make_shared<MyLoadSpringDamper>(NodeList, Tibia, 0.0);
             for (int iNode = 0; iNode < my_mesh_tibia->GetNnodes(); iNode++) {
                 auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_tibia->GetNode(iNode));
                 ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
@@ -650,7 +654,7 @@ int main(int argc, char* argv[]) {
         for (int NoElmPre = 0; NoElmPre < TotalNumElements_Femur; NoElmPre++) {
             auto faceload = std::make_shared<ChLoad<ChLoaderPressure>>(
                 std::static_pointer_cast<ChElementShellANCF>(my_mesh_femur->GetElement(NoElmPre)));
-            faceload->loader.SetPressure(1e6);
+            faceload->loader.SetPressure(0);
             faceload->loader.SetStiff(true);
             faceload->loader.SetIntegrationPoints(2);
             Mloadcontainer_Femur->Add(faceload);
@@ -660,7 +664,7 @@ int main(int argc, char* argv[]) {
         for (int NoElmPre = 0; NoElmPre < TotalNumElements_tibia; NoElmPre++) {
             auto faceload = std::make_shared<ChLoad<ChLoaderPressure>>(
                 std::static_pointer_cast<ChElementShellANCF>(my_mesh_tibia->GetElement(NoElmPre)));
-            faceload->loader.SetPressure(1e6);
+            faceload->loader.SetPressure(0);
             faceload->loader.SetStiff(true);
             faceload->loader.SetIntegrationPoints(2);
             Mloadcontainer_Tibia->Add(faceload);
@@ -1267,10 +1271,10 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                            ->GetPrincipalStrains();
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / 4;
-            areaAve1 += MyResult[1].x * dx * dy / 4;
-            areaAve2 += MyResult[1].y * dx * dy / 4;
-            areaAve3 += MyResult[1].z * dx * dy / 4;
+            myarea += dx * dy / NodeNeighborElement[i].size();
+            areaAve1 += MyResult[1].x * dx * dy / NodeNeighborElement[i].size();
+            areaAve2 += MyResult[1].y * dx * dy / NodeNeighborElement[i].size();
+            areaAve3 += MyResult[1].z * dx * dy / NodeNeighborElement[i].size();
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
@@ -1285,10 +1289,10 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                            ->GetPrincipalStrains();
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / 4;
-            areaAve1 += MyResult[2].x * dx * dy / 4;
-            areaAve2 += MyResult[2].y * dx * dy / 4;
-            areaAve3 += MyResult[2].z * dx * dy / 4;
+            myarea += dx * dy / NodeNeighborElement[i].size();
+            areaAve1 += MyResult[2].x * dx * dy / NodeNeighborElement[i].size();
+            areaAve2 += MyResult[2].y * dx * dy / NodeNeighborElement[i].size();
+            areaAve3 += MyResult[2].z * dx * dy / NodeNeighborElement[i].size();
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
@@ -1307,14 +1311,17 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                     ->GetPrincipalStrains();
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / 4;
+            myarea += dx * dy / NodeNeighborElement[i].size();
 
             if (MyResult_mag[0].y < 0) {
                 MyResult_mag[0].y = 0;
             }
-            areaAve1 += (MyResult_mag[0].x * MyResult[1].x + MyResult_mag[0].y * MyResult[2].x) * dx * dy / 4;
-            areaAve2 += (MyResult_mag[0].x * MyResult[1].y + MyResult_mag[0].y * MyResult[2].y) * dx * dy / 4;
-            areaAve3 += (MyResult_mag[0].x * MyResult[1].z + MyResult_mag[0].y * MyResult[2].z) * dx * dy / 4;
+            areaAve1 += (MyResult_mag[0].x * MyResult[1].x + MyResult_mag[0].y * MyResult[2].x) * dx * dy /
+                        NodeNeighborElement[i].size();
+            areaAve2 += (MyResult_mag[0].x * MyResult[1].y + MyResult_mag[0].y * MyResult[2].y) * dx * dy /
+                        NodeNeighborElement[i].size();
+            areaAve3 += (MyResult_mag[0].x * MyResult[1].z + MyResult_mag[0].y * MyResult[2].z) * dx * dy /
+                        NodeNeighborElement[i].size();
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
@@ -1333,11 +1340,14 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                     ->GetPrincipalStrains();
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / 4;
+            myarea += dx * dy / NodeNeighborElement[i].size();
 
-            areaAve1 += (MyResult_mag[0].x * MyResult[1].x + MyResult_mag[0].y * MyResult[2].x) * dx * dy / 4;
-            areaAve2 += (MyResult_mag[0].x * MyResult[1].y + MyResult_mag[0].y * MyResult[2].y) * dx * dy / 4;
-            areaAve3 += (MyResult_mag[0].x * MyResult[1].z + MyResult_mag[0].y * MyResult[2].z) * dx * dy / 4;
+            areaAve1 += (MyResult_mag[0].x * MyResult[1].x + MyResult_mag[0].y * MyResult[2].x) * dx * dy /
+                        NodeNeighborElement[i].size();
+            areaAve2 += (MyResult_mag[0].x * MyResult[1].y + MyResult_mag[0].y * MyResult[2].y) * dx * dy /
+                        NodeNeighborElement[i].size();
+            areaAve3 += (MyResult_mag[0].x * MyResult[1].z + MyResult_mag[0].y * MyResult[2].z) * dx * dy /
+                        NodeNeighborElement[i].size();
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
@@ -1352,10 +1362,10 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                            ->GetPrincipalStresses();
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / 4;
-            areaAve1 += MyResult[0].x * dx * dy / 4;
-            areaAve2 += MyResult[0].y * dx * dy / 4;
-            areaAve3 += MyResult[0].z * dx * dy / 4;
+            myarea += dx * dy / NodeNeighborElement[i].size();
+            areaAve1 += MyResult[0].x * dx * dy / NodeNeighborElement[i].size();
+            areaAve2 += MyResult[0].y * dx * dy / NodeNeighborElement[i].size();
+            areaAve3 += MyResult[0].z * dx * dy / NodeNeighborElement[i].size();
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
@@ -1370,10 +1380,10 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                            ->GetPrincipalStresses();
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / 4;
-            areaAve1 += MyResult[1].x * dx * dy / 4;
-            areaAve2 += MyResult[1].y * dx * dy / 4;
-            areaAve3 += MyResult[1].z * dx * dy / 4;
+            myarea += dx * dy / NodeNeighborElement[i].size();
+            areaAve1 += MyResult[1].x * dx * dy / NodeNeighborElement[i].size();
+            areaAve2 += MyResult[1].y * dx * dy / NodeNeighborElement[i].size();
+            areaAve3 += MyResult[1].z * dx * dy / NodeNeighborElement[i].size();
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
@@ -1389,10 +1399,10 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                            ->GetPrincipalStresses();
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / 4;
-            areaAve1 += MyResult[2].x * dx * dy / 4;
-            areaAve2 += MyResult[2].y * dx * dy / 4;
-            areaAve3 += MyResult[2].z * dx * dy / 4;
+            myarea += dx * dy / NodeNeighborElement[i].size();
+            areaAve1 += MyResult[2].x * dx * dy / NodeNeighborElement[i].size();
+            areaAve2 += MyResult[2].y * dx * dy / NodeNeighborElement[i].size();
+            areaAve3 += MyResult[2].z * dx * dy / NodeNeighborElement[i].size();
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
@@ -1405,10 +1415,10 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             int myelemInx = NodeNeighborElement[i][j];
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / 4;
-            areaAve1 += NodeFrc[i].x * dx * dy / 4;
-            areaAve2 += NodeFrc[i].y * dx * dy / 4;
-            areaAve3 += NodeFrc[i].z * dx * dy / 4;
+            myarea += dx * dy / NodeNeighborElement[i].size();
+            areaAve1 += NodeFrc[i].x * dx * dy / NodeNeighborElement[i].size();
+            areaAve2 += NodeFrc[i].y * dx * dy / NodeNeighborElement[i].size();
+            areaAve3 += NodeFrc[i].z * dx * dy / NodeNeighborElement[i].size();
         }
         output << areaAve1 / (myarea * myarea) << " " << areaAve2 / (myarea * myarea) << " "
                << areaAve3 / (myarea * myarea) << "\n";
