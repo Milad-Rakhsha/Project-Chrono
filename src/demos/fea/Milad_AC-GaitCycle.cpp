@@ -66,13 +66,15 @@ using namespace irr;
 using namespace std;
 using namespace rapidjson;
 
-enum ROT_SYS { XYZ, ZXY };  // Only these are supported for now ...
-#define NormalSP            // Defines whether spring and dampers will always remain normal to the surface
+enum ROT_SYS { XYZ, ZXY };
+// Only these are supported for now ...
+#define NormalSP  // Defines whether spring and dampers will always remain normal to the surface
 //#define USE_IRR ;
+#define addPressure
+#define CalcRegions
 
 bool outputData = true;
 bool addGravity = false;
-bool addPressure = false;
 bool addForce = false;
 bool showTibia = true;
 bool showFemur = true;
@@ -84,11 +86,11 @@ const ROT_SYS myRot = ZXY;
 
 int num_threads;
 double time_step;
-int write_interval;                             // write every 0.01s
-double dz, AlphaDamp;                           // ANCF SHELL
-double K_SPRINGS, C_DAMPERS, L0, L0_t;          // Elastic Foundation
-double rho, E, nu;                              // Material Properties
-double sphere_swept_thickness, Kn, Kt, Gn, Gt;  // Contact
+int write_interval;                                           // write every 0.01s
+double dz, AlphaDamp;                                         // ANCF SHELL
+double K_SPRINGS, C_DAMPERS, L0, L0_t, init_def, p0_f, p0_t;  // Elastic Foundation
+double rho, E, nu;                                            // Material Properties
+double sphere_swept_thickness, Kn, Kt, Gn, Gt;                // Contact
 ChSystemDEM::ContactForceModel ContactModel;
 double TibiaMass, femurMass;                                  // Rigid Bodies
 ChVector<> TibiaInertia, femurInertia;                        // Rigid Bodies
@@ -106,6 +108,9 @@ void SetParamFromJSON(const std::string& filename,
                       double& AlphaDamp,
                       double& K_SPRINGS,
                       double& C_DAMPERS,
+                      double& init_def,
+                      double& p0_f,
+                      double& p0_t,
                       double& L0,
                       double& L0_t,
                       double& TibiaMass,
@@ -126,7 +131,8 @@ void SetParamFromJSON(const std::string& filename,
                       double& AbsToleranceHHT,
                       double& AbsToleranceHHTConstraint,
                       int& MaxItersSuccessHHT);
-
+double calcPressureInside(std::shared_ptr<ChMesh> my_mesh, double p_0, double v_0);
+double findRegion(ChVector<double> pos);
 void ReadOBJConnectivity(const char* filename,
                          string SaveAs,
                          std::vector<std::vector<double>>& vCoor,
@@ -278,9 +284,9 @@ int main(int argc, char* argv[]) {
     //    std::string inputParameters = "Milad_AC-GaitCycle.json";
     //    pass this to the below function -> inputParameters.c_str()
     SetParamFromJSON(argv[1], RootFolder, simulationFolder, num_threads, time_step, write_interval, dz, AlphaDamp,
-                     K_SPRINGS, C_DAMPERS, L0, L0_t, TibiaMass, femurMass, TibiaInertia, femurInertia, rho, E, nu,
-                     ContactModel, sphere_swept_thickness, Kn, Kt, Gn, Gt, AlphaHHT, MaxitersHHT, AbsToleranceHHT,
-                     AbsToleranceHHTConstraint, MaxItersSuccessHHT);
+                     K_SPRINGS, C_DAMPERS, init_def, p0_f, p0_t, L0, L0_t, TibiaMass, femurMass, TibiaInertia,
+                     femurInertia, rho, E, nu, ContactModel, sphere_swept_thickness, Kn, Kt, Gn, Gt, AlphaHHT,
+                     MaxitersHHT, AbsToleranceHHT, AbsToleranceHHTConstraint, MaxItersSuccessHHT);
 
     printf("time_step= %f, write_interval_time=%d, num_threads=%d\n", time_step, write_interval, num_threads);
     printf("AlphaDamp= %f, dz=%f\n", AlphaDamp, dz);
@@ -481,7 +487,7 @@ int main(int argc, char* argv[]) {
 
     if (femurCartilage) {
         try {
-            ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_femur, GetChronoDataFile("fea/FemurFine.mesh").c_str(),
+            ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh_femur, GetChronoDataFile("fea/FemurVeryFine.mesh").c_str(),
                                                    material, NODE_AVE_AREA_f, BC_NODES, Center_Femur, rot_transform,
                                                    MeterToInch, false, false);
         } catch (ChException myerr) {
@@ -503,7 +509,7 @@ int main(int argc, char* argv[]) {
                 auto NodeLoad = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_femur->GetNode(iNode));
                 NodeList.push_back(NodeLoad);
             }
-            auto OneLoadSpringDamperFemur = std::make_shared<MyLoadSpringDamper>(NodeList, Femur, 0.0);
+            auto OneLoadSpringDamperFemur = std::make_shared<MyLoadSpringDamper>(NodeList, Femur, init_def);
             for (int iNode = 0; iNode < my_mesh_femur->GetNnodes(); iNode++) {
                 auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_femur->GetNode(iNode));
                 ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
@@ -596,7 +602,7 @@ int main(int argc, char* argv[]) {
                 auto NodeLoad = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_tibia->GetNode(iNode));
                 NodeList.push_back(NodeLoad);
             }
-            auto OneLoadSpringDamperTibia = std::make_shared<MyLoadSpringDamper>(NodeList, Tibia, 0.0);
+            auto OneLoadSpringDamperTibia = std::make_shared<MyLoadSpringDamper>(NodeList, Tibia, init_def);
             for (int iNode = 0; iNode < my_mesh_tibia->GetNnodes(); iNode++) {
                 auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh_tibia->GetNode(iNode));
                 ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
@@ -646,32 +652,6 @@ int main(int argc, char* argv[]) {
         element->SetGravityOn(false);      // gravitational forces
     }
 
-    if (addPressure) {
-        // First: loads must be added to "load containers",
-        // and load containers must be added to your ChSystem
-        auto Mloadcontainer_Femur = std::make_shared<ChLoadContainer>();
-        // Add constant pressure using ChLoaderPressure (preferred for simple, constant pressure)
-        for (int NoElmPre = 0; NoElmPre < TotalNumElements_Femur; NoElmPre++) {
-            auto faceload = std::make_shared<ChLoad<ChLoaderPressure>>(
-                std::static_pointer_cast<ChElementShellANCF>(my_mesh_femur->GetElement(NoElmPre)));
-            faceload->loader.SetPressure(0);
-            faceload->loader.SetStiff(true);
-            faceload->loader.SetIntegrationPoints(2);
-            Mloadcontainer_Femur->Add(faceload);
-        }
-        my_system.Add(Mloadcontainer_Femur);
-        auto Mloadcontainer_Tibia = std::make_shared<ChLoadContainer>();
-        for (int NoElmPre = 0; NoElmPre < TotalNumElements_tibia; NoElmPre++) {
-            auto faceload = std::make_shared<ChLoad<ChLoaderPressure>>(
-                std::static_pointer_cast<ChElementShellANCF>(my_mesh_tibia->GetElement(NoElmPre)));
-            faceload->loader.SetPressure(0);
-            faceload->loader.SetStiff(true);
-            faceload->loader.SetIntegrationPoints(2);
-            Mloadcontainer_Tibia->Add(faceload);
-        }
-        my_system.Add(Mloadcontainer_Tibia);
-    }
-
     // Switch off mesh class gravity
     my_mesh_femur->SetAutomaticGravity(addGravity);
     my_mesh_tibia->SetAutomaticGravity(addGravity);
@@ -691,6 +671,37 @@ int main(int argc, char* argv[]) {
     mcontactsurf_tibia->SetMaterialSurface(mysurfmaterial);            // use the DEM penalty contacts
     mcontactsurf_femur->AddFacesFromBoundary(sphere_swept_thickness);  // do this after my_mesh->AddContactSurface
     mcontactsurf_femur->SetMaterialSurface(mysurfmaterial);            // use the DEM penalty contacts
+
+#ifdef addPressure
+    std::vector<std::shared_ptr<ChLoad<ChLoaderPressure>>> faceload_fumer;
+    std::vector<std::shared_ptr<ChLoad<ChLoaderPressure>>> faceload_tibia;
+
+    // First: loads must be added to "load containers",
+    // and load containers must be added to your ChSystem
+    auto Mloadcontainer_Femur = std::make_shared<ChLoadContainer>();
+    // Add constant pressure using ChLoaderPressure (preferred for simple, constant pressure)
+    for (int NoElmPre = 0; NoElmPre < TotalNumElements_Femur; NoElmPre++) {
+        auto faceload = std::make_shared<ChLoad<ChLoaderPressure>>(
+            std::static_pointer_cast<ChElementShellANCF>(my_mesh_femur->GetElement(NoElmPre)));
+        faceload->loader.SetPressure(p0_f);
+        faceload->loader.SetStiff(true);
+        faceload->loader.SetIntegrationPoints(2);
+        faceload_fumer.push_back(faceload);
+        Mloadcontainer_Femur->Add(faceload);
+    }
+    my_system.Add(Mloadcontainer_Femur);
+    auto Mloadcontainer_Tibia = std::make_shared<ChLoadContainer>();
+    for (int NoElmPre = 0; NoElmPre < TotalNumElements_tibia; NoElmPre++) {
+        auto faceload = std::make_shared<ChLoad<ChLoaderPressure>>(
+            std::static_pointer_cast<ChElementShellANCF>(my_mesh_tibia->GetElement(NoElmPre)));
+        faceload->loader.SetPressure(p0_t);
+        faceload->loader.SetStiff(true);
+        faceload->loader.SetIntegrationPoints(2);
+        faceload_tibia.push_back(faceload);
+        Mloadcontainer_Tibia->Add(faceload);
+    }
+    my_system.Add(Mloadcontainer_Tibia);
+#endif
 
     my_system.Add(my_mesh_tibia);
     my_system.Add(my_mesh_femur);
@@ -892,6 +903,19 @@ int main(int argc, char* argv[]) {
     while (my_system.GetChTime() < 2) {
         ChQuaternion<> myRot = Tibia->GetRot();
         printf("Tibia Rot= %f  %f  %f  %f \n", myRot.e1, myRot.e2, myRot.e3, myRot.e0);
+#ifdef addPressure
+        double h_0 = 0.003;
+        double p_femur = calcPressureInside(my_mesh_femur, p0_f, h_0);
+        printf("The pressure ratio is %f\n\n", p_femur / p0_f);
+        for (int i = 0; i < faceload_fumer.size(); i++) {
+            faceload_fumer[i]->loader.SetPressure(p_femur);
+        }
+
+        for (int i = 0; i < faceload_tibia.size(); i++) {
+            faceload_tibia[i]->loader.SetPressure(p0_t);
+        }
+
+#endif
         my_system.DoStepDynamics(time_step);
         step_count++;
         std::ofstream output_femur;
@@ -1106,6 +1130,7 @@ void ReadOBJConnectivity(const char* filename,
 
     int step_count = 0;
 }
+
 void WriteRigidBodyVTK(std::shared_ptr<ChBody> Body,
                        std::vector<std::vector<double>>& vCoor,
                        char SaveAsBuffer[256],
@@ -1170,9 +1195,35 @@ void writeMesh(std::shared_ptr<ChMesh> my_mesh, string SaveAs, std::vector<std::
     for (int iele = 0; iele < my_mesh->GetNelements(); iele++) {
         MESH << "9\n";
     }
+    MESH << "\nPOINT_DATA " << my_mesh->GetNnodes() << "\n ";
+    MESH << "SCALARS Region float\n";
+    MESH << "LOOKUP_TABLE default\n";
+    for (int i = 0; i < my_mesh->GetNnodes(); i++) {
+        auto node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(i));
+        MESH << (uint)(findRegion(node->GetPos())) << "\n";
+    }
 
     MESH.write_to_file(SaveAs);
     int step_count = 0;
+}
+
+double calcPressureInside(std::shared_ptr<ChMesh> my_mesh, double p_1, double h_0) {
+    double Total_dV = 0;
+    double v1 = 0;
+    for (int i = 0; i < my_mesh->GetNelements(); i++) {
+        double areaAve = 0;
+        double dz = 0;
+        double myarea = 0;
+        double dx, dy;
+        std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(i))->EvaluateDeflection(dz);
+        dx = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(i))->GetLengthX();
+        dy = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(i))->GetLengthY();
+        Total_dV += dx * dy * dz;
+        v1 += dx * dy * h_0;
+    }
+
+    double v2 = -Total_dV + v1;
+    return (p_1 * std::pow(v1 / v2, 5));
 }
 
 ////////////////////////////////////////
@@ -1194,7 +1245,7 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
     }
     std::ifstream CopyFrom(MeshFileBuffer);
     output << CopyFrom.rdbuf();
-    output << "\nPOINT_DATA " << my_mesh->GetNnodes() << "\n ";
+    //    output << "\nPOINT_DATA " << my_mesh->GetNnodes() << "\n ";
     output << "SCALARS Deflection float\n";
     output << "LOOKUP_TABLE default\n";
     for (int i = 0; i < my_mesh->GetNnodes(); i++) {
@@ -1207,8 +1258,8 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->EvaluateDeflection(scalar);
             dx = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / 4;
-            areaAve += scalar * dx * dy / 4;
+            myarea += dx * dy / NodeNeighborElement[i].size();
+            areaAve += scalar * dx * dy / NodeNeighborElement[i].size();
         }
 
         output << areaAve / myarea << "\n";
@@ -1225,10 +1276,10 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                                ->EvaluateSectionStrains();
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / 4;
-            areaAve1 += StrainVector.x * dx * dy / 4;
-            areaAve2 += StrainVector.y * dx * dy / 4;
-            areaAve3 += StrainVector.z * dx * dy / 4;
+            myarea += dx * dy / NodeNeighborElement[i].size();
+            areaAve1 += StrainVector.x * dx * dy / NodeNeighborElement[i].size();
+            areaAve2 += StrainVector.y * dx * dy / NodeNeighborElement[i].size();
+            areaAve3 += StrainVector.z * dx * dy / NodeNeighborElement[i].size();
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
@@ -1244,18 +1295,18 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                            ->GetPrincipalStrains();
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / 4;
-            areaAve1 += MyResult[0].x * dx * dy / 4;
-            areaAve2 += MyResult[0].y * dx * dy / 4;
+            myarea += dx * dy / NodeNeighborElement[i].size();
+            areaAve1 += MyResult[0].x * dx * dy / NodeNeighborElement[i].size();
+            areaAve2 += MyResult[0].y * dx * dy / NodeNeighborElement[i].size();
             if (abs(MyResult[0].x) > 1e-3 && abs(MyResult[0].y) > 1e-3) {
                 double ratio = abs(areaAve1 / areaAve2);
                 if (ratio > 10)
                     ratio = 10;
                 if (ratio < 0.1)
                     ratio = 0.1;
-                areaAve3 += log10(ratio) * dx * dy / 4;
+                areaAve3 += log10(ratio) * dx * dy / NodeNeighborElement[i].size();
             } else {
-                areaAve3 += 0.0 * dx * dy / 4;
+                areaAve3 += 0.0 * dx * dy / NodeNeighborElement[i].size();
             }
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
@@ -1678,7 +1729,174 @@ void impose_TF_motion(std::vector<std::vector<double>> motionInfo,
 // double L0 = 0.01;  // Initial length
 // double L0_t = 0.01;
 // int write_interval = 0.005 / time_step;  // write every 0.01s
+double findRegion(ChVector<double> pos) {
+    ChVector<> BoxSize;
+    ChVector<> Boxcenter;
+    for (int i = 1; i <= 36; i++) {
+        switch (i) {
+            case 1:
+                BoxSize = ChVector<>(0.015, 0.023, 0.01);
+                Boxcenter = ChVector<>(-0.016, 0.008, -0.028);
+                break;
+            case 2:
+                BoxSize = ChVector<>(0.015, 0.023, 0.01);
+                Boxcenter = ChVector<>(-0.016, 0.008, -0.018);
+                break;
+            case 3:
+                BoxSize = ChVector<>(0.015, 0.023, 0.01);
+                Boxcenter = ChVector<>(-0.016, 0.008, -0.008);
+                break;
 
+            case 4:
+                BoxSize = ChVector<>(0.018, 0.023, 0.01);
+                Boxcenter = ChVector<>(-0.016, -0.015, -0.028);
+                break;
+            case 5:
+                BoxSize = ChVector<>(0.018, 0.023, 0.01);
+                Boxcenter = ChVector<>(-0.016, -0.015, -0.018);
+                break;
+            case 6:
+                BoxSize = ChVector<>(0.018, 0.023, 0.01);
+                Boxcenter = ChVector<>(-0.016, -0.015, -0.008);
+                break;
+
+            case 7:
+                BoxSize = ChVector<>(0.018, 0.023, 0.01);
+                Boxcenter = ChVector<>(0.002, -0.015, -0.028);
+                break;
+            case 8:
+                BoxSize = ChVector<>(0.018, 0.023, 0.01);
+                Boxcenter = ChVector<>(0.002, -0.015, -0.018);
+                break;
+            case 9:
+                BoxSize = ChVector<>(0.018, 0.023, 0.01);
+                Boxcenter = ChVector<>(0.002, -0.015, -0.008);
+                break;
+
+            case 10:
+                BoxSize = ChVector<>(0.016, 0.023, 0.012);
+                Boxcenter = ChVector<>(0.019, -0.023, -0.025);
+                break;
+            case 11:
+                BoxSize = ChVector<>(0.016, 0.023, 0.010);
+                Boxcenter = ChVector<>(0.019, -0.015, -0.014);
+                break;
+            case 12:
+                BoxSize = ChVector<>(0.016, 0.023, 0.010);
+                Boxcenter = ChVector<>(0.019, -0.015, -0.004);
+                break;
+
+            case 13:
+                BoxSize = ChVector<>(0.016, 0.023, 0.010);
+                Boxcenter = ChVector<>(0.035, -0.01, -0.017);
+                break;
+            case 14:
+                BoxSize = ChVector<>(0.016, 0.023, 0.008);
+                Boxcenter = ChVector<>(0.035, -0.01, -0.008);
+                break;
+            case 15:
+                BoxSize = ChVector<>(0.016, 0.023, 0.008);
+                Boxcenter = ChVector<>(0.035, -0.01, -0.001);
+                break;
+
+            case 16:
+                BoxSize = ChVector<>(0.016, 0.023, 0.010);
+                Boxcenter = ChVector<>(0.035, 0.013, -0.017);
+                break;
+            case 17:
+                BoxSize = ChVector<>(0.016, 0.023, 0.008);
+                Boxcenter = ChVector<>(0.035, 0.013, -0.008);
+                break;
+            case 18:
+                BoxSize = ChVector<>(0.016, 0.025, 0.006);
+                Boxcenter = ChVector<>(0.035, 0.014, -0.001);
+                break;
+            case 19:
+                BoxSize = ChVector<>(0.015, 0.023, 0.01);
+                Boxcenter = ChVector<>(-0.016, 0.008, 0.03);
+                break;
+            case 20:
+                BoxSize = ChVector<>(0.015, 0.023, 0.01);
+                Boxcenter = ChVector<>(-0.016, 0.008, 0.02);
+                break;
+            case 21:
+                BoxSize = ChVector<>(0.015, 0.023, 0.01);
+                Boxcenter = ChVector<>(-0.016, 0.008, 0.01);
+                break;
+
+            case 22:
+                BoxSize = ChVector<>(0.018, 0.023, 0.01);
+                Boxcenter = ChVector<>(-0.016, -0.015, 0.03);
+                break;
+            case 23:
+                BoxSize = ChVector<>(0.018, 0.023, 0.01);
+                Boxcenter = ChVector<>(-0.016, -0.015, 0.02);
+                break;
+            case 24:
+                BoxSize = ChVector<>(0.018, 0.023, 0.01);
+                Boxcenter = ChVector<>(-0.016, -0.015, 0.01);
+                break;
+
+            case 25:
+                BoxSize = ChVector<>(0.018, 0.023, 0.01);
+                Boxcenter = ChVector<>(0.002, -0.015, 0.03);
+                break;
+            case 26:
+                BoxSize = ChVector<>(0.018, 0.023, 0.01);
+                Boxcenter = ChVector<>(0.002, -0.015, 0.02);
+                break;
+            case 27:
+                BoxSize = ChVector<>(0.018, 0.023, 0.012);
+                Boxcenter = ChVector<>(0.002, -0.015, 0.009);
+                break;
+
+            case 28:
+                BoxSize = ChVector<>(0.016, 0.020, 0.012);
+                Boxcenter = ChVector<>(0.019, -0.016, 0.028);
+                break;
+            case 29:
+                BoxSize = ChVector<>(0.016, 0.023, 0.010);
+                Boxcenter = ChVector<>(0.019, -0.015, 0.017);
+                break;
+            case 30:
+                BoxSize = ChVector<>(0.016, 0.023, 0.011);
+                Boxcenter = ChVector<>(0.019, -0.015, 0.0065);
+                break;
+
+            case 31:
+                BoxSize = ChVector<>(0.02, 0.023, 0.010);
+                Boxcenter = ChVector<>(0.037, -0.01, 0.026);
+                break;
+            case 32:
+                BoxSize = ChVector<>(0.02, 0.023, 0.01);
+                Boxcenter = ChVector<>(0.037, -0.01, 0.0155);
+                break;
+            case 33:
+                BoxSize = ChVector<>(0.016, 0.023, 0.0085);
+                Boxcenter = ChVector<>(0.035, -0.01, 0.006);
+                break;
+            case 34:
+                BoxSize = ChVector<>(0.016, 0.023, 0.012);
+                Boxcenter = ChVector<>(0.038, 0.013, 0.026);
+                break;
+            case 35:
+                BoxSize = ChVector<>(0.016, 0.023, 0.01);
+                Boxcenter = ChVector<>(0.038, 0.013, 0.015);
+                break;
+            case 36:
+                BoxSize = ChVector<>(0.016, 0.025, 0.008);
+                Boxcenter = ChVector<>(0.038, 0.014, 0.006);
+                break;
+        }
+        ChVector<> BoxMin = Boxcenter - BoxSize / 2;
+        ChVector<> BoxMax = Boxcenter + BoxSize / 2;
+
+        if (pos > BoxMin && pos < BoxMax)
+            return i;
+    }
+
+    return 0;
+}
 void SetParamFromJSON(const std::string& filename,
                       std::string& RootFolder,
                       std::string& simulationFolder,
@@ -1689,6 +1907,9 @@ void SetParamFromJSON(const std::string& filename,
                       double& AlphaDamp,
                       double& K_SPRINGS,
                       double& C_DAMPERS,
+                      double& init_def,
+                      double& p0_f,
+                      double& p0_t,
                       double& L0,
                       double& L0_t,
                       double& TibiaMass,
@@ -1758,6 +1979,10 @@ void SetParamFromJSON(const std::string& filename,
     assert(d.HasMember("Elastic Foundation"));
     K_SPRINGS = d["Elastic Foundation"]["Stiffness"].GetDouble();
     C_DAMPERS = d["Elastic Foundation"]["Damping"].GetDouble();
+    init_def = d["Elastic Foundation"]["Initial Springs displacement"].GetDouble();
+    p0_f = d["Elastic Foundation"]["Internal Pressure Femur"].GetDouble();
+    p0_t = d["Elastic Foundation"]["Internal Pressure Tibia"].GetDouble();
+
     L0 = d["Elastic Foundation"]["Springs_L0"].GetDouble();
     L0_t = d["Elastic Foundation"]["Dampers_L0"].GetDouble();
 
