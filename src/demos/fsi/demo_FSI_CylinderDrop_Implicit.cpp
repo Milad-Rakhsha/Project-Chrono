@@ -256,21 +256,21 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI &mphysicalSystem,
 	mphysicalSystem.AddBody(ground);
 
 
-	ChVector<> sizeH(0.6 + 2 * paramsH->HSML, 0.6 + 2 * paramsH->HSML,
+	ChVector<> sizeH(0.6 + 2 * paramsH->HSML, 0.3 + 2 * paramsH->HSML,
 			2 * paramsH->HSML);
 	ChVector<> pos_H(0, 0, -0.6 - 1 * paramsH->HSML);
 
 	//left and right Wall
-	ChVector<> size_LR(2 * paramsH->HSML, 0.6 + 2 * paramsH->HSML, 1);
-	ChVector<> pos_R(0.6 + 0 * paramsH->HSML, 0.0, 6 * paramsH->HSML);
-	ChVector<> pos_L(-0.6 - 2 * paramsH->HSML, 0.0, 6 * paramsH->HSML);
+	ChVector<> size_LR(2 * paramsH->HSML, 0.3 + 2 * paramsH->HSML, 1);
+	ChVector<> pos_R(0.6 - 0 * paramsH->HSML, 0.0, 10 * paramsH->HSML);
+	ChVector<> pos_L(-0.6 - 2 * paramsH->HSML, 0.0, 10 * paramsH->HSML);
 
 	//Front and back Wall
-	ChVector<> size_F(0.5, 2 * paramsH->HSML, 1);
-	ChVector<> pos_F(0, 0.6 + 0 * paramsH->HSML, 6 * paramsH->HSML);
-	ChVector<> size_B(0.5, 2 * paramsH->HSML, 1);
-	ChVector<> pos_B(0, -(0.6 + 2 * paramsH->HSML), 6 * paramsH->HSML);
-	chrono::utils::AddBoxGeometry(ground.get(), sizeH+ChVector<>(0,0,0.5), pos_H, chrono::QUNIT, true);
+	ChVector<> size_F(0.5+paramsH->HSML, 2 * paramsH->HSML, 1);
+	ChVector<> pos_F(0, 0.3 + 0 * paramsH->HSML, 10 * paramsH->HSML);
+	ChVector<> size_B(0.5+paramsH->HSML, 2 * paramsH->HSML, 1);
+	ChVector<> pos_B(0, -(0.3 + 2 * paramsH->HSML), 10 * paramsH->HSML);
+	chrono::utils::AddBoxGeometry(ground.get(), sizeH, pos_H+ ChVector<>(0,0,0.2), chrono::QUNIT, true);
 	chrono::utils::AddBoxGeometry(ground.get(), size_LR, pos_R, chrono::QUNIT, true);
 	chrono::utils::AddBoxGeometry(ground.get(), size_LR, pos_L, chrono::QUNIT, true);
 	chrono::utils::AddBoxGeometry(ground.get(), size_F, pos_F, chrono::QUNIT, true);
@@ -298,8 +298,8 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI &mphysicalSystem,
 	  // Add floating cylinder
 	  // ---------------------
 	  double cyl_length = 0.5;
-	  double cyl_radius = .30;
-	  ChVector<> cyl_pos = ChVector<>(0, 0, 0.8);
+	  double cyl_radius = .20;
+	  ChVector<> cyl_pos = ChVector<>(0, 0, 0.7);
 	  ChQuaternion<> cyl_rot = chrono::QUNIT;
 
 	  std::vector<std::shared_ptr<ChBody>> *FSI_Bodies =
@@ -516,8 +516,8 @@ int main(int argc, char *argv[]) {
 	cout << " \n\n\n\nbasinDepth: " << basinDepth << "cMin.z:"
 			<< paramsH->cMin.z << endl;
 
-	chrono::fsi::Real3 boxCenter = chrono::fsi::mR3(0, 0, 0.1); //This is very badly hardcoded
-	chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(0.5, 0.5, 0.5);
+	chrono::fsi::Real3 boxCenter = chrono::fsi::mR3(0, 0, 0.0); //This is very badly hardcoded
+	chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(0.55, 0.3, 0.5);
 	utils::Generator::PointVector points = sampler.SampleBox(
 			fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter),
 			fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim));
