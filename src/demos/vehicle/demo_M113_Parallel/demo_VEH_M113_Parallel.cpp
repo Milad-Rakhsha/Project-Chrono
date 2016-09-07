@@ -44,11 +44,10 @@
 // Chrono vehicle header files
 #include "chrono_vehicle/ChVehicleModelData.h"
 #include "chrono_vehicle/driver/ChDataDriver.h"
-#include "chrono_vehicle/tracked_vehicle/ChTrackSubsysDefs.h"
 
 // M113 model header files
-#include "models/vehicle/m113/M113_SimplePowertrain.h"
-#include "models/vehicle/m113/M113_Vehicle.h"
+#include "chrono_models/vehicle/m113/M113_SimplePowertrain.h"
+#include "chrono_models/vehicle/m113/M113_Vehicle.h"
 
 using namespace chrono;
 using namespace chrono::collision;
@@ -297,6 +296,8 @@ int main(int argc, char* argv[]) {
     system->GetSettings()->solver.contact_recovery_speed = contact_recovery_speed;
     system->ChangeSolverType(APGD);
     system->GetSettings()->collision.collision_envelope = 0.1 * r_g;
+#else
+    system->GetSettings()->solver.contact_force_model = ChSystemDEM::PlainCoulomb;
 #endif
 
     system->GetSettings()->collision.bins_per_axis = I3(10, 10, 10);
@@ -365,14 +366,14 @@ int main(int argc, char* argv[]) {
     // --------------------------
 
     // Create and initialize vehicle system
-    M113_Vehicle vehicle(true, SINGLE_PIN, system);
+    M113_Vehicle vehicle(true, TrackShoeType::SINGLE_PIN, system);
     ////vehicle.SetStepsize(0.0001);
 
-    vehicle.SetChassisVisType(NONE);
-    vehicle.SetRoadWheelVisType(MESH);
-    vehicle.SetIdlerVisType(MESH);
-    vehicle.SetSprocketVisType(MESH);
-    vehicle.SetTrackShoeVisType(MESH);
+    vehicle.SetChassisVisType(VisualizationType::NONE);
+    vehicle.SetRoadWheelVisType(VisualizationType::MESH);
+    vehicle.SetIdlerVisType(VisualizationType::MESH);
+    vehicle.SetSprocketVisType(VisualizationType::MESH);
+    vehicle.SetTrackShoeVisType(VisualizationType::MESH);
 
     vehicle.Initialize(ChCoordsys<>(initLoc, initRot));
 
@@ -418,12 +419,25 @@ int main(int argc, char* argv[]) {
     TrackShoeForces shoe_forces_right(vehicle.GetNumTrackShoes(RIGHT));
 
     while (time < time_end) {
+        // Collect output data from modules
+        double throttle_input = driver.GetThrottle();
+        double steering_input = driver.GetSteering();
+        double braking_input = driver.GetBraking();
+        double powertrain_torque = powertrain.GetOutputTorque();
+        double driveshaft_speed = vehicle.GetDriveshaftSpeed();
+        vehicle.GetTrackShoeStates(LEFT, shoe_states_left);
+        vehicle.GetTrackShoeStates(RIGHT, shoe_states_right);
+
+        // Output
         if (sim_frame == next_out_frame) {
             cout << endl;
             cout << "---- Frame:          " << out_frame + 1 << endl;
             cout << "     Sim frame:      " << sim_frame << endl;
             cout << "     Time:           " << time << endl;
             cout << "     Avg. contacts:  " << num_contacts / out_steps << endl;
+            cout << "     Throttle input: " << throttle_input << endl;
+            cout << "     Braking input:  " << braking_input << endl;
+            cout << "     Steering input: " << steering_input << endl;
             cout << "     Execution time: " << exec_time << endl;
 
             if (povray_output) {
@@ -442,15 +456,6 @@ int main(int argc, char* argv[]) {
             std::cout << std::endl << "Release vehicle t = " << time << std::endl;
             vehicle.GetChassis()->SetBodyFixed(false);
         }
-
-        // Collect output data from modules
-        double throttle_input = driver.GetThrottle();
-        double steering_input = driver.GetSteering();
-        double braking_input = driver.GetBraking();
-        double powertrain_torque = powertrain.GetOutputTorque();
-        double driveshaft_speed = vehicle.GetDriveshaftSpeed();
-        vehicle.GetTrackShoeStates(LEFT, shoe_states_left);
-        vehicle.GetTrackShoeStates(RIGHT, shoe_states_right);
 
         // Update modules (process inputs from other modules)
         driver.Synchronize(time);

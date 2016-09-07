@@ -845,6 +845,8 @@ void ChVisualizationFEAmesh::Update(ChPhysicsItem* updater, const ChCoordsys<>& 
                         trianglemesh.getCoordsColors()[i_vcols] = mcol;
                         ++i_vcols;
 
+                        ++i_vnorms;
+
                         if (iu > 0 && iv > 0) {
                             ChVector<int> ivert_offset(ivert_el, ivert_el, ivert_el);
 
@@ -869,7 +871,6 @@ void ChVisualizationFEAmesh::Update(ChPhysicsItem* updater, const ChCoordsys<>& 
                                     ChVector<int>(iu * shell_resolution + iv - 1, (iu - 1) * shell_resolution + iv,
                                                   (iu - 1) * shell_resolution + iv - 1) +
                                     inorm_offset;
-                                i_vnorms += 2;
                             }
                         }
                     }
@@ -1131,7 +1132,7 @@ void ChVisualizationFEAmesh::Update(ChPhysicsItem* updater, const ChCoordsys<>& 
 	}
     
     //***TEST***
-    if (true)
+    if (false)
     for (unsigned int iel = 0; iel < this->FEMmesh->GetNelements(); ++iel) {
             // ------------ELEMENT IS A ChElementShellReissner4?
             if (auto myshell = std::dynamic_pointer_cast<ChElementShellReissner4>(this->FEMmesh->GetElement(iel))) {

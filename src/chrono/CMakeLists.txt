@@ -35,6 +35,7 @@ set(ChronoEngine_core_SOURCES
     core/ChQuaternion.cpp
     core/ChCoordsys.cpp
     core/ChLinkedListMatrix.cpp
+    core/ChMapMatrix.cpp
     core/ChQuadrature.cpp
     core/ChBezierCurve.cpp
     core/ChCubicSpline.cpp
@@ -70,6 +71,7 @@ set(ChronoEngine_core_HEADERS
     core/ChVector2.h
     core/ChSparseMatrix.h
     core/ChLinkedListMatrix.h
+    core/ChMapMatrix.h
     core/ChWrapHashmap.h
     core/ChDistribution.h
     core/ChQuadrature.h
@@ -120,6 +122,7 @@ set(ChronoEngine_physics_SOURCES
     physics/ChLinkNumdiff.cpp
     physics/ChLinkLock.cpp
     physics/ChLinkBrake.cpp
+    physics/ChLinkBushing.cpp
     physics/ChLinkEngine.cpp
     physics/ChLinkGear.cpp
     physics/ChLinkPulley.cpp
@@ -207,6 +210,7 @@ set(ChronoEngine_physics_HEADERS
     physics/ChLinkBase.h
     physics/ChLink.h
     physics/ChLinkBrake.h
+    physics/ChLinkBushing.h
     physics/ChLinkDistance.h
     physics/ChLinkEngine.h
     physics/ChLinkForce.h
@@ -370,6 +374,7 @@ set(ChronoEngine_assets_SOURCES
     assets/ChPathShape.cpp
     assets/ChLineShape.cpp
     assets/ChEmitterAsset.cpp
+    assets/ChPointPointDrawing.cpp
     )
 
 set(ChronoEngine_assets_HEADERS
@@ -397,6 +402,7 @@ set(ChronoEngine_assets_HEADERS
     assets/ChPathShape.h
     assets/ChLineShape.h
     assets/ChEmitterAsset.h
+    assets/ChPointPointDrawing.h
     )
 
 source_group(assets FILES
@@ -641,8 +647,6 @@ set(ChronoEngine_solver_SOURCES
     solver/ChConstraintTwoGeneric.cpp
     solver/ChConstraintTwoGenericBoxed.cpp
     solver/ChConstraintTwoBodies.cpp
-    solver/ChConstraintNodeFrictionT.cpp
-    solver/ChConstraintNodeContactN.cpp
     solver/ChConstraintThree.cpp
     solver/ChConstraintThreeGeneric.cpp
     solver/ChConstraintThreeBBShaft.cpp
@@ -660,8 +664,6 @@ set(ChronoEngine_solver_SOURCES
 
 set(ChronoEngine_solver_HEADERS
     solver/ChConstraint.h
-    solver/ChConstraintNodeContactN.h
-    solver/ChConstraintNodeFrictionT.h
     solver/ChConstraintThree.h
     solver/ChConstraintThreeBBShaft.h
     solver/ChConstraintThreeGeneric.h

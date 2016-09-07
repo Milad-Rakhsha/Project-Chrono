@@ -20,6 +20,7 @@
 #include "chrono/assets/ChCylinderShape.h"
 #include "chrono/assets/ChTexture.h"
 
+#include "chrono_vehicle/ChSubsysDefs.h"
 #include "chrono_vehicle/tracked_vehicle/track_shoe/ChTrackShoeDoublePin.h"
 
 namespace chrono {
@@ -52,6 +53,9 @@ void ChTrackShoeDoublePin::Initialize(std::shared_ptr<ChBodyAuxRef> chassis,
     // Add contact geometry.
     m_shoe->SetCollide(true);
 
+    m_shoe->GetCollisionModel()->SetFamily(TrackCollisionFamily::SHOES);
+    m_shoe->GetCollisionModel()->SetFamilyMaskNoCollisionWithFamily(TrackCollisionFamily::SHOES);
+
     switch (m_shoe->GetContactMethod()) {
         case ChMaterialSurfaceBase::DVI:
             m_shoe->GetMaterialSurface()->SetFriction(m_friction);
@@ -62,6 +66,10 @@ void ChTrackShoeDoublePin::Initialize(std::shared_ptr<ChBodyAuxRef> chassis,
             m_shoe->GetMaterialSurfaceDEM()->SetRestitution(m_restitution);
             m_shoe->GetMaterialSurfaceDEM()->SetYoungModulus(m_young_modulus);
             m_shoe->GetMaterialSurfaceDEM()->SetPoissonRatio(m_poisson_ratio);
+            m_shoe->GetMaterialSurfaceDEM()->SetKn(m_kn);
+            m_shoe->GetMaterialSurfaceDEM()->SetGn(m_gn);
+            m_shoe->GetMaterialSurfaceDEM()->SetKt(m_kt);
+            m_shoe->GetMaterialSurfaceDEM()->SetGt(m_gt);
             break;
     }
 
@@ -86,6 +94,41 @@ void ChTrackShoeDoublePin::Initialize(std::shared_ptr<ChBodyAuxRef> chassis,
     m_connector_R->SetMass(GetConnectorMass());
     m_connector_R->SetInertiaXX(GetConnectorInertia());
     chassis->GetSystem()->AddBody(m_connector_R);
+
+    // Set contact material properties.
+    switch (m_connector_L->GetContactMethod()) {
+        case ChMaterialSurfaceBase::DVI:
+            m_connector_L->GetMaterialSurface()->SetFriction(m_friction);
+            m_connector_L->GetMaterialSurface()->SetRestitution(m_restitution);
+            break;
+        case ChMaterialSurfaceBase::DEM:
+            m_connector_L->GetMaterialSurfaceDEM()->SetFriction(m_friction);
+            m_connector_L->GetMaterialSurfaceDEM()->SetRestitution(m_restitution);
+            m_connector_L->GetMaterialSurfaceDEM()->SetYoungModulus(m_young_modulus);
+            m_connector_L->GetMaterialSurfaceDEM()->SetPoissonRatio(m_poisson_ratio);
+            m_connector_L->GetMaterialSurfaceDEM()->SetKn(m_kn);
+            m_connector_L->GetMaterialSurfaceDEM()->SetGn(m_gn);
+            m_connector_L->GetMaterialSurfaceDEM()->SetKt(m_kt);
+            m_connector_L->GetMaterialSurfaceDEM()->SetGt(m_gt);
+            break;
+    }
+
+    switch (m_connector_R->GetContactMethod()) {
+        case ChMaterialSurfaceBase::DVI:
+            m_connector_R->GetMaterialSurface()->SetFriction(m_friction);
+            m_connector_R->GetMaterialSurface()->SetRestitution(m_restitution);
+            break;
+        case ChMaterialSurfaceBase::DEM:
+            m_connector_R->GetMaterialSurfaceDEM()->SetFriction(m_friction);
+            m_connector_R->GetMaterialSurfaceDEM()->SetRestitution(m_restitution);
+            m_connector_R->GetMaterialSurfaceDEM()->SetYoungModulus(m_young_modulus);
+            m_connector_R->GetMaterialSurfaceDEM()->SetPoissonRatio(m_poisson_ratio);
+            m_connector_R->GetMaterialSurfaceDEM()->SetKn(m_kn);
+            m_connector_R->GetMaterialSurfaceDEM()->SetGn(m_gn);
+            m_connector_R->GetMaterialSurfaceDEM()->SetKt(m_kt);
+            m_connector_R->GetMaterialSurfaceDEM()->SetGt(m_gt);
+            break;
+    }
 
     // Add visualization to the connector bodies.
     AddConnectorVisualization(m_connector_L);

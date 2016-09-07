@@ -21,7 +21,7 @@
 #include "chrono/assets/ChCylinderShape.h"
 #include "chrono/assets/ChTexture.h"
 
-#include "chrono_vehicle/tracked_vehicle/ChTrackSubsysDefs.h"
+#include "chrono_vehicle/ChSubsysDefs.h"
 #include "chrono_vehicle/tracked_vehicle/road_wheel/ChSingleRoadWheel.h"
 
 namespace chrono {
@@ -52,19 +52,6 @@ void ChSingleRoadWheel::Initialize(std::shared_ptr<ChBodyAuxRef> chassis,
     m_wheel->GetCollisionModel()->ClearModel();
     m_wheel->GetCollisionModel()->AddCylinder(radius, radius, width / 2);
     m_wheel->GetCollisionModel()->BuildModel();
-
-    switch (m_wheel->GetContactMethod()) {
-        case ChMaterialSurfaceBase::DVI:
-            m_wheel->GetMaterialSurface()->SetFriction(m_friction);
-            m_wheel->GetMaterialSurface()->SetRestitution(m_restitution);
-            break;
-        case ChMaterialSurfaceBase::DEM:
-            m_wheel->GetMaterialSurfaceDEM()->SetFriction(m_friction);
-            m_wheel->GetMaterialSurfaceDEM()->SetRestitution(m_restitution);
-            m_wheel->GetMaterialSurfaceDEM()->SetYoungModulus(m_young_modulus);
-            m_wheel->GetMaterialSurfaceDEM()->SetPoissonRatio(m_poisson_ratio);
-            break;
-    }
 
     // Add visualization of the wheel.
     AddWheelVisualization();

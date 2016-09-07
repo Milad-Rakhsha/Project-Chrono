@@ -29,7 +29,7 @@
 #include "chrono_vehicle/driver/ChPathFollowerDriver.h"
 #include "chrono_vehicle/wheeled_vehicle/utils/ChWheeledVehicleIrrApp.h"
 
-#include "models/vehicle/hmmwv/HMMWV.h"
+#include "chrono_models/vehicle/hmmwv/HMMWV.h"
 
 using namespace chrono;
 using namespace chrono::geometry;
@@ -43,16 +43,19 @@ using namespace chrono::vehicle::hmmwv;
 ChMaterialSurfaceBase::ContactMethod contact_method = ChMaterialSurfaceBase::DEM;
 
 // Type of tire model (RIGID, LUGRE, FIALA, or PACEJKA)
-TireModelType tire_model = RIGID;
+TireModelType tire_model = TireModelType::RIGID;
+
+// Input file name for PACEJKA tires if they are selected
+std::string pacejka_tire_file("hmmwv/tire/HMMWV_pacejka.tir");
 
 // Type of powertrain model (SHAFTS or SIMPLE)
-PowertrainModelType powertrain_model = SHAFTS;
+PowertrainModelType powertrain_model = PowertrainModelType::SHAFTS;
 
 // Drive type (FWD, RWD, or AWD)
-DrivelineType drive_type = RWD;
+DrivelineType drive_type = DrivelineType::RWD;
 
 // Visualization type for chassis & wheels (PRIMITIVES, MESH, or NONE)
-VisualizationType vis_type = PRIMITIVES;
+VisualizationType vis_type = VisualizationType::PRIMITIVES;
 
 // Input file names for the path-follower driver model
 std::string steering_controller_file("generic/driver/SteeringController.json");
@@ -61,12 +64,6 @@ std::string speed_controller_file("generic/driver/SpeedController.json");
 // std::string path_file("paths/curve.txt");
 // std::string path_file("paths/NATO_double_lane_change.txt");
 std::string path_file("paths/ISO_double_lane_change.txt");
-
-// JSON file names for vehicle model, tire models, and (simple) powertrain
-std::string vehicle_file("generic/vehicle/Vehicle_DoubleWishbones.json");
-std::string rigidtire_file("generic/tire/RigidTire.json");
-std::string lugretire_file("generic/tire/LugreTire.json");
-std::string simplepowertrain_file("generic/powertrain/SimplePowertrain.json");
 
 // Initial vehicle location and orientation
 ChVector<> initLoc(-125, -125, 0.5);
@@ -199,6 +196,7 @@ int main(int argc, char* argv[]) {
     my_hmmwv.SetDriveType(drive_type);
     my_hmmwv.SetTireType(tire_model);
     my_hmmwv.SetTireStepSize(tire_step_size);
+    my_hmmwv.SetPacejkaParamfile(pacejka_tire_file);
     my_hmmwv.Initialize();
 
     // Create the terrain

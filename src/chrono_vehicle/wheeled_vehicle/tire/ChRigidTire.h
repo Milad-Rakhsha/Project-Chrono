@@ -44,8 +44,17 @@ class CH_VEHICLE_API ChRigidTire : public ChTire {
     void SetContactMaterial(float friction_coefficient = 0.6f,    ///< [in] coefficient of friction
                             float restitution_coefficient = 0.1,  ///< [in] coefficient of restitution
                             float young_modulus = 2e5f,           ///< [in] Young's modulus of elasticity
-                            float poisson_ratio = 0.3f            ///< [in] Poisson ratio
+                            float poisson_ratio = 0.3f,           ///< [in] Poisson ratio
+                            float kn = 2.0e5f,                    ///< [in] normal contact stiffness
+                            float gn = 40.0f,                     ///< [in] normal contact damping
+                            float kt = 2.0e5f,                    ///< [in] tangential contact stiffness
+                            float gt = 20.0f                      ///< [in] tangential contact damping
                             );
+
+    /// Set Wavefront OBJ file for contact mesh.
+    void SetMeshFilename(const std::string& mesh_file,   ///< [in] name of Wavefront file
+                         double sweep_sphere_radius = 0  ///< [in] radius of sweeping sphere
+                         );
 
     /// Get the tire width.
     virtual double GetWidth() const = 0;
@@ -66,12 +75,19 @@ class CH_VEHICLE_API ChRigidTire : public ChTire {
                             VehicleSide side                ///< left/right vehicle side
                             ) override;
 
-  protected:
   private:
+    bool m_use_mesh;
+    std::string m_mesh_file;
+    double m_sweep_sphere_radius;
+
     float m_friction;
     float m_restitution;
     float m_young_modulus;
     float m_poisson_ratio;
+    float m_kn;
+    float m_gn;
+    float m_kt;
+    float m_gt;
 };
 
 /// @} vehicle_wheeled_tire
