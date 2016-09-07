@@ -235,6 +235,48 @@ void AddBoxBce(ChFsiDataManager *fsiData, SimParams *paramsH,
   posRadBCE.clear();
 }
 
+
+
+void AddBoxBceYZ(ChFsiDataManager *fsiData, SimParams *paramsH,
+               std::shared_ptr<chrono::ChBody> body, chrono::ChVector<> relPos,
+               chrono::ChQuaternion<> relRot, const chrono::ChVector<> &size) {
+  thrust::host_vector<Real3> posRadBCE;
+
+  CreateBCE_On_Box(posRadBCE, ChFsiTypeConvert::ChVectorToReal3(size), 23,
+                   paramsH);
+  //	if (fsiData->sphMarkersH.posRadH.size() !=
+  //fsiData->numObjects.numAllMarkers) {
+  //		printf("Error! numMarkers, %d, does not match posRadH.size(),
+  //%d\n",
+  //				fsiData->numObjects.numAllMarkers,
+  //fsiData->sphMarkersH.posRadH.size());
+  //		std::cin.get();
+  //	}
+
+  CreateBceGlobalMarkersFromBceLocalPosBoundary(fsiData, paramsH, posRadBCE,
+                                                body, relPos, relRot);
+  posRadBCE.clear();
+}
+void AddBoxBceXZ(ChFsiDataManager *fsiData, SimParams *paramsH,
+               std::shared_ptr<chrono::ChBody> body, chrono::ChVector<> relPos,
+               chrono::ChQuaternion<> relRot, const chrono::ChVector<> &size) {
+  thrust::host_vector<Real3> posRadBCE;
+
+  CreateBCE_On_Box(posRadBCE, ChFsiTypeConvert::ChVectorToReal3(size), 13,
+                   paramsH);
+  //	if (fsiData->sphMarkersH.posRadH.size() !=
+  //fsiData->numObjects.numAllMarkers) {
+  //		printf("Error! numMarkers, %d, does not match posRadH.size(),
+  //%d\n",
+  //				fsiData->numObjects.numAllMarkers,
+  //fsiData->sphMarkersH.posRadH.size());
+  //		std::cin.get();
+  //	}
+
+  CreateBceGlobalMarkersFromBceLocalPosBoundary(fsiData, paramsH, posRadBCE,
+                                                body, relPos, relRot);
+  posRadBCE.clear();
+}
 // =============================================================================
 void AddBCE_FromFile(ChFsiDataManager *fsiData, SimParams *paramsH,
                      std::shared_ptr<chrono::ChBody> body,
@@ -304,6 +346,7 @@ void CreateCylinderFSI(
   body->SetCollide(true);
   body->SetMaterialSurface(mat_prop);
   body->SetPos(pos);
+
   body->SetRot(rot);
   double volume = chrono::utils::CalcCylinderVolume(radius, 0.5 * length);
   chrono::ChVector<> gyration =

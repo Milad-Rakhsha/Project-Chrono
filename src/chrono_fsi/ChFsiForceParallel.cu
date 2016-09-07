@@ -590,5 +590,1650 @@ void ChFsiForceParallel::ForceSPH(SphMarkerDataD *otherSphMarkersD,
   AddGravityToFluid();
 }
 
+
+
+
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void calcRho_kernel(
+		Real3* sortedPosRad,  // input: sorted positions
+		Real* nonNormalRho, uint* cellStart, uint* cellEnd,
+		const int numAllMarkers, const Real RHO_0, const Real m_0,
+		volatile bool* isErrorD) {
+	uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i_idx >= numAllMarkers) {
+		return;
+	}
+	Real3 posRadA = sortedPosRad[i_idx];
+
+	Real sum_mW = 0;
+	// get address in grid
+	int3 gridPos = calcGridPos(posRadA);
+	//
+	//  /// if (gridPos.x == paramsD.gridSize.x-1) printf("****aha %d %d\n", gridPos.x, paramsD.gridSize.x);
+	//
+	// examine neighbouring cells
+	for (int z = -1; z <= 1; z++) {
+		for (int y = -1; y <= 1; y++) {
+			for (int x = -1; x <= 1; x++) {
+				int3 neighbourPos = gridPos + mI3(x, y, z);
+				uint gridHash = calcGridHash(neighbourPos);
+				// get start of bucket for this cell
+				uint startIndex = cellStart[gridHash];
+				if (startIndex != 0xffffffff) {  // cell is not empty
+												 // iterate over particles in this cell
+					uint endIndex = cellEnd[gridHash];
+
+					for (uint j = startIndex; j < endIndex; j++) {
+						Real3 posRadB = sortedPosRad[j];
+						Real3 dist3 = Distance(posRadA, posRadB);
+						Real d = length(dist3);
+						if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML)
+							continue;
+						Real Wd = m_0 * W3(d);
+						sum_mW += Wd;
+					}
+				}
+			}
+		}
+	}
+
+	// Adding neighbor contribution is done!
+	nonNormalRho[i_idx] = sum_mW;
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void calcNormalizedRho_kernel(
+		Real3* sortedPosRad,  // input: sorted positions
+		Real4* sortedRhoPreMu, Real* nonNormalRho, uint* cellStart,
+		uint* cellEnd, const int numAllMarkers, const Real RHO_0,
+		const Real m_0, volatile bool* isErrorD) {
+	uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i_idx >= numAllMarkers) {
+		return;
+	}
+	Real3 posRadA = sortedPosRad[i_idx];
+	Real sum_mW = 0;
+	Real sum_mW_over_Rho = 0;
+	// get address in grid
+	int3 gridPos = calcGridPos(posRadA);
+	//
+	//  /// if (gridPos.x == paramsD.gridSize.x-1) printf("****aha %d %d\n", gridPos.x, paramsD.gridSize.x);
+	//
+	// examine neighbouring cells
+	for (int z = -1; z <= 1; z++) {
+		for (int y = -1; y <= 1; y++) {
+			for (int x = -1; x <= 1; x++) {
+				int3 neighbourPos = gridPos + mI3(x, y, z);
+				uint gridHash = calcGridHash(neighbourPos);
+				// get start of bucket for this cell
+				uint startIndex = cellStart[gridHash];
+				if (startIndex != 0xffffffff) {  // cell is not empty
+												 // iterate over particles in this cell
+					uint endIndex = cellEnd[gridHash];
+
+					for (uint j = startIndex; j < endIndex; j++) {
+						Real3 posRadB = sortedPosRad[j];
+						Real3 dist3 = Distance(posRadA, posRadB);
+						Real d = length(dist3);
+						if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML)
+							continue;
+						sum_mW += m_0 * W3(d);
+						sum_mW_over_Rho += m_0 * W3(d) / nonNormalRho[j];
+					}
+				}
+			}
+		}
+	}
+
+	Real IncompressibilityFactor = 0.05;
+	sortedRhoPreMu[i_idx].x = (sum_mW / sum_mW_over_Rho - RHO_0)
+			* IncompressibilityFactor + RHO_0;
+	//  sortedRhoPreMu[i_idx].x = sum_mW;
+
+	if (sortedRhoPreMu[i_idx].x < EPSILON) {
+		printf("My density is %f, index= %d\n", sortedRhoPreMu[i_idx].x, i_idx);
+		printf("My position = [%f %f %f]\n", sortedPosRad[i_idx].x,
+				sortedPosRad[i_idx].y, sortedPosRad[i_idx].z);
+
+		*isErrorD = true;
+		return;
+	}
+
+	//  if (sortedRhoPreMu[i_idx].w == 0) {
+	//    sortedRhoPreMu[i_idx].x = RHO_0;
+	//  }
+}
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void V_i_np__AND__d_ii_kernel(
+		Real3* sortedPosRad,  // input: sorted positions
+		Real3* sortedVelMas, Real4* sortedRhoPreMu, Real3* d_ii, Real3* V_i_np,
+		uint* cellStart, uint* cellEnd, const int numAllMarkers, const Real m_0,
+		const Real mu_0, const Real RHO_0, const Real epsilon, const Real dT,
+		volatile bool* isErrorD) {
+	uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i_idx >= numAllMarkers) {
+		return;
+	}
+	if (sortedRhoPreMu[i_idx].x < EPSILON) {
+		printf("My density is %f,ref density= %f\n", sortedRhoPreMu[i_idx].x,
+				RHO_0);
+	}
+	Real3 posi = sortedPosRad[i_idx];
+	Real3 Veli = sortedVelMas[i_idx];
+	Real Rhoi = sortedRhoPreMu[i_idx].x;
+	Real3 My_d_ii = mR3(0);
+	Real3 My_F_i_np = mR3(0);
+
+	// get address in grid
+	int3 gridPos = calcGridPos(posi);
+
+	for (int z = -1; z <= 1; z++) {
+		for (int y = -1; y <= 1; y++) {
+			for (int x = -1; x <= 1; x++) {
+				int3 neighbourPos = gridPos + mI3(x, y, z);
+				uint gridHash = calcGridHash(neighbourPos);
+				// get start of bucket for this cell
+				uint startIndex = cellStart[gridHash];
+				if (startIndex != 0xffffffff) {  // cell is not empty
+					uint endIndex = cellEnd[gridHash];
+					for (uint j = startIndex; j < endIndex; j++) {
+						if (i_idx == j)
+							continue;
+						Real3 posj = sortedPosRad[j];
+						Real3 Velj = sortedVelMas[j];
+						Real Rhoj = sortedRhoPreMu[j].x;
+						if (Rhoj == 0) {
+							printf("Bug F_i_np__AND__d_ii_kernel i=%d j=%d\n",
+									i_idx, j);
+						}
+						Real3 dist3 = Distance(posi, posj);
+						Real d = length(dist3);
+						////CHECK THIS CONDITION!!!
+						if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML)
+							continue;
+						Real3 grad_i_wij = GradW(dist3);
+						My_d_ii += m_0 * (-(dT * dT) / (Rhoi * Rhoi))
+								* grad_i_wij;
+						Real Rho_bar = (Rhoj + Rhoi) * 0.5;
+						Real3 V_ij = (Veli - Velj);
+						Real3 muNumerator = 2 * mu_0 * dot(dist3, grad_i_wij)
+								* V_ij;
+						Real muDenominator =
+								(Rho_bar * Rho_bar)
+										* (d * d
+												+ paramsD.HSML * paramsD.HSML
+														* epsilon);
+						My_F_i_np += m_0 * muNumerator / muDenominator;
+					}
+				}
+			}
+		}
+	}
+
+	d_ii[i_idx] = My_d_ii;
+	V_i_np[i_idx] = (My_F_i_np * dT + Veli);  // This does not contain m_0?
+}
+//--------------------------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void Rho_np_AND_a_ii(Real3* sortedPosRad, Real4* sortedRhoPreMu,
+		Real* rho_np,  // Write
+		Real* a_ii,    // Write
+		Real* p_old,   // Write
+		Real3* V_np,   // Read
+		Real3* d_ii,   // Read
+		uint* cellStart, uint* cellEnd, const int numAllMarkers, const Real m_0,
+		const Real dT, volatile bool* isErrorD) {
+	uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i_idx >= numAllMarkers) {
+		return;
+	}
+	if (sortedRhoPreMu[i_idx].x < EPSILON) {
+		printf("My density is %f,ref density= %f\n", sortedRhoPreMu[i_idx].x,
+				1000);
+	}
+	Real3 posi = sortedPosRad[i_idx];
+	Real3 Veli_np = V_np[i_idx];
+	Real Rho_i = sortedRhoPreMu[i_idx].x;
+	Real3 my_d_ii = d_ii[i_idx];
+	Real rho_temp = 0;
+	Real my_a_ii = 0;
+	// get address in grid
+	int3 gridPos = calcGridPos(posi);
+
+	//  /// if (gridPos.x == paramsD.gridSize.x-1) printf("****aha %d %d\n", gridPos.x, paramsD.gridSize.x);
+	//
+	// examine neighbouring cells
+	for (int z = -1; z <= 1; z++) {
+		for (int y = -1; y <= 1; y++) {
+			for (int x = -1; x <= 1; x++) {
+				int3 neighbourPos = gridPos + mI3(x, y, z);
+				uint gridHash = calcGridHash(neighbourPos);
+				// get start of bucket for this cell
+				uint startIndex = cellStart[gridHash];
+				if (startIndex != 0xffffffff) {  // cell is not empty
+					// iterate over particles in this cell
+					uint endIndex = cellEnd[gridHash];
+
+					for (uint j = startIndex; j < endIndex; j++) {
+						Real3 posj = sortedPosRad[j];
+						Real3 dist3 = Distance(posi, posj);
+						Real d = length(dist3);
+						if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML
+								|| i_idx == j)
+							continue;
+						Real3 Velj_np = V_np[j];
+						Real3 grad_i_wij = GradW(dist3);
+						rho_temp += m_0 * dot((Veli_np - Velj_np), grad_i_wij);
+						Real3 d_ji = m_0 * (-(dT * dT) / (Rho_i * Rho_i))
+								* (-grad_i_wij);
+						my_a_ii += m_0 * dot((my_d_ii - d_ji), grad_i_wij);
+					}
+				}
+			}
+		}
+	}
+	rho_np[i_idx] = dT * rho_temp + sortedRhoPreMu[i_idx].x;
+	a_ii[i_idx] = my_a_ii;
+	p_old[i_idx] = 1000; // Note that this is outside of the for loop
+	//  sortedRhoPreMu[i_idx].x = rho_np[i_idx];
+}
+//--------------------------------------------------------------------------------------------------------------------------------
+
+__global__ void Calc_dij_pj(
+		Real3* dij_pj,  // write
+		Real3* F_p,     // Write
+		Real3* d_ii,    // Read
+		Real3* sortedPosRad, Real3* sortedVelMas, Real4* sortedRhoPreMu,
+		Real* p_old, uint* cellStart, uint* cellEnd, const int numAllMarkers,
+		const Real m_0, const Real dT, volatile bool* isErrorD) {
+	uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i_idx >= numAllMarkers) {
+		return;
+	}
+	Real3 my_F_p = mR3(0);
+	Real p_i_old = p_old[i_idx];
+	Real3 pos_i = sortedPosRad[i_idx];
+	Real Rho_i = sortedRhoPreMu[i_idx].x;
+	if (sortedRhoPreMu[i_idx].x < EPSILON) {
+		printf("My density is %f in Calc_dij_pj\n", sortedRhoPreMu[i_idx].x);
+	}
+
+	Real3 My_dij_pj = mR3(0);
+	int3 gridPos = calcGridPos(pos_i);
+	for (int z = -1; z <= 1; z++) {
+		for (int y = -1; y <= 1; y++) {
+			for (int x = -1; x <= 1; x++) {
+				int3 neighbourPos = gridPos + mI3(x, y, z);
+				uint gridHash = calcGridHash(neighbourPos);
+				// get start of bucket for this cell
+				uint startIndex = cellStart[gridHash];
+				if (startIndex != 0xffffffff) {  // cell is not empty
+					// iterate over particles in this cell
+					uint endIndex = cellEnd[gridHash];
+
+					for (uint j = startIndex; j < endIndex; j++) {
+						Real3 pos_j = sortedPosRad[j];
+						Real3 dist3 = Distance(pos_i, pos_j);
+						Real d = length(dist3);
+						////CHECK THIS CONDITION!!!
+						if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML
+								|| i_idx == j)
+							continue;
+						Real3 grad_i_wij = GradW(dist3);
+						Real Rho_j = sortedRhoPreMu[j].x;
+						Real p_j_old = p_old[j];
+						My_dij_pj += m_0 * (-(dT * dT) / (Rho_j * Rho_j))
+								* grad_i_wij * p_j_old;
+						my_F_p += -m_0 * m_0
+								* ((p_i_old / (Rho_i * Rho_i))
+										+ (p_j_old / (Rho_j * Rho_j)))
+								* grad_i_wij;
+					}
+				}
+			}
+		}
+	}
+	dij_pj[i_idx] = My_dij_pj;
+	F_p[i_idx] = my_F_p;
+}
+
+////--------------------------------------------------------------------------------------------------------------------------------
+__global__ void CalcNumber_Contacts(unsigned long int* numContacts,
+		Real3* sortedPosRad, Real4* sortedRhoPreMu, uint* cellStart,
+		uint* cellEnd, const int numAllMarkers, volatile bool* isErrorD) {
+	uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i_idx >= numAllMarkers) {
+		return;
+	}
+	int myType = sortedRhoPreMu[i_idx].w;
+	Real3 pos_i = sortedPosRad[i_idx];
+	uint numCol[800];
+	int counter = 1;
+	numCol[0] = i_idx;  // The first one is always the idx of the marker itself
+	int3 gridPos = calcGridPos(pos_i);
+	for (int z = -1; z <= 1; z++) {
+		for (int y = -1; y <= 1; y++) {
+			for (int x = -1; x <= 1; x++) {
+				int3 neighbourPos = gridPos + mI3(x, y, z);
+				uint gridHash = calcGridHash(neighbourPos);
+				// get start of bucket for this cell
+				uint startIndex = cellStart[gridHash];
+				if (startIndex != 0xffffffff) {  // cell is not empty
+					// iterate over particles in this cell
+					uint endIndex = cellEnd[gridHash];
+					for (uint j = startIndex; j < endIndex; j++) {
+						Real3 pos_j = sortedPosRad[j];
+						Real3 dist3 = Distance(pos_i, pos_j);
+						Real d = length(dist3);
+						if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML
+								|| i_idx == j)
+							continue;
+						bool AlreadyHave = false;
+						for (uint findCol = 1; findCol <= counter; findCol++) {
+							if (numCol[findCol] == j) {
+								AlreadyHave = true;
+								continue;
+							}
+						}
+
+						// Room for improvment ...
+						if (!AlreadyHave) {
+							numCol[counter] = j;
+							counter++;
+							if (myType == 0 && sortedRhoPreMu[j].w == 0) // Do not count BCE-BCE interactions...
+								counter--;
+						}
+						if (myType == 0) // For BCE no need to go deeper than this...
+							continue;
+						int3 gridPosJ = calcGridPos(pos_j);
+						for (int zz = -1; zz <= 1; zz++) {
+							for (int yy = -1; yy <= 1; yy++) {
+								for (int xx = -1; xx <= 1; xx++) {
+									int3 neighbourPosJ = gridPosJ
+											+ mI3(xx, yy, zz);
+									uint gridHashJ = calcGridHash(
+											neighbourPosJ);
+									uint startIndexJ = cellStart[gridHashJ];
+									if (startIndexJ != 0xffffffff) { // cell is not empty
+										uint endIndexJ = cellEnd[gridHashJ];
+										for (uint k = startIndexJ;
+												k < endIndexJ; k++) {
+											Real3 pos_k = sortedPosRad[k];
+											Real3 dist3jk = Distance(pos_j,
+													pos_k);
+											Real djk = length(dist3jk);
+											if (djk
+													> RESOLUTION_LENGTH_MULT
+															* paramsD.HSML
+													|| k == j || k == i_idx)
+												continue;
+											bool AlreadyHave2 = false;
+											for (uint findCol = 1;
+													findCol <= counter;
+													findCol++) {
+												if (numCol[findCol] == k) {
+													AlreadyHave2 = true;
+													continue;
+												}
+											}
+											if (!AlreadyHave2) {
+												numCol[counter] = k;
+												counter++;
+											}
+										}
+									}
+								}
+							}
+						}
+						///////////////////////////////
+					}
+				}
+			}
+		}
+	}
+	// No contact with any one! so P=0 should be imposed...
+
+	if (myType == -1)
+		numContacts[i_idx] = counter + 10;
+	if (myType == 0)
+		numContacts[i_idx] = counter + 10;
+
+	//+(sortedRhoPreMu[i_idx].w == -1 ? 2 : 0);
+	//  if (numContacts[i_idx] == 1)
+	//    printf("counted 1 contact for i_idx : %d .\n", i_idx);
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+
+__global__ void Calc_summGradW(
+		Real3* summGradW,  // write
+		Real3* sortedPosRad, Real4* sortedRhoPreMu, uint* cellStart,
+		uint* cellEnd, const int numAllMarkers, const Real m_0, const Real dT,
+		volatile bool* isErrorD) {
+	uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i_idx >= numAllMarkers) {
+		return;
+	}
+	Real3 pos_i = sortedPosRad[i_idx];
+	if (sortedRhoPreMu[i_idx].x < EPSILON) {
+		printf("My density is %f in Calc_dij\n", sortedRhoPreMu[i_idx].x);
+	}
+
+	Real3 My_dij = mR3(0);
+	Real3 My_summgradW = mR3(0);
+
+	int3 gridPos = calcGridPos(pos_i);
+	for (int z = -1; z <= 1; z++) {
+		for (int y = -1; y <= 1; y++) {
+			for (int x = -1; x <= 1; x++) {
+				int3 neighbourPos = gridPos + mI3(x, y, z);
+				uint gridHash = calcGridHash(neighbourPos);
+				// get start of bucket for this cell
+				uint startIndex = cellStart[gridHash];
+				if (startIndex != 0xffffffff) {  // cell is not empty
+					// iterate over particles in this cell
+					uint endIndex = cellEnd[gridHash];
+
+					for (uint j = startIndex; j < endIndex; j++) {
+						Real3 pos_j = sortedPosRad[j];
+						Real3 dist3 = Distance(pos_i, pos_j);
+						Real d = length(dist3);
+						////CHECK THIS CONDITION!!!
+						if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML
+								|| i_idx == j)
+							continue;
+						Real3 grad_i_wij = GradW(dist3);
+						Real Rho_j = sortedRhoPreMu[j].x;
+						My_dij += m_0 * (-(dT * dT) / (Rho_j * Rho_j))
+								* grad_i_wij;
+						My_summgradW = m_0 * grad_i_wij;
+					}
+				}
+			}
+		}
+	}
+	summGradW[i_idx] = My_summgradW;
+}
+
+////--------------------------------------------------------------------------------------------------------------------------------
+__device__ void Calc_BC_aij_Bi(const uint i_idx, Real* csrValA,
+		uint* csrColIndA, unsigned long int* GlobalcsrColIndA,
+		unsigned long int* numContacts,
+		///> The above 4 vectors are used for CSR form.
+		Real* a_ij,  // write
+		Real* a_ii,  // write
+		Real* B_i, const Real3* sortedPosRad, const Real3* sortedVelMas,
+		const Real4* sortedRhoPreMu, Real3* V_new, Real* p_old, Real3* bceAcc,int2 updatePortion,
+		uint* gridMarkerIndexD, const uint* cellStart, const uint* cellEnd,
+		const int numAllMarkers, const Real3 gravity, bool IsSPARSE) {
+	uint csrStartIdx = numContacts[i_idx] + 1;
+	uint csrEndIdx = numContacts[i_idx + 1];
+
+
+
+
+	int Original_idx=gridMarkerIndexD[i_idx];
+	Real3 myAcc;
+
+	if (Original_idx > updatePortion.y || Original_idx < updatePortion.x)
+		myAcc = mR3(0);
+	else
+		myAcc =bceAcc[Original_idx];
+
+
+	if (IsSPARSE) {
+		for (int c = csrStartIdx - 1; c < csrEndIdx; c++) {
+			csrValA[c] = 0;
+			csrColIndA[c] = i_idx;
+			GlobalcsrColIndA[c] = i_idx + numAllMarkers * i_idx;
+		}
+	}
+
+	// if ((csrEndIdx - csrStartIdx) != uint(0)) {
+	Real3 numeratorv = mR3(0);
+	Real denumenator = 0;
+	Real pRHS = 0;
+	Real Rho_i = sortedRhoPreMu[i_idx].x;
+	Real3 pos_i = sortedPosRad[i_idx];
+	// get address in grid
+	int3 gridPos = calcGridPos(pos_i);
+
+	uint counter = 0;
+	for (int z = -1; z <= 1; z++) {
+		for (int y = -1; y <= 1; y++) {
+			for (int x = -1; x <= 1; x++) {
+				int3 neighbourPos = gridPos + mI3(x, y, z);
+				uint gridHash = calcGridHash(neighbourPos);
+				// get start of bucket for this cell
+				uint startIndex = cellStart[gridHash];
+				if (startIndex != 0xffffffff) {  // cell is not empty
+					uint endIndex = cellEnd[gridHash];
+					for (uint j = startIndex; j < endIndex; j++) {
+						Real3 pos_j = sortedPosRad[j];
+						Real3 dist3 = Distance(pos_i, pos_j);
+						Real d = length(dist3);
+						if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML
+								|| sortedRhoPreMu[j].w != -1)
+							continue;
+						Real3 Vel_j = sortedVelMas[j];
+						Real Wd = W3(d);
+						numeratorv += Vel_j * Wd;
+						pRHS += dot(gravity-myAcc, dist3) * Rho_i * Wd;
+						denumenator += Wd;
+						if (IsSPARSE) {
+							csrValA[counter + csrStartIdx] = -Wd;
+							csrColIndA[counter + csrStartIdx] = j;
+							GlobalcsrColIndA[counter + csrStartIdx] = j
+									+ numAllMarkers * i_idx;
+							counter++;
+						} else {
+							//            atomicAdd(&a_ij12[j + numAllMarkers * i_idx], My_a_ij_12);
+							a_ij[j + numAllMarkers * i_idx] = -Wd;
+						}
+					}
+				}
+			}
+		}
+	}
+	if (abs(denumenator) < EPSILON) {
+		V_new[i_idx] = mR3(0);
+		B_i[i_idx] = 0;
+		if (!IsSPARSE) {
+			a_ij[i_idx + numAllMarkers * i_idx] = 1;
+		} else {
+			csrValA[csrStartIdx - 1] = 1;
+			csrColIndA[csrStartIdx - 1] = i_idx;
+			GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
+			//      if (i_idx == 40762) {
+			//        printf("i_idx + numAllMarkers * i_idx:%lu, i_idx: %d, numAllMarkers: %d\n", i_idx + numAllMarkers *
+			//        i_idx,
+			//               i_idx, numAllMarkers);
+			//        printf(
+			//            "GlobalcsrColIndA[csrStartIdx - 1] :%lu,GlobalcsrColIndA[csrStartIdx] "
+			//            ":%lu,GlobalcsrColIndA[csrStartIdx + 1] :%lu, i_idx + numAllMarkers * i_idx:%lu\n",
+			//            GlobalcsrColIndA[csrStartIdx - 1], GlobalcsrColIndA[csrStartIdx], GlobalcsrColIndA[csrStartIdx +
+			//            1],
+			//            i_idx + numAllMarkers * i_idx);
+			//      }
+		}
+	} else {
+		V_new[i_idx] = -numeratorv / denumenator;
+		B_i[i_idx] = pRHS;
+		if (!IsSPARSE) {
+			a_ii[i_idx] = denumenator;
+			a_ij[i_idx + numAllMarkers * i_idx] = denumenator;
+		} else {
+			// Also fill out other elements
+			csrValA[csrStartIdx - 1] = denumenator;
+			csrColIndA[csrStartIdx - 1] = i_idx;
+			GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
+		}
+	}
+//	if (pos_i.z > 1.06) {
+//		V_new[i_idx] += 2 * plateU;
+//	}
+	//  if (GlobalcsrColIndA[csrStartIdx - 1] == 83882)
+	//    printf(
+	//        "i_idx: %d, csrStartIdx - 1,: %d csrEndIdx: %d, csrColIndA[csrStartIdx - 1] :%d,
+	//        GlobalcsrColIndA[csrStartIdx "
+	//        "- 1]: %lu\n",
+	//        i_idx, csrStartIdx - 1, csrEndIdx, csrColIndA[csrStartIdx - 1], GlobalcsrColIndA[csrStartIdx - 1]);
+	//
+	//  if (i_idx == 2)
+	//    printf(
+	//        "csrStartIdx-1: %d, csrEndIdx: %d, csrColIndA[csrStartIdx - 1] :%d,csrColIndA[csrStartIdx] "
+	//        ":%d,csrColIndA[csrStartIdx + 1] :%d\n",
+	//        csrStartIdx - 1, csrEndIdx, csrColIndA[csrStartIdx - 1], csrColIndA[csrStartIdx - 1],
+	//        csrColIndA[csrStartIdx - 1]);
+	// } else {
+	//   csrValA[csrStartIdx - 1] = 1;
+	//   csrColIndA[csrStartIdx - 1] = i_idx;
+	//   GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
+	//   B_i[i_idx] = 0;
+	//  }
+}
+//--------------------------------------------------------------------------------------------------------------------------------
+
+////--------------------------------------------------------------------------------------------------------------------------------
+__device__ void Calc_fluid_aij_Bi(const uint i_idx, Real* csrValA,
+		uint* csrColIndA, unsigned long int* GlobalcsrColIndA,
+		unsigned long int* numContacts,
+		///> The above 4 vectors are used for CSR form.
+		Real* a_ij,   // write
+		Real* a_ij3,  // write
+		Real* B_i,
+		Real3* d_ii,   // Read
+		Real* a_ii,    // Read
+		Real* rho_np,  // Read
+		Real3* summGradW, Real3* sortedPosRad, Real4* sortedRhoPreMu,
+		uint* cellStart, uint* cellEnd, const int numAllMarkers, const Real m_0,
+		const Real RHO_0, const Real dT, bool IsSPARSE) {
+	Real3 pos_i = sortedPosRad[i_idx];
+	if (sortedRhoPreMu[i_idx].x < EPSILON) {
+		printf("My density is %f in Calc_dij_pj\n", sortedRhoPreMu[i_idx].x);
+	}
+
+	//   printf("%d is fluid\n", i_idx);
+
+	int counter = 0; // There is always one non-zero at each row- The marker itself
+	B_i[i_idx] = RHO_0 - rho_np[i_idx];
+
+	//  printf("%d is fluid\n", i_idx);
+
+	uint csrStartIdx = numContacts[i_idx] + 1; // Reserve the starting index for the A_ii
+	uint csrEndIdx = numContacts[i_idx + 1];
+
+	if (IsSPARSE) {
+		for (int c = csrStartIdx; c < csrEndIdx; c++) {
+			csrValA[c] = 0;
+			csrColIndA[c] = i_idx;
+			GlobalcsrColIndA[c] = i_idx + numAllMarkers * i_idx;
+		}
+	}
+	int3 gridPos = calcGridPos(pos_i);
+	for (int z = -1; z <= 1; z++) {
+		for (int y = -1; y <= 1; y++) {
+			for (int x = -1; x <= 1; x++) {
+				int3 neighbourPos = gridPos + mI3(x, y, z);
+				uint gridHash = calcGridHash(neighbourPos);
+				// get start of bucket for this cell
+				uint startIndex = cellStart[gridHash];
+				if (startIndex != 0xffffffff) {  // cell is not empty
+					// iterate over particles in this cell
+					uint endIndex = cellEnd[gridHash];
+
+					for (uint j = startIndex; j < endIndex; j++) {
+						Real3 pos_j = sortedPosRad[j];
+						Real3 dist3 = Distance(pos_i, pos_j);
+						Real d = length(dist3);
+						if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML
+								|| i_idx == j)
+							continue;
+						Real3 grad_i_wij = GradW(dist3);
+						Real Rho_j = sortedRhoPreMu[j].x;
+						Real3 d_ij = m_0 * (-(dT * dT) / (Rho_j * Rho_j))
+								* grad_i_wij;
+						Real My_a_ij_1 = dot(d_ij, summGradW[i_idx]);
+						Real My_a_ij_2 = m_0 * dot(d_ii[j], grad_i_wij);
+						float My_a_ij_12 = (float) My_a_ij_1
+								- (float) My_a_ij_2;
+						bool DONE1 = false;
+						if (IsSPARSE) {
+							for (uint findCol = csrStartIdx;
+									findCol < csrEndIdx; findCol++) {
+								if (csrColIndA[findCol] == j) {
+									csrValA[findCol] += My_a_ij_12;
+									csrColIndA[findCol] = j;
+									GlobalcsrColIndA[findCol] = j
+											+ numAllMarkers * i_idx;
+									//                  if (i_idx == 2)
+									//                    printf("findCol: %d, csrEndIdx: %d, csrColIndA[csrStartIdx - 1] :%d ",
+									//                    csrStartIdx - 1, csrEndIdx,
+									//                           csrColIndA[findCol]);
+									DONE1 = true;
+									continue;
+								}
+							}
+							if (!DONE1) {
+								//                if ((counter + csrStartIdx) >= csrEndIdx) {
+								//                  printf("a_%d %d=passed the boundary... TYPE = %d\n", i_idx, j,
+								//                  sortedRhoPreMu[i_idx].w);
+								//                }
+								csrValA[counter + csrStartIdx] += My_a_ij_12;
+								csrColIndA[counter + csrStartIdx] = j;
+								GlobalcsrColIndA[counter + csrStartIdx] = j
+										+ numAllMarkers * i_idx;
+								counter++;
+							}
+						} else {
+							//            atomicAdd(&a_ij12[j + numAllMarkers * i_idx], My_a_ij_12);
+							a_ij[j + numAllMarkers * i_idx] += My_a_ij_12;
+						}
+						int3 gridPosJ = calcGridPos(pos_j);
+						for (int zz = -1; zz <= 1; zz++) {
+							for (int yy = -1; yy <= 1; yy++) {
+								for (int xx = -1; xx <= 1; xx++) {
+									int3 neighbourPosJ = gridPosJ
+											+ mI3(xx, yy, zz);
+									uint gridHashJ = calcGridHash(
+											neighbourPosJ);
+									uint startIndexJ = cellStart[gridHashJ];
+									if (startIndexJ != 0xffffffff) { // cell is not empty
+										uint endIndexJ = cellEnd[gridHashJ];
+										for (uint k = startIndexJ;
+												k < endIndexJ; k++) {
+											Real3 pos_k = sortedPosRad[k];
+											Real3 dist3jk = Distance(pos_j,
+													pos_k);
+											Real djk = length(dist3jk);
+											if (djk
+													> RESOLUTION_LENGTH_MULT
+															* paramsD.HSML
+													|| k == j || k == i_idx)
+												continue;
+											Real Rho_k = sortedRhoPreMu[k].x;
+											Real3 grad_j_wjk = GradW(dist3jk);
+											Real3 d_jk = m_0
+													* (-(dT * dT)
+															/ (Rho_k * Rho_k))
+													* grad_j_wjk;
+											float My_a_ij_3 = dot(d_jk,
+													m_0 * grad_i_wij);
+											bool DONE2 = false;
+
+											if (IsSPARSE) {
+												for (uint findCol = csrStartIdx;
+														findCol < csrEndIdx;
+														findCol++) {
+													if (csrColIndA[findCol]
+															== k) {
+														csrValA[findCol] -=
+																My_a_ij_3;
+														csrColIndA[findCol] = k;
+														GlobalcsrColIndA[findCol] =
+																k
+																		+ numAllMarkers
+																				* i_idx;
+														DONE2 = true;
+														continue;
+													}
+												}
+												if (!DONE2) {
+													//                          if ((counter + csrStartIdx) >= csrEndIdx) {
+													//                            printf("a_%d %d=passed the inner boundary... type of
+													//                            d=%d\n",
+													//                            i_idx, k,
+													//                                   sortedRhoPreMu[k].w);
+													//                          }
+													csrValA[counter
+															+ csrStartIdx] -=
+															My_a_ij_3;
+													csrColIndA[counter
+															+ csrStartIdx] = k;
+													GlobalcsrColIndA[counter
+															+ csrStartIdx] = k
+															+ numAllMarkers
+																	* i_idx;
+													counter++;
+												}
+											} else {
+												//                      atomicAdd(&a_ij3[k + numAllMarkers * i_idx], My_a_ij_3);
+												a_ij3[k + numAllMarkers * i_idx] +=
+														My_a_ij_3;
+											}
+										}
+									}
+								}
+							}
+						}
+						///////////////////////////////
+					}
+				}
+			}
+		}
+	}
+
+	if (IsSPARSE) {
+		csrValA[csrStartIdx - 1] = a_ii[i_idx];
+		csrColIndA[csrStartIdx - 1] = i_idx;
+		GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
+
+		//    if (sortedRhoPreMu[i_idx].x < 0.95 * RHO_0) {
+		//      csrValA[csrStartIdx - 1] = 1;
+		//      B_i[i_idx] = 0;
+		//      for (int c = csrStartIdx; c < csrEndIdx; c++) {
+		//        csrValA[c] = 0;
+		//      }
+		//    }
+		//    for (int j = csrStartIdx; j < csrEndIdx; j++) {
+		//      csrValA[j] += csrValA2[j];
+		//    }
+	}
+
+	else {
+		a_ij[i_idx + i_idx * numAllMarkers] = a_ii[i_idx];
+		for (int j = 0; j < numAllMarkers; j++) {
+			a_ij[j + i_idx * numAllMarkers] +=
+					-a_ij3[j + i_idx * numAllMarkers];
+		}
+	}
+
+	//  if (i_idx == 2) {
+	//    printf("csrStartIdx-1: %d, csrEndIdx: %d, csrColIndA[csrStartIdx - 1] :%d \n ", csrStartIdx - 1, csrEndIdx,
+	//           csrColIndA[csrStartIdx - 1]);
+	//    printf("counter reports:%d, it should be %d", csrEndIdx - csrStartIdx + 1);
+	//  }
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void FormAXB(Real* csrValA, uint* csrColIndA,
+		unsigned long int* GlobalcsrColIndA, unsigned long int* numContacts,
+		///> The above 4 vectors are used for CSR form.
+		Real* a_ij,   // write
+		Real* a_ij3,  // write
+		Real* B_i,    // write
+		Real3* d_ii,  // Read
+		Real* a_ii,   // Read
+		Real3* summGradW, Real3* sortedPosRad, Real3* sortedVelMas,
+		Real4* sortedRhoPreMu, Real3* V_new, Real* p_old, Real* rho_np,	Real3* bceAcc, int2 updatePortion,
+		uint* gridMarkerIndexD, uint* cellStart, uint* cellEnd, const int numAllMarkers, const Real m_0,
+		const Real RHO_0, const Real dT, const Real3 gravity, bool IsSPARSE,
+		volatile bool* isError) {
+	uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i_idx >= numAllMarkers) {
+		return;
+	}
+	int TYPE_OF_NARKER = sortedRhoPreMu[i_idx].w;
+	if (TYPE_OF_NARKER == -1)
+		Calc_fluid_aij_Bi(i_idx, csrValA, csrColIndA, GlobalcsrColIndA,
+				numContacts, a_ij, a_ij3, B_i, d_ii, a_ii, rho_np, summGradW,
+				sortedPosRad, sortedRhoPreMu, cellStart, cellEnd, numAllMarkers,
+				m_0, RHO_0, dT, IsSPARSE);
+	if (TYPE_OF_NARKER == 0)
+		Calc_BC_aij_Bi(i_idx, csrValA, csrColIndA, GlobalcsrColIndA,
+				numContacts, a_ij, a_ii, B_i, sortedPosRad, sortedVelMas,
+				sortedRhoPreMu, V_new, p_old,bceAcc, updatePortion, gridMarkerIndexD, cellStart, cellEnd, numAllMarkers,
+				gravity, IsSPARSE);
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void Calc_Pressure_AXB_USING_CSR(Real* csrValA, Real* a_ii,
+		uint* csrColIndA, unsigned long int* numContacts, Real4* sortedRhoPreMu,
+		Real* nonNormalRho, Real3* sortedPosRad, Real3* sortedVelMas,
+		Real3* V_new, Real* p_old, Real* B_i,  // Read
+		Real RHO_0, const int numAllMarkers, volatile bool* isErrorD) {
+	uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i_idx >= numAllMarkers)
+		return;
+
+	uint startIdx = numContacts[i_idx] + 1; // numContacts[i_idx] is the diagonal itself
+	uint endIdx = numContacts[i_idx + 1];
+
+	if (sortedRhoPreMu[i_idx].x < EPSILON) {
+		printf("My density is %f in Calc_Pressure_AXB\n",
+				sortedRhoPreMu[i_idx].x);
+	}
+
+	Real aij_pj = 0;
+	if (nonNormalRho[i_idx] < 0.998 * RHO_0) {
+		sortedRhoPreMu[i_idx].y = 0.0;
+//		sortedRhoPreMu[i_idx].x = RHO_0;
+	} else {
+		for (int myIdx = startIdx; myIdx < endIdx; myIdx++) {
+			if (i_idx == csrColIndA[myIdx])
+				continue;
+			aij_pj += csrValA[myIdx] * p_old[csrColIndA[myIdx]];
+			if (!isfinite(aij_pj)) {
+				printf(
+						"csrColIndA[myIdx]=%d, myIdx=%d\ncsrValA[myIdx]=%f, p_old[csrColIndA[myIdx]=%f\n",
+						csrColIndA[myIdx], myIdx, csrValA[myIdx],
+						p_old[csrColIndA[myIdx]]);
+			}
+		}
+//		double RHS = min(0.0, B_i[i_idx]);
+		double RHS = B_i[i_idx];
+
+		sortedRhoPreMu[i_idx].y = (RHS - aij_pj) / csrValA[startIdx - 1];
+		//    sortedRhoPreMu[i_idx].y = (B_i[i_idx] - aij_pj) / a_ii[i_idx];
+		//    sortedRhoPreMu[i_idx].x = aij_pj + sortedRhoPreMu[i_idx].y * csrValA[startIdx - 1] + RHO_0 - RHS;
+		//    if (abs(sortedRhoPreMu[i_idx].x - RHO_0) > EPSILON)
+		//      printf("sortedRhoPreMu[i_idx].x=%f\n", sortedRhoPreMu[i_idx].x);
+	}
+
+	/// This updates the velocity but it is done here since its faster
+	if (sortedRhoPreMu[i_idx].w == 0)
+		sortedVelMas[i_idx] = V_new[i_idx];
+}
+////--------------------------------------------------------------------------------------------------------------------------------
+__global__ void Calc_Pressure(
+		Real* a_ii,     // Read
+		Real3* d_ii,    // Read
+		Real3* dij_pj,  // Read
+		Real* rho_np,   // Read
+		Real* rho_p,    // Write
+		Real3* F_p, Real3* sortedPosRad, Real3* sortedVelMas,
+		Real4* sortedRhoPreMu, Real* p_old, Real3* V_new, uint* cellStart,
+		uint* cellEnd, const int numAllMarkers, const Real m_0,
+		const Real RHO_0, const Real dT, const Real3 gravity,
+		volatile bool* isErrorD) {
+	uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i_idx >= numAllMarkers)
+		return;
+
+	if (sortedRhoPreMu[i_idx].x < EPSILON) {
+		printf("My density is %f in Calc_Pressure\n", sortedRhoPreMu[i_idx].x);
+	}
+	int myType = sortedRhoPreMu[i_idx].w;
+	Real Rho_i = sortedRhoPreMu[i_idx].x;
+	Real p_i = p_old[i_idx];
+	Real3 pos_i = sortedPosRad[i_idx];
+	Real p_new = 0;
+	Real my_rho_p = 0;
+	Real3 F_i_p = F_p[i_idx];
+
+	if (myType < 0) {
+		if (Rho_i < 0.998 * RHO_0) {
+			p_new = 0;
+			sortedRhoPreMu[i_idx].x = RHO_0;
+		} else {
+			Real3 my_dij_pj = dij_pj[i_idx];
+			Real sum_dij_pj = 0; // This is the first summation  term in the expression for the pressure.
+			Real sum_djj_pj = 0; // This is the second summation term in the expression for the pressure.
+			Real sum_djk_pk = 0; // This is the last summation term in the expression for the pressure.
+			int3 gridPosI = calcGridPos(pos_i);
+			for (int z = -1; z <= 1; z++) {
+				for (int y = -1; y <= 1; y++) {
+					for (int x = -1; x <= 1; x++) {
+						int3 neighbourPosI = gridPosI + mI3(x, y, z);
+						uint gridHashI = calcGridHash(neighbourPosI);
+						// get start of bucket for this cell
+						uint startIndexI = cellStart[gridHashI];
+						if (startIndexI != 0xffffffff) {
+							uint endIndexI = cellEnd[gridHashI];
+							for (uint j = startIndexI; j < endIndexI; j++) {
+								Real3 pos_j = sortedPosRad[j];
+								Real3 dist3ij = Distance(pos_i, pos_j);
+								Real dij = length(dist3ij);
+								if (dij > RESOLUTION_LENGTH_MULT * paramsD.HSML
+										|| i_idx == j)
+									continue;
+								//                Real Rho_j = sortedRhoPreMu[j].x;
+								Real p_j_old = p_old[j];
+								Real3 djj = d_ii[j];
+								Real3 F_j_p = F_p[j];
+								Real3 grad_i_wij = GradW(dist3ij);
+								Real3 d_ji = m_0
+										* (-(dT * dT) / (Rho_i * Rho_i))
+										* (-grad_i_wij);
+								Real3 djk_pk = dij_pj[j] - d_ji * p_i;
+								sum_dij_pj += m_0 * dot(my_dij_pj, grad_i_wij);
+								sum_djj_pj += m_0 * dot(djj, grad_i_wij)
+										* p_j_old;
+								sum_djk_pk += m_0 * dot(djk_pk, grad_i_wij);
+								my_rho_p += (dT * dT) * m_0
+										* dot((F_i_p / m_0 - F_j_p / m_0),
+												grad_i_wij);
+							}
+						}
+					}
+				}
+			}
+			Real RHS = min(0.0, RHO_0 - rho_np[i_idx]);
+			Real aij_pj = +sum_dij_pj - sum_djj_pj - sum_djk_pk;
+			p_new = (RHS - aij_pj) / a_ii[i_idx];
+			sortedRhoPreMu[i_idx].x = aij_pj + p_new * a_ii[i_idx] + RHO_0
+					- RHS;
+
+			//      printf("fluid id= %d\n", i_idx);
+			//      if (i_idx == 1386)
+			//        printf("aij_pj= %f\n", -sum_dij_pj + sum_djj_pj + sum_djk_pk);
+		}
+	} else if (myType == 0) {  // Do Adami BC
+
+		Real3 numeratorv = mR3(0);
+		Real denumenator = 0;
+		Real numeratorp = 0;
+		Real3 Vel_i;
+
+		// get address in grid
+		int3 gridPos = calcGridPos(pos_i);
+		for (int z = -1; z <= 1; z++) {
+			for (int y = -1; y <= 1; y++) {
+				for (int x = -1; x <= 1; x++) {
+					int3 neighbourPos = gridPos + mI3(x, y, z);
+					uint gridHash = calcGridHash(neighbourPos);
+					// get start of bucket for this cell
+					uint startIndex = cellStart[gridHash];
+					if (startIndex != 0xffffffff) {  // cell is not empty
+						uint endIndex = cellEnd[gridHash];
+						for (uint j = startIndex; j < endIndex; j++) {
+							Real3 pos_j = sortedPosRad[j];
+							Real3 dist3 = Distance(pos_i, pos_j);
+							Real d = length(dist3);
+							if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML
+									|| sortedRhoPreMu[j].w != -1)
+								continue;
+							// OLD VELOCITY IS SHOULD BE OBDATED NOT THE NEW ONE!!!!!
+							Real3 Vel_j = sortedVelMas[j];
+							Real p_j = p_old[j];
+							Real3 F_j_p = F_p[j];
+
+							Real Wd = W3(d);
+							numeratorv += Vel_j * Wd;
+							numeratorp += p_j * Wd
+									+ dot(gravity, dist3) * Rho_i * Wd;
+							denumenator += Wd;
+							Real3 TobeUsed = (F_i_p / m_0 - F_j_p / m_0);
+							my_rho_p += (dT * dT) * m_0
+									* dot(TobeUsed, GradW(dist3));
+
+							if (isnan(numeratorp))
+								printf("Something is wrong here..., %f\n",
+										numeratorp);
+						}
+					}
+				}
+			}
+		}
+		if (abs(denumenator) < EPSILON) {
+			p_new = 0;
+			Vel_i = mR3(0);
+
+		} else {
+			Vel_i = -numeratorv / denumenator;
+			p_new = numeratorp / denumenator;
+
+			if (isnan(denumenator) || isnan(numeratorp))
+				printf("I cheated, something is wrong though ...\n");
+		}
+		V_new[i_idx] = Vel_i;
+	}
+	rho_p[i_idx] = my_rho_p;
+	sortedRhoPreMu[i_idx].y = p_new;
+}
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void Initialize_Variables(Real4* sortedRhoPreMu, Real* p_old,
+		Real3* sortedVelMas, Real3* V_new, const int numAllMarkers,
+		volatile bool* isErrorD) {
+	const uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i_idx >= numAllMarkers) {
+		return;
+	}
+
+	p_old[i_idx] = sortedRhoPreMu[i_idx].y; // This needs consistency p_old is old but v_new is new !!
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void Update_AND_Calc_Res(Real3* sortedVelMas, Real4* sortedRhoPreMu,
+		Real* p_old, Real3* V_new, Real* rho_p, Real* rho_np, Real* Residuals,
+		const int numAllMarkers, const int Iteration, Real params_relaxation,
+		bool IsSPARSE, volatile bool* isErrorD) {
+	uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (i_idx >= numAllMarkers) {
+		return;
+	}
+	if (sortedRhoPreMu[i_idx].x < EPSILON) {
+		printf("My density is %f in Update_AND_Calc_Res\n",
+				sortedRhoPreMu[i_idx].x);
+	}
+
+	// Double check the relaxations. Something is fishy here
+	Real relax;
+	if (!IsSPARSE) {
+		//    printf("relaxing the solution\n");
+		relax = params_relaxation;
+	} else {
+		relax = 1;
+	}
+
+	//  p_i = (1 - relax) * p_old_i + relax * p_i;
+	sortedRhoPreMu[i_idx].y = (1 - relax) * p_old[i_idx]
+			+ relax * sortedRhoPreMu[i_idx].y;
+	//  Real AbsRes = abs(sortedRhoPreMu[i_idx].y - p_old[i_idx]);
+
+	Real Updated_rho = rho_np[i_idx] + rho_p[i_idx];
+	Real rho_res = abs(1000 - sortedRhoPreMu[i_idx].x);
+	Real p_res = 0;
+	p_res = abs(sortedRhoPreMu[i_idx].y - p_old[i_idx])
+			/ (abs(p_old[i_idx]) + 0.00001);
+
+	Residuals[i_idx] = p_res;
+//	Residuals[i_idx] = max(p_res, 0.0);
+	//  sortedRhoPreMu[i_idx].x = Updated_rho;
+
+	if (sortedRhoPreMu[i_idx].w == 0) {
+		Residuals[i_idx] = 0.0;
+		sortedVelMas[i_idx] = V_new[i_idx];
+	}
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void CalcForces(
+		Real3* new_vel,       // Write
+		Real3* sortedPosRad,  // Read
+		Real3* sortedVelMas,  // Read
+		Real4* sortedRhoPreMu, uint* cellStart, uint* cellEnd,
+		uint numAllMarkers, Real m_0, Real mu_0, Real epsilon, Real dT,
+		Real3 gravity, volatile bool* isErrorD) {
+	uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i_idx >= numAllMarkers || sortedRhoPreMu[i_idx].w != -1)
+		return;
+
+	Real3 posi = sortedPosRad[i_idx];
+	Real3 Veli = sortedVelMas[i_idx];
+	Real p_i = sortedRhoPreMu[i_idx].y;
+	Real rho_i = sortedRhoPreMu[i_idx].x;
+	Real3 F_i_np = mR3(0);
+	Real3 F_i_p = mR3(0);
+	// get address in grid
+	int3 gridPos = calcGridPos(posi);
+	for (int z = -1; z <= 1; z++) {
+		for (int y = -1; y <= 1; y++) {
+			for (int x = -1; x <= 1; x++) {
+				int3 neighbourPos = gridPos + mI3(x, y, z);
+				uint gridHash = calcGridHash(neighbourPos);
+				// get start of bucket for this cell
+				uint startIndex = cellStart[gridHash];
+				uint endIndex = cellEnd[gridHash];
+				for (uint j = startIndex; j < endIndex; j++) {
+					Real3 posj = sortedPosRad[j];
+					Real3 dist3 = Distance(posi, posj);
+					Real d = length(dist3);
+					if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML || i_idx == j)
+						continue;
+					Real3 Velj = sortedVelMas[j];
+					Real p_j = sortedRhoPreMu[j].y;
+					Real rho_j = sortedRhoPreMu[j].x;
+
+					Real3 grad_i_wij = GradW(dist3);
+					Real3 V_ij = (Veli - Velj);
+					F_i_p +=
+							-m_0
+									* ((p_i / (rho_i * rho_i))
+											+ (p_j / (rho_j * rho_j)))
+									* grad_i_wij;
+					if (!isfinite(length(F_i_p))) {
+						printf("F_i_p in CalcForces returns Nan or Inf");
+					}
+					Real Rho_bar = (rho_j + rho_i) * 0.5;
+					Real3 muNumerator = 2 * mu_0 * dot(dist3, grad_i_wij)
+							* V_ij;
+					Real muDenominator = (Rho_bar * Rho_bar)
+							* (d * d + paramsD.HSML * paramsD.HSML * epsilon);
+					F_i_np += m_0 * muNumerator / muDenominator;
+					if (!isfinite(length(F_i_np))) {
+						printf("F_i_np in CalcForces returns Nan or Inf");
+					}
+				}
+			}
+		}
+	}
+
+	new_vel[i_idx] = Veli + dT * (F_i_p + F_i_np) + gravity * dT;
+//  new_Pos[i_idx] = posi + dT * new_vel[i_idx];
+}
+
+//--------------------------------------------------------------------------------------------------------------------------------
+
+void ChFsiForceParallel::calcPressureIISPH( thrust::device_vector<Real3> &bceAcc) {
+
+
+
+	Real RES = paramsH->PPE_res;
+	PPE_SolutionType mySolutionType = paramsH->PPE_Solution_type;
+
+	double total_step_timeClock = clock();
+	bool *isErrorH, *isErrorD;
+	isErrorH = (bool*) malloc(sizeof(bool));
+	cudaMalloc((void**) &isErrorD, sizeof(bool));
+	*isErrorH = false;
+	cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+	//------------------------------------------------------------------------
+	// thread per particle
+	uint numThreads, numBlocks;
+	int numAllMarkers = numObjectsH->numBoundaryMarkers
+			+ numObjectsH->numFluidMarkers;
+	computeGridSize(numAllMarkers, 256, numBlocks, numThreads);
+	printf("numBlocks: %d, numThreads: %d, numAllMarker:%d \n", numBlocks,
+			numThreads, numAllMarkers);
+	thrust::device_vector<Real> nonNormRho(numAllMarkers);
+
+	*isErrorH = false;
+	cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+
+	calcRho_kernel<<<numBlocks, numThreads>>>(
+			mR3CAST(sortedSphMarkersD->posRadD), R1CAST(nonNormRho),
+			U1CAST(markersProximityD->cellStartD),
+			U1CAST(markersProximityD->cellEndD), numAllMarkers, paramsH->rho0,
+			paramsH->markerMass, isErrorD);
+
+	cudaThreadSynchronize();
+	cudaCheckError()
+	;
+	cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+	if (*isErrorH == true) {
+		throw std::runtime_error(
+				"Error! program crashed after F_i_np__AND__d_ii_kernel!\n");
+	}
+
+	calcNormalizedRho_kernel<<<numBlocks, numThreads>>>(
+			mR3CAST(sortedSphMarkersD->posRadD),
+			mR4CAST(sortedSphMarkersD->rhoPresMuD),  // input: sorted velocities
+			R1CAST(nonNormRho), U1CAST(markersProximityD->cellStartD),
+			U1CAST(markersProximityD->cellEndD), numAllMarkers, paramsH->rho0,
+			paramsH->markerMass, isErrorD);
+
+	// This is mandatory to sync here
+	cudaThreadSynchronize();
+	cudaCheckError()
+	;
+	cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+	if (*isErrorH == true) {
+		throw std::runtime_error(
+				"Error! program crashed after calcNormalizedRho_kernel!\n");
+	}
+
+	thrust::device_vector<Real3> d_ii(numAllMarkers);
+	thrust::device_vector<Real3> V_np(numAllMarkers);
+	thrust::fill(d_ii.begin(), d_ii.end(), mR3(0));
+	thrust::fill(V_np.begin(), V_np.end(), mR3(0));
+	*isErrorH = false;
+	cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+	V_i_np__AND__d_ii_kernel<<<numBlocks, numThreads>>>(
+			mR3CAST(sortedSphMarkersD->posRadD),
+			mR3CAST(sortedSphMarkersD->velMasD),
+			mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(d_ii),
+			mR3CAST(V_np), U1CAST(markersProximityD->cellStartD),
+			U1CAST(markersProximityD->cellEndD), numAllMarkers,
+			paramsH->markerMass, paramsH->mu0, paramsH->rho0,
+			paramsH->epsMinMarkersDis, paramsH->dT, isErrorD);
+
+	cudaThreadSynchronize();
+	cudaCheckError()
+	;
+	cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+	if (*isErrorH == true) {
+		throw std::runtime_error(
+				"Error! program crashed after F_i_np__AND__d_ii_kernel!\n");
+	}
+
+	thrust::device_vector<Real> a_ii(numAllMarkers);
+	thrust::device_vector<Real> rho_np(numAllMarkers);
+	thrust::device_vector<Real> p_old(numAllMarkers);
+	thrust::fill(a_ii.begin(), a_ii.end(), 0);
+	thrust::fill(rho_np.begin(), rho_np.end(), 0);
+	thrust::fill(p_old.begin(), p_old.end(), 0);
+
+	*isErrorH = false;
+	cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+	Rho_np_AND_a_ii<<<numBlocks, numThreads>>>(
+			mR3CAST(sortedSphMarkersD->posRadD),
+			mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(rho_np),
+			R1CAST(a_ii), R1CAST(p_old), mR3CAST(V_np), mR3CAST(d_ii),
+			U1CAST(markersProximityD->cellStartD),
+			U1CAST(markersProximityD->cellEndD), numAllMarkers,
+			paramsH->markerMass, paramsH->dT, isErrorD);
+
+	cudaThreadSynchronize();
+	cudaCheckError()
+	;
+	cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+	if (*isErrorH == true) {
+		throw std::runtime_error(
+				"Error! program crashed after F_i_np__AND__d_ii_kernel!\n");
+	}
+
+	thrust::device_vector<Real3> V_new(numAllMarkers);
+	thrust::fill(V_new.begin(), V_new.end(), mR3(0));
+	thrust::device_vector<Real> a_ij;
+	thrust::device_vector<Real> B_i(numAllMarkers);
+	thrust::device_vector<Real> a_ij3;
+	thrust::device_vector<Real3> summGradW(numAllMarkers);
+	thrust::device_vector<uint> csrColIndA;
+	thrust::device_vector<uint> row_indices;
+	thrust::device_vector<unsigned long int> GlobalcsrColIndA;
+	thrust::device_vector<Real> csrValA;
+	thrust::device_vector<unsigned long int> numContacts(numAllMarkers);
+	double durationFormAXB;
+
+
+	int2 updatePortion = mI2(
+	      fsiGeneralData->referenceArray[1].y,
+	      fsiGeneralData->referenceArray[1 + numObjectsH->numRigidBodies].y);
+
+	if (mySolutionType == SPARSE_MATRIX_JACOBI) {
+		thrust::fill(a_ij.begin(), a_ij.end(), 0);
+		thrust::fill(B_i.begin(), B_i.end(), 0);
+		thrust::fill(a_ij3.begin(), a_ij3.end(), 0);
+		thrust::fill(summGradW.begin(), summGradW.end(), mR3(0));
+		thrust::fill(numContacts.begin(), numContacts.end(), 0);
+		//------------------------------------------------------------------------
+		//------------- MatrixJacobi
+		//------------------------------------------------------------------------
+
+		bool SPARSE_FLAG = true;
+		double FormAXBClock = clock();
+		thrust::device_vector<Real> Residuals(numAllMarkers);
+		thrust::fill(Residuals.begin(), Residuals.end(), 1);
+		thrust::device_vector<Real> rho_p(numAllMarkers);
+		thrust::fill(rho_p.begin(), rho_p.end(), 0);
+
+		*isErrorH = false;
+		cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+		Calc_summGradW<<<numBlocks, numThreads>>>(mR3CAST(summGradW),
+				mR3CAST(sortedSphMarkersD->posRadD),
+				mR4CAST(sortedSphMarkersD->rhoPresMuD),
+				U1CAST(markersProximityD->cellStartD),
+				U1CAST(markersProximityD->cellEndD), numAllMarkers,
+				paramsH->markerMass, paramsH->dT, isErrorD);
+		cudaThreadSynchronize();
+		cudaCheckError()
+		;
+		cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+		if (*isErrorH == true) {
+			throw std::runtime_error(
+					"Error! program crashed after Calc_dij_pj!\n");
+		}
+
+		cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+		CalcNumber_Contacts<<<numBlocks, numThreads>>>(LU1CAST(numContacts),
+				mR3CAST(sortedSphMarkersD->posRadD),
+				mR4CAST(sortedSphMarkersD->rhoPresMuD),
+				U1CAST(markersProximityD->cellStartD),
+				U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
+
+		cudaThreadSynchronize();
+		cudaCheckError()
+		;
+		cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+		if (*isErrorH == true) {
+			throw std::runtime_error(
+					"Error! program crashed after F_i_np__AND__d_ii_kernel!\n");
+		}
+		uint MAX_CONTACT = thrust::reduce(numContacts.begin(),
+				numContacts.end(), 0, thrust::maximum<Real>());
+
+		uint LastVal = numContacts[numAllMarkers - 1];
+		thrust::exclusive_scan(numContacts.begin(), numContacts.end(),
+				numContacts.begin());
+		numContacts.push_back(LastVal + numContacts[numAllMarkers - 1]);
+		uint NNZ = numContacts[numAllMarkers];
+
+		csrValA.resize(NNZ);
+		csrColIndA.resize(NNZ);
+		GlobalcsrColIndA.resize(NNZ);
+
+		thrust::fill(csrValA.begin(), csrValA.end(), 0);
+		thrust::fill(GlobalcsrColIndA.begin(), GlobalcsrColIndA.end(), 0);
+		thrust::fill(csrColIndA.begin(), csrColIndA.end(), 0);
+		cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+
+
+
+		printf ("size of gridMarkerIndexD: %d\n", markersProximityD->gridMarkerIndexD.size());
+		printf ("size of bceAcc: %d\n", bceAcc.size());
+		printf ("numBlocks: %d, numThreads: %d", numBlocks,numThreads);
+		printf ("max thread: %d", numBlocks*numThreads);
+
+
+
+		FormAXB<<<numBlocks, numThreads>>>(R1CAST(csrValA), U1CAST(csrColIndA),
+				LU1CAST(GlobalcsrColIndA), LU1CAST(numContacts), R1CAST(a_ij),
+				R1CAST(a_ij3), R1CAST(B_i), mR3CAST(d_ii), R1CAST(a_ii),
+				mR3CAST(summGradW), mR3CAST(sortedSphMarkersD->posRadD),
+				mR3CAST(sortedSphMarkersD->velMasD),
+				mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(V_new),
+				R1CAST(p_old), R1CAST(rho_np),mR3CAST(bceAcc),updatePortion, U1CAST(markersProximityD->gridMarkerIndexD),
+				U1CAST(markersProximityD->cellStartD),
+				U1CAST(markersProximityD->cellEndD), numAllMarkers,
+				paramsH->markerMass, paramsH->rho0, paramsH->dT,
+				paramsH->gravity, SPARSE_FLAG, isErrorD);
+
+		cudaThreadSynchronize();
+		cudaCheckError()
+		;
+		cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+		if (*isErrorH == true) {
+			throw std::runtime_error(
+					"Error! program crashed after F_i_np__AND__d_ii_kernel!\n");
+		}
+
+		durationFormAXB = (clock() - FormAXBClock) / (double) CLOCKS_PER_SEC;
+
+	}
+
+	//------------------------------------------------------------------------
+	//------------- Iterative loop
+	//------------------------------------------------------------------------
+	int Iteration = 0;
+	Real MaxRes = 1;
+	thrust::device_vector<Real> Residuals(numAllMarkers);
+	thrust::fill(Residuals.begin(), Residuals.end(), 1);
+	thrust::device_vector<Real3> dij_pj(numAllMarkers);
+	thrust::fill(dij_pj.begin(), dij_pj.end(), mR3(0));
+	thrust::device_vector<Real3> F_p(numAllMarkers);
+	thrust::fill(F_p.begin(), F_p.end(), mR3(0));
+	thrust::device_vector<Real> rho_p(numAllMarkers);
+	thrust::fill(rho_p.begin(), rho_p.end(), 0);
+	double LinearSystemClock = clock();
+
+//	printf("--------IISPH CLOCK-----------\n");
+//	printf(" FormAXB: %f \n", durationFormAXB);
+
+	while (MaxRes > RES || Iteration < 3) {
+		*isErrorH = false;
+		cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+		Initialize_Variables<<<numBlocks, numThreads>>>(
+				mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(p_old),
+				mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(V_new),
+				numAllMarkers, isErrorD);
+		cudaThreadSynchronize();
+		cudaCheckError()
+		;
+		cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+		if (*isErrorH == true) {
+			throw std::runtime_error(
+					"Error! program crashed after Initialize_Variables!\n");
+		}
+
+		if (mySolutionType == IterativeJacobi) {
+			*isErrorH = false;
+			cudaMemcpy(isErrorD, isErrorH, sizeof(bool),
+					cudaMemcpyHostToDevice);
+			Calc_dij_pj<<<numBlocks, numThreads>>>(mR3CAST(dij_pj),
+					mR3CAST(F_p), mR3CAST(d_ii),
+					mR3CAST(sortedSphMarkersD->posRadD),
+					mR3CAST(sortedSphMarkersD->velMasD),
+					mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(p_old),
+					U1CAST(markersProximityD->cellStartD),
+					U1CAST(markersProximityD->cellEndD), numAllMarkers,
+					paramsH->markerMass, paramsH->dT, isErrorD);
+			cudaThreadSynchronize();
+			cudaCheckError()
+			;
+			cudaMemcpy(isErrorH, isErrorD, sizeof(bool),
+					cudaMemcpyDeviceToHost);
+			if (*isErrorH == true) {
+				throw std::runtime_error(
+						"Error! program crashed after Calc_dij_pj!\n");
+			}
+
+			*isErrorH = false;
+			cudaMemcpy(isErrorD, isErrorH, sizeof(bool),
+					cudaMemcpyHostToDevice);
+			Calc_Pressure<<<numBlocks, numThreads>>>(R1CAST(a_ii),
+					mR3CAST(d_ii), mR3CAST(dij_pj), R1CAST(rho_np),
+					R1CAST(rho_p), mR3CAST(F_p),
+					mR3CAST(sortedSphMarkersD->posRadD),
+					mR3CAST(sortedSphMarkersD->velMasD),
+					mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(p_old),
+					mR3CAST(V_new), U1CAST(markersProximityD->cellStartD),
+					U1CAST(markersProximityD->cellEndD), numAllMarkers,
+					paramsH->markerMass, paramsH->rho0, paramsH->dT,
+					paramsH->gravity, isErrorD);
+			cudaThreadSynchronize();
+			cudaCheckError()
+			;
+			cudaMemcpy(isErrorH, isErrorD, sizeof(bool),
+					cudaMemcpyDeviceToHost);
+			if (*isErrorH == true) {
+				throw std::runtime_error(
+						"Error! program crashed after Calc_Pressure!\n");
+			}
+		}
+
+		if (mySolutionType == SPARSE_MATRIX_JACOBI) {
+			*isErrorH = false;
+			cudaMemcpy(isErrorD, isErrorH, sizeof(bool),
+					cudaMemcpyHostToDevice);
+			Calc_Pressure_AXB_USING_CSR<<<numBlocks, numThreads>>>(
+					R1CAST(csrValA), R1CAST(a_ii), U1CAST(csrColIndA),
+					LU1CAST(numContacts),
+					mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(nonNormRho),
+					mR3CAST(sortedSphMarkersD->posRadD),
+					mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(V_new),
+					R1CAST(p_old), R1CAST(B_i), paramsH->rho0, numAllMarkers,
+					isErrorD);
+			cudaThreadSynchronize();
+			cudaCheckError()
+			;
+			cudaMemcpy(isErrorH, isErrorD, sizeof(bool),
+					cudaMemcpyDeviceToHost);
+			if (*isErrorH == true) {
+				throw std::runtime_error(
+						"Error! program crashed after Iterative_pressure_update!\n");
+			}
+		}
+		*isErrorH = false;
+		cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+
+		Update_AND_Calc_Res<<<numBlocks, numThreads>>>(
+				mR3CAST(sortedSphMarkersD->velMasD),
+				mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(p_old),
+				mR3CAST(V_new), R1CAST(rho_p), R1CAST(rho_np),
+				R1CAST(Residuals), numAllMarkers, Iteration,
+				paramsH->PPE_relaxation, false, isErrorD);
+		cudaThreadSynchronize();
+		cudaCheckError()
+		;
+		cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+		if (*isErrorH == true) {
+			throw std::runtime_error(
+					"Error! program crashed after Iterative_pressure_update!\n");
+		}
+
+		Iteration++;
+//			      MaxRes = thrust::reduce(Residuals.begin(), Residuals.end(), 0.0, thrust::maximum<Real>());
+		//    Real PMAX = thrust::reduce(p_old.begin(), p_old.end(), 0.0, thrust::maximum<Real>());
+		MaxRes = thrust::reduce(Residuals.begin(), Residuals.end(), 0.0,
+				thrust::plus<Real>()) / numObjectsH->numFluidMarkers;
+
+		//      Real R_np = thrust::reduce(rho_np.begin(), rho_np.end(), 0.0, thrust::plus<Real>()) / rho_np.size();
+		//      Real R_p = thrust::reduce(rho_p.begin(), rho_p.end(), 0.0, thrust::plus<Real>()) / rho_p.size();
+		//
+//			printf("Iter= %d, Res= %f\n", Iteration,
+//					MaxRes);
+	}
+
+	double durationLinearSystem = (clock() - LinearSystemClock)
+			/ (double) CLOCKS_PER_SEC;
+	double durationtotal_step_time = (clock() - total_step_timeClock)
+			/ (double) CLOCKS_PER_SEC;
+//	printf(" Linear System: %f \n Total: %f \n ", durationLinearSystem,
+//			durationtotal_step_time);
+
+
+	printf("\n--------IISPH CLOCK-----------\n");
+		printf(" Total: %f \n Linear System: %f \n",
+				durationtotal_step_time, durationFormAXB, durationLinearSystem);
+	printf("Iter# = %d, Res= %f \n", Iteration, MaxRes);
+	printf("------------------------------\n");
+
+	//------------------------------------------------------------------------
+	//------------------------------------------------------------------------
+	cudaFree(isErrorD);
+	free(isErrorH);
+	nonNormRho.clear();
+	d_ii.clear();
+	V_np.clear();
+	a_ii.clear();
+	rho_np.clear();
+	a_ii.clear();
+	a_ij.clear();
+	B_i.clear();
+	a_ij3.clear();
+	summGradW.clear();
+	csrColIndA.clear();
+	GlobalcsrColIndA.clear();
+	csrValA.clear();
+	V_new.clear();
+	numContacts.clear();
+
+}
+
+
+void ChFsiForceParallel::ForceIISPH(SphMarkerDataD *otherSphMarkersD,
+		FsiBodiesDataD *otherFsiBodiesD) {
+	// Arman: Change this function by getting in the arrays of the current stage:
+	// useful for RK2. array pointers need to
+	// be private members
+	sphMarkersD = otherSphMarkersD;
+
+	fsiCollisionSystem->ArrangeData(sphMarkersD);
+	bceWorker->ModifyBceVelocity(sphMarkersD, otherFsiBodiesD);
+
+    thrust::device_vector<Real3> bceAcc(numObjectsH->numRigid_SphMarkers);
+//	std::cout<< "real size:" <<  numObjectsH->numRigid_SphMarkers << "\n";
+//
+//	printf ("size of bceAcc outside: %d\n", bceAcc.size());
+//	std::cout<< "size of bceAcc outside:" <<  bceAcc.size() << "\n";
+
+    if (numObjectsH->numRigid_SphMarkers > 0) {
+    	bceWorker->CalcBceAcceleration(
+          bceAcc, otherFsiBodiesD->q_fsiBodies_D, otherFsiBodiesD->accRigid_fsiBodies_D,
+          otherFsiBodiesD->omegaVelLRF_fsiBodies_D,
+          otherFsiBodiesD->omegaAccLRF_fsiBodies_D,
+          fsiGeneralData->rigidSPH_MeshPos_LRF_D,
+          fsiGeneralData->rigidIdentifierD, numObjectsH->numRigid_SphMarkers);
+    }
+
+	thrust::device_vector<Real> p_old(numObjectsH->numAllMarkers);
+
+	calcPressureIISPH(bceAcc);
+
+    bceAcc.clear();
+
+	int numAllMarkers = numObjectsH->numBoundaryMarkers
+			+ numObjectsH->numFluidMarkers;
+
+	bool *isErrorH, *isErrorD;
+	isErrorH = (bool*) malloc(sizeof(bool));
+	cudaMalloc((void**) &isErrorD, sizeof(bool));
+	*isErrorH = false;
+	cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+	//------------------------------------------------------------------------
+	// thread per particle
+	uint numThreads, numBlocks;
+	computeGridSize(numAllMarkers, 256, numBlocks, numThreads);
+	thrust::fill(vel_XSPH_Sorted_D.begin(), vel_XSPH_Sorted_D.end(), mR3(0));
+
+	CalcForces<<<numBlocks, numThreads>>>(mR3CAST(vel_XSPH_Sorted_D),
+			mR3CAST(sortedSphMarkersD->posRadD),
+			mR3CAST(sortedSphMarkersD->velMasD),
+			mR4CAST(sortedSphMarkersD->rhoPresMuD),
+			U1CAST(markersProximityD->cellStartD),
+			U1CAST(markersProximityD->cellEndD), numAllMarkers,
+			paramsH->markerMass, paramsH->mu0, paramsH->epsMinMarkersDis,
+			paramsH->dT, paramsH->gravity, isErrorD);
+	cudaThreadSynchronize();
+	cudaCheckError()
+	;
+
+	cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+	if (*isErrorH == true) {
+		throw std::runtime_error("Error! program crashed in CalcForces!\n");
+	}
+
+//	Real4 p_temp=sortedSphMarkersD->rhoPresMuD[6001];
+//	std::cout << "rhoPresMuD[" << 6001 << "]= " <<  p_temp.y<< "\n";
+
+	CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vel_XSPH_D,
+			vel_XSPH_Sorted_D, markersProximityD->gridMarkerIndexD);
+
+	CopySortedToOriginal_NonInvasive_R3(sphMarkersD->posRadD,
+			sortedSphMarkersD->posRadD, markersProximityD->gridMarkerIndexD);
+	CopySortedToOriginal_NonInvasive_R3(sphMarkersD->velMasD,
+			sortedSphMarkersD->velMasD, markersProximityD->gridMarkerIndexD);
+	CopySortedToOriginal_NonInvasive_R4(sphMarkersD->rhoPresMuD,
+			sortedSphMarkersD->rhoPresMuD, markersProximityD->gridMarkerIndexD);
+
+//
+//	Real4 p_temp_ori=sphMarkersD->rhoPresMuD[16214];
+//	std::cout << "rhoPresMuD_ori[" << 16214 << "]= " <<  p_temp_ori.y<< "\n";
+
+}
+
 } // end namespace fsi
 } // end namespace chrono

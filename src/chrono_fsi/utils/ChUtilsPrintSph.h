@@ -37,6 +37,15 @@ CH_FSI_API void PrintToFile(const thrust::device_vector<Real3> &posRadD,
                             const thrust::device_vector<Real4> &rhoPresMuD,
                             const thrust::host_vector<int4> &referenceArray,
                             const std::string &out_dir);
+
+
+
+CH_FSI_API void PrintToParaViewFile(const thrust::device_vector<Real3> &posRadD,
+                 const thrust::device_vector<Real3> &velMasD,
+                 const thrust::device_vector<Real4> &rhoPresMuD,
+                 const thrust::host_vector<int4> &referenceArray,
+                 const std::string &out_dir);
+
 } // end namespace utils
 } // end namespace fsi
 } // end namespace chrono

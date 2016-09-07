@@ -11,6 +11,7 @@ SET(FSI_DEMOS
 SET(FSI_PARALLEL_DEMOS
 # add fluid demos here
 demo_FSI_cylinderDrop
+demo_FSI_CylinderDrop_Implicit
 )
 
 # List all FSI demos use vehicle
@@ -25,7 +26,7 @@ SET(FSI_PARALLEL_VEHICLE_DEMOS
 
 #--------------------------------------------------------------
 SET(LIBRARIES
-    ChronoEngine   
+    ChronoEngine
     ChronoEngine_fsi
 )
 

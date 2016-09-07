@@ -106,6 +106,7 @@ void ChSystemFsi::DoStepDynamics_FSI() {
       mTime); // Keep only this if you are just interested in the rigid sys
   //
 
+
   fsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem(&(fsiData->fsiBodiesD2));
   bceWorker->UpdateRigidMarkersPositionVelocity(&(fsiData->sphMarkersD2),
                                                 &(fsiData->fsiBodiesD2));
@@ -137,6 +138,28 @@ void ChSystemFsi::DoStepDynamics_FSI() {
   }
 }
 
+
+void ChSystemFsi::DoStepDynamics_FSI_Implicit() {
+	fsiInterface->Copy_ChSystem_to_External();
+
+	fluidDynamics->IntegrateIISPH(&(fsiData->sphMarkersD2),
+			&(fsiData->fsiBodiesD2), paramsH->dT);
+
+
+	bceWorker->Rigid_Forces_Torques(&(fsiData->sphMarkersD2),
+			&(fsiData->fsiBodiesD2));
+
+	fsiInterface->Add_Rigid_ForceTorques_To_ChSystem();
+	mTime += 1 * paramsH->dT;
+
+	DoStepChronoSystem(1 * paramsH->dT, mTime);
+	fsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem(
+			&(fsiData->fsiBodiesD2));
+
+	bceWorker->UpdateRigidMarkersPositionVelocity(&(fsiData->sphMarkersD2),
+			&(fsiData->fsiBodiesD2));
+
+}
 //--------------------------------------------------------------------------------------------------------------------------------
 void ChSystemFsi::DoStepDynamics_ChronoRK2() {
   fsiInterface->Copy_ChSystem_to_External();

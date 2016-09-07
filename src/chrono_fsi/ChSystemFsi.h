@@ -60,7 +60,7 @@ public:
   /// system dynamics. The midpoint data of MBS is needed for fluid dynamics
   /// update.
   virtual void DoStepDynamics_FSI();
-
+  virtual void DoStepDynamics_FSI_Implicit();
   /// function to integrate the multibody system dynamics based on Runge-Kutta
   /// 2nd
   /// order integration scheme

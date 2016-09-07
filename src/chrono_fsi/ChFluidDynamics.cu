@@ -288,6 +288,40 @@ __global__ void UpdateFluidD(Real3 *posRadD, Real3 *velMasD, Real3 *vel_XSPH_D,
   rhoPresMuD[index] = rhoPresMu; // rhoPresMuD updated
 }
 
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void Update_Fluid_State(
+		Real3* new_vel,       // input: sorted velocities,
+		Real3* posRad,  // input: sorted positions
+		Real3* velMas, Real4* rhoPreMu, int2 NON_updatePortion, const uint numAllMarkers,
+		double dT, volatile bool* isErrorD) {
+	uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+//	if (i_idx >= numAllMarkers || rhoPreMu[i_idx].w == 0)
+		if (i_idx >= NON_updatePortion.x)
+	return;
+
+	//  sortedPosRad[i_idx] = new_Pos[i_idx];
+	velMas[i_idx] = new_vel[i_idx];
+	posRad[i_idx] = posRad[i_idx] + dT * new_vel[i_idx];
+
+	if (!(isfinite(rhoPreMu[i_idx].x) && isfinite(rhoPreMu[i_idx].y)
+			&& isfinite(rhoPreMu[i_idx].z))) {
+		printf(
+				"Error! particle position is NAN: thrown from SDKCollisionSystem.cu, UpdateFluidDKernel !\n");
+	}
+
+	if (!(isfinite(new_vel[i_idx].x) && isfinite(new_vel[i_idx].y)
+			&& isfinite(new_vel[i_idx].z))) {
+		printf(
+				"Error! particle velocity is NAN: thrown from SDKCollisionSystem.cu, UpdateFluidDKernel !\n");
+	}
+}
+
+/**
+ * @brief Wrapper function for collide
+ * @details
+ * 		See SDKCollisionSystem.cuh for informaton on collide
+ */
 // -----------------------------------------------------------------------------
 /// Kernel for updating the density.
 ///
@@ -378,6 +412,14 @@ void ChFluidDynamics::IntegrateSPH(SphMarkerDataD *sphMarkersD2,
   this->ApplyBoundarySPH_Markers(sphMarkersD2);
 }
 
+void ChFluidDynamics::IntegrateIISPH(SphMarkerDataD *sphMarkersD2,
+		FsiBodiesDataD *fsiBodiesD1, Real dT) {
+	forceSystem->ForceIISPH(sphMarkersD2, fsiBodiesD1);
+	this->UpdateFluid_Implicit(sphMarkersD2, dT);
+//	this->ApplyBoundarySPH_Markers(sphMarkersD2);
+
+
+}
 // -----------------------------------------------------------------------------
 
 void ChFluidDynamics::UpdateFluid(SphMarkerDataD *sphMarkersD, Real dT) {
@@ -418,6 +460,40 @@ void ChFluidDynamics::UpdateFluid(SphMarkerDataD *sphMarkersD, Real dT) {
   cudaFree(isErrorD);
   free(isErrorH);
 }
+void ChFluidDynamics::UpdateFluid_Implicit(SphMarkerDataD *sphMarkersD,
+		Real dT) {
+
+	uint numThreads, numBlocks;
+	computeGridSize(numObjectsH->numAllMarkers, 256, numBlocks, numThreads);
+
+
+	int2 NON_updatePortion =
+				mI2(fsiData->fsiGeneralData.referenceArray[1].x,fsiData->fsiGeneralData.referenceArray[1].y);
+
+	bool *isErrorH, *isErrorD;
+	isErrorH = (bool *) malloc(sizeof(bool));
+	cudaMalloc((void **) &isErrorD, sizeof(bool));
+	*isErrorH = false;
+	cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+	Update_Fluid_State<<<numBlocks, numThreads>>>(
+			mR3CAST(fsiData->fsiGeneralData.vel_XSPH_D),
+			mR3CAST(sphMarkersD->posRadD), mR3CAST(sphMarkersD->velMasD),
+			mR4CAST(sphMarkersD->rhoPresMuD), NON_updatePortion,numObjectsH->numAllMarkers, dT, isErrorD);
+	cudaThreadSynchronize();
+	cudaCheckError();
+
+	cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+	if (*isErrorH == true) {
+		throw std::runtime_error(
+				"Error! program crashed in  Update_Fluid_State!\n");
+	}
+	//------------------------------------------------------------------------
+
+	cudaFree(isErrorD);
+	free(isErrorH);
+}
+
+// -----------------------------------------------------------------------------
 
 // -----------------------------------------------------------------------------
 

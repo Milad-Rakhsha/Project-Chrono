@@ -59,6 +59,9 @@ public:
                             SphMarkerDataD *sphMarkersD1,
                             FsiBodiesDataD *fsiBodiesD1, Real dT);
 
+  virtual void IntegrateIISPH(SphMarkerDataD *sphMarkersD2,
+                              FsiBodiesDataD *fsiBodiesD1, Real dT);
+
   /// Function to Shepard Filtering.
   ///
   /// It calculates the densities directly, not based on the derivative of
@@ -93,6 +96,7 @@ protected:
   /// Euler
   /// Integration argorithm.
   virtual void UpdateFluid(SphMarkerDataD *sphMarkersD, Real dT);
+  virtual void UpdateFluid_Implicit(SphMarkerDataD *sphMarkersD, Real dT);
 
   /// Apply boundary to SPH markers (fluid and BCE).
   ///

@@ -61,6 +61,18 @@ CH_FSI_API void AddBoxBce(ChFsiDataManager *fsiData, SimParams *paramsH,
                           chrono::ChQuaternion<> relRot,
                           const chrono::ChVector<> &size);
 
+CH_FSI_API void AddBoxBceYZ(ChFsiDataManager *fsiData, SimParams *paramsH,
+                          std::shared_ptr<chrono::ChBody> body,
+                          chrono::ChVector<> relPos,
+                          chrono::ChQuaternion<> relRot,
+                          const chrono::ChVector<> &size);
+
+CH_FSI_API void AddBoxBceXZ(ChFsiDataManager *fsiData, SimParams *paramsH,
+                          std::shared_ptr<chrono::ChBody> body,
+                          chrono::ChVector<> relPos,
+                          chrono::ChQuaternion<> relRot,
+                          const chrono::ChVector<> &size);
+
 CH_FSI_API void AddBCE_FromFile(ChFsiDataManager *fsiData, SimParams *paramsH,
                                 std::shared_ptr<chrono::ChBody> body,
                                 std::string dataPath);

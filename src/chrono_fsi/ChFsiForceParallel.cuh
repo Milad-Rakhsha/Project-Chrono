@@ -56,6 +56,10 @@ public:
   virtual void ForceSPH(SphMarkerDataD *otherSphMarkersD,
                         FsiBodiesDataD *otherFsiBodiesD);
 
+
+  virtual void ForceIISPH(SphMarkerDataD *otherSphMarkersD,
+                        FsiBodiesDataD *otherFsiBodiesD);
+
   /// Synchronize the copy of the data (parameters and number of objects)
   /// between
   /// device (GPU) and host (CPU).
@@ -134,6 +138,8 @@ private:
   /// sorted xsph velocities to the original. The latter is needed later for
   /// position update.
   void CollideWrapper();
+
+  void calcPressureIISPH(thrust::device_vector<Real3> &bceAcc);
 
   ChCollisionSystemFsi *fsiCollisionSystem; ///< collision system; takes care of
                                             ///constructing neighbors list
