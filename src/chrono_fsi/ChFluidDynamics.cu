@@ -292,7 +292,7 @@ __global__ void UpdateFluidD(Real3 *posRadD, Real3 *velMasD, Real3 *vel_XSPH_D,
 __global__ void Update_Fluid_State(
 		Real3* new_vel,       // input: sorted velocities,
 		Real3* posRad,  // input: sorted positions
-		Real3* velMas, Real4* rhoPreMu, int2 NON_updatePortion, const uint numAllMarkers,
+		Real3* velMas, Real4* rhoPreMu, int4 NON_updatePortion, const uint numAllMarkers,
 		double dT, volatile bool* isErrorD) {
 	uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -467,8 +467,8 @@ void ChFluidDynamics::UpdateFluid_Implicit(SphMarkerDataD *sphMarkersD,
 	computeGridSize(numObjectsH->numAllMarkers, 256, numBlocks, numThreads);
 
 
-	int2 NON_updatePortion =
-				mI2(fsiData->fsiGeneralData.referenceArray[1].x,fsiData->fsiGeneralData.referenceArray[1].y);
+	int4 NON_updatePortion =
+				mI4(fsiData->fsiGeneralData.referenceArray[1].x,fsiData->fsiGeneralData.referenceArray[1].y,0,0);
 
 	bool *isErrorH, *isErrorD;
 	isErrorH = (bool *) malloc(sizeof(bool));
