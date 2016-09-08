@@ -45,7 +45,7 @@ namespace fsi {
 void SetupParamsH(SimParams *paramsH, Real hdimX, Real hdimY, Real hthick,
 		Real basinDepth, Real fluidInitDimX, Real fluidHeight) {
 	paramsH->sizeScale = 1; // don't change it.
-	paramsH->HSML = 0.05;
+	paramsH->HSML = 0.02;
 	paramsH->MULT_INITSPACE = 1.0;
 	paramsH->epsMinMarkersDis = .001;
 	paramsH->NUM_BOUNDARY_LAYERS = 3;
@@ -66,7 +66,7 @@ void SetupParamsH(SimParams *paramsH, Real hdimX, Real hdimY, Real hthick,
 
 	paramsH->PPE_res = 0.001;
 	paramsH->PPE_Solution_type = SPARSE_MATRIX_JACOBI;//SPARSE_MATRIX_JACOBI;IterativeJacobi
-	paramsH->PPE_relaxation = 0.5;
+	paramsH->PPE_relaxation = 0.4;
 
 	paramsH->dT = 1e-2;
 	paramsH->tFinal = 2;
@@ -81,8 +81,8 @@ void SetupParamsH(SimParams *paramsH, Real hdimX, Real hdimY, Real hthick,
 	paramsH->tweakMultV = 0.1;
 	paramsH->tweakMultRho = .002;
 	paramsH->bceType = ADAMI; // ADAMI, mORIGINAL
-	paramsH->cMin = mR3(-1.2, -1.2, -1);
-	paramsH->cMax = mR3(1.2, 1.2, 3);
+	paramsH->cMin = mR3(-2, -2, -2);
+	paramsH->cMax = mR3(2, 2,2);
 
 	//****************************************************************************************
 	// printf("a1  paramsH->cMax.x, y, z %f %f %f,  binSize %f\n",
@@ -107,8 +107,8 @@ void SetupParamsH(SimParams *paramsH, Real hdimX, Real hdimY, Real hthick,
 //	paramsH->cMaxInit = mR3(+1.7, +1.55, +0.5);
 	//****************************************************************************************
 	//*** initialize straight channel
-	paramsH->straightChannelBoundaryMin = paramsH->cMinInit; // mR3(0, 0, 0);  // 3D channel
-	paramsH->straightChannelBoundaryMax = paramsH->cMaxInit; // SmR3(3, 2, 3) * paramsH->sizeScale;
+	paramsH->straightChannelBoundaryMin = paramsH->cMin; // mR3(0, 0, 0);  // 3D channel
+	paramsH->straightChannelBoundaryMax = paramsH->cMax; // SmR3(3, 2, 3) * paramsH->sizeScale;
 	//************************** modify pressure ***************************
 	//		paramsH->deltaPress = paramsH->rho0 * paramsH->boxDims *
 	//paramsH->bodyForce3;  //did not work as I expected
