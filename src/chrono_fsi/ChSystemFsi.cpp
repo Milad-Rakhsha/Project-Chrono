@@ -146,8 +146,8 @@ void ChSystemFsi::DoStepDynamics_FSI_Implicit() {
 			&(fsiData->fsiBodiesD2), paramsH->dT);
 
 
-	bceWorker->Rigid_Forces_Torques(&(fsiData->sphMarkersD2),
-			&(fsiData->fsiBodiesD2));
+//	bceWorker->Rigid_Forces_Torques(&(fsiData->sphMarkersD2),
+	//		&(fsiData->fsiBodiesD2));
 
 	fsiInterface->Add_Rigid_ForceTorques_To_ChSystem();
 	mTime += 1 * paramsH->dT;

@@ -299,7 +299,7 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI &mphysicalSystem,
 	  // ---------------------
 	  double cyl_length = 0.5;
 	  double cyl_radius = .20;
-	  ChVector<> cyl_pos = ChVector<>(0, 0, 0.7);
+	  ChVector<> cyl_pos = ChVector<>(0, 0, 0.8);
 	  ChQuaternion<> cyl_rot = chrono::QUNIT;
 
 	  std::vector<std::shared_ptr<ChBody>> *FSI_Bodies =
@@ -516,7 +516,7 @@ int main(int argc, char *argv[]) {
 	cout << " \n\n\n\nbasinDepth: " << basinDepth << "cMin.z:"
 			<< paramsH->cMin.z << endl;
 
-	chrono::fsi::Real3 boxCenter = chrono::fsi::mR3(0, 0, 0.0); //This is very badly hardcoded
+	chrono::fsi::Real3 boxCenter = chrono::fsi::mR3(0, 0, 0.1); //This is very badly hardcoded
 	chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(0.55, 0.3, 0.5);
 	utils::Generator::PointVector points = sampler.SampleBox(
 			fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter),

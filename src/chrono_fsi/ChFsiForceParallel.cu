@@ -2126,7 +2126,7 @@ void ChFsiForceParallel::calcPressureIISPH( thrust::device_vector<Real3> &bceAcc
 
 
 	printf("\n--------IISPH CLOCK-----------\n");
-		printf(" Total: %f \n Linear System: %f \n",
+		printf(" Total: %f \n Form AX=B: %f Linear System: %f \n",
 				durationtotal_step_time, durationFormAXB, durationLinearSystem);
 	printf("Iter# = %d, Res= %f \n", Iteration, MaxRes);
 	printf("------------------------------\n");
