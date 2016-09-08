@@ -639,6 +639,8 @@ __global__ void calcRho_kernel(
 
 	// Adding neighbor contribution is done!
 	nonNormalRho[i_idx] = sum_mW;
+
+
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -699,9 +701,9 @@ __global__ void calcNormalizedRho_kernel(
 		return;
 	}
 
-	//  if (sortedRhoPreMu[i_idx].w == 0) {
-	//    sortedRhoPreMu[i_idx].x = RHO_0;
-	//  }
+	  if (sortedRhoPreMu[i_idx].w == 0) {
+	    sortedRhoPreMu[i_idx].x = RHO_0;
+	  }
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void V_i_np__AND__d_ii_kernel(
@@ -1063,7 +1065,7 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx, Real* csrValA,
 		Real* a_ij,  // write
 		Real* a_ii,  // write
 		Real* B_i, const Real3* sortedPosRad, const Real3* sortedVelMas,
-		const Real4* sortedRhoPreMu, Real3* V_new, Real* p_old, Real3* bceAcc,int2 updatePortion,
+		const Real4* sortedRhoPreMu, Real3* V_new, Real* p_old, Real3* bceAcc,int4 updatePortion,
 		uint* gridMarkerIndexD, const uint* cellStart, const uint* cellEnd,
 		const int numAllMarkers, const Real3 gravity, bool IsSPARSE) {
 	uint csrStartIdx = numContacts[i_idx] + 1;
@@ -1415,7 +1417,7 @@ __global__ void FormAXB(Real* csrValA, uint* csrColIndA,
 		Real3* d_ii,  // Read
 		Real* a_ii,   // Read
 		Real3* summGradW, Real3* sortedPosRad, Real3* sortedVelMas,
-		Real4* sortedRhoPreMu, Real3* V_new, Real* p_old, Real* rho_np,	Real3* bceAcc, int2 updatePortion,
+		Real4* sortedRhoPreMu, Real3* V_new, Real* p_old, Real* rho_np,	Real3* bceAcc, int4 updatePortion,
 		uint* gridMarkerIndexD, uint* cellStart, uint* cellEnd, const int numAllMarkers, const Real m_0,
 		const Real RHO_0, const Real dT, const Real3 gravity, bool IsSPARSE,
 		volatile bool* isError) {
@@ -1456,9 +1458,8 @@ __global__ void Calc_Pressure_AXB_USING_CSR(Real* csrValA, Real* a_ii,
 	}
 
 	Real aij_pj = 0;
-	if (nonNormalRho[i_idx] < 0.998 * RHO_0) {
+	if (nonNormalRho[i_idx] < 0.98 * RHO_0) {
 		sortedRhoPreMu[i_idx].y = 0.0;
-//		sortedRhoPreMu[i_idx].x = RHO_0;
 	} else {
 		for (int myIdx = startIdx; myIdx < endIdx; myIdx++) {
 			if (i_idx == csrColIndA[myIdx])
@@ -1471,8 +1472,8 @@ __global__ void Calc_Pressure_AXB_USING_CSR(Real* csrValA, Real* a_ii,
 						p_old[csrColIndA[myIdx]]);
 			}
 		}
-//		double RHS = min(0.0, B_i[i_idx]);
-		double RHS = B_i[i_idx];
+		double RHS = min(0.0, B_i[i_idx]);
+//		double RHS = B_i[i_idx];
 
 		sortedRhoPreMu[i_idx].y = (RHS - aij_pj) / csrValA[startIdx - 1];
 		//    sortedRhoPreMu[i_idx].y = (B_i[i_idx] - aij_pj) / a_ii[i_idx];
@@ -1773,8 +1774,7 @@ void ChFsiForceParallel::calcPressureIISPH( thrust::device_vector<Real3> &bceAcc
 	//------------------------------------------------------------------------
 	// thread per particle
 	uint numThreads, numBlocks;
-	int numAllMarkers = numObjectsH->numBoundaryMarkers
-			+ numObjectsH->numFluidMarkers;
+	int numAllMarkers = numObjectsH->numAllMarkers;
 	computeGridSize(numAllMarkers, 256, numBlocks, numThreads);
 	printf("numBlocks: %d, numThreads: %d, numAllMarker:%d \n", numBlocks,
 			numThreads, numAllMarkers);
@@ -1879,9 +1879,11 @@ void ChFsiForceParallel::calcPressureIISPH( thrust::device_vector<Real3> &bceAcc
 	double durationFormAXB;
 
 
-	int2 updatePortion = mI2(
+	int4 updatePortion = mI4(
 	      fsiGeneralData->referenceArray[1].y,
-	      fsiGeneralData->referenceArray[1 + numObjectsH->numRigidBodies].y);
+	      fsiGeneralData->referenceArray[1 + numObjectsH->numRigidBodies].y,0,0);
+
+
 
 	if (mySolutionType == SPARSE_MATRIX_JACOBI) {
 		thrust::fill(a_ij.begin(), a_ij.end(), 0);
@@ -2126,7 +2128,7 @@ void ChFsiForceParallel::calcPressureIISPH( thrust::device_vector<Real3> &bceAcc
 
 
 	printf("\n--------IISPH CLOCK-----------\n");
-		printf(" Total: %f \n Form AX=B: %f Linear System: %f \n",
+		printf(" Total: %f \n FormAXB: %f\n Linear System: %f \n",
 				durationtotal_step_time, durationFormAXB, durationLinearSystem);
 	printf("Iter# = %d, Res= %f \n", Iteration, MaxRes);
 	printf("------------------------------\n");
@@ -2156,19 +2158,13 @@ void ChFsiForceParallel::calcPressureIISPH( thrust::device_vector<Real3> &bceAcc
 
 void ChFsiForceParallel::ForceIISPH(SphMarkerDataD *otherSphMarkersD,
 		FsiBodiesDataD *otherFsiBodiesD) {
-	// Arman: Change this function by getting in the arrays of the current stage:
-	// useful for RK2. array pointers need to
-	// be private members
+
 	sphMarkersD = otherSphMarkersD;
 
 	fsiCollisionSystem->ArrangeData(sphMarkersD);
 	bceWorker->ModifyBceVelocity(sphMarkersD, otherFsiBodiesD);
 
     thrust::device_vector<Real3> bceAcc(numObjectsH->numRigid_SphMarkers);
-//	std::cout<< "real size:" <<  numObjectsH->numRigid_SphMarkers << "\n";
-//
-//	printf ("size of bceAcc outside: %d\n", bceAcc.size());
-//	std::cout<< "size of bceAcc outside:" <<  bceAcc.size() << "\n";
 
     if (numObjectsH->numRigid_SphMarkers > 0) {
     	bceWorker->CalcBceAcceleration(
@@ -2178,8 +2174,6 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD *otherSphMarkersD,
           fsiGeneralData->rigidSPH_MeshPos_LRF_D,
           fsiGeneralData->rigidIdentifierD, numObjectsH->numRigid_SphMarkers);
     }
-
-	thrust::device_vector<Real> p_old(numObjectsH->numAllMarkers);
 
 	calcPressureIISPH(bceAcc);
 
@@ -2216,12 +2210,8 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD *otherSphMarkersD,
 		throw std::runtime_error("Error! program crashed in CalcForces!\n");
 	}
 
-//	Real4 p_temp=sortedSphMarkersD->rhoPresMuD[6001];
-//	std::cout << "rhoPresMuD[" << 6001 << "]= " <<  p_temp.y<< "\n";
-
 	CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vel_XSPH_D,
 			vel_XSPH_Sorted_D, markersProximityD->gridMarkerIndexD);
-
 	CopySortedToOriginal_NonInvasive_R3(sphMarkersD->posRadD,
 			sortedSphMarkersD->posRadD, markersProximityD->gridMarkerIndexD);
 	CopySortedToOriginal_NonInvasive_R3(sphMarkersD->velMasD,
@@ -2230,8 +2220,6 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD *otherSphMarkersD,
 			sortedSphMarkersD->rhoPresMuD, markersProximityD->gridMarkerIndexD);
 
 //
-//	Real4 p_temp_ori=sphMarkersD->rhoPresMuD[16214];
-//	std::cout << "rhoPresMuD_ori[" << 16214 << "]= " <<  p_temp_ori.y<< "\n";
 
 }
 
