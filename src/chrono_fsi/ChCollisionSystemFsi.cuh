@@ -26,29 +26,29 @@ namespace chrono {
 namespace fsi {
 
 class CH_FSI_API ChCollisionSystemFsi : public ChFsiGeneral {
-public:
+ public:
   // ChCollisionSystemFsi();
-  ChCollisionSystemFsi(SphMarkerDataD *otherSortedSphMarkersD,
-                       ProximityDataD *otherMarkersProximityD,
-                       SimParams *otherParamsH,
-                       NumberOfObjects *otherNumObjects);
+  ChCollisionSystemFsi(SphMarkerDataD* otherSortedSphMarkersD,
+                       ProximityDataD* otherMarkersProximityD,
+                       SimParams* otherParamsH,
+                       NumberOfObjects* otherNumObjects);
   ~ChCollisionSystemFsi();
   /**
                   * @brief Encapsulate calcHash and
    * reaorderDataAndFindCellStart;
                   * @details
   */
-  void ArrangeData(SphMarkerDataD *otherSphMarkersD);
+  void ArrangeData(SphMarkerDataD* otherSphMarkersD);
 
   virtual void Finalize();
 
-private:
-  SphMarkerDataD *sphMarkersD;
-  SphMarkerDataD *sortedSphMarkersD;
-  ProximityDataD *markersProximityD;
+ private:
+  SphMarkerDataD* sphMarkersD;
+  SphMarkerDataD* sortedSphMarkersD;
+  ProximityDataD* markersProximityD;
 
-  SimParams *paramsH;
-  NumberOfObjects *numObjectsH;
+  SimParams* paramsH;
+  NumberOfObjects* numObjectsH;
 
   void ResetCellSize(int s);
   /**
@@ -80,7 +80,7 @@ private:
 */
   void reorderDataAndFindCellStart();
 };
-} // end namespace fsi
-} // end namespace chrono
+}  // end namespace fsi
+}  // end namespace chrono
 
 #endif /* CH_COLLISIONSYSTEM_FSI_H_ */

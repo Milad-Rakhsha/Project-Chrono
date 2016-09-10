@@ -27,9 +27,9 @@ namespace chrono {
 namespace fsi {
 
 class CH_FSI_API ChFsiGeneral {
-public:
+ public:
   ChFsiGeneral();
-  ChFsiGeneral(SimParams *hostParams, NumberOfObjects *hostNumObjects);
+  ChFsiGeneral(SimParams* hostParams, NumberOfObjects* hostNumObjects);
   ~ChFsiGeneral();
   /**
 * @brief computeGridSize
@@ -40,19 +40,18 @@ public:
 * @param numBlocks output
 * @param numThreads Output: number of threads per block
 */
-  void computeGridSize(uint n, uint blockSize, uint &numBlocks,
-                       uint &numThreads);
-  void setParameters(SimParams *hostParams, NumberOfObjects *hostNumObjects);
+  void computeGridSize(uint n, uint blockSize, uint& numBlocks, uint& numThreads);
+  void setParameters(SimParams* hostParams, NumberOfObjects* hostNumObjects);
   virtual void Finalize(){};
 
-protected:
+ protected:
   uint iDivUp(uint a, uint b);
 
-private:
-  SimParams *paramsH;
-  NumberOfObjects *numObjectsH;
+ private:
+  SimParams* paramsH;
+  NumberOfObjects* numObjectsH;
 };
-} // end namespace fsi
-} // end namespace chrono
+}  // end namespace fsi
+}  // end namespace chrono
 
 #endif

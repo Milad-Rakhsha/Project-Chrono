@@ -20,7 +20,7 @@ endif()
 message(STATUS "==== Chrono FSI module ====")
 
 mark_as_advanced(CLEAR CUDA_TOOLKIT_ROOT_DIR)
-mark_as_advanced(CLEAR CUDA_USE_STATIC_CUDA_RUNTIME)
+mark_as_advanced(CLEAR CUDA_USE_STATIC_CUDA_RUNTIME )
 mark_as_advanced(CLEAR USE_FSI_DOUBLE)
 
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})

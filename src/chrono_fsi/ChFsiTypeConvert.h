@@ -28,7 +28,7 @@ namespace chrono {
 namespace fsi {
 
 class CH_FSI_API ChFsiTypeConvert {
-public:
+ public:
   static ChVector<> Real3ToChVector(Real3 p3);
   static ChVector<> Real4ToChVector(Real4 p4);
   static ChQuaternion<> Real4ToChQuaternion(Real4 q4);
@@ -36,7 +36,7 @@ public:
   static Real4 ChVectorRToReal4(ChVector<> v3, Real m);
   static Real4 ChQuaternionToReal4(ChQuaternion<> q4);
 
-private:
+ private:
 };
 
 // namespace utils {
@@ -48,6 +48,6 @@ private:
 // Real4 ConvertChVectorToR4(ChVector<> v3, Real m);
 // Real4 ConvertChQuaternionToR4(ChQuaternion<> q4);
 
-} // end namespace fsi
-} // end namespace chrono
+}  // end namespace fsi
+}  // end namespace chrono
 #endif

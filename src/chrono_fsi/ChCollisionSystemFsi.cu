@@ -38,10 +38,11 @@ namespace fsi {
  * @param posRad
  * @param numAllMarkers
  */
-__global__ void calcHashD(uint *gridMarkerHashD,  // output
-                          uint *gridMarkerIndexD, // output
-                          Real3 *posRad,          // input: positions
-                          uint numAllMarkers, volatile bool *isErrorD) {
+__global__ void calcHashD(uint* gridMarkerHashD,   // output
+                          uint* gridMarkerIndexD,  // output
+                          Real3* posRad,           // input: positions
+                          uint numAllMarkers,
+                          volatile bool* isErrorD) {
   /* Calculate the index of where the particle is stored in posRad. */
   uint index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index >= numAllMarkers)
@@ -50,8 +51,9 @@ __global__ void calcHashD(uint *gridMarkerHashD,  // output
   Real3 p = posRad[index];
 
   if (!(isfinite(p.x) && isfinite(p.y) && isfinite(p.z))) {
-    printf("Error! particle position is NAN: thrown from "
-           "SDKCollisionSystem.cu, calcHashD !\n");
+    printf(
+        "Error! particle position is NAN: thrown from "
+        "SDKCollisionSystem.cu, calcHashD !\n");
     *isErrorD = true;
     return;
   }
@@ -59,17 +61,19 @@ __global__ void calcHashD(uint *gridMarkerHashD,  // output
   /* Check particle is inside the domain. */
   Real3 boxCorner = paramsD.worldOrigin;
   if (p.x < boxCorner.x || p.y < boxCorner.y || p.z < boxCorner.z) {
-    printf("Out of Min Boundary, point %f %f %f, boundary min: %f %f %f. "
-           "Thrown from SDKCollisionSystem.cu, calcHashD !\n",
-           p.x, p.y, p.z, boxCorner.x, boxCorner.y, boxCorner.z);
+    printf(
+        "Out of Min Boundary, point %f %f %f, boundary min: %f %f %f. "
+        "Thrown from SDKCollisionSystem.cu, calcHashD !\n",
+        p.x, p.y, p.z, boxCorner.x, boxCorner.y, boxCorner.z);
     *isErrorD = true;
     return;
   }
   boxCorner = paramsD.worldOrigin + paramsD.boxDims;
   if (p.x > boxCorner.x || p.y > boxCorner.y || p.z > boxCorner.z) {
-    printf("Out of max Boundary, point %f %f %f, boundary max: %f %f %f. "
-           "Thrown from SDKCollisionSystem.cu, calcHashD !\n",
-           p.x, p.y, p.z, boxCorner.x, boxCorner.y, boxCorner.z);
+    printf(
+        "Out of max Boundary, point %f %f %f, boundary max: %f %f %f. "
+        "Thrown from SDKCollisionSystem.cu, calcHashD !\n",
+        p.x, p.y, p.z, boxCorner.x, boxCorner.y, boxCorner.z);
     *isErrorD = true;
     return;
   }
@@ -89,20 +93,20 @@ __global__ void calcHashD(uint *gridMarkerHashD,  // output
  * @brief reorderDataAndFindCellStartD
  * @details See SDKCollisionSystem.cuh for more info
  */
-__global__ void reorderDataAndFindCellStartD(
-    uint *cellStartD,     // output: cell start index
-    uint *cellEndD,       // output: cell end index
-    Real3 *sortedPosRadD, // output: sorted positions
-    Real3 *sortedVelMasD, // output: sorted velocities
-    Real4 *sortedRhoPreMuD,
-    uint *gridMarkerHashD,     // input: sorted grid hashes
-    uint *gridMarkerIndexD,    // input: sorted particle indices
-    uint *mapOriginalToSorted, // mapOriginalToSorted[originalIndex] =
-                               // originalIndex
-    Real3 *posRadD,            // input: sorted position array
-    Real3 *velMasD,            // input: sorted velocity array
-    Real4 *rhoPresMuD, uint numAllMarkers) {
-  extern __shared__ uint sharedHash[]; // blockSize + 1 elements
+__global__ void reorderDataAndFindCellStartD(uint* cellStartD,      // output: cell start index
+                                             uint* cellEndD,        // output: cell end index
+                                             Real3* sortedPosRadD,  // output: sorted positions
+                                             Real3* sortedVelMasD,  // output: sorted velocities
+                                             Real4* sortedRhoPreMuD,
+                                             uint* gridMarkerHashD,      // input: sorted grid hashes
+                                             uint* gridMarkerIndexD,     // input: sorted particle indices
+                                             uint* mapOriginalToSorted,  // mapOriginalToSorted[originalIndex] =
+                                                                         // originalIndex
+                                             Real3* posRadD,             // input: sorted position array
+                                             Real3* velMasD,             // input: sorted velocity array
+                                             Real4* rhoPresMuD,
+                                             uint numAllMarkers) {
+  extern __shared__ uint sharedHash[];  // blockSize + 1 elements
   /* Get the particle index the current thread is supposed to be looking at. */
   uint index = blockIdx.x * blockDim.x + threadIdx.x;
   uint hash;
@@ -142,29 +146,30 @@ __global__ void reorderDataAndFindCellStartD(
     }
 
     /* Now use the sorted index to reorder the pos and vel data */
-    uint originalIndex = gridMarkerIndexD[index]; // map sorted to original
-    mapOriginalToSorted[index] =
-        index; // will be sorted outside. Alternatively, you could have
+    uint originalIndex = gridMarkerIndexD[index];  // map sorted to original
+    mapOriginalToSorted[index] = index;            // will be sorted outside. Alternatively, you could have
     // mapOriginalToSorted[originalIndex] = index; without need to sort. But
     // that
     // is not thread safe
-    Real3 posRad = posRadD[originalIndex]; // macro does either global read or
-                                           // texture fetch
-    Real3 velMas = velMasD[originalIndex]; // see particles_kernel.cuh
+    Real3 posRad = posRadD[originalIndex];  // macro does either global read or
+                                            // texture fetch
+    Real3 velMas = velMasD[originalIndex];  // see particles_kernel.cuh
     Real4 rhoPreMu = rhoPresMuD[originalIndex];
 
     if (!(isfinite(posRad.x) && isfinite(posRad.y) && isfinite(posRad.z))) {
-      printf("Error! particle position is NAN: thrown from "
-             "SDKCollisionSystem.cu, reorderDataAndFindCellStartD !\n");
+      printf(
+          "Error! particle position is NAN: thrown from "
+          "SDKCollisionSystem.cu, reorderDataAndFindCellStartD !\n");
     }
     if (!(isfinite(velMas.x) && isfinite(velMas.y) && isfinite(velMas.z))) {
-      printf("Error! particle velocity is NAN: thrown from "
-             "SDKCollisionSystem.cu, reorderDataAndFindCellStartD !\n");
+      printf(
+          "Error! particle velocity is NAN: thrown from "
+          "SDKCollisionSystem.cu, reorderDataAndFindCellStartD !\n");
     }
-    if (!(isfinite(rhoPreMu.x) && isfinite(rhoPreMu.y) &&
-          isfinite(rhoPreMu.z) && isfinite(rhoPreMu.w))) {
-      printf("Error! particle rhoPreMu is NAN: thrown from "
-             "SDKCollisionSystem.cu, reorderDataAndFindCellStartD !\n");
+    if (!(isfinite(rhoPreMu.x) && isfinite(rhoPreMu.y) && isfinite(rhoPreMu.z) && isfinite(rhoPreMu.w))) {
+      printf(
+          "Error! particle rhoPreMu is NAN: thrown from "
+          "SDKCollisionSystem.cu, reorderDataAndFindCellStartD !\n");
     }
     sortedPosRadD[index] = posRad;
     sortedVelMasD[index] = velMas;
@@ -174,12 +179,13 @@ __global__ void reorderDataAndFindCellStartD(
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-ChCollisionSystemFsi::ChCollisionSystemFsi(
-    SphMarkerDataD *otherSortedSphMarkersD,
-    ProximityDataD *otherMarkersProximityD, SimParams *otherParamsH,
-    NumberOfObjects *otherNumObjects)
+ChCollisionSystemFsi::ChCollisionSystemFsi(SphMarkerDataD* otherSortedSphMarkersD,
+                                           ProximityDataD* otherMarkersProximityD,
+                                           SimParams* otherParamsH,
+                                           NumberOfObjects* otherNumObjects)
     : sortedSphMarkersD(otherSortedSphMarkersD),
-      markersProximityD(otherMarkersProximityD), paramsH(otherParamsH),
+      markersProximityD(otherMarkersProximityD),
+      paramsH(otherParamsH),
       numObjectsH(otherNumObjects) {
   sphMarkersD = NULL;
 }
@@ -197,21 +203,19 @@ ChCollisionSystemFsi::~ChCollisionSystemFsi() {
 //--------------------------------------------------------------------------------------------------------------------------------
 
 void ChCollisionSystemFsi::calcHash() {
-  if (!(markersProximityD->gridMarkerHashD.size() ==
-            numObjectsH->numAllMarkers &&
-        markersProximityD->gridMarkerIndexD.size() ==
-            numObjectsH->numAllMarkers)) {
-    printf("mError! calcHash!, gridMarkerHashD.size() %d "
-           "gridMarkerIndexD.size() %d numObjectsH->numAllMarkers %d \n",
-           markersProximityD->gridMarkerHashD.size(),
-           markersProximityD->gridMarkerIndexD.size(),
-           numObjectsH->numAllMarkers);
+  if (!(markersProximityD->gridMarkerHashD.size() == numObjectsH->numAllMarkers &&
+        markersProximityD->gridMarkerIndexD.size() == numObjectsH->numAllMarkers)) {
+    printf(
+        "mError! calcHash!, gridMarkerHashD.size() %d "
+        "gridMarkerIndexD.size() %d numObjectsH->numAllMarkers %d \n",
+        markersProximityD->gridMarkerHashD.size(), markersProximityD->gridMarkerIndexD.size(),
+        numObjectsH->numAllMarkers);
     throw std::runtime_error("Error! size error, calcHash!");
   }
 
   bool *isErrorH, *isErrorD;
-  isErrorH = (bool *)malloc(sizeof(bool));
-  cudaMalloc((void **)&isErrorD, sizeof(bool));
+  isErrorH = (bool*)malloc(sizeof(bool));
+  cudaMalloc((void**)&isErrorD, sizeof(bool));
   *isErrorH = false;
   cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
   //------------------------------------------------------------------------
@@ -220,10 +224,9 @@ void ChCollisionSystemFsi::calcHash() {
   computeGridSize(numObjectsH->numAllMarkers, 256, numBlocks, numThreads);
   /* Execute Kernel */
 
-  calcHashD<<<numBlocks, numThreads>>>(
-      U1CAST(markersProximityD->gridMarkerHashD),
-      U1CAST(markersProximityD->gridMarkerIndexD),
-      mR3CAST(sphMarkersD->posRadD), numObjectsH->numAllMarkers, isErrorD);
+  calcHashD<<<numBlocks, numThreads>>>(U1CAST(markersProximityD->gridMarkerHashD),
+                                       U1CAST(markersProximityD->gridMarkerIndexD), mR3CAST(sphMarkersD->posRadD),
+                                       numObjectsH->numAllMarkers, isErrorD);
 
   /* Check for errors in kernel execution */
   cudaThreadSynchronize();
@@ -245,31 +248,22 @@ void ChCollisionSystemFsi::ResetCellSize(int s) {
 void ChCollisionSystemFsi::reorderDataAndFindCellStart() {
   int3 cellsDim = paramsH->gridSize;
   int numCells = cellsDim.x * cellsDim.y * cellsDim.z;
-  if (!(markersProximityD->cellStartD.size() == numCells &&
-        markersProximityD->cellEndD.size() == numCells)) {
-    throw std::runtime_error(
-        "Error! size error, reorderDataAndFindCellStart!\n");
+  if (!(markersProximityD->cellStartD.size() == numCells && markersProximityD->cellEndD.size() == numCells)) {
+    throw std::runtime_error("Error! size error, reorderDataAndFindCellStart!\n");
   }
 
-  thrust::fill(markersProximityD->cellStartD.begin(),
-               markersProximityD->cellStartD.end(), 0);
-  thrust::fill(markersProximityD->cellEndD.begin(),
-               markersProximityD->cellEndD.end(), 0);
+  thrust::fill(markersProximityD->cellStartD.begin(), markersProximityD->cellStartD.end(), 0);
+  thrust::fill(markersProximityD->cellEndD.begin(), markersProximityD->cellEndD.end(), 0);
 
   uint numThreads, numBlocks;
-  computeGridSize(numObjectsH->numAllMarkers, 256, numBlocks,
-                  numThreads); //?$ 256 is blockSize
+  computeGridSize(numObjectsH->numAllMarkers, 256, numBlocks, numThreads);  //?$ 256 is blockSize
 
   uint smemSize = sizeof(uint) * (numThreads + 1);
   reorderDataAndFindCellStartD<<<numBlocks, numThreads, smemSize>>>(
-      U1CAST(markersProximityD->cellStartD),
-      U1CAST(markersProximityD->cellEndD), mR3CAST(sortedSphMarkersD->posRadD),
-      mR3CAST(sortedSphMarkersD->velMasD),
-      mR4CAST(sortedSphMarkersD->rhoPresMuD),
-      U1CAST(markersProximityD->gridMarkerHashD),
-      U1CAST(markersProximityD->gridMarkerIndexD),
-      U1CAST(markersProximityD->mapOriginalToSorted),
-      mR3CAST(sphMarkersD->posRadD), mR3CAST(sphMarkersD->velMasD),
+      U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), mR3CAST(sortedSphMarkersD->posRadD),
+      mR3CAST(sortedSphMarkersD->velMasD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
+      U1CAST(markersProximityD->gridMarkerHashD), U1CAST(markersProximityD->gridMarkerIndexD),
+      U1CAST(markersProximityD->mapOriginalToSorted), mR3CAST(sphMarkersD->posRadD), mR3CAST(sphMarkersD->velMasD),
       mR4CAST(sphMarkersD->rhoPresMuD), numObjectsH->numAllMarkers);
   cudaThreadSynchronize();
   cudaCheckError();
@@ -277,22 +271,20 @@ void ChCollisionSystemFsi::reorderDataAndFindCellStart() {
   // unroll sorted index to have the location of original particles in the
   // sorted arrays
   thrust::device_vector<uint> dummyIndex = markersProximityD->gridMarkerIndexD;
-  thrust::sort_by_key(dummyIndex.begin(), dummyIndex.end(),
-                      markersProximityD->mapOriginalToSorted.begin());
+  thrust::sort_by_key(dummyIndex.begin(), dummyIndex.end(), markersProximityD->mapOriginalToSorted.begin());
   dummyIndex.clear();
 }
 
-void ChCollisionSystemFsi::ArrangeData(SphMarkerDataD *otherSphMarkersD) {
+void ChCollisionSystemFsi::ArrangeData(SphMarkerDataD* otherSphMarkersD) {
   sphMarkersD = otherSphMarkersD;
   int3 cellsDim = paramsH->gridSize;
   int numCells = cellsDim.x * cellsDim.y * cellsDim.z;
   ResetCellSize(numCells);
   calcHash();
-  thrust::sort_by_key(markersProximityD->gridMarkerHashD.begin(),
-                      markersProximityD->gridMarkerHashD.end(),
+  thrust::sort_by_key(markersProximityD->gridMarkerHashD.begin(), markersProximityD->gridMarkerHashD.end(),
                       markersProximityD->gridMarkerIndexD.begin());
   reorderDataAndFindCellStart();
 }
 
-} // end namespace fsi
-} // end namespace chrono
+}  // end namespace fsi
+}  // end namespace chrono
