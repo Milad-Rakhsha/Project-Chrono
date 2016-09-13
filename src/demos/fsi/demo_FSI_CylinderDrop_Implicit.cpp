@@ -53,7 +53,7 @@
 
 #define haveFluid 1
 
-//#define AddCylinder
+#define AddCylinder
 
 // Chrono namespaces
 using namespace chrono;
@@ -83,18 +83,15 @@ Real hdimY = 0.0;
 Real hthick = 1;
 Real basinDepth = 2.5;
 
-Real fluidInitDimX = 2;
-Real fluidHeight = 1.4;  // 2.0;
-
 Real bxDim = 1;
-Real byDim = 0.1;
-Real bzDim = 1.2;
+Real byDim = 0.5;
+Real bzDim = 2;
 
 Real fxDim = 1;
 Real fyDim = byDim;
 Real fzDim = 1;
 
-double cyl_length = fyDim / 2;
+double cyl_length = 0.2;
 double cyl_radius = .2;
 
 void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
@@ -157,10 +154,10 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI& mphysicalSystem,
     ChVector<> pos_yn(0, -byDim / 2 - 3 * paramsH->HSML, bzDim / 2 + 1 * paramsH->HSML);
 
     chrono::utils::AddBoxGeometry(ground.get(), sizeBottom, posBottom, chrono::QUNIT, true);
-    //	chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xp, chrono::QUNIT, true);
-    //	chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xn, chrono::QUNIT, true);
-    //	chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yp, chrono::QUNIT, true);
-    //	chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yn, chrono::QUNIT, true);
+    chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xp, chrono::QUNIT, true);
+    chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xn, chrono::QUNIT, true);
+    chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yp, chrono::QUNIT, true);
+    chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yn, chrono::QUNIT, true);
     ground->GetCollisionModel()->BuildModel();
     mphysicalSystem.AddBody(ground);
 
@@ -178,7 +175,7 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI& mphysicalSystem,
 
     // Add floating cylinder
 
-    ChVector<> cyl_pos = ChVector<>(0, 0, fzDim + cyl_radius + paramsH->HSML);
+    ChVector<> cyl_pos = ChVector<>(0, 0, fzDim + cyl_radius + 1 * paramsH->HSML);
     ChQuaternion<> cyl_rot = chrono::QUNIT;
 
     std::vector<std::shared_ptr<ChBody>>* FSI_Bodies = myFsiSystem.GetFsiBodiesPtr();
@@ -332,7 +329,7 @@ int main(int argc, char* argv[]) {
 
     chrono::fsi::SimParams* paramsH = myFsiSystem.GetSimParams();
 
-    SetupParamsH(paramsH, hdimX, hdimY, hthick, basinDepth, fluidInitDimX, fluidHeight);
+    SetupParamsH(paramsH, hdimX, hdimY, hthick, basinDepth, fxDim, fzDim);
     printSimulationParameters(paramsH);
 #if haveFluid
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
@@ -368,8 +365,7 @@ int main(int argc, char* argv[]) {
     }
 #endif
 
-    // ***************************** Create Rigid
-    // ********************************************
+    // ********************** Create Rigid ******************************
 
     ChVector<> gravity = ChVector<>(paramsH->gravity.x, paramsH->gravity.y, paramsH->gravity.z);
 
@@ -436,8 +432,8 @@ int main(int argc, char* argv[]) {
         else
             g = g0;
 
-        paramsH->gravity.z = g;
-        std::cout << "gravity: " << paramsH->gravity.z << std::endl;
+//        paramsH->gravity.z = g;
+//        std::cout << "gravity: " << paramsH->gravity.z << std::endl;
 
 #if haveFluid
         myFsiSystem.DoStepDynamics_FSI_Implicit();
@@ -450,6 +446,36 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
 
 // void WriteCylinder(std::shared_ptr<ChBody> Body, double radius, double length,
 //		int res, char SaveAsBuffer[256]) {
