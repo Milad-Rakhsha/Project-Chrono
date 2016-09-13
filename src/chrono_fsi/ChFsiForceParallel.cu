@@ -17,11 +17,28 @@
 #include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFsiForceParallel.cuh"
 #include "chrono_fsi/ChSphGeneral.cuh"
+//#include "chrono_fsi/custom_math.h"
+
 #include <thrust/sort.h>
 
 namespace chrono {
 namespace fsi {
 
+//--------------------------------------------------------------------------------------------------------------------------------
+
+// double precision atomic add function
+__device__ double atomicAdd(double* address, double val) {
+  unsigned long long int* address_as_ull = (unsigned long long int*)address;
+
+  unsigned long long int old = *address_as_ull, assumed;
+
+  do {
+    assumed = old;
+    old = atomicCAS(address_as_ull, assumed, __double_as_longlong(val + __longlong_as_double(assumed)));
+  } while (assumed != old);
+
+  return __longlong_as_double(old);
+}
 //--------------------------------------------------------------------------------------------------------------------------------
 // collide a particle against all other particles in a given cell
 __device__ Real3 deltaVShare(int3 gridPos,
@@ -674,7 +691,7 @@ __global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted 
     }
   }
 
-  Real IncompressibilityFactor = 0.05;
+  Real IncompressibilityFactor = 0.1;
   sortedRhoPreMu[i_idx].x = (sum_mW / sum_mW_over_Rho - RHO_0) * IncompressibilityFactor + RHO_0;
   //  sortedRhoPreMu[i_idx].x = sum_mW;
 
@@ -686,7 +703,7 @@ __global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted 
     return;
   }
 
-  if (sortedRhoPreMu[i_idx].w == 0) {
+  if (sortedRhoPreMu[i_idx].w > -1 && sortedRhoPreMu[i_idx].y < RHO_0) {
     sortedRhoPreMu[i_idx].x = RHO_0;
   }
 }
@@ -704,6 +721,7 @@ __global__ void V_i_np__AND__d_ii_kernel(Real3* sortedPosRad,  // input: sorted 
                                          const Real RHO_0,
                                          const Real epsilon,
                                          const Real dT,
+                                         const Real3 gravity,
                                          volatile bool* isErrorD) {
   uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (i_idx >= numAllMarkers) {
@@ -756,7 +774,7 @@ __global__ void V_i_np__AND__d_ii_kernel(Real3* sortedPosRad,  // input: sorted 
       }
     }
   }
-
+  My_F_i_np += m_0 * gravity;
   d_ii[i_idx] = My_d_ii;
   V_i_np[i_idx] = (My_F_i_np * dT + Veli);  // This does not contain m_0?
 }
@@ -823,8 +841,7 @@ __global__ void Rho_np_AND_a_ii(Real3* sortedPosRad,
   }
   rho_np[i_idx] = dT * rho_temp + sortedRhoPreMu[i_idx].x;
   a_ii[i_idx] = my_a_ii;
-  p_old[i_idx] = 1000;  // Note that this is outside of the for loop
-                        //  sortedRhoPreMu[i_idx].x = rho_np[i_idx];
+  p_old[i_idx] = 100.0;  // Note that this is outside of the for loop
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 
@@ -977,17 +994,18 @@ __global__ void CalcNumber_Contacts(unsigned long int* numContacts,
   }
   // No contact with any one! so P=0 should be imposed...
 
-  if (myType == -1)
-    numContacts[i_idx] = counter + 10;
-  if (myType == 0)
-    numContacts[i_idx] = counter + 10;
+  //  if (myType == -1)
+  //    numContacts[i_idx] = counter + 10;
+  //  if (myType == 0)
+  //    numContacts[i_idx] = counter + 10;
+
+  numContacts[i_idx] = counter + 10;
 
   //+(sortedRhoPreMu[i_idx].w == -1 ? 2 : 0);
   //  if (numContacts[i_idx] == 1)
   //    printf("counted 1 contact for i_idx : %d .\n", i_idx);
 }
-
-//--------------------------------------------------------------------------------------------------------------------------------
+////--------------------------------------------------------------------------------------------------------------------------------
 
 __global__ void Calc_summGradW(Real3* summGradW,  // write
                                Real3* sortedPosRad,
@@ -1048,7 +1066,6 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
                                unsigned long int* GlobalcsrColIndA,
                                unsigned long int* numContacts,
                                ///> The above 4 vectors are used for CSR form.
-                               Real* a_ij,  // write
                                Real* a_ii,  // write
                                Real* B_i,
                                const Real3* sortedPosRad,
@@ -1113,15 +1130,10 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
             numeratorv += Vel_j * Wd;
             pRHS += dot(gravity - myAcc, dist3) * Rho_i * Wd;
             denumenator += Wd;
-            if (IsSPARSE) {
-              csrValA[counter + csrStartIdx] = -Wd;
-              csrColIndA[counter + csrStartIdx] = j;
-              GlobalcsrColIndA[counter + csrStartIdx] = j + numAllMarkers * i_idx;
-              counter++;
-            } else {
-              //            atomicAdd(&a_ij12[j + numAllMarkers * i_idx], My_a_ij_12);
-              a_ij[j + numAllMarkers * i_idx] = -Wd;
-            }
+            csrValA[counter + csrStartIdx] = -Wd;
+            csrColIndA[counter + csrStartIdx] = j;
+            GlobalcsrColIndA[counter + csrStartIdx] = j + numAllMarkers * i_idx;
+            counter++;
           }
         }
       }
@@ -1130,30 +1142,15 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
   if (abs(denumenator) < EPSILON) {
     V_new[i_idx] = mR3(0);
     B_i[i_idx] = 0;
-    if (!IsSPARSE) {
-      a_ij[i_idx + numAllMarkers * i_idx] = 1;
-    } else {
-      csrValA[csrStartIdx - 1] = 1;
-      csrColIndA[csrStartIdx - 1] = i_idx;
-      GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
-      //      if (i_idx == 40762) {
-      //        printf("i_idx + numAllMarkers * i_idx:%lu, i_idx: %d, numAllMarkers: %d\n", i_idx + numAllMarkers *
-      //        i_idx,
-      //               i_idx, numAllMarkers);
-      //        printf(
-      //            "GlobalcsrColIndA[csrStartIdx - 1] :%lu,GlobalcsrColIndA[csrStartIdx] "
-      //            ":%lu,GlobalcsrColIndA[csrStartIdx + 1] :%lu, i_idx + numAllMarkers * i_idx:%lu\n",
-      //            GlobalcsrColIndA[csrStartIdx - 1], GlobalcsrColIndA[csrStartIdx], GlobalcsrColIndA[csrStartIdx +
-      //            1],
-      //            i_idx + numAllMarkers * i_idx);
-      //      }
-    }
+    csrValA[csrStartIdx - 1] = 1;
+    csrColIndA[csrStartIdx - 1] = i_idx;
+    GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
+
   } else {
     V_new[i_idx] = -numeratorv / denumenator;
     B_i[i_idx] = pRHS;
     if (!IsSPARSE) {
       a_ii[i_idx] = denumenator;
-      a_ij[i_idx + numAllMarkers * i_idx] = denumenator;
     } else {
       // Also fill out other elements
       csrValA[csrStartIdx - 1] = denumenator;
@@ -1161,28 +1158,6 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
       GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
     }
   }
-  //	if (pos_i.z > 1.06) {
-  //		V_new[i_idx] += 2 * plateU;
-  //	}
-  //  if (GlobalcsrColIndA[csrStartIdx - 1] == 83882)
-  //    printf(
-  //        "i_idx: %d, csrStartIdx - 1,: %d csrEndIdx: %d, csrColIndA[csrStartIdx - 1] :%d,
-  //        GlobalcsrColIndA[csrStartIdx "
-  //        "- 1]: %lu\n",
-  //        i_idx, csrStartIdx - 1, csrEndIdx, csrColIndA[csrStartIdx - 1], GlobalcsrColIndA[csrStartIdx - 1]);
-  //
-  //  if (i_idx == 2)
-  //    printf(
-  //        "csrStartIdx-1: %d, csrEndIdx: %d, csrColIndA[csrStartIdx - 1] :%d,csrColIndA[csrStartIdx] "
-  //        ":%d,csrColIndA[csrStartIdx + 1] :%d\n",
-  //        csrStartIdx - 1, csrEndIdx, csrColIndA[csrStartIdx - 1], csrColIndA[csrStartIdx - 1],
-  //        csrColIndA[csrStartIdx - 1]);
-  // } else {
-  //   csrValA[csrStartIdx - 1] = 1;
-  //   csrColIndA[csrStartIdx - 1] = i_idx;
-  //   GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
-  //   B_i[i_idx] = 0;
-  //  }
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 
@@ -1193,8 +1168,6 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
                                   unsigned long int* GlobalcsrColIndA,
                                   unsigned long int* numContacts,
                                   ///> The above 4 vectors are used for CSR form.
-                                  Real* a_ij,   // write
-                                  Real* a_ij3,  // write
                                   Real* B_i,
                                   Real3* d_ii,   // Read
                                   Real* a_ii,    // Read
@@ -1224,13 +1197,12 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
   uint csrStartIdx = numContacts[i_idx] + 1;  // Reserve the starting index for the A_ii
   uint csrEndIdx = numContacts[i_idx + 1];
 
-  if (IsSPARSE) {
-    for (int c = csrStartIdx; c < csrEndIdx; c++) {
-      csrValA[c] = 0;
-      csrColIndA[c] = i_idx;
-      GlobalcsrColIndA[c] = i_idx + numAllMarkers * i_idx;
-    }
+  for (int c = csrStartIdx; c < csrEndIdx; c++) {
+    csrValA[c] = 0;
+    csrColIndA[c] = i_idx;
+    GlobalcsrColIndA[c] = i_idx + numAllMarkers * i_idx;
   }
+
   int3 gridPos = calcGridPos(pos_i);
   for (int z = -1; z <= 1; z++) {
     for (int y = -1; y <= 1; y++) {
@@ -1256,34 +1228,22 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
             Real My_a_ij_2 = m_0 * dot(d_ii[j], grad_i_wij);
             float My_a_ij_12 = (float)My_a_ij_1 - (float)My_a_ij_2;
             bool DONE1 = false;
-            if (IsSPARSE) {
-              for (uint findCol = csrStartIdx; findCol < csrEndIdx; findCol++) {
-                if (csrColIndA[findCol] == j) {
-                  csrValA[findCol] += My_a_ij_12;
-                  csrColIndA[findCol] = j;
-                  GlobalcsrColIndA[findCol] = j + numAllMarkers * i_idx;
-                  //                  if (i_idx == 2)
-                  //                    printf("findCol: %d, csrEndIdx: %d, csrColIndA[csrStartIdx - 1] :%d ",
-                  //                    csrStartIdx - 1, csrEndIdx,
-                  //                           csrColIndA[findCol]);
-                  DONE1 = true;
-                  continue;
-                }
+            for (uint findCol = csrStartIdx; findCol < csrEndIdx; findCol++) {
+              if (csrColIndA[findCol] == j) {
+                csrValA[findCol] += My_a_ij_12;
+                csrColIndA[findCol] = j;
+                GlobalcsrColIndA[findCol] = j + numAllMarkers * i_idx;
+                DONE1 = true;
+                continue;
               }
-              if (!DONE1) {
-                //                if ((counter + csrStartIdx) >= csrEndIdx) {
-                //                  printf("a_%d %d=passed the boundary... TYPE = %d\n", i_idx, j,
-                //                  sortedRhoPreMu[i_idx].w);
-                //                }
-                csrValA[counter + csrStartIdx] += My_a_ij_12;
-                csrColIndA[counter + csrStartIdx] = j;
-                GlobalcsrColIndA[counter + csrStartIdx] = j + numAllMarkers * i_idx;
-                counter++;
-              }
-            } else {
-              //            atomicAdd(&a_ij12[j + numAllMarkers * i_idx], My_a_ij_12);
-              a_ij[j + numAllMarkers * i_idx] += My_a_ij_12;
             }
+            if (!DONE1) {
+              csrValA[counter + csrStartIdx] += My_a_ij_12;
+              csrColIndA[counter + csrStartIdx] = j;
+              GlobalcsrColIndA[counter + csrStartIdx] = j + numAllMarkers * i_idx;
+              counter++;
+            }
+
             int3 gridPosJ = calcGridPos(pos_j);
             for (int zz = -1; zz <= 1; zz++) {
               for (int yy = -1; yy <= 1; yy++) {
@@ -1305,31 +1265,20 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
                       float My_a_ij_3 = dot(d_jk, m_0 * grad_i_wij);
                       bool DONE2 = false;
 
-                      if (IsSPARSE) {
-                        for (uint findCol = csrStartIdx; findCol < csrEndIdx; findCol++) {
-                          if (csrColIndA[findCol] == k) {
-                            csrValA[findCol] -= My_a_ij_3;
-                            csrColIndA[findCol] = k;
-                            GlobalcsrColIndA[findCol] = k + numAllMarkers * i_idx;
-                            DONE2 = true;
-                            continue;
-                          }
+                      for (uint findCol = csrStartIdx; findCol < csrEndIdx; findCol++) {
+                        if (csrColIndA[findCol] == k) {
+                          csrValA[findCol] -= My_a_ij_3;
+                          csrColIndA[findCol] = k;
+                          GlobalcsrColIndA[findCol] = k + numAllMarkers * i_idx;
+                          DONE2 = true;
+                          continue;
                         }
-                        if (!DONE2) {
-                          //                          if ((counter + csrStartIdx) >= csrEndIdx) {
-                          //                            printf("a_%d %d=passed the inner boundary... type of
-                          //                            d=%d\n",
-                          //                            i_idx, k,
-                          //                                   sortedRhoPreMu[k].w);
-                          //                          }
-                          csrValA[counter + csrStartIdx] -= My_a_ij_3;
-                          csrColIndA[counter + csrStartIdx] = k;
-                          GlobalcsrColIndA[counter + csrStartIdx] = k + numAllMarkers * i_idx;
-                          counter++;
-                        }
-                      } else {
-                        //                      atomicAdd(&a_ij3[k + numAllMarkers * i_idx], My_a_ij_3);
-                        a_ij3[k + numAllMarkers * i_idx] += My_a_ij_3;
+                      }
+                      if (!DONE2) {
+                        csrValA[counter + csrStartIdx] -= My_a_ij_3;
+                        csrColIndA[counter + csrStartIdx] = k;
+                        GlobalcsrColIndA[counter + csrStartIdx] = k + numAllMarkers * i_idx;
+                        counter++;
                       }
                     }
                   }
@@ -1343,35 +1292,9 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
     }
   }
 
-  if (IsSPARSE) {
-    csrValA[csrStartIdx - 1] = a_ii[i_idx];
-    csrColIndA[csrStartIdx - 1] = i_idx;
-    GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
-
-    //    if (sortedRhoPreMu[i_idx].x < 0.95 * RHO_0) {
-    //      csrValA[csrStartIdx - 1] = 1;
-    //      B_i[i_idx] = 0;
-    //      for (int c = csrStartIdx; c < csrEndIdx; c++) {
-    //        csrValA[c] = 0;
-    //      }
-    //    }
-    //    for (int j = csrStartIdx; j < csrEndIdx; j++) {
-    //      csrValA[j] += csrValA2[j];
-    //    }
-  }
-
-  else {
-    a_ij[i_idx + i_idx * numAllMarkers] = a_ii[i_idx];
-    for (int j = 0; j < numAllMarkers; j++) {
-      a_ij[j + i_idx * numAllMarkers] += -a_ij3[j + i_idx * numAllMarkers];
-    }
-  }
-
-  //  if (i_idx == 2) {
-  //    printf("csrStartIdx-1: %d, csrEndIdx: %d, csrColIndA[csrStartIdx - 1] :%d \n ", csrStartIdx - 1, csrEndIdx,
-  //           csrColIndA[csrStartIdx - 1]);
-  //    printf("counter reports:%d, it should be %d", csrEndIdx - csrStartIdx + 1);
-  //  }
+  csrValA[csrStartIdx - 1] = a_ii[i_idx];
+  csrColIndA[csrStartIdx - 1] = i_idx;
+  GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -1410,13 +1333,12 @@ __global__ void FormAXB(Real* csrValA,
   }
   int TYPE_OF_NARKER = sortedRhoPreMu[i_idx].w;
   if (TYPE_OF_NARKER == -1)
-    Calc_fluid_aij_Bi(i_idx, csrValA, csrColIndA, GlobalcsrColIndA, numContacts, a_ij, a_ij3, B_i, d_ii, a_ii, rho_np,
-                      summGradW, sortedPosRad, sortedRhoPreMu, cellStart, cellEnd, numAllMarkers, m_0, RHO_0, dT,
-                      IsSPARSE);
-  if (TYPE_OF_NARKER == 0)
-    Calc_BC_aij_Bi(i_idx, csrValA, csrColIndA, GlobalcsrColIndA, numContacts, a_ij, a_ii, B_i, sortedPosRad,
-                   sortedVelMas, sortedRhoPreMu, V_new, p_old, bceAcc, updatePortion, gridMarkerIndexD, cellStart,
-                   cellEnd, numAllMarkers, gravity, IsSPARSE);
+    Calc_fluid_aij_Bi(i_idx, csrValA, csrColIndA, GlobalcsrColIndA, numContacts, B_i, d_ii, a_ii, rho_np, summGradW,
+                      sortedPosRad, sortedRhoPreMu, cellStart, cellEnd, numAllMarkers, m_0, RHO_0, dT, IsSPARSE);
+  else
+    Calc_BC_aij_Bi(i_idx, csrValA, csrColIndA, GlobalcsrColIndA, numContacts, a_ii, B_i, sortedPosRad, sortedVelMas,
+                   sortedRhoPreMu, V_new, p_old, bceAcc, updatePortion, gridMarkerIndexD, cellStart, cellEnd,
+                   numAllMarkers, gravity, IsSPARSE);
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -1427,7 +1349,6 @@ __global__ void Calc_Pressure_AXB_USING_CSR(Real* csrValA,
                                             unsigned long int* numContacts,
                                             Real4* sortedRhoPreMu,
                                             Real* nonNormalRho,
-                                            Real3* sortedPosRad,
                                             Real3* sortedVelMas,
                                             Real3* V_new,
                                             Real* p_old,
@@ -1447,8 +1368,9 @@ __global__ void Calc_Pressure_AXB_USING_CSR(Real* csrValA,
   }
 
   Real aij_pj = 0;
-  if (nonNormalRho[i_idx] < 0.98 * RHO_0) {
+  if ((sortedRhoPreMu[i_idx].x < 0.998 * RHO_0) && (sortedRhoPreMu[i_idx].w == -1)) {
     sortedRhoPreMu[i_idx].y = 0.0;
+    //    sortedRhoPreMu[i_idx].x = RHO_0;
   } else {
     for (int myIdx = startIdx; myIdx < endIdx; myIdx++) {
       if (i_idx == csrColIndA[myIdx])
@@ -1459,14 +1381,11 @@ __global__ void Calc_Pressure_AXB_USING_CSR(Real* csrValA,
                myIdx, csrValA[myIdx], p_old[csrColIndA[myIdx]]);
       }
     }
-    double RHS = min(0.0, B_i[i_idx]);
-    //		double RHS = B_i[i_idx];
+    Real RHS = min(0.0, B_i[i_idx]);
 
     sortedRhoPreMu[i_idx].y = (RHS - aij_pj) / csrValA[startIdx - 1];
     //    sortedRhoPreMu[i_idx].y = (B_i[i_idx] - aij_pj) / a_ii[i_idx];
-    //    sortedRhoPreMu[i_idx].x = aij_pj + sortedRhoPreMu[i_idx].y * csrValA[startIdx - 1] + RHO_0 - RHS;
-    //    if (abs(sortedRhoPreMu[i_idx].x - RHO_0) > EPSILON)
-    //      printf("sortedRhoPreMu[i_idx].x=%f\n", sortedRhoPreMu[i_idx].x);
+    //    sortedRhoPreMu[i_idx].x = aij_pj + sortedRhoPreMu[i_idx].y * a_ii[i_idx] - RHS + RHO_0;
   }
 
   /// This updates the velocity but it is done here since its faster
@@ -1511,7 +1430,6 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
   if (myType < 0) {
     if (Rho_i < 0.998 * RHO_0) {
       p_new = 0;
-      sortedRhoPreMu[i_idx].x = RHO_0;
     } else {
       Real3 my_dij_pj = dij_pj[i_idx];
       Real sum_dij_pj = 0;  // This is the first summation  term in the expression for the pressure.
@@ -1549,16 +1467,13 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
           }
         }
       }
+
       Real RHS = min(0.0, RHO_0 - rho_np[i_idx]);
       Real aij_pj = +sum_dij_pj - sum_djj_pj - sum_djk_pk;
       p_new = (RHS - aij_pj) / a_ii[i_idx];
-      sortedRhoPreMu[i_idx].x = aij_pj + p_new * a_ii[i_idx] + RHO_0 - RHS;
-
-      //      printf("fluid id= %d\n", i_idx);
-      //      if (i_idx == 1386)
-      //        printf("aij_pj= %f\n", -sum_dij_pj + sum_djj_pj + sum_djk_pk);
+      //      sortedRhoPreMu[i_idx].x = aij_pj + p_new * a_ii[i_idx] + RHO_0 - RHS;
     }
-  } else if (myType == 0) {  // Do Adami BC
+  } else if (myType > -1) {  // Do Adami BC
 
     Real3 numeratorv = mR3(0);
     Real denumenator = 0;
@@ -1654,21 +1569,12 @@ __global__ void Update_AND_Calc_Res(Real3* sortedVelMas,
     printf("My density is %f in Update_AND_Calc_Res\n", sortedRhoPreMu[i_idx].x);
   }
 
-  // Double check the relaxations. Something is fishy here
-  Real relax;
-  if (!IsSPARSE) {
-    //    printf("relaxing the solution\n");
-    relax = params_relaxation;
-  } else {
-    relax = 1;
-  }
-
   //  p_i = (1 - relax) * p_old_i + relax * p_i;
-  sortedRhoPreMu[i_idx].y = (1 - relax) * p_old[i_idx] + relax * sortedRhoPreMu[i_idx].y;
+  sortedRhoPreMu[i_idx].y = (1 - params_relaxation) * p_old[i_idx] + params_relaxation * sortedRhoPreMu[i_idx].y;
   //  Real AbsRes = abs(sortedRhoPreMu[i_idx].y - p_old[i_idx]);
 
   Real Updated_rho = rho_np[i_idx] + rho_p[i_idx];
-  Real rho_res = abs(1000 - sortedRhoPreMu[i_idx].x);
+  Real rho_res = abs(1000 - sortedRhoPreMu[i_idx].x);  // Hard-coded for now
   Real p_res = 0;
   p_res = abs(sortedRhoPreMu[i_idx].y - p_old[i_idx]) / (abs(p_old[i_idx]) + 0.00001);
 
@@ -1676,7 +1582,7 @@ __global__ void Update_AND_Calc_Res(Real3* sortedVelMas,
   //	Residuals[i_idx] = max(p_res, 0.0);
   //  sortedRhoPreMu[i_idx].x = Updated_rho;
 
-  if (sortedRhoPreMu[i_idx].w == 0) {
+  if (sortedRhoPreMu[i_idx].w > -1) {
     Residuals[i_idx] = 0.0;
     sortedVelMas[i_idx] = V_new[i_idx];
   }
@@ -1745,7 +1651,6 @@ __global__ void CalcForces(Real3* new_vel,       // Write
   }
 
   new_vel[i_idx] = Veli + dT * (F_i_p + F_i_np) + gravity * dT;
-  //  new_Pos[i_idx] = posi + dT * new_vel[i_idx];
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -1806,7 +1711,7 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc)
       mR3CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
       mR3CAST(d_ii), mR3CAST(V_np), U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD),
       numAllMarkers, paramsH->markerMass, paramsH->mu0, paramsH->rho0, paramsH->epsMinMarkersDis, paramsH->dT,
-      isErrorD);
+      paramsH->gravity, isErrorD);
 
   cudaThreadSynchronize();
   cudaCheckError();
@@ -1882,6 +1787,7 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc)
       throw std::runtime_error("Error! program crashed after Calc_dij_pj!\n");
     }
 
+    *isErrorH = false;
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
     CalcNumber_Contacts<<<numBlocks, numThreads>>>(
         LU1CAST(numContacts), mR3CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
@@ -1909,10 +1815,12 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc)
     thrust::fill(csrColIndA.begin(), csrColIndA.end(), 0);
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
 
-    printf("size of gridMarkerIndexD: %d\n", markersProximityD->gridMarkerIndexD.size());
-    printf("size of bceAcc: %d\n", bceAcc.size());
-    printf("numBlocks: %d, numThreads: %d", numBlocks, numThreads);
-    printf("max thread: %d", numBlocks * numThreads);
+    //    printf("size of gridMarkerIndexD: %d\n", markersProximityD->gridMarkerIndexD.size());
+    //    printf("size of bceAcc: %d\n", bceAcc.size());
+    //    printf("numBlocks: %d, numThreads: %d", numBlocks, numThreads);
+    //    printf("max thread: %d", numBlocks * numThreads);
+
+    printf("gravity is : %f", paramsH->gravity.z);
 
     FormAXB<<<numBlocks, numThreads>>>(
         R1CAST(csrValA), U1CAST(csrColIndA), LU1CAST(GlobalcsrColIndA), LU1CAST(numContacts), R1CAST(a_ij),
@@ -1932,7 +1840,6 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc)
 
     durationFormAXB = (clock() - FormAXBClock) / (double)CLOCKS_PER_SEC;
   }
-
   //------------------------------------------------------------------------
   //------------- Iterative loop
   //------------------------------------------------------------------------
@@ -2000,9 +1907,8 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc)
       cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
       Calc_Pressure_AXB_USING_CSR<<<numBlocks, numThreads>>>(
           R1CAST(csrValA), R1CAST(a_ii), U1CAST(csrColIndA), LU1CAST(numContacts),
-          mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(nonNormRho), mR3CAST(sortedSphMarkersD->posRadD),
-          mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(V_new), R1CAST(p_old), R1CAST(B_i), paramsH->rho0, numAllMarkers,
-          isErrorD);
+          mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(nonNormRho), mR3CAST(sortedSphMarkersD->velMasD),
+          mR3CAST(V_new), R1CAST(p_old), R1CAST(B_i), paramsH->rho0, numAllMarkers, isErrorD);
       cudaThreadSynchronize();
       cudaCheckError();
       cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
@@ -2025,7 +1931,8 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc)
     }
 
     Iteration++;
-    //			      MaxRes = thrust::reduce(Residuals.begin(), Residuals.end(), 0.0, thrust::maximum<Real>());
+    //			      MaxRes = thrust::reduce(Residuals.begin(), Residuals.end(), 0.0,
+    // thrust::maximum<Real>());
     //    Real PMAX = thrust::reduce(p_old.begin(), p_old.end(), 0.0, thrust::maximum<Real>());
     MaxRes =
         thrust::reduce(Residuals.begin(), Residuals.end(), 0.0, thrust::plus<Real>()) / numObjectsH->numFluidMarkers;
