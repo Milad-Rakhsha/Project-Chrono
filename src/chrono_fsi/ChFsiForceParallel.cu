@@ -703,7 +703,7 @@ __global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted 
     return;
   }
 
-  if (sortedRhoPreMu[i_idx].w > -1 && sortedRhoPreMu[i_idx].y < RHO_0) {
+  if (sortedRhoPreMu[i_idx].w == 0 && sortedRhoPreMu[i_idx].y < RHO_0) {
     sortedRhoPreMu[i_idx].x = RHO_0;
   }
 }
