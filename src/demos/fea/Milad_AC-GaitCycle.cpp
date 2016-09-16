@@ -73,6 +73,7 @@ enum ROT_SYS { XYZ, ZXY };
 #define addPressure
 #define CalcRegions
 
+bool imposeMotion = true;
 bool outputData = true;
 bool addGravity = false;
 bool addForce = false;
@@ -131,6 +132,7 @@ void SetParamFromJSON(const std::string& filename,
                       double& AbsToleranceHHT,
                       double& AbsToleranceHHTConstraint,
                       int& MaxItersSuccessHHT);
+
 double calcPressureInside(std::shared_ptr<ChMesh> my_mesh, double p_0, double v_0);
 double findRegion(ChVector<double> pos);
 void ReadOBJConnectivity(const char* filename,
@@ -383,6 +385,10 @@ int main(int argc, char* argv[]) {
     Tibia->SetBodyFixed(false);
     Tibia->SetMaterialSurface(mysurfmaterial);
     my_system.Add(Tibia);
+    if (!imposeMotion) {
+        Tibia->SetBodyFixed(true);
+    }
+
     Tibia->SetMass(200);
     Tibia->SetInertiaXX(ChVector<>(0.004, 0.8e-4, 0.004));
     auto mobjmesh1 = std::make_shared<ChObjShapeFile>();
@@ -416,13 +422,12 @@ int main(int argc, char* argv[]) {
     my_link_TF->Initialize(MarkerTibia, MarkerFemur);
     //    my_link_TF->Initialize(Tibia, Femur, ChCoordsys<>());
 
-    my_system.AddLink(my_link_TF);
+    //    my_system.AddLink(my_link_TF);
 
     std::vector<std::vector<double>> motionInfo;
     double D2R = 3.1415 / 180;
     ChVector<> RotAng(0, 0, 0);
     ChMatrix33<> MeshRotate;
-
     switch (myRot) {
         case XYZ: {
             GetDataFile(GetChronoDataFile("fea/XYZ.csv").c_str(), motionInfo);
@@ -434,7 +439,8 @@ int main(int argc, char* argv[]) {
             MeshRotate = Angle_to_Quat(4, RotAng);
 
             Tibia->SetRot(MeshRotate);
-            impose_TF_motion(motionInfo, 4, my_link_TF);
+            if (imposeMotion)
+                impose_TF_motion(motionInfo, 4, my_link_TF);
             break;
         }
         case ZXY: {
@@ -444,7 +450,8 @@ int main(int argc, char* argv[]) {
             MeshRotate = Angle_to_Quat(7, RotAng);
             Tibia->SetPos(ChVector<>(motionInfo[0][1], motionInfo[0][2], motionInfo[0][3]));
             Tibia->SetRot(MeshRotate);
-            impose_TF_motion(motionInfo, 7, my_link_TF);
+            if (imposeMotion)
+                impose_TF_motion(motionInfo, 7, my_link_TF);
             break;
         }
     }
@@ -1323,6 +1330,10 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
             myarea += dx * dy / NodeNeighborElement[i].size();
+            MyResult[1] = MyResult[1] / MyResult[1].Length();
+            if (MyResult[1].x * areaAve1, MyResult[1].y * areaAve2, MyResult[1].z * areaAve3 < 0) {
+                MyResult[1] = MyResult[1] * -1;
+            }
             areaAve1 += MyResult[1].x * dx * dy / NodeNeighborElement[i].size();
             areaAve2 += MyResult[1].y * dx * dy / NodeNeighborElement[i].size();
             areaAve3 += MyResult[1].z * dx * dy / NodeNeighborElement[i].size();
@@ -1341,6 +1352,10 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
             myarea += dx * dy / NodeNeighborElement[i].size();
+            MyResult[2] = MyResult[2] / MyResult[2].Length();
+            if (MyResult[2].x * areaAve1, MyResult[2].y * areaAve2, MyResult[2].z * areaAve3 < 0) {
+                MyResult[2] = MyResult[2] * -1;
+            }
             areaAve1 += MyResult[2].x * dx * dy / NodeNeighborElement[i].size();
             areaAve2 += MyResult[2].y * dx * dy / NodeNeighborElement[i].size();
             areaAve3 += MyResult[2].z * dx * dy / NodeNeighborElement[i].size();
@@ -1432,6 +1447,11 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
             myarea += dx * dy / NodeNeighborElement[i].size();
+            MyResult[1] = MyResult[1] / MyResult[1].Length();
+
+            if (MyResult[1].x * areaAve1, MyResult[1].y * areaAve2, MyResult[1].z * areaAve3 < 0) {
+                MyResult[1] = MyResult[1] * -1;
+            }
             areaAve1 += MyResult[1].x * dx * dy / NodeNeighborElement[i].size();
             areaAve2 += MyResult[1].y * dx * dy / NodeNeighborElement[i].size();
             areaAve3 += MyResult[1].z * dx * dy / NodeNeighborElement[i].size();
@@ -1451,6 +1471,11 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
             myarea += dx * dy / NodeNeighborElement[i].size();
+            MyResult[2] = MyResult[2] / MyResult[2].Length();
+
+            if (MyResult[2].x * areaAve1, MyResult[2].y * areaAve2, MyResult[2].z * areaAve3 < 0) {
+                MyResult[2] = MyResult[2] * -1;
+            }
             areaAve1 += MyResult[2].x * dx * dy / NodeNeighborElement[i].size();
             areaAve2 += MyResult[2].y * dx * dy / NodeNeighborElement[i].size();
             areaAve3 += MyResult[2].z * dx * dy / NodeNeighborElement[i].size();
@@ -1891,7 +1916,7 @@ double findRegion(ChVector<double> pos) {
         ChVector<> BoxMin = Boxcenter - BoxSize / 2;
         ChVector<> BoxMax = Boxcenter + BoxSize / 2;
 
-        if (pos > BoxMin && pos < BoxMax)
+        if (pos >= BoxMin && pos <= BoxMax)
             return i;
     }
 
