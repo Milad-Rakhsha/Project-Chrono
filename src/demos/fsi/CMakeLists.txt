@@ -10,8 +10,8 @@ SET(FSI_DEMOS
 # List all FSI demos that use chrono-parallel
 SET(FSI_PARALLEL_DEMOS
 # add fluid demos here
-demo_FSI_cylinderDrop
 demo_FSI_CylinderDrop_Implicit
+demo_FSI_KitchenSink_Implicit
 )
 
 # List all FSI demos use vehicle
