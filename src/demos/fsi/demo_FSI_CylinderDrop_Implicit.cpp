@@ -67,9 +67,13 @@ std::ofstream simParams;
 //----------------------------
 // output directories and settings
 //----------------------------
+const std::string h_file =
+    "/home/milad/CHRONO/Project-Chrono-Milad-IISPH/src/demos/fsi/demo_FSI_CylinderDrop_Implicit.h";
+const std::string cpp_file =
+    "/home/milad/CHRONO/Project-Chrono-Milad-IISPH/src/demos/fsi/demo_FSI_CylinderDrop_Implicit.cpp";
 
 const std::string out_dir = "FSI_OUTPUT";  //"../FSI_OUTPUT";
-const std::string pov_dir_fluid = out_dir + "/CylinderDropIISPH";
+const std::string pov_dir_fluid = out_dir + "/CylinderDrop_Implicit/";
 const std::string pov_dir_mbd = out_dir + "/povFilesHmmwv";
 bool povray_output = true;
 int out_fps = 60;
@@ -95,7 +99,7 @@ double cyl_length = 0.2;
 double cyl_radius = .2;
 
 void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
-
+void saveInputFile(std::string inputFile, std::string outAddress);
 void SetArgumentsForMbdFromInput(int argc,
                                  char* argv[],
                                  int& threads,
@@ -132,6 +136,7 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI& mphysicalSystem,
     // Ground body
     auto ground = std::make_shared<ChBody>(new collision::ChCollisionModelParallel);
     ground->SetIdentifier(-1);
+
     ground->SetBodyFixed(true);
     ground->SetCollide(true);
 
@@ -420,6 +425,8 @@ int main(int argc, char* argv[]) {
 #endif
 
     SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, 0, mTime, Cylinder);
+    saveInputFile(h_file, pov_dir_fluid + "/hfile.h");
+    saveInputFile(cpp_file, pov_dir_fluid + "/cppfile.cpp");
     double g0 = paramsH->gravity.z;
 
     for (int tStep = 0; tStep < stepEnd + 1; tStep++) {
@@ -754,4 +761,15 @@ void InitializeMbdPhysicalSystem(ChSystemParallelDVI& mphysicalSystem, ChVector<
     //    collisionEnvelop;   // global collisionEnvelop
     //    does not work. Maybe due to sph-tire size mismatch
     mphysicalSystem.GetSettings()->collision.bins_per_axis = _make_int3(40, 40, 40);  // Arman check
+}
+
+void saveInputFile(std::string inputFile, std::string outAddress) {
+    std::ifstream inFile;
+    inFile.open(inputFile);
+    std::ofstream outFile;
+    outFile.open(outAddress);
+    outFile << inFile.rdbuf();
+    inFile.close();
+    outFile.close();
+    std::cout << inputFile << "	" << outAddress << "\n";
 }

@@ -703,7 +703,7 @@ __global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted 
     return;
   }
 
-  if (sortedRhoPreMu[i_idx].w == 0 && sortedRhoPreMu[i_idx].y < RHO_0) {
+  if (sortedRhoPreMu[i_idx].w == 0 && sortedRhoPreMu[i_idx].x < RHO_0) {
     sortedRhoPreMu[i_idx].x = RHO_0;
   }
 }
@@ -841,7 +841,7 @@ __global__ void Rho_np_AND_a_ii(Real3* sortedPosRad,
   }
   rho_np[i_idx] = dT * rho_temp + sortedRhoPreMu[i_idx].x;
   a_ii[i_idx] = my_a_ii;
-  p_old[i_idx] = 100.0;  // Note that this is outside of the for loop
+  p_old[i_idx] = sortedRhoPreMu[i_idx].y;  // Note that this is outside of the for loop
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 
