@@ -50,7 +50,7 @@ void SetupParamsH(SimParams* paramsH,
                   Real fluidInitDimX,
                   Real fluidHeight) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.05;
+    paramsH->HSML = 0.01;
     paramsH->MULT_INITSPACE = 1.0;
     paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
@@ -63,15 +63,16 @@ void SetupParamsH(SimParams* paramsH,
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = .01;
+    paramsH->mu0 = .001;
     paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
     paramsH->PPE_res = 0.001;
     paramsH->PPE_Solution_type = SPARSE_MATRIX_JACOBI;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
     paramsH->PPE_relaxation = 0.3;
+    paramsH->USE_CUSP = false;
 
-    paramsH->dT = 2e-3;
+    paramsH->dT = 2.5e-3;
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;  // I don't know what is kdT
@@ -84,8 +85,8 @@ void SetupParamsH(SimParams* paramsH,
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
     paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
-    paramsH->cMin = mR3(-0.8, -0.7, -1);
-    paramsH->cMax = mR3(0.8, 0.7, 3);
+    paramsH->cMin = mR3(-0.7, -0.7, -1);
+    paramsH->cMax = mR3(0.7, 0.7, 2.2);
 
     //****************************************************************************************
     // printf("a1  paramsH->cMax.x, y, z %f %f %f,  binSize %f\n",

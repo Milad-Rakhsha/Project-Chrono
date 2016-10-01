@@ -87,16 +87,16 @@ Real hdimY = 0.0;
 Real hthick = 1;
 Real basinDepth = 2.5;
 
-Real bxDim = 1;
-Real byDim = 0.5;
+Real bxDim = 0.96;
+Real byDim = 0.32;
 Real bzDim = 2;
 
-Real fxDim = 1;
+Real fxDim = bxDim;
 Real fyDim = byDim;
 Real fzDim = 1;
 
-double cyl_length = 0.2;
-double cyl_radius = .2;
+double cyl_length = 0.12;
+double cyl_radius = .12;
 
 void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
 void saveInputFile(std::string inputFile, std::string outAddress);
@@ -180,7 +180,7 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI& mphysicalSystem,
 
     // Add floating cylinder
 
-    ChVector<> cyl_pos = ChVector<>(0, 0, fzDim + cyl_radius + 1 * paramsH->HSML);
+    ChVector<> cyl_pos = ChVector<>(0, 0, fzDim + cyl_radius + 2 * paramsH->HSML);
     ChQuaternion<> cyl_rot = chrono::QUNIT;
 
     std::vector<std::shared_ptr<ChBody>>* FSI_Bodies = myFsiSystem.GetFsiBodiesPtr();
@@ -341,7 +341,8 @@ int main(int argc, char* argv[]) {
     utils::GridSampler<> sampler(initSpace0);
     cout << " \n\n\n\nbasinDepth: " << basinDepth << "cMin.z:" << paramsH->cMin.z << endl;
 
-    chrono::fsi::Real3 boxCenter = chrono::fsi::mR3(0, 0, fzDim / 2 + paramsH->HSML);  // This is very badly hardcoded
+    chrono::fsi::Real3 boxCenter =
+        chrono::fsi::mR3(0, 0 * paramsH->HSML, fzDim / 2 + 1 * paramsH->HSML);  // This is very badly hardcoded
     chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
     utils::Generator::PointVector points = sampler.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter),
                                                              fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim));
@@ -439,8 +440,14 @@ int main(int argc, char* argv[]) {
         else
             g = g0;
 
-//        paramsH->gravity.z = g;
-//        std::cout << "gravity: " << paramsH->gravity.z << std::endl;
+        //        paramsH->gravity.z = g;
+        //        std::cout << "gravity: " << paramsH->gravity.z << std::endl;
+
+        // I am decreasing the time step when the suden jump happens
+        if (tStep > 273 && tStep < 273 + (350 - 270) * 2.5)
+            paramsH->dT = 1e-3;
+        else
+            paramsH->dT = 2.5e-3;
 
 #if haveFluid
         myFsiSystem.DoStepDynamics_FSI_Implicit();
