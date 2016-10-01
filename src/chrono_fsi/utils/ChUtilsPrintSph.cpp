@@ -27,12 +27,11 @@ namespace chrono {
 namespace fsi {
 namespace utils {
 //*******************************************************************************************************************************
-void PrintToFile(const thrust::device_vector<Real3> &posRadD,
-                 const thrust::device_vector<Real3> &velMasD,
-                 const thrust::device_vector<Real4> &rhoPresMuD,
-                 const thrust::host_vector<int4> &referenceArray,
-                 const std::string &out_dir) {
-
+void PrintToFile(const thrust::device_vector<Real3>& posRadD,
+                 const thrust::device_vector<Real3>& velMasD,
+                 const thrust::device_vector<Real4>& rhoPresMuD,
+                 const thrust::host_vector<int4>& referenceArray,
+                 const std::string& out_dir) {
   thrust::host_vector<Real3> posRadH = posRadD;
   thrust::host_vector<Real3> velMasH = velMasD;
   thrust::host_vector<Real4> rhoPresMuH = rhoPresMuD;
@@ -43,8 +42,7 @@ void PrintToFile(const thrust::device_vector<Real3> &posRadD,
   sprintf(fileCounter, "%d", dumNumChar);
 
   //*****************************************************
-  const std::string nameFluid = out_dir + std::string("/fluid") +
-                                std::string(fileCounter) + std::string(".csv");
+  const std::string nameFluid = out_dir + std::string("/fluid") + std::string(fileCounter) + std::string(".csv");
 
   std::ofstream fileNameFluidParticles;
   fileNameFluidParticles.open(nameFluid);
@@ -54,17 +52,14 @@ void PrintToFile(const thrust::device_vector<Real3> &posRadD,
     Real3 vel = velMasH[i];
     Real4 rP = rhoPresMuH[i];
     Real velMag = length(vel);
-    ssFluidParticles << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x
-                     << ", " << vel.y << ", " << vel.z << ", " << velMag << ", "
-                     << rP.x << ", " << rP.y << ", " << rP.w << ", "
-                     << std::endl;
+    ssFluidParticles << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x << ", " << vel.y << ", " << vel.z
+                     << ", " << velMag << ", " << rP.x << ", " << rP.y << ", " << rP.w << ", " << std::endl;
   }
   fileNameFluidParticles << ssFluidParticles.str();
   fileNameFluidParticles.close();
   //*****************************************************
   const std::string nameFluidBoundaries =
-      out_dir + std::string("/fluid_boundary") + std::string(fileCounter) +
-      std::string(".csv");
+      out_dir + std::string("/fluid_boundary") + std::string(fileCounter) + std::string(".csv");
 
   std::ofstream fileNameFluidBoundaries;
   fileNameFluidBoundaries.open(nameFluidBoundaries);
@@ -75,16 +70,14 @@ void PrintToFile(const thrust::device_vector<Real3> &posRadD,
     Real3 vel = velMasH[i];
     Real4 rP = rhoPresMuH[i];
     Real velMag = length(vel);
-    ssFluidBoundaryParticles << pos.x << ", " << pos.y << ", " << pos.z << ", "
-                             << vel.x << ", " << vel.y << ", " << vel.z << ", "
-                             << velMag << ", " << rP.x << ", " << rP.y << ", "
-                             << rP.z << ", " << rP.w << ", " << std::endl;
+    ssFluidBoundaryParticles << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x << ", " << vel.y << ", "
+                             << vel.z << ", " << velMag << ", " << rP.x << ", " << rP.y << ", " << rP.z << ", " << rP.w
+                             << ", " << std::endl;
   }
   fileNameFluidBoundaries << ssFluidBoundaryParticles.str();
   fileNameFluidBoundaries.close();
   //*****************************************************
-  const std::string nameBCE = out_dir + std::string("/BCE") +
-                              std::string(fileCounter) + std::string(".csv");
+  const std::string nameBCE = out_dir + std::string("/BCE") + std::string(fileCounter) + std::string(".csv");
 
   std::ofstream fileNameBCE;
   fileNameBCE.open(nameBCE);
@@ -99,9 +92,8 @@ void PrintToFile(const thrust::device_vector<Real3> &posRadD,
       Real4 rP = rhoPresMuH[i];
       Real velMag = length(vel);
 
-      ssBCE << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x << ", "
-            << vel.y << ", " << vel.z << ", " << velMag << ", " << rP.x << ", "
-            << rP.y << ", " << rP.z << ", " << rP.w << ", " << std::endl;
+      ssBCE << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x << ", " << vel.y << ", " << vel.z << ", "
+            << velMag << ", " << rP.x << ", " << rP.y << ", " << rP.z << ", " << rP.w << ", " << std::endl;
     }
   }
   fileNameBCE << ssBCE.str();
@@ -112,12 +104,11 @@ void PrintToFile(const thrust::device_vector<Real3> &posRadD,
   rhoPresMuH.clear();
 }
 
-void PrintToParaViewFile(const thrust::device_vector<Real3> &posRadD,
-                 const thrust::device_vector<Real3> &velMasD,
-                 const thrust::device_vector<Real4> &rhoPresMuD,
-                 const thrust::host_vector<int4> &referenceArray,
-                 const std::string &out_dir) {
-
+void PrintToParaViewFile(const thrust::device_vector<Real3>& posRadD,
+                         const thrust::device_vector<Real3>& velMasD,
+                         const thrust::device_vector<Real4>& rhoPresMuD,
+                         const thrust::host_vector<int4>& referenceArray,
+                         const std::string& out_dir) {
   thrust::host_vector<Real3> posRadH = posRadD;
   thrust::host_vector<Real3> velMasH = velMasD;
   thrust::host_vector<Real4> rhoPresMuH = rhoPresMuD;
@@ -128,52 +119,46 @@ void PrintToParaViewFile(const thrust::device_vector<Real3> &posRadD,
   sprintf(fileCounter, "%d", dumNumChar);
 
   //*****************************************************
-  const std::string nameFluid = out_dir + std::string("/fluid") +
-                                std::string(fileCounter) + std::string(".csv");
+  const std::string nameFluid = out_dir + std::string("/fluid") + std::string(fileCounter) + std::string(".csv");
 
   std::ofstream fileNameFluidParticles;
   fileNameFluidParticles.open(nameFluid);
   std::stringstream ssFluidParticles;
-  ssFluidParticles << "x, y, z, vx, vy, vz, |U|, rpx, rpy, rpz, rpw, \n";
+  ssFluidParticles << "x,y,z,vx,vy,vz,U,rpx,rpy,rpz,rpw\n";
 
   for (int i = referenceArray[0].x; i < referenceArray[0].y; i++) {
     Real3 pos = posRadH[i];
     Real3 vel = velMasH[i];
     Real4 rP = rhoPresMuH[i];
     Real velMag = length(vel);
-    ssFluidParticles << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x
-                     << ", " << vel.y << ", " << vel.z << ", " << velMag << ", "
-                     << rP.x << ", " << rP.y << ", " << rP.z << ", "<< rP.w << ", "
-                     << std::endl;
+    ssFluidParticles << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x << ", " << vel.y << ", " << vel.z
+                     << ", " << velMag << ", " << rP.x << ", " << rP.y << ", " << rP.z << ", " << rP.w << std::endl;
   }
   fileNameFluidParticles << ssFluidParticles.str();
   fileNameFluidParticles.close();
   //*****************************************************
   const std::string nameFluidBoundaries =
-      out_dir + std::string("/fluid_boundary") + std::string(fileCounter) +
-      std::string(".csv");
+      out_dir + std::string("/fluid_boundary") + std::string(fileCounter) + std::string(".csv");
 
   std::ofstream fileNameFluidBoundaries;
   fileNameFluidBoundaries.open(nameFluidBoundaries);
   std::stringstream ssFluidBoundaryParticles;
   //		ssFluidBoundaryParticles.precision(20);
-  ssFluidBoundaryParticles << "x, y, z, vx, vy, vz, |U|, rpx, rpy, rpz, rpw, \n";
+  ssFluidBoundaryParticles << "x,y,z,vx,vy,vz,U,rpx,rpy,rpz,rpw\n";
 
   for (int i = referenceArray[0].x; i < referenceArray[1].y; i++) {
     Real3 pos = posRadH[i];
     Real3 vel = velMasH[i];
     Real4 rP = rhoPresMuH[i];
     Real velMag = length(vel);
-    ssFluidBoundaryParticles << pos.x << ", " << pos.y << ", " << pos.z << ", "
-                             << vel.x << ", " << vel.y << ", " << vel.z << ", "
-                             << velMag << ", " << rP.x << ", " << rP.y << ", "
-                             << rP.z << ", " << rP.w << ", " << std::endl;
+    ssFluidBoundaryParticles << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x << ", " << vel.y << ", "
+                             << vel.z << ", " << velMag << ", " << rP.x << ", " << rP.y << ", " << rP.z << ", " << rP.w
+                             << std::endl;
   }
   fileNameFluidBoundaries << ssFluidBoundaryParticles.str();
   fileNameFluidBoundaries.close();
   //*****************************************************
-  const std::string nameBCE = out_dir + std::string("/BCE") +
-                              std::string(fileCounter) + std::string(".csv");
+  const std::string nameBCE = out_dir + std::string("/BCE") + std::string(fileCounter) + std::string(".csv");
 
   std::ofstream fileNameBCE;
   fileNameBCE.open(nameBCE);
@@ -182,16 +167,15 @@ void PrintToParaViewFile(const thrust::device_vector<Real3> &posRadD,
 
   int refSize = referenceArray.size();
   if (refSize > 2) {
-	ssBCE << "x, y, z, vx, vy, vz, |U|, rpx, rpy, rpz, rpw, \n";
+    ssBCE << "x,y,z,vx,vy,vz,U,rpx,rpy,rpz,rpw\n";
     for (int i = referenceArray[2].x; i < referenceArray[refSize - 1].y; i++) {
       Real3 pos = posRadH[i];
       Real3 vel = velMasH[i];
       Real4 rP = rhoPresMuH[i];
       Real velMag = length(vel);
 
-      ssBCE << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x << ", "
-            << vel.y << ", " << vel.z << ", " << velMag << ", " << rP.x << ", "
-            << rP.y << ", " << rP.z << ", " << rP.w << ", " << std::endl;
+      ssBCE << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x << ", " << vel.y << ", " << vel.z << ", "
+            << velMag << ", " << rP.x << ", " << rP.y << ", " << rP.z << ", " << rP.w << std::endl;
     }
   }
   fileNameBCE << ssBCE.str();
@@ -202,6 +186,6 @@ void PrintToParaViewFile(const thrust::device_vector<Real3> &posRadD,
   rhoPresMuH.clear();
 }
 
-} // end namespace utils
-} // end namespace fsi
-} // end namespace chrono
+}  // end namespace utils
+}  // end namespace fsi
+}  // end namespace chrono
