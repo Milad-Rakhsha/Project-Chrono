@@ -98,6 +98,7 @@ struct SimParams {
   Real PPE_res;  // Poisson Pressure Equation residual
   PPE_SolutionType PPE_Solution_type;
   Real PPE_relaxation;
+  bool USE_CUSP;
 };
 
 }  // end namespace fsi
