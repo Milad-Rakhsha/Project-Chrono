@@ -88,7 +88,7 @@ Real hthick = 1;
 Real basinDepth = 2.5;
 
 Real bxDim = 0.96;
-Real byDim = 0.32;
+Real byDim = 0.36;
 Real bzDim = 2;
 
 Real fxDim = bxDim;
@@ -147,6 +147,7 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI& mphysicalSystem,
     // Bottom wall
     ChVector<> sizeBottom(bxDim / 2 + 3 * paramsH->HSML, byDim / 2 + 3 * paramsH->HSML, 2 * paramsH->HSML);
     ChVector<> posBottom(0, 0, -2 * paramsH->HSML);
+    ChVector<> posTop(0, 0, bzDim + 2 * paramsH->HSML);
 
     // left and right Wall
     ChVector<> size_YZ(2 * paramsH->HSML, byDim / 2 + 3 * paramsH->HSML, bzDim / 2);
@@ -169,6 +170,7 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI& mphysicalSystem,
 #if haveFluid
 
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posBottom, chrono::QUNIT, sizeBottom);
+    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT, sizeBottom);
 
     chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xp, chrono::QUNIT, size_YZ);
 
@@ -426,19 +428,21 @@ int main(int argc, char* argv[]) {
 #endif
 
     SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, 0, mTime, Cylinder);
+
+    const std::string rmCmd = (std::string("rm ") + pov_dir_fluid + std::string("/*"));
+    system(rmCmd.c_str());
     saveInputFile(h_file, pov_dir_fluid + "/hfile.h");
     saveInputFile(cpp_file, pov_dir_fluid + "/cppfile.cpp");
-    double g0 = paramsH->gravity.z;
 
     for (int tStep = 0; tStep < stepEnd + 1; tStep++) {
         printf("step : %d \n", tStep);
-        double g;
-        std::cout << "g0: " << g0 << std::endl;
-        int cri_step = 200;
-        if (tStep < cri_step)
-            g = (1 - cos((double)tStep / cri_step * 3.1415)) / 2 * g0;
-        else
-            g = g0;
+        //        double g;
+        //        std::cout << "g0: " << g0 << std::endl;
+        //        int cri_step = 200;
+        //        if (tStep < cri_step)
+        //            g = (1 - cos((double)tStep / cri_step * 3.1415)) / 2 * g0;
+        //        else
+        //            g = g0;
 
         //        paramsH->gravity.z = g;
         //        std::cout << "gravity: " << paramsH->gravity.z << std::endl;

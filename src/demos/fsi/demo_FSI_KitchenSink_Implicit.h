@@ -45,7 +45,7 @@ namespace fsi {
 
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.05;
+    paramsH->HSML = 0.04;
     paramsH->MULT_INITSPACE = 1.0;
     paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
@@ -65,8 +65,10 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->PPE_res = 0.001;
     paramsH->PPE_Solution_type = SPARSE_MATRIX_JACOBI;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
     paramsH->PPE_relaxation = 0.3;
+    paramsH->IncompressibilityFactor = 0.5;
+    paramsH->USE_CUSP = false;
 
-    paramsH->dT = 5e-3;
+    paramsH->dT = 2e-3;
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;  // I don't know what is kdT

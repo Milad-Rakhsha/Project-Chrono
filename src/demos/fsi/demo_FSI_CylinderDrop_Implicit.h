@@ -50,7 +50,7 @@ void SetupParamsH(SimParams* paramsH,
                   Real fluidInitDimX,
                   Real fluidHeight) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.01;
+    paramsH->HSML = 0.02;
     paramsH->MULT_INITSPACE = 1.0;
     paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
@@ -70,9 +70,10 @@ void SetupParamsH(SimParams* paramsH,
     paramsH->PPE_res = 0.001;
     paramsH->PPE_Solution_type = SPARSE_MATRIX_JACOBI;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
     paramsH->PPE_relaxation = 0.3;
+    paramsH->IncompressibilityFactor = 0.5;
     paramsH->USE_CUSP = false;
 
-    paramsH->dT = 2.5e-3;
+    paramsH->dT = 2e-3;
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;  // I don't know what is kdT
@@ -85,8 +86,8 @@ void SetupParamsH(SimParams* paramsH,
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
     paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
-    paramsH->cMin = mR3(-0.7, -0.7, -1);
-    paramsH->cMax = mR3(0.7, 0.7, 2.2);
+    paramsH->cMin = mR3(-0.8, -0.8, -1);
+    paramsH->cMax = mR3(0.8, 0.8, 2.5);
 
     //****************************************************************************************
     // printf("a1  paramsH->cMax.x, y, z %f %f %f,  binSize %f\n",

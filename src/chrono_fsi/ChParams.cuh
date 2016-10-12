@@ -98,6 +98,8 @@ struct SimParams {
   Real PPE_res;  // Poisson Pressure Equation residual
   PPE_SolutionType PPE_Solution_type;
   Real PPE_relaxation;
+  Real IncompressibilityFactor;
+
   bool USE_CUSP;
 };
 

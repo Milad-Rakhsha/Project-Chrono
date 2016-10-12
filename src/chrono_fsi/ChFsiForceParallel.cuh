@@ -133,7 +133,9 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
   /// position update.
   void CollideWrapper();
 
-  void calcPressureIISPH(thrust::device_vector<Real3>& bceAcc, thrust::device_vector<Real4> velMassRigid_fsiBodies_Ds);
+  void calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
+                         thrust::device_vector<Real4> velMassRigid_fsiBodies_D,
+                         thrust::device_vector<Real3> accRigid_fsiBodies_D);
 
   ChCollisionSystemFsi* fsiCollisionSystem;  ///< collision system; takes care of
                                              /// constructing neighbors list
