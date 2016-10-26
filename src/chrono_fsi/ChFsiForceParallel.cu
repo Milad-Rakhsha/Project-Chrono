@@ -20,6 +20,7 @@
 //#include "chrono_fsi/custom_math.h"
 
 #include <thrust/sort.h>
+#include <thrust/extrema.h>
 
 #include <cusp/csr_matrix.h>
 #include <cusp/print.h>
@@ -612,7 +613,7 @@ void ChFsiForceParallel::ForceSPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDat
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
-__global__ void calcRho_kernel(Real3* sortedPosRad,  // input: sorted positions
+__global__ void calcRho_kernel(Real3* sortedPosRad,  // input: sorted positionsmin(
                                Real* nonNormalRho,
                                uint* cellStart,
                                uint* cellEnd,
@@ -625,7 +626,6 @@ __global__ void calcRho_kernel(Real3* sortedPosRad,  // input: sorted positions
     return;
   }
   Real3 posRadA = sortedPosRad[i_idx];
-
   Real sum_mW = 0;
   // get address in grid
   int3 gridPos = calcGridPos(posRadA);
@@ -641,9 +641,7 @@ __global__ void calcRho_kernel(Real3* sortedPosRad,  // input: sorted positions
         // get start of bucket for this cell
         uint startIndex = cellStart[gridHash];
         if (startIndex != 0xffffffff) {  // cell is not empty
-                                         // iterate over particles in this cell
           uint endIndex = cellEnd[gridHash];
-
           for (uint j = startIndex; j < endIndex; j++) {
             Real3 posRadB = sortedPosRad[j];
             Real3 dist3 = Distance(posRadA, posRadB);
@@ -664,20 +662,24 @@ __global__ void calcRho_kernel(Real3* sortedPosRad,  // input: sorted positions
 
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted positions
+                                         Real3* sortedVelMas,
                                          Real4* sortedRhoPreMu,
                                          Real* nonNormalRho,
+                                         Real* dxi_over_Vi,
                                          uint* cellStart,
                                          uint* cellEnd,
                                          const int numAllMarkers,
                                          const Real RHO_0,
                                          const Real m_0,
-                                         const Real IncompressibilityFactor,
+                                         Real IncompressibilityFactor,
                                          volatile bool* isErrorD) {
   uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (i_idx >= numAllMarkers) {
     return;
   }
   Real3 posRadA = sortedPosRad[i_idx];
+  dxi_over_Vi[i_idx] = 1e10;
+
   Real sum_mW = 0;
   Real sum_mW_over_Rho = 0;
   // get address in grid
@@ -691,7 +693,7 @@ __global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted 
       for (int x = -1; x <= 1; x++) {
         int3 neighbourPos = gridPos + mI3(x, y, z);
         uint gridHash = calcGridHash(neighbourPos);
-        // get start of bucket for this cell
+        // get start of bucket for this cell50
         uint startIndex = cellStart[gridHash];
         if (startIndex != 0xffffffff) {  // cell is not empty
                                          // iterate over particles in this cell
@@ -700,7 +702,14 @@ __global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted 
           for (uint j = startIndex; j < endIndex; j++) {
             Real3 posRadB = sortedPosRad[j];
             Real3 dist3 = Distance(posRadA, posRadB);
+            Real3 dv3 = Distance(sortedVelMas[i_idx], sortedVelMas[j]);
             Real d = length(dist3);
+            Real dvDotdr = abs(dot(dv3, dist3)) / d;
+
+            //            if (sortedRhoPreMu[j].w > -1 && sortedRhoPreMu[i_idx].w == -1 && i_idx != j)
+            if (i_idx != j)
+              dxi_over_Vi[i_idx] = fminf(d / dvDotdr, dxi_over_Vi[i_idx]);
+
             if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML)
               continue;
             sum_mW += m_0 * W3(d);
@@ -711,11 +720,15 @@ __global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted 
     }
   }
 
-  sortedRhoPreMu[i_idx].x = (sum_mW / sum_mW_over_Rho - RHO_0) * IncompressibilityFactor + RHO_0;
-  //  sortedRhoPreMu[i_idx].x = sum_mW;
+  if (sortedRhoPreMu[i_idx].x > RHO_0)
+    IncompressibilityFactor = 1;
+
+  //  sortedRhoPreMu[i_idx].x = (sum_mW / sum_mW_over_Rho - RHO_0) * IncompressibilityFactor + RHO_0;
+  sortedRhoPreMu[i_idx].x = (sum_mW - RHO_0) * IncompressibilityFactor + RHO_0;
 
   if (sortedRhoPreMu[i_idx].x < EPSILON) {
     printf("My density is %f, index= %d\n", sortedRhoPreMu[i_idx].x, i_idx);
+
     printf("My position = [%f %f %f]\n", sortedPosRad[i_idx].x, sortedPosRad[i_idx].y, sortedPosRad[i_idx].z);
 
     *isErrorD = true;
@@ -1418,7 +1431,7 @@ __global__ void Calc_Pressure_AXB_USING_CSR(Real* csrValA,
                myIdx, csrValA[myIdx], p_old[csrColIndA[myIdx]]);
       }
     }
-    Real RHS = min(0.0, B_i[i_idx]);
+    Real RHS = fminf(0.0, B_i[i_idx]);
     //    Real RHS = B_i[i_idx];
 
     sortedRhoPreMu[i_idx].y = (RHS - aij_pj) / csrValA[startIdx - 1];
@@ -1452,7 +1465,7 @@ __global__ void PrepareForCusp(Real* csrValA,
         csrValA[myIdx] = 1e5;
     }
   } else {
-    Real RHS = min(0.0, B_i[i_idx]);
+    Real RHS = fminf(0.0, B_i[i_idx]);
     B_i[i_idx] = RHS;
   }
 }
@@ -1534,7 +1547,7 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
         }
       }
 
-      Real RHS = min(0.0, RHO_0 - rho_np[i_idx]);
+      Real RHS = fminf(0.0, RHO_0 - rho_np[i_idx]);
       Real aij_pj = +sum_dij_pj - sum_djj_pj - sum_djk_pk;
       p_new = (RHS - aij_pj) / a_ii[i_idx];
       //      sortedRhoPreMu[i_idx].x = aij_pj + p_new * a_ii[i_idx] + RHO_0 - RHS;
@@ -1810,12 +1823,26 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
   if (*isErrorH == true) {
     throw std::runtime_error("Error! program crashed after F_i_np__AND__d_ii_kernel!\n");
   }
+  thrust::device_vector<Real> dxi_over_Vi(numAllMarkers);
+  thrust::fill(dxi_over_Vi.begin(), dxi_over_Vi.end(), 0);
 
   calcNormalizedRho_kernel<<<numBlocks, numThreads>>>(
-      mR3CAST(sortedSphMarkersD->posRadD),
+      mR3CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
       mR4CAST(sortedSphMarkersD->rhoPresMuD),  // input: sorted velocities
-      R1CAST(nonNormRho), U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers,
-      paramsH->rho0, paramsH->markerMass, paramsH->IncompressibilityFactor, isErrorD);
+      R1CAST(nonNormRho), R1CAST(dxi_over_Vi), U1CAST(markersProximityD->cellStartD),
+      U1CAST(markersProximityD->cellEndD), numAllMarkers, paramsH->rho0, paramsH->markerMass,
+      paramsH->IncompressibilityFactor, isErrorD);
+
+  if (paramsH->Adaptive_time_stepping) {
+    int position = thrust::min_element(dxi_over_Vi.begin(), dxi_over_Vi.end()) - dxi_over_Vi.begin();
+    Real min_dxi_over_Vi = dxi_over_Vi[position];
+    Real dt = paramsH->Co_number * min_dxi_over_Vi;
+    printf("Min dxi_over_Vi of fluid particles to boundary is: %f. Time step based on Co=%f is %f\n", min_dxi_over_Vi,
+           paramsH->Co_number, dt);
+    printf("time step is set to min(dt_Co,dT_Max)= %f\n", fminf((float)dt, paramsH->dT_Max));
+
+    paramsH->dT = fminf((float)dt, paramsH->dT_Max);
+  }
 
   // This is mandatory to sync here
   cudaThreadSynchronize();

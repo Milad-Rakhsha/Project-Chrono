@@ -101,6 +101,9 @@ struct SimParams {
   Real IncompressibilityFactor;
 
   bool USE_CUSP;
+  bool Adaptive_time_stepping;
+  Real Co_number;
+  Real dT_Max;
 };
 
 }  // end namespace fsi
