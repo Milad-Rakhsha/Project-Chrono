@@ -12,6 +12,8 @@ SET(FSI_PARALLEL_DEMOS
 # add fluid demos here
 demo_FSI_CylinderDrop_Implicit
 demo_FSI_KitchenSink_Implicit
+demo_FSI_Compressibility
+demo_FSI_DamBreak
 )
 
 # List all FSI demos use vehicle

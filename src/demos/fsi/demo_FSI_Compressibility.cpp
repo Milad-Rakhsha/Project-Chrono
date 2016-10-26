@@ -40,24 +40,26 @@
 // Chrono general utils
 #include "chrono/core/ChFileutils.h"
 #include "chrono/core/ChTransform.h"  //transform acc from GF to LF for post process
+#include <thrust/reduce.h>
 
 // Chrono fsi includes
 #include "chrono_fsi/ChDeviceUtils.cuh"
+#include "chrono_fsi/custom_math.h"
+
 #include "chrono_fsi/ChFsiTypeConvert.h"
 #include "chrono_fsi/ChSystemFsi.h"
 #include "chrono_fsi/utils/ChUtilsGeneratorFsi.h"
 #include "chrono_fsi/utils/ChUtilsPrintSph.h"
 
 // FSI Interface Includes
-#include "demos/fsi/demo_FSI_CylinderDrop_Implicit.h"  //SetupParamsH()
+#include "demos/fsi/demo_FSI_Compressibility.h"  //SetupParamsH()
 
 #define haveFluid 1
-
-#define AddCylinder
 
 // Chrono namespaces
 using namespace chrono;
 using namespace chrono::collision;
+using namespace chrono::fsi;
 
 using std::cout;
 using std::endl;
@@ -67,13 +69,11 @@ std::ofstream simParams;
 //----------------------------
 // output directories and settings
 //----------------------------
-const std::string h_file =
-    "/home/milad/CHRONO/Project-Chrono-Milad-IISPH/src/demos/fsi/demo_FSI_CylinderDrop_Implicit.h";
-const std::string cpp_file =
-    "/home/milad/CHRONO/Project-Chrono-Milad-IISPH/src/demos/fsi/demo_FSI_CylinderDrop_Implicit.cpp";
+const std::string h_file = "/home/milad/CHRONO/Project-Chrono-Milad-IISPH/src/demos/fsi/demo_FSI_Compressibility.h";
+const std::string cpp_file = "/home/milad/CHRONO/Project-Chrono-Milad-IISPH/src/demos/fsi/demo_FSI_Compressibility.cpp";
 
 const std::string out_dir = "FSI_OUTPUT";  //"../FSI_OUTPUT";
-const std::string pov_dir_fluid = out_dir + "/CylinderDrop/";
+const std::string pov_dir_fluid = out_dir + "/Compressibility";
 const std::string pov_dir_mbd = out_dir + "/povFilesHmmwv";
 bool povray_output = true;
 int out_fps = 50;
@@ -87,16 +87,13 @@ Real hdimY = 0.0;
 Real hthick = 1;
 Real basinDepth = 2.5;
 
-Real bxDim = 1;
-Real byDim = 0.40;
-Real bzDim = 1.6;
+Real bxDim = 0.96;
+Real byDim = 0.96;
+Real bzDim = 1.28;
 
 Real fxDim = bxDim;
 Real fyDim = byDim;
-Real fzDim = 1;
-
-double cyl_length = 0.12;
-double cyl_radius = .12;
+Real fzDim = 0.96;
 
 void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
 void saveInputFile(std::string inputFile, std::string outAddress);
@@ -114,8 +111,7 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
                           ChSystemParallelDVI& mphysicalSystem,
                           chrono::fsi::SimParams* paramsH,
                           int tStep,
-                          double mTime,
-                          std::shared_ptr<ChBody> Cylinder);
+                          double mTime);
 
 //------------------------------------------------------------------
 // Create the objects of the MBD system. Rigid bodies, and if fsi, their
@@ -180,30 +176,6 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI& mphysicalSystem,
 
     chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT, size_XZ);
 
-    // Add floating cylinder
-
-    ChVector<> cyl_pos = ChVector<>(0, 0, fzDim + cyl_radius + 2 * paramsH->HSML);
-    ChQuaternion<> cyl_rot = chrono::QUNIT;
-
-    std::vector<std::shared_ptr<ChBody>>* FSI_Bodies = myFsiSystem.GetFsiBodiesPtr();
-
-#ifdef AddCylinder
-    chrono::fsi::utils::CreateCylinderFSI(myFsiSystem.GetDataManager(), mphysicalSystem, FSI_Bodies, paramsH, mat_g,
-                                          paramsH->rho0, cyl_pos, cyl_rot, cyl_radius, cyl_length);
-#endif
-
-//	  	  // Add floating box
-//	  	  // ---------------------
-//	  	  ChVector<> box_pos = ChVector<>(0, 0, 1);
-//	  	  ChVector<> box_size = ChVector<>(0.3, 0.3, 0.3);
-//	  	  ChQuaternion<> box_rot = chrono::QUNIT;
-//
-//	  	  std::vector<std::shared_ptr<ChBody>> *FSI_Bodies =
-//	  	      myFsiSystem.GetFsiBodiesPtr();
-//	  	  chrono::fsi::utils::CreateBoxFSI(
-//	  	      myFsiSystem.GetDataManager(), mphysicalSystem, FSI_Bodies, paramsH, mat_g,
-//	  	      paramsH->rho0, box_pos, box_rot, box_size);
-
 #endif
 
     // version 0, create one cylinder // note: rigid body initialization should
@@ -225,15 +197,15 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI& mphysicalSystem,
     //    come after SetRot
     //
     double sphereRad = 0.3;
-    double volume = utils::CalcSphereVolume(sphereRad);
-    ChVector<> gyration = utils::CalcSphereGyration(sphereRad).Get_Diag();
+    double volume = chrono::utils::CalcSphereVolume(sphereRad);
+    ChVector<> gyration = chrono::utils::CalcSphereGyration(sphereRad).Get_Diag();
     double density = paramsH->rho0;
     double mass = density * volume;
     body->SetMass(mass);
     body->SetInertiaXX(mass * gyration);
     //
     body->GetCollisionModel()->ClearModel();
-    utils::AddSphereGeometry(body.get(), sphereRad);
+    chrono::utils::AddSphereGeometry(body.get(), sphereRad);
     body->GetCollisionModel()->BuildModel();
     //    // *** keep this: how to calculate the velocity of a marker lying on a
     //    rigid body
@@ -340,13 +312,14 @@ int main(int argc, char* argv[]) {
     printSimulationParameters(paramsH);
 #if haveFluid
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
-    utils::GridSampler<> sampler(initSpace0);
+    chrono::utils::GridSampler<> sampler(initSpace0);
+    cout << " \n\n\n\nbasinDepth: " << basinDepth << "cMin.z:" << paramsH->cMin.z << endl;
 
     chrono::fsi::Real3 boxCenter =
         chrono::fsi::mR3(0, 0 * paramsH->HSML, fzDim / 2 + 1 * paramsH->HSML);  // This is very badly hardcoded
     chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
-    utils::Generator::PointVector points = sampler.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter),
-                                                             fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim));
+    chrono::utils::Generator::PointVector points = sampler.SampleBox(
+        fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter), fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim));
     int numPart = points.size();
     for (int i = 0; i < numPart; i++) {
         myFsiSystem.GetDataManager()->AddSphMarker(
@@ -364,11 +337,11 @@ int main(int argc, char* argv[]) {
         return -1;
     } else {
         myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(
-            mI4(0, numPart, -1, -1));  // map fluid -1, Arman : this will later be
-                                       // removed, relying on finalize function and
-                                       // automatic sorting
+            chrono::fsi::mI4(0, numPart, -1, -1));  // map fluid -1, Arman : this will later be
+                                                    // removed, relying on finalize function and
+                                                    // automatic sorting
         myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(
-            mI4(numPart, numPart, 0, 0));  // Arman : delete later
+            chrono::fsi::mI4(numPart, numPart, 0, 0));  // Arman : delete later
     }
 #endif
 
@@ -426,12 +399,12 @@ int main(int argc, char* argv[]) {
     std::shared_ptr<ChBody> Cylinder;
 #endif
 
-    SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, 0, 0, Cylinder);
-
+    SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, 0, mTime);
     const std::string rmCmd = (std::string("rm ") + pov_dir_fluid + std::string("/*"));
     system(rmCmd.c_str());
     saveInputFile(h_file, pov_dir_fluid + "/hfile.h");
     saveInputFile(cpp_file, pov_dir_fluid + "/cppfile.cpp");
+
     Real time = 0;
     Real Global_max_dT = paramsH->dT_Max;
     for (int tStep = 0; tStep < stepEnd + 1; tStep++) {
@@ -445,15 +418,28 @@ int main(int argc, char* argv[]) {
         else
             paramsH->dT_Max = Global_max_dT;
 
-//        printf("next_frame is:%d,  max dt is set to %f\n", next_frame, paramsH->dT_Max);
-
 #if haveFluid
         myFsiSystem.DoStepDynamics_FSI_Implicit();
 #else
         myFsiSystem.DoStepDynamics_ChronoRK2();
 #endif
+
+        thrust::host_vector<Real3> velMasH = myFsiSystem.GetDataManager()->sphMarkersD2.velMasD;
+        thrust::host_vector<Real4> rhoPresMuH = myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD;
+        std::ofstream output;
+        output.open((pov_dir_fluid + "/Analysis.txt"), std::ios::app);
+
+        Real KE = 0;
+        Real Rho = 0;
+        int numFluidMarkers = myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray[0].y;
+        for (int i = 0; i < numFluidMarkers; i++) {
+            KE += 0.5 * (length(velMasH[i]));
+            Rho += rhoPresMuH[i].x;
+        }
+        output << time << " " << Rho / numFluidMarkers << " " << paramsH->markerMass * KE / numFluidMarkers << endl;
+        output.close();
         time += paramsH->dT;
-        SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, next_frame, time, Cylinder);
+        SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, next_frame, time);
     }
 
     return 0;
@@ -489,6 +475,120 @@ int main(int argc, char* argv[]) {
 //--------------------------------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------------------------------
 
+// void WriteCylinder(std::shared_ptr<ChBody> Body, double radius, double length,
+//		int res, char SaveAsBuffer[256]) {
+//
+//	std::ofstream output;
+//	output.open(SaveAsBuffer, std::ios::app);
+//
+//	ChVector<> center = Body->GetPos();
+//	ChMatrix33<> Rotation = Body->GetRot();
+//
+//    ChVector<double> vertex;
+//	for (int i = 0; i <  res; i++) {
+//		ChVector<double> thisNode;
+//		thisNode.x = radius*cos(2*i*3.1415/res);
+//		thisNode.y = -1*length/2;
+//		thisNode.z = radius*sin(2*i*3.1415/res);
+//		vertex = Rotation * thisNode + center;  // rotate/scale, if needed
+//		output << "v " << vertex.x << " " << vertex.y << " " << vertex.z
+//				<< "\n";
+//	}
+//
+//	for (int i = 0; i <  res; i++) {
+//		ChVector<double> thisNode;
+//		thisNode.x = radius*cos(2*i*3.1415/res);
+//		thisNode.y = +1*length/2;
+//		thisNode.z = radius*sin(2*i*3.1415/res);
+//		vertex = Rotation * thisNode + center;  // rotate/scale, if needed
+//		output << "v " << vertex.x << " " << vertex.y << " " << vertex.z
+//				<< "\n";
+//	}
+//
+//	for (int i = 1; i <=res; i++) {
+//		output << "f " << i << " " << i+1 << " " << i+res << " " << i+res-1
+//				<< "\n";
+//	}
+//
+//	output << "f ";
+//	for (int i = 1; i <= res; i++) {
+//		output << i << " " ;
+//	}
+//
+//	output << "\nf ";
+//	for (int i = res+1; i <= 2*res; i++) {
+//		output << i << " " ;
+//	}
+//
+//
+//
+//	output.close();
+//}
+
+void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]) {
+    std::ofstream output;
+    output.open(SaveAsBuffer, std::ios::app);
+    output << "# vtk DataFile Version 1.0\nUnstructured Grid Example\nASCII\n\n" << std::endl;
+    output << "DATASET UNSTRUCTURED_GRID\nPOINTS " << 2 * res << " float\n";
+
+    ChVector<> center = Body->GetPos();
+    ChMatrix33<> Rotation = Body->GetRot();
+    ChVector<double> vertex;
+    for (int i = 0; i < res; i++) {
+        ChVector<double> thisNode;
+        thisNode.x = radius * cos(2 * i * 3.1415 / res);
+        thisNode.y = -1 * length / 2;
+        thisNode.z = radius * sin(2 * i * 3.1415 / res);
+        vertex = Rotation * thisNode + center;  // rotate/scale, if needed
+        output << vertex.x << " " << vertex.y << " " << vertex.z << "\n";
+    }
+
+    for (int i = 0; i < res; i++) {
+        ChVector<double> thisNode;
+        thisNode.x = radius * cos(2 * i * 3.1415 / res);
+        thisNode.y = +1 * length / 2;
+        thisNode.z = radius * sin(2 * i * 3.1415 / res);
+        vertex = Rotation * thisNode + center;  // rotate/scale, if needed
+        output << vertex.x << " " << vertex.y << " " << vertex.z << "\n";
+    }
+
+    output << "\n\nCELLS " << (unsigned int)res + res << "\t" << (unsigned int)5 * (res + res) << "\n";
+
+    for (int i = 0; i < res - 1; i++) {
+        output << "4 " << i << " " << i + 1 << " " << i + res + 1 << " " << i + res << "\n";
+    }
+    output << "4 " << res - 1 << " " << 0 << " " << res << " " << 2 * res - 1 << "\n";
+
+    for (int i = 0; i < res / 4; i++) {
+        output << "4 " << i << " " << i + 1 << " " << +res / 2 - i - 1 << " " << +res / 2 - i << "\n";
+    }
+
+    for (int i = 0; i < res / 4; i++) {
+        output << "4 " << i + res << " " << i + 1 + res << " " << +res / 2 - i - 1 + res << " " << +res / 2 - i + res
+               << "\n";
+    }
+
+    output << "4 " << +res / 2 << " " << 1 + res / 2 << " " << +res - 1 << " " << 0 << "\n";
+
+    for (int i = 1; i < res / 4; i++) {
+        output << "4 " << i + res / 2 << " " << i + 1 + res / 2 << " " << +res / 2 - i - 1 + res / 2 << " "
+               << +res / 2 - i + res / 2 << "\n";
+    }
+
+    output << "4 " << 3 * res / 2 << " " << 1 + 3 * res / 2 << " " << +2 * res - 1 << " " << +res << "\n";
+
+    for (int i = 1; i < res / 4; i++) {
+        output << "4 " << i + 3 * res / 2 << " " << i + 1 + 3 * res / 2 << " " << +2 * res - i - 1 << " "
+               << +2 * res - i << "\n";
+    }
+
+    output << "\nCELL_TYPES " << res + res << "\n";
+
+    for (int iele = 0; iele < (res + res); iele++) {
+        output << "9\n";
+    }
+}
+
 //------------------------------------------------------------------
 // Function to save the povray files of the MBD
 //------------------------------------------------------------------
@@ -497,8 +597,7 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
                           ChSystemParallelDVI& mphysicalSystem,
                           chrono::fsi::SimParams* paramsH,
                           int next_frame,
-                          double mTime,
-                          std::shared_ptr<ChBody> Cylinder) {
+                          double mTime) {
     static double exec_time;
     int out_steps = std::ceil((1.0 / paramsH->dT) / out_fps);
     exec_time += mphysicalSystem.GetTimerStep();
@@ -534,7 +633,7 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
 
         char filename[100];
         sprintf(filename, "%s/data_%03d.dat", pov_dir_mbd.c_str(), out_frame + 1);
-        utils::WriteShapesPovray(&mphysicalSystem, filename);
+        chrono::utils::WriteShapesPovray(&mphysicalSystem, filename);
 
         cout << "\n------------ Output frame:   " << next_frame << endl;
         cout << "             Sim frame:      " << next_frame << endl;
@@ -667,117 +766,3 @@ void saveInputFile(std::string inputFile, std::string outAddress) {
     outFile.close();
     std::cout << inputFile << "	" << outAddress << "\n";
 }
-
-void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]) {
-    std::ofstream output;
-    output.open(SaveAsBuffer, std::ios::app);
-    output << "# vtk DataFile Version 1.0\nUnstructured Grid Example\nASCII\n\n" << std::endl;
-    output << "DATASET UNSTRUCTURED_GRID\nPOINTS " << 2 * res << " float\n";
-
-    ChVector<> center = Body->GetPos();
-    ChMatrix33<> Rotation = Body->GetRot();
-    ChVector<double> vertex;
-    for (int i = 0; i < res; i++) {
-        ChVector<double> thisNode;
-        thisNode.x = radius * cos(2 * i * 3.1415 / res);
-        thisNode.y = -1 * length / 2;
-        thisNode.z = radius * sin(2 * i * 3.1415 / res);
-        vertex = Rotation * thisNode + center;  // rotate/scale, if needed
-        output << vertex.x << " " << vertex.y << " " << vertex.z << "\n";
-    }
-
-    for (int i = 0; i < res; i++) {
-        ChVector<double> thisNode;
-        thisNode.x = radius * cos(2 * i * 3.1415 / res);
-        thisNode.y = +1 * length / 2;
-        thisNode.z = radius * sin(2 * i * 3.1415 / res);
-        vertex = Rotation * thisNode + center;  // rotate/scale, if needed
-        output << vertex.x << " " << vertex.y << " " << vertex.z << "\n";
-    }
-
-    output << "\n\nCELLS " << (unsigned int)res + res << "\t" << (unsigned int)5 * (res + res) << "\n";
-
-    for (int i = 0; i < res - 1; i++) {
-        output << "4 " << i << " " << i + 1 << " " << i + res + 1 << " " << i + res << "\n";
-    }
-    output << "4 " << res - 1 << " " << 0 << " " << res << " " << 2 * res - 1 << "\n";
-
-    for (int i = 0; i < res / 4; i++) {
-        output << "4 " << i << " " << i + 1 << " " << +res / 2 - i - 1 << " " << +res / 2 - i << "\n";
-    }
-
-    for (int i = 0; i < res / 4; i++) {
-        output << "4 " << i + res << " " << i + 1 + res << " " << +res / 2 - i - 1 + res << " " << +res / 2 - i + res
-               << "\n";
-    }
-
-    output << "4 " << +res / 2 << " " << 1 + res / 2 << " " << +res - 1 << " " << 0 << "\n";
-
-    for (int i = 1; i < res / 4; i++) {
-        output << "4 " << i + res / 2 << " " << i + 1 + res / 2 << " " << +res / 2 - i - 1 + res / 2 << " "
-               << +res / 2 - i + res / 2 << "\n";
-    }
-
-    output << "4 " << 3 * res / 2 << " " << 1 + 3 * res / 2 << " " << +2 * res - 1 << " " << +res << "\n";
-
-    for (int i = 1; i < res / 4; i++) {
-        output << "4 " << i + 3 * res / 2 << " " << i + 1 + 3 * res / 2 << " " << +2 * res - i - 1 << " "
-               << +2 * res - i << "\n";
-    }
-
-    output << "\nCELL_TYPES " << res + res << "\n";
-
-    for (int iele = 0; iele < (res + res); iele++) {
-        output << "9\n";
-    }
-}
-
-// void WriteCylinder(std::shared_ptr<ChBody> Body, double radius, double length,
-//		int res, char SaveAsBuffer[256]) {
-//
-//	std::ofstream output;
-//	output.open(SaveAsBuffer, std::ios::app);
-//
-//	ChVector<> center = Body->GetPos();
-//	ChMatrix33<> Rotation = Body->GetRot();
-//
-//    ChVector<double> vertex;
-//	for (int i = 0; i <  res; i++) {
-//		ChVector<double> thisNode;
-//		thisNode.x = radius*cos(2*i*3.1415/res);
-//		thisNode.y = -1*length/2;
-//		thisNode.z = radius*sin(2*i*3.1415/res);
-//		vertex = Rotation * thisNode + center;  // rotate/scale, if needed
-//		output << "v " << vertex.x << " " << vertex.y << " " << vertex.z
-//				<< "\n";
-//	}
-//
-//	for (int i = 0; i <  res; i++) {
-//		ChVector<double> thisNode;
-//		thisNode.x = radius*cos(2*i*3.1415/res);
-//		thisNode.y = +1*length/2;
-//		thisNode.z = radius*sin(2*i*3.1415/res);
-//		vertex = Rotation * thisNode + center;  // rotate/scale, if needed
-//		output << "v " << vertex.x << " " << vertex.y << " " << vertex.z
-//				<< "\n";
-//	}
-//
-//	for (int i = 1; i <=res; i++) {
-//		output << "f " << i << " " << i+1 << " " << i+res << " " << i+res-1
-//				<< "\n";
-//	}
-//
-//	output << "f ";
-//	for (int i = 1; i <= res; i++) {
-//		output << i << " " ;
-//	}
-//
-//	output << "\nf ";
-//	for (int i = res+1; i <= 2*res; i++) {
-//		output << i << " " ;
-//	}
-//
-//
-//
-//	output.close();
-//}

@@ -342,7 +342,8 @@ int main(int argc, char* argv[]) {
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
     utils::GridSampler<> sampler(initSpace0);
 
-    chrono::fsi::Real3 boxCenter = chrono::fsi::mR3(0, 0, fzDim / 2 + paramsH->HSML);  // This is very badly hardcoded
+    chrono::fsi::Real3 boxCenter =
+        chrono::fsi::mR3(-fzDim / 2 + fxDim / 2, 0, fzDim / 2 + paramsH->HSML);  // This is very badly hardcoded
     chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
     utils::Generator::PointVector points = sampler.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter),
                                                              fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim));
@@ -420,29 +421,31 @@ int main(int argc, char* argv[]) {
 
     SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, 0, mTime);
     double g0 = paramsH->gravity.z;
+    const std::string rmCmd = (std::string("rm ") + pov_dir_fluid + std::string("/*"));
+    system(rmCmd.c_str());
     saveInputFile(h_file, pov_dir_fluid + "/hfile.h");
     saveInputFile(cpp_file, pov_dir_fluid + "/cppfile.cpp");
 
+    Real time = 0;
+    Real Global_max_dT = paramsH->dT_Max;
     for (int tStep = 0; tStep < stepEnd + 1; tStep++) {
-        printf("step : %d \n", tStep);
-        double g;
-        std::cout << "g0: " << g0 << std::endl;
-        int cri_step = 200;
-        if (tStep < cri_step)
-            g = (1 - cos((double)tStep / cri_step * 3.1415)) / 2 * g0;
+        printf("\nstep : %d, time= : %f (s) \n", tStep, time);
+        double frame_time = 1.0 / out_fps;
+        int next_frame = std::floor((time + 1e-6) / frame_time) + 1;
+        double next_frame_time = next_frame * frame_time;
+        double max_allowable_dt = next_frame_time - time;
+        if (max_allowable_dt > 1e-7)
+            paramsH->dT_Max = std::min(Global_max_dT, max_allowable_dt);
         else
-            g = g0;
-
-//        paramsH->gravity.z = g;
-//        std::cout << "gravity: " << paramsH->gravity.z << std::endl;
+            paramsH->dT_Max = Global_max_dT;
 
 #if haveFluid
         myFsiSystem.DoStepDynamics_FSI_Implicit();
 #else
         myFsiSystem.DoStepDynamics_ChronoRK2();
 #endif
-
-        SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, tStep, mTime);
+        time += paramsH->dT;
+        SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, next_frame, time);
     }
 
     return 0;
