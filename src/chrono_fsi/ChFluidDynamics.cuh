@@ -62,7 +62,7 @@ class CH_FSI_API ChFluidDynamics : public ChFsiGeneral {
                             FsiBodiesDataD* fsiBodiesD1,
                             Real dT);
 
-  virtual void IntegrateIISPH(SphMarkerDataD* sphMarkersD2, FsiBodiesDataD* fsiBodiesD1, Real dT);
+  virtual void IntegrateIISPH(SphMarkerDataD* sphMarkersD2, FsiBodiesDataD* fsiBodiesD1);
 
   /// Function to Shepard Filtering.
   ///
@@ -97,7 +97,7 @@ class CH_FSI_API ChFluidDynamics : public ChFsiGeneral {
   /// Euler
   /// Integration argorithm.
   virtual void UpdateFluid(SphMarkerDataD* sphMarkersD, Real dT);
-  virtual void UpdateFluid_Implicit(SphMarkerDataD* sphMarkersD, Real dT);
+  virtual void UpdateFluid_Implicit(SphMarkerDataD* sphMarkersD);
 
   /// Apply boundary to SPH markers (fluid and BCE).
   ///

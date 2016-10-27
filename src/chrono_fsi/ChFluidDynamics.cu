@@ -408,10 +408,11 @@ void ChFluidDynamics::IntegrateSPH(SphMarkerDataD* sphMarkersD2,
   this->UpdateFluid(sphMarkersD2, dT);
   this->ApplyBoundarySPH_Markers(sphMarkersD2);
 }
+// -----------------------------------------------------------------------------
 
-void ChFluidDynamics::IntegrateIISPH(SphMarkerDataD* sphMarkersD2, FsiBodiesDataD* fsiBodiesD1, Real dT) {
+void ChFluidDynamics::IntegrateIISPH(SphMarkerDataD* sphMarkersD2, FsiBodiesDataD* fsiBodiesD1) {
   forceSystem->ForceIISPH(sphMarkersD2, fsiBodiesD1);
-  this->UpdateFluid_Implicit(sphMarkersD2, dT);
+  this->UpdateFluid_Implicit(sphMarkersD2);
   //	this->ApplyBoundarySPH_Markers(sphMarkersD2);
 }
 // -----------------------------------------------------------------------------
@@ -448,9 +449,10 @@ void ChFluidDynamics::UpdateFluid(SphMarkerDataD* sphMarkersD, Real dT) {
   cudaFree(isErrorD);
   free(isErrorH);
 }
-void ChFluidDynamics::UpdateFluid_Implicit(SphMarkerDataD* sphMarkersD, Real dT) {
+void ChFluidDynamics::UpdateFluid_Implicit(SphMarkerDataD* sphMarkersD) {
   uint numThreads, numBlocks;
   computeGridSize(numObjectsH->numAllMarkers, 256, numBlocks, numThreads);
+  std::cout << "dT in UpdateFluid_Implicit: " << paramsH->dT << "\n";
 
   int4 NON_updatePortion =
       mI4(fsiData->fsiGeneralData.referenceArray[1].x, fsiData->fsiGeneralData.referenceArray[1].y, 0, 0);
@@ -462,7 +464,7 @@ void ChFluidDynamics::UpdateFluid_Implicit(SphMarkerDataD* sphMarkersD, Real dT)
   cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
   Update_Fluid_State<<<numBlocks, numThreads>>>(
       mR3CAST(fsiData->fsiGeneralData.vel_XSPH_D), mR3CAST(sphMarkersD->posRadD), mR3CAST(sphMarkersD->velMasD),
-      mR4CAST(sphMarkersD->rhoPresMuD), NON_updatePortion, numObjectsH->numAllMarkers, dT, isErrorD);
+      mR4CAST(sphMarkersD->rhoPresMuD), NON_updatePortion, numObjectsH->numAllMarkers, paramsH->dT, isErrorD);
   cudaThreadSynchronize();
   cudaCheckError();
 

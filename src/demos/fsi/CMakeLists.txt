@@ -14,6 +14,7 @@ demo_FSI_CylinderDrop_Implicit
 demo_FSI_KitchenSink_Implicit
 demo_FSI_Compressibility
 demo_FSI_DamBreak
+demo_FSI_DamBreak_Flexible_Shell
 )
 
 # List all FSI demos use vehicle
