@@ -704,11 +704,13 @@ __global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted 
             Real3 dist3 = Distance(posRadA, posRadB);
             Real3 dv3 = Distance(sortedVelMas[i_idx], sortedVelMas[j]);
             Real d = length(dist3);
-            Real dvDotdr_hat = abs(dot(dv3, dist3)) / d;
+            Real particle_particle_n_CFL = abs(dot(dv3, dist3)) / d;
+            Real particle_particle = length(dv3);
+            Real particle_n_CFL = abs(dot(sortedVelMas[i_idx], dist3)) / d;
+            Real particle_CFL = length(sortedVelMas[i_idx]);
 
-            //            if (sortedRhoPreMu[j].w > -1 && sortedRhoPreMu[i_idx].w == -1 && i_idx != j)
             if (i_idx != j)
-              dxi_over_Vi[i_idx] = fminf(d / dvDotdr_hat, dxi_over_Vi[i_idx]);
+              dxi_over_Vi[i_idx] = fminf(d / particle_CFL, dxi_over_Vi[i_idx]);
 
             if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML)
               continue;
@@ -1717,9 +1719,12 @@ __global__ void CalcForces(Real3* new_vel,       // Write
           Real3 grad_i_wij = GradW(dist3);
           Real3 V_ij = (Veli - Velj);
           F_i_p += -m_0 * ((p_i / (rho_i * rho_i)) + (p_j / (rho_j * rho_j))) * grad_i_wij;
-          if (!isfinite(length(F_i_p))) {
-            printf("F_i_p in CalcForces returns Nan or Inf");
-          }
+          //          if (!isfinite(length(F_i_p))) {
+          //            printf("F_i_p in CalcForces returns Nan or Inf");
+          //          }
+
+          //          if (dot(Velj, Veli) > 0.0)
+          //            V_ij *= 0;
           Real Rho_bar = (rho_j + rho_i) * 0.5;
           Real3 muNumerator = 2 * mu_0 * dot(dist3, grad_i_wij) * V_ij;
           Real muDenominator = (Rho_bar * Rho_bar) * (d * d + paramsD.HSML * paramsD.HSML * epsilon);
