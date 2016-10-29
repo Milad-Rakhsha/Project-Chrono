@@ -704,11 +704,13 @@ __global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted 
             Real3 dist3 = Distance(posRadA, posRadB);
             Real3 dv3 = Distance(sortedVelMas[i_idx], sortedVelMas[j]);
             Real d = length(dist3);
-            Real dvDotdr = abs(dot(dv3, dist3)) / d;
+            Real particle_particle_n_CFL = abs(dot(dv3, dist3)) / d;
+            Real particle_particle = length(dv3);
+            Real particle_n_CFL = abs(dot(sortedVelMas[i_idx], dist3)) / d;
+            Real particle_CFL = length(sortedVelMas[i_idx]);
 
-            //            if (sortedRhoPreMu[j].w > -1 && sortedRhoPreMu[i_idx].w == -1 && i_idx != j)
             if (i_idx != j)
-              dxi_over_Vi[i_idx] = fminf(d / dvDotdr, dxi_over_Vi[i_idx]);
+              dxi_over_Vi[i_idx] = fminf(d / particle_CFL, dxi_over_Vi[i_idx]);
 
             if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML)
               continue;
@@ -1717,9 +1719,12 @@ __global__ void CalcForces(Real3* new_vel,       // Write
           Real3 grad_i_wij = GradW(dist3);
           Real3 V_ij = (Veli - Velj);
           F_i_p += -m_0 * ((p_i / (rho_i * rho_i)) + (p_j / (rho_j * rho_j))) * grad_i_wij;
-          if (!isfinite(length(F_i_p))) {
-            printf("F_i_p in CalcForces returns Nan or Inf");
-          }
+          //          if (!isfinite(length(F_i_p))) {
+          //            printf("F_i_p in CalcForces returns Nan or Inf");
+          //          }
+
+          //          if (dot(Velj, Veli) > 0.0)
+          //            V_ij *= 0;
           Real Rho_bar = (rho_j + rho_i) * 0.5;
           Real3 muNumerator = 2 * mu_0 * dot(dist3, grad_i_wij) * V_ij;
           Real muDenominator = (Rho_bar * Rho_bar) * (d * d + paramsD.HSML * paramsD.HSML * epsilon);
@@ -1833,17 +1838,6 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
       U1CAST(markersProximityD->cellEndD), numAllMarkers, paramsH->rho0, paramsH->markerMass,
       paramsH->IncompressibilityFactor, isErrorD);
 
-  if (paramsH->Adaptive_time_stepping) {
-    int position = thrust::min_element(dxi_over_Vi.begin(), dxi_over_Vi.end()) - dxi_over_Vi.begin();
-    Real min_dxi_over_Vi = dxi_over_Vi[position];
-    Real dt = paramsH->Co_number * min_dxi_over_Vi;
-    printf("Min dxi_over_Vi of fluid particles to boundary is: %f. Time step based on Co=%f is %f\n", min_dxi_over_Vi,
-           paramsH->Co_number, dt);
-    printf("time step is set to min(dt_Co,dT_Max)= %f\n", fminf((float)dt, paramsH->dT_Max));
-
-    paramsH->dT = fminf((float)dt, paramsH->dT_Max);
-  }
-
   // This is mandatory to sync here
   cudaThreadSynchronize();
   cudaCheckError();
@@ -1851,7 +1845,22 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
   if (*isErrorH == true) {
     throw std::runtime_error("Error! program crashed after calcNormalizedRho_kernel!\n");
   }
+  if (paramsH->Adaptive_time_stepping) {
+    int position = thrust::min_element(dxi_over_Vi.begin(), dxi_over_Vi.end()) - dxi_over_Vi.begin();
+    Real min_dxi_over_Vi = dxi_over_Vi[position];
 
+    Real dt = paramsH->Co_number * min_dxi_over_Vi;
+    printf("Min dxi_over_Vi of fluid particles to boundary is: %f. Time step based on Co=%f is %f\n", min_dxi_over_Vi,
+           paramsH->Co_number, dt);
+    // I am doing this to prevent very low time steps (when it requires it to save data at the current step)
+    // Because if will have to do two time steps either way
+    if (dt / paramsH->dT_Max > 0.7 && dt / paramsH->dT_Max < 1)
+      paramsH->dT = paramsH->dT_Max * 0.5;
+    else
+      paramsH->dT = fminf((float)dt, paramsH->dT_Max);
+
+    std::cout << "time step is set to min(dt_Co,dT_Max)= " << paramsH->dT << "\n";
+  }
   thrust::device_vector<Real3> d_ii(numAllMarkers);
   thrust::device_vector<Real3> V_np(numAllMarkers);
   thrust::fill(d_ii.begin(), d_ii.end(), mR3(0));
@@ -2183,10 +2192,12 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
 }
 
 void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD) {
+  std::cout << "dT in ForceSPH brfore calcPressure: " << paramsH->dT << "\n";
+
   sphMarkersD = otherSphMarkersD;
 
   fsiCollisionSystem->ArrangeData(sphMarkersD);
-  bceWorker->ModifyBceVelocity(sphMarkersD, otherFsiBodiesD);
+  //  bceWorker->ModifyBceVelocity(sphMarkersD, otherFsiBodiesD);
 
   thrust::device_vector<Real3> bceAcc(numObjectsH->numRigid_SphMarkers);
   //
@@ -2214,6 +2225,7 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesD
   //------------------------------------------------------------------------
   // thread per particle
   thrust::fill(vel_XSPH_Sorted_D.begin(), vel_XSPH_Sorted_D.end(), mR3(0));
+  std::cout << "dT in ForceSPH after calcPressure: " << paramsH->dT << "\n";
 
   CalcForces<<<numBlocks, numThreads>>>(mR3CAST(vel_XSPH_Sorted_D), mR3CAST(sortedSphMarkersD->posRadD),
                                         mR3CAST(sortedSphMarkersD->velMasD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
