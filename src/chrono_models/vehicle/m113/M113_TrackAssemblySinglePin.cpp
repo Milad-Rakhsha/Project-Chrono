@@ -104,28 +104,6 @@ const ChVector<>& M113_TrackAssemblySinglePin::GetRoadWhelAssemblyLocation(int w
     return (m_side == LEFT) ? m_susp_locs_L[which] : m_susp_locs_R[which];
 }
 
-// -----------------------------------------------------------------------------
-// -----------------------------------------------------------------------------
-void M113_TrackAssemblySinglePin::SetIdlerVisType(VisualizationType vis) {
-    std::static_pointer_cast<M113_Idler>(GetIdler())->SetVisType(vis);
-}
-
-void M113_TrackAssemblySinglePin::SetRoadWheelVisType(VisualizationType vis) {
-    for (int iw = 0; iw < GetNumRoadWheelAssemblies(); iw++) {
-        std::static_pointer_cast<M113_RoadWheel>(GetRoadWheel(iw))->SetVisType(vis);
-    }
-}
-
-void M113_TrackAssemblySinglePin::SetSprocketVisType(VisualizationType vis) {
-    std::static_pointer_cast<M113_SprocketSinglePin>(GetSprocket())->SetVisType(vis);
-}
-
-void M113_TrackAssemblySinglePin::SetTrackShoeVisType(VisualizationType vis) {
-    for (size_t is = 0; is < GetNumTrackShoes(); is++) {
-        std::static_pointer_cast<M113_TrackShoeSinglePin>(GetTrackShoe(is))->SetVisType(vis);
-    }
-}
-
 }  // end namespace m113
 }  // end namespace vehicle
 }  // end namespace chrono

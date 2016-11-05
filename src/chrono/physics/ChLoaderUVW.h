@@ -157,6 +157,13 @@ class ChLoaderUVWatomic : public ChLoaderUVW {
     }
 };
 
+
+//--------------------------------------------------------------------------------
+// BASIC UVW LOADERS
+//
+// Some ready-to use basic loaders
+
+
 /// A very usual type of volume loader: the constant gravitational load on Y
 
 class ChLoaderGravity : public ChLoaderUVWdistributed {
@@ -175,7 +182,7 @@ class ChLoaderGravity : public ChLoaderUVWdistributed {
                           ChVectorDynamic<>* state_x,  ///< if != 0, update state (pos. part) to this, then evaluate F
                           ChVectorDynamic<>* state_w   ///< if != 0, update state (speed part) to this, then evaluate F
                           ) {
-        if ((F.GetRows() == 3) || (F.GetRows() == 6)) {
+        if ((F.GetRows() == 3) || (F.GetRows() == 6) || (F.GetRows() == 9)) {
             // only for force or wrench fields
             F(0) = G_acc.x * loadable->GetDensity();
             F(1) = G_acc.y * loadable->GetDensity();

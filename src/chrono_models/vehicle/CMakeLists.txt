@@ -20,6 +20,8 @@ set(CVM_HMMWV_FILES
     hmmwv/HMMWV.h
     hmmwv/HMMWV_BrakeSimple.cpp
     hmmwv/HMMWV_BrakeSimple.h
+    hmmwv/HMMWV_Chassis.h
+    hmmwv/HMMWV_Chassis.cpp
     hmmwv/HMMWV_DoubleWishbone.cpp
     hmmwv/HMMWV_DoubleWishbone.h
     hmmwv/HMMWV_DoubleWishboneReduced.cpp
@@ -40,10 +42,13 @@ set(CVM_HMMWV_FILES
     hmmwv/HMMWV_RackPinion.h
     hmmwv/HMMWV_RigidTire.cpp
     hmmwv/HMMWV_RigidTire.h
+    hmmwv/HMMWV_SimpleDriveline.cpp
+    hmmwv/HMMWV_SimpleDriveline.h
     hmmwv/HMMWV_SimplePowertrain.cpp
     hmmwv/HMMWV_SimplePowertrain.h
-    hmmwv/HMMWV_Vehicle.cpp
     hmmwv/HMMWV_Vehicle.h
+    hmmwv/HMMWV_VehicleFull.cpp
+    hmmwv/HMMWV_VehicleFull.h
     hmmwv/HMMWV_VehicleReduced.cpp
     hmmwv/HMMWV_VehicleReduced.h
     hmmwv/HMMWV_Wheel.cpp
@@ -61,8 +66,47 @@ else()
 endif()
 source_group("hmmwv" FILES ${CVM_HMMWV_FILES} ${CVM_HMMWV_FEA_FILES})
 
+set(CVM_GENERIC_FILES
+    generic/Generic_AntirollBarRSD.h
+    generic/Generic_AntirollBarRSD.cpp
+    generic/Generic_BrakeSimple.h
+    generic/Generic_BrakeSimple.cpp
+    generic/Generic_Chassis.cpp
+    generic/Generic_Chassis.h
+    generic/Generic_DoubleWishbone.cpp
+    generic/Generic_DoubleWishbone.h
+    generic/Generic_Driveline2WD.h
+    generic/Generic_Driveline2WD.cpp
+    generic/Generic_FuncDriver.h
+    generic/Generic_HendricksonPRIMAXX.cpp
+    generic/Generic_HendricksonPRIMAXX.h
+    generic/Generic_MacPhersonStrut.cpp
+    generic/Generic_MacPhersonStrut.h
+    generic/Generic_MultiLink.cpp
+    generic/Generic_MultiLink.h
+    generic/Generic_RackPinion.h
+    generic/Generic_RackPinion.cpp
+    generic/Generic_RigidTire.h
+    generic/Generic_RigidTire.cpp
+	generic/Generic_FialaTire.h
+	generic/Generic_FialaTire.cpp
+    generic/Generic_SimplePowertrain.h
+    generic/Generic_SimplePowertrain.cpp
+	generic/Generic_SimpleMapPowertrain.cpp
+	generic/Generic_SimpleMapPowertrain.h
+    generic/Generic_SolidAxle.cpp
+    generic/Generic_SolidAxle.h
+    generic/Generic_Vehicle.cpp
+    generic/Generic_Vehicle.h
+    generic/Generic_Wheel.h
+    generic/Generic_Wheel.cpp
+)
+source_group("generic" FILES ${CVM_GENERIC_FILES})
+
 set(CVM_M113_FILES
     m113/M113_BrakeSimple.h
+    m113/M113_Chassis.h
+    m113/M113_Chassis.cpp
     m113/M113_DrivelineBDS.cpp
     m113/M113_DrivelineBDS.h
     m113/M113_Idler.cpp
@@ -116,6 +160,7 @@ add_library(ChronoModels_vehicle SHARED
     ${CVM_COMMON_FILES}
     ${CVM_HMMWV_FILES}
     ${CVM_HMMWV_FEA_FILES}
+    ${CVM_GENERIC_FILES}
     ${CVM_M113_FILES}
  )
 
@@ -128,9 +173,9 @@ target_link_libraries(ChronoModels_vehicle ${LIBRARIES})
 
 install(TARGETS ChronoModels_vehicle
         RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
+        LIBRARY DESTINATION lib64
+        ARCHIVE DESTINATION lib64)
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
-        DESTINATION include/models/vehicle
+        DESTINATION include/chrono_vehicle/models/vehicle
         FILES_MATCHING PATTERN "*.h")

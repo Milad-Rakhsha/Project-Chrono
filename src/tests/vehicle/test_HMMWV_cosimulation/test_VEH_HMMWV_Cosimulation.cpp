@@ -19,6 +19,9 @@
 //
 // =============================================================================
 
+////#include <float.h>
+////unsigned int fp_control_state = _controlfp(_EM_INEXACT, _MCW_EM);
+
 #include <iostream>
 #include <string>
 #include <algorithm>
@@ -67,6 +70,8 @@ enum {
     OPT_NO_OUTPUT,
     OPT_NO_RENDERING,
     OPT_COHESION,
+    OPT_INIT_VEL,
+    OPT_INIT_OMEGA,
     OPT_SUFFIX
 };
 
@@ -85,6 +90,10 @@ CSimpleOptA::SOption g_options[] = {{OPT_THREADS_TIRE, "--num-threads-tire", SO_
                                     {OPT_NO_RENDERING, "--no-rendering", SO_NONE},
                                     {OPT_COHESION, "-ch", SO_REQ_CMB},
                                     {OPT_COHESION, "--cohesion-terrain", SO_REQ_CMB},
+                                    {OPT_INIT_VEL, "-v", SO_REQ_CMB},
+                                    {OPT_INIT_VEL, "--initial-fwd-velocity", SO_REQ_CMB},
+                                    {OPT_INIT_OMEGA, "-o", SO_REQ_CMB},
+                                    {OPT_INIT_OMEGA, "--initial-wheel-omega", SO_REQ_CMB},
                                     {OPT_SUFFIX, "--suffix", SO_REQ_CMB},
                                     {OPT_HELP, "-?", SO_NONE},
                                     {OPT_HELP, "-h", SO_NONE},
@@ -100,6 +109,8 @@ bool GetProblemSpecs(int argc,
                      int& nthreads_terrain,
                      double& sim_time,
                      double& cohesion,
+                     double& init_fwd_vel,
+                     double& init_wheel_omega,
                      bool& use_checkpoint,
                      bool& output,
                      bool& render,
@@ -141,12 +152,14 @@ int main(int argc, char** argv) {
     int nthreads_terrain = 2;
     double sim_time = 10;
     double coh_pressure = 8e4;
+    double init_fwd_vel = 0;
+    double init_wheel_omega = 0;
     bool use_checkpoint = false;
     bool output = true;
     bool render = true;
     std::string suffix = "";
-    if (!GetProblemSpecs(argc, argv, rank, nthreads_tire, nthreads_terrain, sim_time, coh_pressure,
-                         use_checkpoint, output, render, suffix)) {
+    if (!GetProblemSpecs(argc, argv, rank, nthreads_tire, nthreads_terrain, sim_time, coh_pressure, init_fwd_vel,
+                         init_wheel_omega, use_checkpoint, output, render, suffix)) {
         MPI_Finalize();
         return 1;
     }
@@ -165,9 +178,9 @@ int main(int argc, char** argv) {
     int checkpoint_steps = (int)std::ceil(1 / (checkpoint_fps * step_size));
 
     // Create the systems and run the settling phase for terrain.
-    VehicleNode* my_vehicle = NULL;
-    TerrainNode* my_terrain = NULL;
-    TireNode* my_tire = NULL;
+    VehicleNode* my_vehicle = nullptr;
+    TerrainNode* my_terrain = nullptr;
+    TireNode* my_tire = nullptr;
 
     switch (rank) {
         case VEHICLE_NODE_RANK: {
@@ -175,13 +188,30 @@ int main(int argc, char** argv) {
             my_vehicle->SetStepSize(step_size);
             my_vehicle->SetOutDir(out_dir, suffix);
             my_vehicle->SetChassisFixed(false);
+            my_vehicle->SetInitFwdVel(init_fwd_vel);
+            my_vehicle->SetInitWheelAngVel(init_wheel_omega);
+
+            std::vector<ChDataDriver::Entry> data;
+            data.push_back({0.0, 0, 0.0, 0});
+            data.push_back({0.5, 0, 0.0, 0});
+            data.push_back({0.7, 0, 0.8, 0});
+            data.push_back({1.0, 0, 0.8, 0});
+            my_vehicle->SetDataDriver(data);
+
+            ////double run = 10.0;
+            ////double radius = 15.0;
+            ////double offset = 2.0;
+            ////int nturns = 5;
+            ////double target_speed = 10.0;
+            ////my_vehicle->SetPathDriver(run, radius, offset, nturns, target_speed);
+
             cout << my_vehicle->GetPrefix() << " rank = " << rank << " running on: " << procname << endl;
             cout << my_vehicle->GetPrefix() << " output directory: " << my_vehicle->GetOutDirName() << endl;
 
             break;
         }
         case TERRAIN_NODE_RANK: {
-            auto type = TerrainNode::RIGID;
+            auto type = TerrainNode::GRANULAR;
             auto method = ChMaterialSurfaceBase::DEM;
 
             my_terrain = new TerrainNode(type, method, 4, use_checkpoint, render, nthreads_terrain);
@@ -191,6 +221,7 @@ int main(int argc, char** argv) {
             cout << my_terrain->GetPrefix() << " output directory: " << my_terrain->GetOutDirName() << endl;
 
             my_terrain->SetContainerDimensions(10, 3, 1, 0.2);
+            my_terrain->SetPlatformLength(0);
 
             double radius = 0.006;
             double coh_force = CH_C_PI * radius * radius * coh_pressure;
@@ -372,6 +403,12 @@ void ShowUsage() {
     cout << " -ch=COHESION" << endl;
     cout << " --cohesion-terrain=COHESION" << endl;
     cout << "        Specify the value of the terrain cohesion in Pa [default: 80e3]" << endl;
+    cout << " -v=VELOCITY" << endl;
+    cout << " --initial-fwd-velocity=VELOCITY" << endl;
+    cout << "        Specify initial chassis forward velocity in m/s [default: 0]" << endl;
+    cout << " -o=OMEGA" << endl;
+    cout << " --initial-wheel-omega" << endl;
+    cout << "        Specify initial wheel angular velocities in rad/s [default: 0]" << endl;
     cout << " --no-output" << endl;
     cout << "        Disable generation of output files" << endl;
     cout << " --no-rendering" << endl;
@@ -390,6 +427,8 @@ bool GetProblemSpecs(int argc,
                      int& nthreads_terrain,
                      double& sim_time,
                      double& cohesion,
+                     double& init_fwd_vel,
+                     double& init_wheel_omega,
                      bool& use_checkpoint,
                      bool& output,
                      bool& render,
@@ -435,6 +474,12 @@ bool GetProblemSpecs(int argc,
                 break;
             case OPT_USE_CHECKPOINT:
                 use_checkpoint = true;
+                break;
+            case OPT_INIT_VEL:
+                init_fwd_vel = std::stod(args.OptionArg());
+                break;
+            case OPT_INIT_OMEGA:
+                init_wheel_omega = std::stod(args.OptionArg());
                 break;
             case OPT_SUFFIX:
                 suffix = args.OptionArg();

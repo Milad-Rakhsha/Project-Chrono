@@ -179,6 +179,13 @@ foreach(COMPONENT ${Chrono_FIND_COMPONENTS})
       list(APPEND CHRONO_LIB_NAMES "ChronoEngine_postprocess")
       list(APPEND CHRONO_DLL_NAMES "ChronoEngine_postprocess.dll")
 
+	elseif(${COMPONENT_UPPER} MATCHES "CASCADE")
+
+      list(APPEND CHRONO_INCLUDE_DIRS "@CH_CASCADEINC@")
+      list(APPEND CHRONO_LIB_NAMES "ChronoEngine_cascade")
+	  list(APPEND CHRONO_LIBRARIES "@CH_CASCADELIBS@")
+      list(APPEND CHRONO_DLL_NAMES "ChronoEngine_cascade.dll")
+	  
     elseif(${COMPONENT_UPPER} MATCHES "PYTHON")
 
       list(APPEND CHRONO_INCLUDE_DIRS "@CH_PYTHONINC@")
@@ -203,7 +210,7 @@ endforeach()
 foreach(lib ${CHRONO_LIB_NAMES})
   set(onelib "${lib}-NOTFOUND")
   find_library(onelib ${lib}
-    PATHS "@CH_BINARY_DIR@/lib"
+    PATHS "@CH_BINARY_DIR@/lib64"
     PATH_SUFFIXES "Release"
     NO_DEFAULT_PATH
   )

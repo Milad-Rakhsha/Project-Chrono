@@ -35,6 +35,7 @@ set(ChronoEngine_core_SOURCES
     core/ChQuaternion.cpp
     core/ChCoordsys.cpp
     core/ChLinkedListMatrix.cpp
+	core/ChCSR3Matrix.cpp
     core/ChMapMatrix.cpp
     core/ChQuadrature.cpp
     core/ChBezierCurve.cpp
@@ -70,6 +71,8 @@ set(ChronoEngine_core_HEADERS
     core/ChVector.h
     core/ChVector2.h
     core/ChSparseMatrix.h
+	core/ChCSR3Matrix.h
+	core/ChAlignedAllocator.h
     core/ChLinkedListMatrix.h
     core/ChMapMatrix.h
     core/ChWrapHashmap.h
@@ -78,6 +81,7 @@ set(ChronoEngine_core_HEADERS
     core/ChTemplateExpressions.h
     core/ChBezierCurve.h
     core/ChCubicSpline.h
+	core/ChBitmaskEnums.h
     )
 
 source_group(core FILES
@@ -119,7 +123,6 @@ set(ChronoEngine_physics_SOURCES
     physics/ChLinkDistance.cpp
     physics/ChLinkMasked.cpp
     physics/ChLinkMarkers.cpp
-    physics/ChLinkNumdiff.cpp
     physics/ChLinkLock.cpp
     physics/ChLinkBrake.cpp
     physics/ChLinkBushing.cpp
@@ -220,7 +223,6 @@ set(ChronoEngine_physics_HEADERS
     physics/ChLinkMarkers.h
     physics/ChLinkMask.h
     physics/ChLinkMasked.h
-    physics/ChLinkNumdiff.h
     physics/ChLinkPneumaticActuator.h
     physics/ChLinkPointSpline.h
     physics/ChLinkPulley.h
@@ -509,6 +511,7 @@ set(ChronoEngine_timestepper_HEADERS
     timestepper/ChTimestepperHHT.h
     timestepper/ChStaticAnalysis.h
     timestepper/ChAssemblyAnalysis.h
+	timestepper/ChUpdateFlags.h
     )
 
 source_group(timestepper FILES
@@ -987,7 +990,6 @@ endif()
 
 # Set some custom properties of this target
 set_target_properties(ChronoEngine PROPERTIES
-    COMPILE_FLAGS "${CH_CXX_FLAGS}"
     LINK_FLAGS "${CH_LINKERFLAG_SHARED}"
     COMPILE_DEFINITIONS "CH_API_COMPILE")
 
@@ -998,8 +1000,8 @@ endif()
 # Install the main ChronoEngine library
 install(TARGETS ChronoEngine
     RUNTIME DESTINATION bin
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib)
+    LIBRARY DESTINATION lib64
+    ARCHIVE DESTINATION lib64)
 
 # Install all header files for the main ChronoEngine library 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/

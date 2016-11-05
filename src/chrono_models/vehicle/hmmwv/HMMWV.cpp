@@ -32,7 +32,7 @@ HMMWV::HMMWV()
     : m_system(NULL),
       m_vehicle(NULL),
       m_powertrain(NULL),
-      m_tires({NULL, NULL, NULL, NULL}),
+      m_tires({{NULL, NULL, NULL, NULL}}),
       m_contactMethod(ChMaterialSurfaceBase::DVI),
       m_fixed(false),
       m_driveType(DrivelineType::AWD),
@@ -40,16 +40,15 @@ HMMWV::HMMWV()
       m_tireType(TireModelType::RIGID),
       m_tire_step_size(-1),
       m_pacejkaParamFile(""),
-      m_chassisVis(VisualizationType::PRIMITIVES),
-      m_wheelVis(VisualizationType::PRIMITIVES),
-      m_tireVis(false),
-      m_initPos(ChCoordsys<>(ChVector<>(0, 0, 1), QUNIT)) {}
+      m_initFwdVel(0),
+      m_initPos(ChCoordsys<>(ChVector<>(0, 0, 1), QUNIT)),
+      m_initOmega({0, 0, 0, 0}) {}
 
 HMMWV::HMMWV(ChSystem* system)
     : m_system(system),
       m_vehicle(NULL),
       m_powertrain(NULL),
-      m_tires({NULL, NULL, NULL, NULL}),
+      m_tires({{NULL, NULL, NULL, NULL}}),
       m_contactMethod(ChMaterialSurfaceBase::DVI),
       m_fixed(false),
       m_driveType(DrivelineType::AWD),
@@ -57,10 +56,9 @@ HMMWV::HMMWV(ChSystem* system)
       m_tireType(TireModelType::RIGID),
       m_tire_step_size(-1),
       m_pacejkaParamFile(""),
-      m_chassisVis(VisualizationType::PRIMITIVES),
-      m_wheelVis(VisualizationType::PRIMITIVES),
-      m_tireVis(false),
-      m_initPos(ChCoordsys<>(ChVector<>(0, 0, 1), QUNIT)) {}
+      m_initFwdVel(0),
+      m_initPos(ChCoordsys<>(ChVector<>(0, 0, 1), QUNIT)),
+      m_initOmega({0, 0, 0, 0}) {}
 
 HMMWV::~HMMWV() {
     delete m_vehicle;
@@ -75,7 +73,8 @@ HMMWV::~HMMWV() {
 void HMMWV::Initialize() {
     // Create and initialize the HMMWV vehicle
     m_vehicle = CreateVehicle();
-    m_vehicle->Initialize(m_initPos);
+    m_vehicle->SetInitWheelAngVel(m_initOmega);
+    m_vehicle->Initialize(m_initPos, m_initFwdVel);
 
     // Create and initialize the powertrain system
     switch (m_powertrainType) {
@@ -91,7 +90,7 @@ void HMMWV::Initialize() {
         }
     }
 
-    m_powertrain->Initialize(m_vehicle->GetChassis(), m_vehicle->GetDriveshaft());
+    m_powertrain->Initialize(GetChassisBody(), m_vehicle->GetDriveshaft());
 
 #ifndef CHRONO_FEA
     // If ANCF tire selected but not available, fall back on rigid tire.
@@ -216,17 +215,19 @@ void HMMWV::Initialize() {
         }
     }
 
-    // Enable/disable tire visualization
-    m_tires[0]->EnableVisualization(m_tireVis);
-    m_tires[1]->EnableVisualization(m_tireVis);
-    m_tires[2]->EnableVisualization(m_tireVis);
-    m_tires[3]->EnableVisualization(m_tireVis);
-
     // Initialize the tires.
     m_tires[0]->Initialize(m_vehicle->GetWheelBody(FRONT_LEFT), LEFT);
     m_tires[1]->Initialize(m_vehicle->GetWheelBody(FRONT_RIGHT), RIGHT);
     m_tires[2]->Initialize(m_vehicle->GetWheelBody(REAR_LEFT), LEFT);
     m_tires[3]->Initialize(m_vehicle->GetWheelBody(REAR_RIGHT), RIGHT);
+}
+
+// -----------------------------------------------------------------------------
+void HMMWV::SetTireVisualizationType(VisualizationType vis) {
+    m_tires[0]->SetVisualizationType(vis);
+    m_tires[1]->SetVisualizationType(vis);
+    m_tires[2]->SetVisualizationType(vis);
+    m_tires[3]->SetVisualizationType(vis);
 }
 
 // -----------------------------------------------------------------------------
