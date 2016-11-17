@@ -22,6 +22,7 @@
 #include "chrono_fsi/ChApiFsi.h"
 #include "chrono_fsi/ChFsiDataManager.cuh"  //for FsiGeneralData
 #include "chrono_fsi/ChFsiGeneral.cuh"
+#include "chrono_fsi/custom_math.h"
 
 namespace chrono {
 namespace fsi {
@@ -40,14 +41,15 @@ class CH_FSI_API ChBce : public ChFsiGeneral {
   ~ChBce();
 
   virtual void UpdateRigidMarkersPositionVelocity(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD);
+  virtual void UpdateFlexMarkersPositionVelocity(SphMarkerDataD* sphMarkersD, FsiShellsDataD* fsiShellsD);
 
   virtual void Rigid_Forces_Torques(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD);
-
+  virtual void Flex_Forces(SphMarkerDataD* sphMarkersD, FsiShellsDataD* fsiShellsD);
   void ModifyBceVelocity(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD);
 
   virtual void Populate_RigidSPH_MeshPos_LRF(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD);
-
-  virtual void Finalize(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD);
+  virtual void Populate_FlexSPH_MeshPos_LRF(SphMarkerDataD* sphMarkersD, FsiShellsDataD* fsiShellsD);
+  virtual void Finalize(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD, FsiShellsDataD* fsiShellsD);
 
   void CalcBceAcceleration(thrust::device_vector<Real3>& bceAcc,
                            const thrust::device_vector<Real4>& q_fsiBodies_D,
@@ -82,6 +84,7 @@ class CH_FSI_API ChBce : public ChFsiGeneral {
                                         int2 updatePortion);
 
   void MakeRigidIdentifier();
+  void MakeFlexIdentifier();
 };
 }  // end namespace fsi
 }  // end namespace chrono

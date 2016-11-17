@@ -54,6 +54,7 @@ typedef unsigned int uint;
 #define LU1CAST(x) (unsigned long int*)thrust::raw_pointer_cast(&x[0])
 #define R1CAST(x) (Real*)thrust::raw_pointer_cast(&x[0])
 #define mR3CAST(x) (Real3*)thrust::raw_pointer_cast(&x[0])
+#define mR2CAST(x) (Real2*)thrust::raw_pointer_cast(&x[0])
 #define mR4CAST(x) (Real4*)thrust::raw_pointer_cast(&x[0])
 #define TCAST(x) thrust::raw_pointer_cast(x.data())
 #define mR3BY3CAST(x) (Real3By3*)thrust::raw_pointer_cast(&x[0])

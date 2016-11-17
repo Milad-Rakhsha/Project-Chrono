@@ -56,7 +56,9 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
   /// This is a basic force computation relying on WCSPH approach.
   virtual void ForceSPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD);
 
-  virtual void ForceIISPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD);
+  virtual void ForceIISPH(SphMarkerDataD* otherSphMarkersD,
+                          FsiBodiesDataD* otherFsiBodiesD,
+                          FsiShellsDataD* otherFsiShellsD);
 
   /// Synchronize the copy of the data (parameters and number of objects)
   /// between
@@ -135,7 +137,22 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
 
   void calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
                          thrust::device_vector<Real4> velMassRigid_fsiBodies_D,
-                         thrust::device_vector<Real3> accRigid_fsiBodies_D);
+                         thrust::device_vector<Real3> accRigid_fsiBodies_D,
+
+                         thrust::device_vector<Real3> posFlex_fsiBodies_nA_D,
+                         thrust::device_vector<Real3> posFlex_fsiBodies_nB_D,
+                         thrust::device_vector<Real3> posFlex_fsiBodies_nC_D,
+                         thrust::device_vector<Real3> posFlex_fsiBodies_nD_D,
+
+                         thrust::device_vector<Real3> velFlex_fsiBodies_nA_D,
+                         thrust::device_vector<Real3> velFlex_fsiBodies_nB_D,
+                         thrust::device_vector<Real3> velFlex_fsiBodies_nC_D,
+                         thrust::device_vector<Real3> velFlex_fsiBodies_nD_D,
+
+                         thrust::device_vector<Real3> accFlex_fsiBodies_nA_D,
+                         thrust::device_vector<Real3> accFlex_fsiBodies_nB_D,
+                         thrust::device_vector<Real3> accFlex_fsiBodies_nC_D,
+                         thrust::device_vector<Real3> accFlex_fsiBodies_nD_D);
 
   ChCollisionSystemFsi* fsiCollisionSystem;  ///< collision system; takes care of
                                              /// constructing neighbors list
@@ -153,7 +170,8 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
   SimParams* paramsH;            ///< pointer to simulation parameters
   NumberOfObjects* numObjectsH;  ///< pointer to number of objects, fluid and boundary markers
 
-  thrust::device_vector<Real3> vel_XSPH_Sorted_D;  ///< sorted xsph velocity data
+  thrust::device_vector<Real3> vel_XSPH_Sorted_D;      ///< sorted xsph velocity data
+  thrust::device_vector<Real4> derivVelRhoD_Sorted_D;  ///< sorted derivVelRhoD
 
   /// function to calculate the force terms for sph markers
   ///

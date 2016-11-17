@@ -181,6 +181,7 @@ void PrintToParaViewFile(const thrust::device_vector<Real3>& posRadD,
   fileNameBCE << ssBCE.str();
   fileNameBCE.close();
   //*****************************************************
+
   posRadH.clear();
   velMasH.clear();
   rhoPresMuH.clear();

@@ -30,6 +30,8 @@
 #include "chrono_opengl/ChOpenGLWindow.h"
 #endif
 
+#include "chrono_fea/ChElementShellANCF.h"
+
 namespace chrono {
 namespace fsi {
 
@@ -88,6 +90,7 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
   /// with two representation in fluid and multibody systems, are stored in a
   /// vector.
   std::vector<std::shared_ptr<ChBody>>* GetFsiBodiesPtr() { return &fsiBodeisPtr; }
+  std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* GetFsiShellsPtr() { return &fsiShellsPtr; }
 
   /// Initialize the graphics interface of the chrono system
   void InitializeChronoGraphics(chrono::ChVector<> CameraLocation = chrono::ChVector<>(1, 0, 0),
@@ -105,9 +108,11 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
   ChFsiDataManager* fsiData;                          ///< pointer to data manager which holds all the data
   std::vector<std::shared_ptr<ChBody>> fsiBodeisPtr;  ///< vector of a pointers to fsi bodies. fsi bodies
                                                       /// are those that interact with fluid
-  ChFluidDynamics* fluidDynamics;                     ///< pointer to the fluid system
-  ChFsiInterface* fsiInterface;                       ///< pointer to the fsi interface system
-  ChBce* bceWorker;                                   ///< pointer to the bce workers
+  std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>> fsiShellsPtr;  ///< vector of a pointers to fsi Shells
+
+  ChFluidDynamics* fluidDynamics;  ///< pointer to the fluid system
+  ChFsiInterface* fsiInterface;    ///< pointer to the fsi interface system
+  ChBce* bceWorker;                ///< pointer to the bce workers
 
   chrono::ChSystem* mphysicalSystem;  ///< pointer to the multibody system
 
