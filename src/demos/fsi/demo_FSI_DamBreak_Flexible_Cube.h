@@ -44,7 +44,7 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.025;
+    paramsH->HSML = 0.1;
     paramsH->MULT_INITSPACE = 1.0;
     paramsH->epsMinMarkersDis = .01;
     paramsH->NUM_BOUNDARY_LAYERS = 3;

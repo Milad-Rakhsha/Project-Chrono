@@ -26,6 +26,8 @@
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/tuple.h>
 
+#include "chrono_fea/ChElementShellANCF.h"
+
 namespace chrono {
 namespace fsi {
 
@@ -49,9 +51,27 @@ typedef thrust::zip_iterator<iterTupleRigidD> zipIterRigidD;
 typedef thrust::tuple<r3IterH, r4IterH, r3IterH, r4IterH, r3IterH, r3IterH> iterTupleRigidH;
 typedef thrust::zip_iterator<iterTupleRigidH> zipIterRigidH;
 
+//// typedef device iterators for shorthand Flex operations
+// typedef thrust::
+//    tuple<r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH>
+//        iterTupleFlexH;
+// typedef thrust::zip_iterator<iterTupleFlexH> zipIterFlexH;
+
+//// typedef device iterators for shorthand Flex operations
+// typedef thrust::
+//    tuple<r3IterD, r3IterD, r3IterD, r3IterD, r3IterD, r3IterD, r3IterD, r3IterD, r3IterD, r3IterD, r3IterD, r3IterD>
+//        iterTupleFlexD;
+// typedef thrust::zip_iterator<iterTupleFlexD> zipIterFlexD;
+
 // typedef device iterators for shorthand chrono bodies operations
 typedef thrust::tuple<r3IterH, r3IterH, r3IterH, r4IterH, r3IterH, r3IterH> iterTupleChronoBodiesH;
 typedef thrust::zip_iterator<iterTupleChronoBodiesH> zipIterChronoBodiesH;
+
+//// typedef device iterators for shorthand chrono bodies operations
+// typedef thrust::
+//    tuple<r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH>
+//        iterTupleChronoShellsH;
+// typedef thrust::zip_iterator<iterTupleChronoShellsH> zipIterChronoShellsH;
 
 /**
  * @brief Number of fluid markers, solid bodies, solid markers, boundary markers
@@ -62,7 +82,7 @@ typedef thrust::zip_iterator<iterTupleChronoBodiesH> zipIterChronoBodiesH;
 // and flex
 struct NumberOfObjects {
   int numRigidBodies;      /* Number of rigid bodies */
-  int numFlexBodies;       /* Number of Flexible bodies*/
+  int numFlexBodies;       /* Number of Flexible bodies, Each FE is one body*/
   int numFluidMarkers;     /* Number of fluid SPH markers*/
   int numBoundaryMarkers;  /* Number of boundary SPH markers */
   int startRigidMarkers;   /* */
@@ -137,6 +157,56 @@ class FsiBodiesDataD {
  private:
 };
 
+class FsiShellsDataH {
+ public:
+  thrust::host_vector<Real3> posFlex_fsiBodies_nA_H;
+  thrust::host_vector<Real3> posFlex_fsiBodies_nB_H;
+  thrust::host_vector<Real3> posFlex_fsiBodies_nC_H;
+  thrust::host_vector<Real3> posFlex_fsiBodies_nD_H;
+
+  thrust::host_vector<Real3> velFlex_fsiBodies_nA_H;
+  thrust::host_vector<Real3> velFlex_fsiBodies_nB_H;
+  thrust::host_vector<Real3> velFlex_fsiBodies_nC_H;
+  thrust::host_vector<Real3> velFlex_fsiBodies_nD_H;
+
+  thrust::host_vector<Real3> accFlex_fsiBodies_nA_H;
+  thrust::host_vector<Real3> accFlex_fsiBodies_nB_H;
+  thrust::host_vector<Real3> accFlex_fsiBodies_nC_H;
+  thrust::host_vector<Real3> accFlex_fsiBodies_nD_H;
+
+  //  zipIterFlexH iterator();
+  // resize
+  void resize(int s);
+
+ private:
+};
+
+class FsiShellsDataD {
+ public:
+  thrust::device_vector<Real3> posFlex_fsiBodies_nA_D;
+  thrust::device_vector<Real3> posFlex_fsiBodies_nB_D;
+  thrust::device_vector<Real3> posFlex_fsiBodies_nC_D;
+  thrust::device_vector<Real3> posFlex_fsiBodies_nD_D;
+
+  thrust::device_vector<Real3> velFlex_fsiBodies_nA_D;
+  thrust::device_vector<Real3> velFlex_fsiBodies_nB_D;
+  thrust::device_vector<Real3> velFlex_fsiBodies_nC_D;
+  thrust::device_vector<Real3> velFlex_fsiBodies_nD_D;
+
+  thrust::device_vector<Real3> accFlex_fsiBodies_nA_D;
+  thrust::device_vector<Real3> accFlex_fsiBodies_nB_D;
+  thrust::device_vector<Real3> accFlex_fsiBodies_nC_D;
+  thrust::device_vector<Real3> accFlex_fsiBodies_nD_D;
+
+  //  zipIterFlexD iterator();
+  void CopyFromH(const FsiShellsDataH& other);
+  FsiShellsDataD& operator=(const FsiShellsDataD& other);
+  // resize
+  void resize(int s);
+
+ private:
+};
+
 class ProximityDataD {
  public:
   thrust::device_vector<uint> gridMarkerHashD;   //(numAllMarkers);
@@ -170,6 +240,34 @@ class ChronoBodiesDataH {
  private:
 };
 
+class ChronoShellsDataH {
+ public:
+  ChronoShellsDataH() {}
+  ChronoShellsDataH(int s);
+
+  //  zipIterChronoShellsH iterator();
+
+  thrust::host_vector<Real3> posFlex_ChSystemH_nA_H;
+  thrust::host_vector<Real3> posFlex_ChSystemH_nB_H;
+  thrust::host_vector<Real3> posFlex_ChSystemH_nC_H;
+  thrust::host_vector<Real3> posFlex_ChSystemH_nD_H;
+
+  thrust::host_vector<Real3> velFlex_ChSystemH_nA_H;
+  thrust::host_vector<Real3> velFlex_ChSystemH_nB_H;
+  thrust::host_vector<Real3> velFlex_ChSystemH_nC_H;
+  thrust::host_vector<Real3> velFlex_ChSystemH_nD_H;
+
+  thrust::host_vector<Real3> accFlex_ChSystemH_nA_H;
+  thrust::host_vector<Real3> accFlex_ChSystemH_nB_H;
+  thrust::host_vector<Real3> accFlex_ChSystemH_nC_H;
+  thrust::host_vector<Real3> accFlex_ChSystemH_nD_H;
+
+  // resize
+  void resize(int s);
+
+ private:
+};
+
 // make them classes
 class FsiGeneralData {
  public:
@@ -178,6 +276,8 @@ class FsiGeneralData {
   // ----------------
   // fluidfsiBodeisIndex
   thrust::host_vector<::int4> referenceArray;
+  thrust::host_vector<::int4> referenceArray_FEA;
+
   // ----------------
   //  device
   // ----------------
@@ -187,11 +287,19 @@ class FsiGeneralData {
 
   // BCE
   thrust::device_vector<Real3> rigidSPH_MeshPos_LRF_D;
+  thrust::device_vector<Real2> FlexSPH_MeshPos_LRF_D;
+
   thrust::device_vector<uint> rigidIdentifierD;
+  thrust::device_vector<uint> FlexIdentifierD;
 
   // fsi bodies
   thrust::device_vector<Real3> rigid_FSI_ForcesD;
   thrust::device_vector<Real3> rigid_FSI_TorquesD;
+
+  thrust::device_vector<Real3> Flex_FSI_ForcesD_nA;
+  thrust::device_vector<Real3> Flex_FSI_ForcesD_nB;
+  thrust::device_vector<Real3> Flex_FSI_ForcesD_nC;
+  thrust::device_vector<Real3> Flex_FSI_ForcesD_nD;
 
  private:
 };
@@ -214,6 +322,9 @@ class CH_FSI_API ChFsiDataManager {
   FsiBodiesDataD fsiBodiesD1;
   FsiBodiesDataD fsiBodiesD2;
   FsiBodiesDataH fsiBodiesH;
+
+  FsiShellsDataD fsiShellsD;
+  FsiShellsDataH fsiShellsH;
 
   FsiGeneralData fsiGeneralData;
 

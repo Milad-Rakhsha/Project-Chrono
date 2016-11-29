@@ -53,10 +53,10 @@ class ChApiFea ChMeshFileLoader {
 
     /// Load tetahedrons, if any, saved in a .inp file for Abaqus.
     static void FromAbaqusFile(
-        std::shared_ptr<ChMesh> mesh,                      ///< destination mesh
-        const char* filename,                              ///< input file name
-        std::shared_ptr<ChContinuumMaterial> my_material,  ///< material for the created tetahedrons
-        std::vector<std::vector<std::shared_ptr<ChNodeFEAbase> > >& node_sets,  ///< vect of vectors of 'marked'nodes
+        std::shared_ptr<ChMesh> mesh,                                         ///< destination mesh
+        const char* filename,                                                 ///< input file name
+        std::shared_ptr<ChContinuumMaterial> my_material,                     ///< material for the created tetahedrons
+        std::vector<std::vector<std::shared_ptr<ChNodeFEAbase>>>& node_sets,  ///< vect of vectors of 'marked'nodes
         ChVector<> pos_transform = VNULL,              ///< optional displacement of imported mesh
         ChMatrix33<> rot_transform = ChMatrix33<>(1),  ///< optional rotation/scaling of imported mesh
         bool discard_unused_nodes =
@@ -69,6 +69,8 @@ class ChApiFea ChMeshFileLoader {
         std::shared_ptr<ChMaterialShellANCF> my_material,
         std::vector<double>& node_ave_area,
         std::vector<int>& BC_nodes,
+        std::vector<std::vector<int>>& elementsNode,  // nodes of each element
+        std::vector<std::vector<int>> NodeNeighborElement,
         ChVector<> pos_transform = VNULL,              ///< optional displacement of imported mesh
         ChMatrix33<> rot_transform = ChMatrix33<>(1),  ///< optional rotation/scaling of imported mesh
         double scaleFactor = 1,

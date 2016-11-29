@@ -5,6 +5,7 @@
 #include "chrono_fsi/ChConfigFSI.h"
 #ifndef __CUDACC__
 #include <math.h>
+
 #endif
 
 namespace chrono {
@@ -1521,6 +1522,14 @@ __host__ __device__ inline Real4 normalize(Real4 v) {
 
 __host__ __device__ inline Real3 cross(Real3 a, Real3 b) {
   return make_Real3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+}
+
+__host__ __device__ inline Real4 Shells_ShapeFunctions(Real x, Real y) {
+  Real NA = 0.25 * (1.0 - x) * (1.0 - y);
+  Real NB = 0.25 * (1.0 + x) * (1.0 - y);
+  Real NC = 0.25 * (1.0 + x) * (1.0 + y);
+  Real ND = 0.25 * (1.0 - x) * (1.0 + y);
+  return make_Real4(NA, NB, NC, ND);
 }
 
 }  // end namespace fsi

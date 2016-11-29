@@ -62,7 +62,7 @@ class CH_FSI_API ChFluidDynamics : public ChFsiGeneral {
                             FsiBodiesDataD* fsiBodiesD1,
                             Real dT);
 
-  virtual void IntegrateIISPH(SphMarkerDataD* sphMarkersD2, FsiBodiesDataD* fsiBodiesD1);
+  virtual void IntegrateIISPH(SphMarkerDataD* sphMarkersD2, FsiBodiesDataD* fsiBodiesD1, FsiShellsDataD* fsiShellsD);
 
   /// Function to Shepard Filtering.
   ///

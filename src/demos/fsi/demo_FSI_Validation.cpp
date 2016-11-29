@@ -58,7 +58,7 @@
 #include "chrono_fea/ChMesh.h"
 
 // FSI Interface Includes
-#include "demos/fsi/demo_FSI_DamBreak_Flexible_Shell.h"  //SetupParamsH()
+#include "demos/fsi/demo_FSI_Validation.h"  //SetupParamsH()
 
 #define haveFluid 1
 
@@ -75,13 +75,11 @@ std::ofstream simParams;
 //----------------------------
 // output directories and settings
 //----------------------------
-const std::string h_file =
-    "/home/milad/CHRONO/Project-Chrono-Milad-IISPH/src/demos/fsi/demo_FSI_DamBreak_Flexible_Shell.h";
-const std::string cpp_file =
-    "/home/milad/CHRONO/Project-Chrono-Milad-IISPH/src/demos/fsi/demo_FSI_DamBreak_Flexible_Shell.cpp";
+const std::string h_file = "/home/milad/CHRONO/Project-Chrono-Milad-IISPH/src/demos/fsi/demo_FSI_Validation.h";
+const std::string cpp_file = "/home/milad/CHRONO/Project-Chrono-Milad-IISPH/src/demos/fsi/demo_FSI_Validation.cpp";
 
 const std::string out_dir = "FSI_OUTPUT";  //"../FSI_OUTPUT";
-const std::string data_folder = out_dir + "/Flexible_Shell_DamBreak/";
+const std::string data_folder = out_dir + "/FSI_Validation/";
 std::string MESH_CONNECTIVITY = data_folder + "Flex_MESH.vtk";
 
 std::vector<std::vector<int>> NodeNeighborElementMesh;
@@ -92,13 +90,13 @@ int out_fps = 50;
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
-Real bxDim = 3;
-Real byDim = 0.2;
-Real bzDim = 2;
+Real bxDim = 0.3;
+Real byDim = 0.02;
+Real bzDim = 0.2;
 
-Real fxDim = 1;
+Real fxDim = 0.1;
 Real fyDim = byDim;
-Real fzDim = 1.8;
+Real fzDim = 0.14;
 
 void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
 void writeMesh(std::shared_ptr<ChMesh> my_mesh, std::string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement);
@@ -249,7 +247,7 @@ int main(int argc, char* argv[]) {
                                                              // handle stiffness matrices
     chrono::ChSolverMINRES* msolver = (chrono::ChSolverMINRES*)mphysicalSystem.GetSolverSpeed();
     msolver->SetDiagonalPreconditioning(true);
-    mphysicalSystem.SetMaxItersSolverSpeed(100);
+    mphysicalSystem.SetMaxItersSolverSpeed(1000);
     mphysicalSystem.SetTolForce(1e-10);
 
     // Set up integrator
@@ -353,6 +351,12 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xn, chrono::QUNIT, true);
     chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yp, chrono::QUNIT, true);
     chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yn, chrono::QUNIT, true);
+
+    // left and right Wall
+    ChVector<> size_DamWall(2 * initSpace0, byDim / 2 + 0 * initSpace0, (bzDim - 0.08) / 2);
+    ChVector<> pos_DamWall(-bxDim / 2 + 1 * fxDim + 1 * initSpace0, 0.0, bzDim / 2 + 2 * initSpace0 + 0.04);
+    chrono::utils::AddBoxGeometry(ground.get(), size_DamWall, pos_DamWall, chrono::QUNIT, true);
+
     mphysicalSystem.AddBody(ground);
 
 #if haveFluid
@@ -370,6 +374,9 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
     chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT, size_XZ);
 
+    chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_DamWall, chrono::QUNIT,
+                                    size_DamWall);
+
     /*================== Flexible-Body =================*/
 
     GetLog() << "-----------------------------------------------------------\n";
@@ -381,11 +388,11 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     auto my_mesh = std::make_shared<fea::ChMesh>();
     int numFlexBody = 1;
     // Geometry of the plate
-    double plate_lenght_x = bzDim / 4;
+    double plate_lenght_x = 0.08;
     double plate_lenght_y = byDim;
-    double plate_lenght_z = 0.02;
+    double plate_lenght_z = 0.005;
     // Specification of the mesh
-    int numDiv_x = 10;
+    int numDiv_x = 20;
     int numDiv_y = 1;
     int numDiv_z = 1;
     int N_x = numDiv_x + 1;
@@ -404,7 +411,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         // Node location
         double loc_x = (i % (numDiv_x + 1)) * dx + initSpace0;
         double loc_y = (i / (numDiv_x + 1)) % (numDiv_y + 1) * dy - byDim / 2;
-        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + bxDim / 8 + 2 * initSpace0;
+        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz - (bxDim / 2 - fxDim) + 2 * initSpace0;
 
         // Node direction
         double dir_x = 0;
@@ -417,7 +424,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         node->SetMass(0);
 
         // Fix all nodes along the axis X=0
-        if (i % (numDiv_x + 1) == 0)
+        if (i % (numDiv_x + 1) == numDiv_x)
             node->SetFixed(true);
 
         // Add node to mesh
@@ -429,9 +436,9 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
     // Create an orthotropic material.
     // All layers for all elements share the same material.
-    double rho = 500;
-    double E = 1e6;
-    double nu = 0.3;
+    double rho = 1000;
+    double E = 1e7;
+    double nu = 0.4;
     //    ChVector<> E(1e5, 1e5, 1e5);
     //    ChVector<> nu(0.3, 0.3, 0.3);
     auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
@@ -458,7 +465,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, mat);
 
         // Set other element properties
-        element->SetAlphaDamp(0.1);    // Structural damping for this element
+        element->SetAlphaDamp(0.01);   // Structural damping for this element
         element->SetGravityOn(false);  // turn internal gravitational force calculation off
 
         // Add element to mesh
