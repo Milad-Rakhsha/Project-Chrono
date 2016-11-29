@@ -18,6 +18,8 @@ demo_FSI_DamBreak_Flexible_Shell
 demo_FSI_Poiseuille_flow
 demo_FSI_DamBreak_Explicit
 demo_FSI_Compressibility_Explicit
+demo_FSI_Validation
+demo_FSI_DamBreak_Flexible_Cube
 )
 
 # List all FSI demos use vehicle

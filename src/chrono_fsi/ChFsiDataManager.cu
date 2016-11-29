@@ -348,14 +348,14 @@ void ChFsiDataManager::CalcNumObjects() {
 }
 
 void ChFsiDataManager::ConstructReferenceArray() {
-  printf("ChFsiDataManager::ConstructReferenceArray()-1 pos[%d]=%f,%f,%f, pos[%d]=%f,%f,%f\n", 22995,
-         sphMarkersH.posRadH[22995].x, sphMarkersH.posRadH[22995].y, sphMarkersH.posRadH[22995].z, 23054,
-         sphMarkersH.posRadH[23054].x, sphMarkersH.posRadH[23054].y, sphMarkersH.posRadH[23054].z);
+  //  printf("ChFsiDataManager::ConstructReferenceArray()-1 pos[%d]=%f,%f,%f, pos[%d]=%f,%f,%f\n", 22995,
+  //         sphMarkersH.posRadH[22995].x, sphMarkersH.posRadH[22995].y, sphMarkersH.posRadH[22995].z, 23054,
+  //         sphMarkersH.posRadH[23054].x, sphMarkersH.posRadH[23054].y, sphMarkersH.posRadH[23054].z);
   ArrangeDataManager();
 
-  printf("ChFsiDataManager::ConstructReferenceArray()-2 pos[%d]=%f,%f,%f, pos[%d]=%f,%f,%f\n", 22995,
-         sphMarkersH.posRadH[22995].x, sphMarkersH.posRadH[22995].y, sphMarkersH.posRadH[22995].z, 23054,
-         sphMarkersH.posRadH[23054].x, sphMarkersH.posRadH[23054].y, sphMarkersH.posRadH[23054].z);
+  //  printf("ChFsiDataManager::ConstructReferenceArray()-2 pos[%d]=%f,%f,%f, pos[%d]=%f,%f,%f\n", 22995,
+  //         sphMarkersH.posRadH[22995].x, sphMarkersH.posRadH[22995].y, sphMarkersH.posRadH[22995].z, 23054,
+  //         sphMarkersH.posRadH[23054].x, sphMarkersH.posRadH[23054].y, sphMarkersH.posRadH[23054].z);
   CalcNumObjects();
 
   // determine the number of each component
@@ -415,10 +415,10 @@ void ChFsiDataManager::ResizeDataManager() {
     throw std::runtime_error("Error! numObjects wrong! thrown from FinalizeDataManager !\n");
   }
 
-  printf("ChSystemFsi::FinalizeData pos[%d]=%f,%f,%f, pos[%d]=%f,%f,%f\n", 22995, sphMarkersH.posRadH[22995].x,
-         sphMarkersH.posRadH[22995].y, sphMarkersH.posRadH[22995].z, 23054, sphMarkersH.posRadH[23054].x,
-         sphMarkersH.posRadH[23054].y, sphMarkersH.posRadH[23054].z);
-  printf("\n\n fsiData->ResizeDataManager (numAllMarkers)...\n");
+  //  printf("ChSystemFsi::FinalizeData pos[%d]=%f,%f,%f, pos[%d]=%f,%f,%f\n", 22995, sphMarkersH.posRadH[22995].x,
+  //         sphMarkersH.posRadH[22995].y, sphMarkersH.posRadH[22995].z, 23054, sphMarkersH.posRadH[23054].x,
+  //         sphMarkersH.posRadH[23054].y, sphMarkersH.posRadH[23054].z);
+  //  printf("\n\n fsiData->ResizeDataManager (numAllMarkers)...\n");
 
   sphMarkersD1.resize(numObjects.numAllMarkers);
   sphMarkersD2.resize(numObjects.numAllMarkers);
@@ -430,9 +430,9 @@ void ChFsiDataManager::ResizeDataManager() {
   fsiGeneralData.vel_XSPH_D.resize(numObjects.numAllMarkers);
   printf("fsiData->ResizeDataManager (sphMarkersH)...\n");
 
-  printf("ChFsiDataManager::ResizeDataManager pos[%d]=%f,%f,%f, pos[%d]=%f,%f,%f\n", 22995,
-         sphMarkersH.posRadH[22995].x, sphMarkersH.posRadH[22995].y, sphMarkersH.posRadH[22995].z, 23054,
-         sphMarkersH.posRadH[23054].x, sphMarkersH.posRadH[23054].y, sphMarkersH.posRadH[23054].z);
+  //  printf("ChFsiDataManager::ResizeDataManager pos[%d]=%f,%f,%f, pos[%d]=%f,%f,%f\n", 22995,
+  //         sphMarkersH.posRadH[22995].x, sphMarkersH.posRadH[22995].y, sphMarkersH.posRadH[22995].z, 23054,
+  //         sphMarkersH.posRadH[23054].x, sphMarkersH.posRadH[23054].y, sphMarkersH.posRadH[23054].z);
   // Arman: implement this in one shot function in class
   thrust::copy(sphMarkersH.posRadH.begin(), sphMarkersH.posRadH.end(), sphMarkersD1.posRadD.begin());
   thrust::copy(sphMarkersH.velMasH.begin(), sphMarkersH.velMasH.end(), sphMarkersD1.velMasD.begin());

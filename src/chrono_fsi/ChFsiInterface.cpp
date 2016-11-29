@@ -164,7 +164,7 @@ void ChFsiInterface::Add_Flex_Forces_To_ChSystem() {
     element->GetNodeC()->SetForce(-mforceC);
     element->GetNodeD()->SetForce(-mforceD);
     chrono::ChVector<> TotalForce = (mforceA + mforceB + mforceC + mforceD);
-    printf("Added the force of %f,%f,%f to the flex body %d\n", TotalForce.x, TotalForce.y, TotalForce.z, i);
+    //    printf("Added the force of %f,%f,%f to the flex body %d\n", TotalForce.x, TotalForce.y, TotalForce.z, i);
   }
 }
 
@@ -255,7 +255,7 @@ void ChFsiInterface::Copy_fsiBodies_ChSystem_to_FluidSystem(FsiBodiesDataD* fsiB
   //#pragma omp parallel for // Arman: you can bring it back later, when you
   // have a lot of bodies
   int num_fsiBodies_Rigids = fsiBodeisPtr->size();
-  printf("\n\n fsiBodiesH->posRigid_fsiBodies_H.size() %d\n", fsiBodiesH->posRigid_fsiBodies_H.size());
+  //  printf("\n\n fsiBodiesH->posRigid_fsiBodies_H.size() %d\n", fsiBodiesH->posRigid_fsiBodies_H.size());
 
   for (int i = 0; i < num_fsiBodies_Rigids; i++) {
     auto bodyPtr = (*fsiBodeisPtr)[i];
@@ -268,7 +268,7 @@ void ChFsiInterface::Copy_fsiBodies_ChSystem_to_FluidSystem(FsiBodiesDataD* fsiB
     fsiBodiesH->omegaVelLRF_fsiBodies_H[i] = ChFsiTypeConvert::ChVectorToReal3(bodyPtr->GetWvel_loc());
     fsiBodiesH->omegaAccLRF_fsiBodies_H[i] = ChFsiTypeConvert::ChVectorToReal3(bodyPtr->GetWacc_loc());
   }
-  printf("\n\n CopyFromH Copy_fsiBodies_ChSystem_to_FluidSystem...\n");
+  //  printf("\n\n CopyFromH Copy_fsiBodies_ChSystem_to_FluidSystem...\n");
 
   fsiBodiesD->CopyFromH(*fsiBodiesH);
 }

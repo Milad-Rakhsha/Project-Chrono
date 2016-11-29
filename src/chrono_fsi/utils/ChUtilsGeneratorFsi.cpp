@@ -184,10 +184,10 @@ void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
     fsiData->sphMarkersH.velMasH.push_back(v3);
     fsiData->sphMarkersH.rhoPresMuH.push_back(mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, type));
   }
-  printf("CreateBceGlobalMarkersFromBceLocalPos_ShellANCF pos[%d]=%f,%f,%f, pos[%d]=%f,%f,%f\n", 22995,
-         fsiData->sphMarkersH.posRadH[22995].x, fsiData->sphMarkersH.posRadH[22995].y,
-         fsiData->sphMarkersH.posRadH[22995].z, 23054, fsiData->sphMarkersH.posRadH[23054].x,
-         fsiData->sphMarkersH.posRadH[23054].y, fsiData->sphMarkersH.posRadH[23054].z);
+  //  printf("CreateBceGlobalMarkersFromBceLocalPos_ShellANCF pos[%d]=%f,%f,%f, pos[%d]=%f,%f,%f\n", 22995,
+  //         fsiData->sphMarkersH.posRadH[22995].x, fsiData->sphMarkersH.posRadH[22995].y,
+  //         fsiData->sphMarkersH.posRadH[22995].z, 23054, fsiData->sphMarkersH.posRadH[23054].x,
+  //         fsiData->sphMarkersH.posRadH[23054].y, fsiData->sphMarkersH.posRadH[23054].z);
   // ------------------------
   // Modify number of objects
   // ------------------------
@@ -366,6 +366,26 @@ void AddBCE_ShellANCF(ChFsiDataManager* fsiData,
     auto thisShell = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(i));
     fsiShellsPtr->push_back(thisShell);
     CreateBCE_On_shell(posRadBCE, paramsH, thisShell);
+    CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(fsiData, paramsH, posRadBCE, thisShell);
+
+    posRadBCE.clear();
+  }
+}
+
+// =============================================================================
+
+void AddBCE_ShellFromMesh(ChFsiDataManager* fsiData,
+                          SimParams* paramsH,
+                          std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* fsiShellsPtr,
+                          std::shared_ptr<chrono::fea::ChMesh> my_mesh,
+                          std::vector<std::vector<int>> elementsNode) {
+  thrust::host_vector<Real3> posRadBCE;
+  int numShells = my_mesh->GetNelements();
+  printf("number of shells to be meshed is %d\n", numShells);
+  for (int i = 0; i < numShells; i++) {
+    auto thisShell = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(i));
+    fsiShellsPtr->push_back(thisShell);
+    CreateBCE_On_Mesh(posRadBCE, paramsH, thisShell, elementsNode);
     CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(fsiData, paramsH, posRadBCE, thisShell);
 
     posRadBCE.clear();

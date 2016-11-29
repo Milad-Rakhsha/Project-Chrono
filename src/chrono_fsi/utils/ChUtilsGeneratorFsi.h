@@ -120,6 +120,12 @@ void AddBCE_ShellANCF(ChFsiDataManager* fsiData,
                       std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* fsiShellsPtr,
                       std::shared_ptr<chrono::fea::ChMesh> my_mesh);
 
+void AddBCE_ShellFromMesh(ChFsiDataManager* fsiData,
+                          SimParams* paramsH,
+                          std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* fsiShellsPtr,
+                          std::shared_ptr<chrono::fea::ChMesh> my_mesh,
+                          std::vector<std::vector<int>> elementsNode);
+
 }  // end namespace utils
 }  // end namespace fsi
 }  // end namespace chrono

@@ -38,6 +38,11 @@ void CreateBCE_On_shell(thrust::host_vector<Real3>& posRadBCE,
                         SimParams* paramsH,
                         std::shared_ptr<chrono::fea::ChElementShellANCF> shell);
 
+void CreateBCE_On_Mesh(thrust::host_vector<Real3>& posRadBCE,
+                       SimParams* paramsH,
+                       std::shared_ptr<chrono::fea::ChElementShellANCF> shell,
+                       std::vector<std::vector<int>> elementsNode);
+
 void LoadBCE_fromFile(thrust::host_vector<Real3>& posRadBCE,  // do not set the
                                                               // size here since
                                                               // you are using

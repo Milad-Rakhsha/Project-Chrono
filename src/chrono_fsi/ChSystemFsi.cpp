@@ -166,10 +166,11 @@ void ChSystemFsi::DoStepDynamics_ChronoRK2() {
 
 //--------------------------------------------------------------------------------------------------------------------------------
 void ChSystemFsi::FinalizeData() {
-  printf("ChSystemFsi::FinalizeData pos[%d]=%f,%f,%f, pos[%d]=%f,%f,%f\n", 22995, fsiData->sphMarkersH.posRadH[22995].x,
-         fsiData->sphMarkersH.posRadH[22995].y, fsiData->sphMarkersH.posRadH[22995].z, 23054,
-         fsiData->sphMarkersH.posRadH[23054].x, fsiData->sphMarkersH.posRadH[23054].y,
-         fsiData->sphMarkersH.posRadH[23054].z);
+  //  printf("ChSystemFsi::FinalizeData pos[%d]=%f,%f,%f, pos[%d]=%f,%f,%f\n", 22995,
+  //  fsiData->sphMarkersH.posRadH[22995].x,
+  //         fsiData->sphMarkersH.posRadH[22995].y, fsiData->sphMarkersH.posRadH[22995].z, 23054,
+  //         fsiData->sphMarkersH.posRadH[23054].x, fsiData->sphMarkersH.posRadH[23054].y,
+  //         fsiData->sphMarkersH.posRadH[23054].z);
   printf("\n\n fsiData->ResizeDataManager...\n");
   fsiData->ResizeDataManager();
   // Arman: very important: you cannot change the order of (1-3). Fix the issue

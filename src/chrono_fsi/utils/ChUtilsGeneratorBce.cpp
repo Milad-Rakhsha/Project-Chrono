@@ -153,8 +153,43 @@ void CreateBCE_On_shell(thrust::host_vector<Real3>& posRadBCE,
       }
     }
   }
+}
+// =============================================================================
 
-  printf("\n\n posRadBCE.size()= %d\n", posRadBCE.size());
+void CreateBCE_On_Mesh(thrust::host_vector<Real3>& posRadBCE,
+                       SimParams* paramsH,
+                       std::shared_ptr<chrono::fea::ChElementShellANCF> shell,
+                       std::vector<std::vector<int>> elementsNode) {
+  Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
+  double dx = shell->GetLengthX() / 2;
+  double dy = shell->GetLengthY() / 2;
+
+  int nFX = ceil(dx / (initSpace0));
+  int nFY = ceil(dy / (initSpace0));
+  int nFZ = 0;
+
+  Real initSpaceX = dx / nFX;
+  Real initSpaceY = dy / nFY;
+  Real initSpaceZ = initSpace0 / 2;
+
+  int2 iBound = mI2(-nFX, nFX);
+  int2 jBound = mI2(-nFY, nFY);
+  int2 kBound = mI2(-nFZ, nFZ);
+
+  for (int i = iBound.x; i <= iBound.y; i++) {
+    for (int j = jBound.x; j <= jBound.y; j++) {
+      for (int k = kBound.x; k <= kBound.y; k++) {
+        Real3 relMarkerPos = mR3(i * initSpaceX, j * initSpaceY, k * initSpaceZ);
+
+        if ((relMarkerPos.x < paramsH->cMin.x || relMarkerPos.x > paramsH->cMax.x) ||
+            (relMarkerPos.y < paramsH->cMin.y || relMarkerPos.y > paramsH->cMax.y) ||
+            (relMarkerPos.z < paramsH->cMin.z || relMarkerPos.z > paramsH->cMax.z)) {
+          continue;
+        }
+        posRadBCE.push_back(relMarkerPos);
+      }
+    }
+  }
 }
 // =============================================================================
 

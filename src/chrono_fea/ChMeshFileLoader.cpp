@@ -411,6 +411,8 @@ void ChMeshFileLoader::ANCFShellFromGMFFile(std::shared_ptr<ChMesh> mesh,
                                             std::shared_ptr<ChMaterialShellANCF> my_material,
                                             std::vector<double>& node_ave_area,
                                             std::vector<int>& Boundary_nodes,
+                                            std::vector<std::vector<int>>& elementsNode,  // nodes of each element
+                                            std::vector<std::vector<int>> NodeNeighborElement,
                                             ChVector<> pos_transform,
                                             ChMatrix33<> rot_transform,
                                             double scaleFactor,
@@ -429,7 +431,6 @@ void ChMeshFileLoader::ANCFShellFromGMFFile(std::shared_ptr<ChMesh> mesh,
     ChVector<double> pos1, pos2, pos3, pos4;                  // Position of nodes in each element
     ChVector<double> vec1, vec2, vec3;                        // intermediate vectors for calculation of normals
     std::vector<std::shared_ptr<ChNodeFEAxyzD>> nodesVector;  // To store intermediate nodes
-    std::vector<std::vector<int>> elementsVector;             // nodes of each element
     std::vector<std::vector<double>> elementsdxdy;            // dx, dy of elements
 
     int TotalNumNodes, TotalNumElements, TottalNumBEdges;
@@ -545,42 +546,42 @@ void ChMeshFileLoader::ANCFShellFromGMFFile(std::shared_ptr<ChMesh> mesh,
                 int ntoken = 0;
                 string token;
                 std::istringstream ss(line);
-                elementsVector.resize(ele + 1);
-                elementsVector[ele].resize(5);
+                elementsNode.resize(ele + 1);
+                elementsNode[ele].resize(5);
                 elementsdxdy.resize(ele + 1);
                 elementsdxdy[ele].resize(2);
                 while (std::getline(ss, token, ' ') && ntoken < 20) {
                     std::istringstream stoken(token);
-                    stoken >> elementsVector[ele][ntoken];
+                    stoken >> elementsNode[ele][ntoken];
                     ++ntoken;
                 }
 
                 // Calculating the true surface normals based on the nodal information
-                pos1 = nodesVector[elementsVector[ele][0] - 1]->GetPos();
-                pos2 = nodesVector[elementsVector[ele][1] - 1]->GetPos();
-                pos4 = nodesVector[elementsVector[ele][2] - 1]->GetPos();
-                pos3 = nodesVector[elementsVector[ele][3] - 1]->GetPos();
+                pos1 = nodesVector[elementsNode[ele][0] - 1]->GetPos();
+                pos2 = nodesVector[elementsNode[ele][1] - 1]->GetPos();
+                pos4 = nodesVector[elementsNode[ele][2] - 1]->GetPos();
+                pos3 = nodesVector[elementsNode[ele][3] - 1]->GetPos();
 
                 // For the first node
                 vec1 = (pos1 - pos2);
                 vec2 = (pos1 - pos3);
-                Normals[elementsVector[ele][0] - 1] += vec1 % vec2;
-                num_Normals[elementsVector[ele][0] - 1]++;
+                Normals[elementsNode[ele][0] - 1] += vec1 % vec2;
+                num_Normals[elementsNode[ele][0] - 1]++;
                 // For the second node
                 vec1 = (pos2 - pos4);
                 vec2 = (pos2 - pos1);
-                Normals[elementsVector[ele][1] - 1] += vec1 % vec2;
-                num_Normals[elementsVector[ele][1] - 1]++;
+                Normals[elementsNode[ele][1] - 1] += vec1 % vec2;
+                num_Normals[elementsNode[ele][1] - 1]++;
                 // For the third node
                 vec1 = (pos3 - pos1);
                 vec2 = (pos3 - pos4);
-                Normals[elementsVector[ele][2] - 1] += vec1 % vec2;
-                num_Normals[elementsVector[ele][2] - 1]++;
+                Normals[elementsNode[ele][2] - 1] += vec1 % vec2;
+                num_Normals[elementsNode[ele][2] - 1]++;
                 // For the forth node
                 vec1 = (pos4 - pos3);
                 vec2 = (pos4 - pos2);
-                Normals[elementsVector[ele][3] - 1] += vec1 % vec2;
-                num_Normals[elementsVector[ele][3] - 1]++;
+                Normals[elementsNode[ele][3] - 1] += vec1 % vec2;
+                num_Normals[elementsNode[ele][3] - 1]++;
 
                 vec1 = pos1 - pos2;
                 vec2 = pos3 - pos4;
@@ -611,7 +612,6 @@ void ChMeshFileLoader::ANCFShellFromGMFFile(std::shared_ptr<ChMesh> mesh,
         // Very useful information to store: 1/4 of area of neighbouring elements contribute to each node's average area
         node_ave_area[nodes_offset + inode] = Normals[inode].Length() / 4;
 
-
         if (num_Normals[inode] <= 2)
             Boundary_nodes.push_back(nodes_offset + inode);
         node_normal.Normalize();
@@ -629,10 +629,10 @@ void ChMeshFileLoader::ANCFShellFromGMFFile(std::shared_ptr<ChMesh> mesh,
     for (int ielem = 0; ielem < 0 + TotalNumElements; ielem++) {
         auto element = std::make_shared<ChElementShellANCF>();
         element->SetNodes(
-            std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(nodes_offset + elementsVector[ielem][0] - 1)),
-            std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(nodes_offset + elementsVector[ielem][1] - 1)),
-            std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(nodes_offset + elementsVector[ielem][2] - 1)),
-            std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(nodes_offset + elementsVector[ielem][3] - 1)));
+            std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(nodes_offset + elementsNode[ielem][0] - 1)),
+            std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(nodes_offset + elementsNode[ielem][1] - 1)),
+            std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(nodes_offset + elementsNode[ielem][2] - 1)),
+            std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(nodes_offset + elementsNode[ielem][3] - 1)));
         dx = elementsdxdy[ielem][0];
         dy = elementsdxdy[ielem][1];
         element->SetDimensions(dx, dy);
@@ -641,10 +641,35 @@ void ChMeshFileLoader::ANCFShellFromGMFFile(std::shared_ptr<ChMesh> mesh,
         if (printElements) {
             cout << ielem << " ";
             for (int i = 0; i < 4; i++)
-                cout << elementsVector[ielem][i] << " ";
+                cout << elementsNode[ielem][i] << " ";
             cout << endl;
         }
     }
+
+    // Calculate all the elements that are attached to a node
+    //    std::vector<std::shared_ptr<ChNodeFEAbase>> myvector;
+    //    myvector.resize(mesh->GetNnodes());
+    //    NodeNeighborElement.resize(mesh->GetNnodes());
+    //    for (int i = 0; i < mesh->GetNnodes(); i++) {
+    //        myvector[i] = std::dynamic_pointer_cast<ChNodeFEAbase>(mesh->GetNode(i));
+    //    }
+    //    for (int iele = 0; iele < mesh->GetNelements(); iele++) {
+    //        auto element = (mesh->GetElement(iele));
+    //        int nodeOrder[] = {0, 1, 2, 3};
+    //        for (int myNodeN = 0; myNodeN < 4; myNodeN++) {
+    //            auto nodeA = (element->GetNodeN(nodeOrder[myNodeN]));
+    //            std::vector<std::shared_ptr<ChNodeFEAbase>>::iterator it;
+    //            it = find(myvector.begin(), myvector.end(), nodeA);
+    //            if (it == myvector.end()) {
+    //                // name not in vector
+    //            } else {
+    //                auto index = std::distance(myvector.begin(), it);
+    //                NodeNeighborElement[index].push_back(iele);
+    //                printf("[%d][%d], ", index, iele);
+    //            }
+    //        }
+    //        printf("\n");
+    //    }
 }
 
 }  // end namespace fea
