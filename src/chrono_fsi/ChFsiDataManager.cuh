@@ -287,7 +287,7 @@ class FsiGeneralData {
 
   // BCE
   thrust::device_vector<Real3> rigidSPH_MeshPos_LRF_D;
-  thrust::device_vector<Real2> FlexSPH_MeshPos_LRF_D;
+  thrust::device_vector<Real3> FlexSPH_MeshPos_LRF_D;
 
   thrust::device_vector<uint> rigidIdentifierD;
   thrust::device_vector<uint> FlexIdentifierD;

@@ -471,43 +471,6 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // Add the mesh to the system
     mphysicalSystem.Add(my_mesh);
 
-    // ----------------------------------
-    // Perform a dynamic time integration
-    // ----------------------------------
-
-    // Mark completion of system construction
-
-    //    auto nodeA = std::make_shared<ChNodeFEAxyzD>(ChVector<>(0, -byDim / 2, 0), ChVector<>(1, 0, 0));
-    //    auto nodeB = std::make_shared<ChNodeFEAxyzD>(ChVector<>(0, byDim / 2, 0), ChVector<>(1, 0, 0));
-    //    auto nodeC = std::make_shared<ChNodeFEAxyzD>(ChVector<>(0, byDim / 2, bzDim / 4), ChVector<>(1, 0, 0));
-    //    auto nodeD = std::make_shared<ChNodeFEAxyzD>(ChVector<>(0, -byDim / 2, bzDim / 4), ChVector<>(1, 0, 0));
-    //    nodeA->SetMass(0);
-    //    nodeB->SetMass(0);
-    //    nodeA->SetFixed(true);
-    //    nodeB->SetFixed(true);
-    //    nodeC->SetMass(0);
-    //    nodeD->SetMass(0);
-    //    my_mesh->AddNode(nodeA);
-    //    my_mesh->AddNode(nodeB);
-    //    my_mesh->AddNode(nodeC);
-    //    my_mesh->AddNode(nodeD);
-    //    //    nodeD->SetForce(ChVector<>(1.0, 0, 0));
-    //
-    //    double rho = 500;
-    //    ChVector<> E(2.1e7, 2.1e7, 2.1e7);
-    //    ChVector<> nu(0.3, 0.3, 0.3);
-    //    ChVector<> G(8.0769231e6, 8.0769231e6, 8.0769231e6);
-    //    auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu, G);
-    //    auto element = std::make_shared<ChElementShellANCF>();
-    //    element->SetNodes(nodeA, nodeB, nodeC, nodeD);
-    //    element->SetDimensions(byDim, bzDim / 2);
-    //    element->AddLayer(0.01, 0 * CH_C_DEG_TO_RAD, mat);
-    //    element->SetAlphaDamp(0.0);    // Structural damping for this element
-    //    element->SetGravityOn(false);  // turn internal gravitational force calculation off
-    //
-    //    my_mesh->AddElement(element);
-    //    mphysicalSystem.Add(my_mesh);
-
     std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* FSI_Shells = myFsiSystem.GetFsiShellsPtr();
 
     chrono::fsi::utils::AddBCE_ShellANCF(myFsiSystem.GetDataManager(), paramsH, FSI_Shells, my_mesh);
@@ -544,8 +507,8 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
         chrono::fsi::utils::PrintToParaViewFile(
             myFsiSystem.GetDataManager()->sphMarkersD2.posRadD, myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
             myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
-            myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray, data_folder);
-
+            myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
+            myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, data_folder);
 #ifdef AddCylinder
         char SaveAsRigidObjVTK[256];  // The filename buffer.
         static int RigidCounter = 0;

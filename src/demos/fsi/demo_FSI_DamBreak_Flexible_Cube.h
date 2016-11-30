@@ -46,6 +46,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->sizeScale = 1;  // don't change it.
     paramsH->HSML = 0.1;
     paramsH->MULT_INITSPACE = 1.0;
+    paramsH->MULT_INITSPACE_Shells = 0.5;
     paramsH->epsMinMarkersDis = .01;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
@@ -70,7 +71,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->Co_number = 1;                   // 0.2 works well for most cases
     paramsH->dT_Max = 0.01;  // This is problem dependent should set by the user based on characteristic time step
 
-    paramsH->dT = 1e-3;
+    paramsH->dT = 5e-3;
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;  // I don't know what is kdT

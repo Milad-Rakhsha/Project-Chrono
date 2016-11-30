@@ -64,13 +64,14 @@ __global__ void Populate_RigidSPH_MeshPos_LRF_kernel(Real3* rigidSPH_MeshPos_LRF
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
-__global__ void Populate_FlexSPH_MeshPos_LRF_kernel(Real2* FlexSPH_MeshPos_LRF_D,
+__global__ void Populate_FlexSPH_MeshPos_LRF_kernel(Real3* FlexSPH_MeshPos_LRF_D,
                                                     Real3* posRadD,
                                                     uint* FlexIdentifierD,
                                                     Real3* posFlex_fsiBodies_nA_D,
                                                     Real3* posFlex_fsiBodies_nB_D,
                                                     Real3* posFlex_fsiBodies_nC_D,
-                                                    Real3* posFlex_fsiBodies_nD_D) {
+                                                    Real3* posFlex_fsiBodies_nD_D,
+                                                    Real Spacing) {
   uint index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index >= numObjectsD.numFlex_SphMarkers) {
     return;
@@ -95,23 +96,27 @@ __global__ void Populate_FlexSPH_MeshPos_LRF_kernel(Real2* FlexSPH_MeshPos_LRF_D
   Real3 y_dir = (posFlex_fsiBodies_nD_D[FlexIndex] - posFlex_fsiBodies_nA_D[FlexIndex] +
                  (posFlex_fsiBodies_nC_D[FlexIndex] - posFlex_fsiBodies_nB_D[FlexIndex]));
 
+  Real3 Normal = normalize(cross(x_dir, y_dir));
+  Real zSide;
+
+  //  if (dot(Normal , dist3) > 1e-8)
+  //    zSide = 1.0;
+  //  else if (dot(Normal, dist3) < -1e-8)
+  //    zSide = -1.0;
+  //  else
+  //    zSide = 0.0;
+
+  zSide = dot(Normal, dist3) / Spacing;
+
   Real dx = dot(dist3, x_dir) / length(x_dir);
   Real dy = dot(dist3, y_dir) / length(y_dir);
+  printf(" FlexMarkerIndex:%d dist3=%f,%f,%f, normal= %f,%f,%f, zside= %f\n", FlexMarkerIndex, dist3.x, dist3.y,
+         dist3.z, Normal.x, Normal.y, Normal.z, zSide);
 
-  FlexSPH_MeshPos_LRF_D[index] = mR2(dx / Shell_x, dy / Shell_y);
-
-  //  Real4 N_shell = Shells_ShapeFunctions(FlexSPH_MeshPos_LRF_D[index].x, FlexSPH_MeshPos_LRF_D[index].y);
-  //  Real NA = N_shell.x;
-  //  Real NB = N_shell.y;
-  //  Real NC = N_shell.z;
-  //  Real ND = N_shell.w;
-  //
-  //  printf("N_ index=%d, FlexIndex=%d = FlexMarkerIndex=%d, %f,%f,%f,%f-center=%f,%f,%f, pos=%f,%f,%f\n", index,
-  //         FlexIndex, FlexMarkerIndex, NA, NB, NC, ND, Shell_center.x, Shell_center.y, Shell_center.z,
-  //         posRadD[FlexMarkerIndex].x, posRadD[FlexMarkerIndex].y, posRadD[FlexMarkerIndex].z);
+  FlexSPH_MeshPos_LRF_D[index] = mR3(dx / Shell_x, dy / Shell_y, zSide);
 }
 //--------------------------------------------------------------------------------------------------------------------------------
-__global__ void Calc_Flex_FSI_ForcesD(Real2* FlexSPH_MeshPos_LRF_D,
+__global__ void Calc_Flex_FSI_ForcesD(Real3* FlexSPH_MeshPos_LRF_D,
                                       uint* FlexIdentifierD,
                                       Real4* derivVelRhoD,
                                       Real3* Flex_FSI_ForcesD_nA,
@@ -359,7 +364,7 @@ __global__ void UpdateRigidMarkersPositionVelocityD(Real3* posRadD,
 //    Real3 *posFlex_fsiBodies_nC_D, Real3 *posFlex_fsiBodies_nD_D
 
 __global__ void UpdateFlexMarkersPositionVelocityAccD(Real3* posRadD,
-                                                      Real2* FlexSPH_MeshPos_LRF_D,
+                                                      Real3* FlexSPH_MeshPos_LRF_D,
                                                       Real3* velMasD,
                                                       const uint* FlexIdentifierD,
                                                       Real3* posFlex_fsiBodies_nA_D,
@@ -370,7 +375,8 @@ __global__ void UpdateFlexMarkersPositionVelocityAccD(Real3* posRadD,
                                                       Real3* VelFlex_fsiBodies_nA_D,
                                                       Real3* VelFlex_fsiBodies_nB_D,
                                                       Real3* VelFlex_fsiBodies_nC_D,
-                                                      Real3* VelFlex_fsiBodies_nD_D) {
+                                                      Real3* VelFlex_fsiBodies_nD_D,
+                                                      Real Spacing) {
   uint index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index >= numObjectsD.numFlex_SphMarkers) {
     return;
@@ -384,20 +390,24 @@ __global__ void UpdateFlexMarkersPositionVelocityAccD(Real3* posRadD,
 
   Real3 Shell_center = 0.25 * (posFlex_fsiBodies_nA_D[FlexIndex] + posFlex_fsiBodies_nB_D[FlexIndex] +
                                posFlex_fsiBodies_nC_D[FlexIndex] + posFlex_fsiBodies_nD_D[FlexIndex]);
-  //  printf(" %d center= %f,%f,%f\n", FlexMarkerIndex, Shell_center.x, Shell_center.y, Shell_center.z);
-  //  Real3 dist3 = FlexSPH_MeshPos_LRF_D[index];
-  //  printf(" %d dist3= %f,%f,%f\n", FlexMarkerIndex, dist3.x, dist3.y, dist3.z);
 
-  Real Shell_x = 0.25 * (length(posFlex_fsiBodies_nB_D[FlexIndex] - posFlex_fsiBodies_nA_D[FlexIndex]) +
-                         length(posFlex_fsiBodies_nD_D[FlexIndex] - posFlex_fsiBodies_nC_D[FlexIndex]));
+  Real3 dist3 = FlexSPH_MeshPos_LRF_D[index] - Shell_center;
+  //  printf(" %d dist3= %f,%f,%f center= %f,%f,%f\n", FlexMarkerIndex, dist3.x, dist3.y, dist3.z, Shell_center.x,
+  //         Shell_center.y, Shell_center.z);
 
-  Real Shell_y = 0.25 * (length(posFlex_fsiBodies_nD_D[FlexIndex] - posFlex_fsiBodies_nA_D[FlexIndex]) +
-                         length(posFlex_fsiBodies_nC_D[FlexIndex] - posFlex_fsiBodies_nB_D[FlexIndex]));
+  Real3 x_dir = ((posFlex_fsiBodies_nB_D[FlexIndex] - posFlex_fsiBodies_nA_D[FlexIndex]) +
+                 (posFlex_fsiBodies_nC_D[FlexIndex] - posFlex_fsiBodies_nD_D[FlexIndex]));
+
+  Real3 y_dir = ((posFlex_fsiBodies_nD_D[FlexIndex] - posFlex_fsiBodies_nA_D[FlexIndex]) +
+                 (posFlex_fsiBodies_nC_D[FlexIndex] - posFlex_fsiBodies_nB_D[FlexIndex]));
+
+  Real3 Normal = normalize(cross(x_dir, y_dir));
   //  printf(" %d Shell (x,y)= %f,%f\n", FlexMarkerIndex, Shell_x, Shell_y);
-
-  //  Real2 FlexSPH_MeshPos_Natural = mR2(dist3.x / Shell_x, dist3.y / Shell_y);
-  //  printf(" %d FlexSPH_MeshPos_Natural= %f,%f\n", FlexMarkerIndex, FlexSPH_MeshPos_Natural.x,
-  //  FlexSPH_MeshPos_Natural.y);
+  //
+  //  Real2 FlexSPH_MeshPos_Natural = mR2(dist3.x / length(x_dir) / 4.0, dist3.y / length(y_dir) / 4.0);
+  //
+  //  printf(" %d FlexSPH_MeshPos_Natural= %f,%f,%f\n", FlexMarkerIndex, FlexSPH_MeshPos_Natural.x,
+  //         FlexSPH_MeshPos_Natural.y, FlexSPH_MeshPos_LRF_D[index].z);
 
   Real4 N_shell = Shells_ShapeFunctions(FlexSPH_MeshPos_LRF_D[index].x, FlexSPH_MeshPos_LRF_D[index].y);
   Real NA = N_shell.x;
@@ -406,8 +416,8 @@ __global__ void UpdateFlexMarkersPositionVelocityAccD(Real3* posRadD,
   Real ND = N_shell.w;
 
   posRadD[FlexMarkerIndex] = NA * posFlex_fsiBodies_nA_D[FlexIndex] + NB * posFlex_fsiBodies_nB_D[FlexIndex] +
-                             NC * posFlex_fsiBodies_nC_D[FlexIndex] + ND * posFlex_fsiBodies_nD_D[FlexIndex];
-  //  printf("posRadD= %f,%f,%f,%f\n", NA, NB, NC, ND);
+                             NC * posFlex_fsiBodies_nC_D[FlexIndex] + ND * posFlex_fsiBodies_nD_D[FlexIndex] +
+                             Normal * FlexSPH_MeshPos_LRF_D[index].z * Spacing;
 
   velMasD[FlexMarkerIndex] = NA * VelFlex_fsiBodies_nA_D[FlexIndex] + NB * VelFlex_fsiBodies_nB_D[FlexIndex] +
                              NC * VelFlex_fsiBodies_nC_D[FlexIndex] + ND * VelFlex_fsiBodies_nD_D[FlexIndex];
@@ -563,10 +573,10 @@ void ChBce::Populate_FlexSPH_MeshPos_LRF(SphMarkerDataD* sphMarkersD, FsiShellsD
   computeGridSize(numObjectsH->numFlex_SphMarkers, 256, nBlocks_numFlex_SphMarkers, nThreads_SphMarkers);
 
   Populate_FlexSPH_MeshPos_LRF_kernel<<<nBlocks_numFlex_SphMarkers, nThreads_SphMarkers>>>(
-      mR2CAST(fsiGeneralData->FlexSPH_MeshPos_LRF_D), mR3CAST(sphMarkersD->posRadD),
+      mR3CAST(fsiGeneralData->FlexSPH_MeshPos_LRF_D), mR3CAST(sphMarkersD->posRadD),
       U1CAST(fsiGeneralData->FlexIdentifierD), mR3CAST(fsiShellsD->posFlex_fsiBodies_nA_D),
       mR3CAST(fsiShellsD->posFlex_fsiBodies_nB_D), mR3CAST(fsiShellsD->posFlex_fsiBodies_nC_D),
-      mR3CAST(fsiShellsD->posFlex_fsiBodies_nD_D));
+      mR3CAST(fsiShellsD->posFlex_fsiBodies_nD_D), paramsH->HSML * paramsH->MULT_INITSPACE_Shells);
 
   cudaThreadSynchronize();
   cudaCheckError();
@@ -761,7 +771,7 @@ void ChBce::Flex_Forces(SphMarkerDataD* sphMarkersD, FsiShellsDataD* fsiShellsD)
   //  Real2 *FlexSPH_MeshPos_LRF_D, uint *FlexIdentifierD, Real4 *derivVelRhoD,
 
   Calc_Flex_FSI_ForcesD<<<nBlocks_numFlex_SphMarkers, nThreads_SphMarkers>>>(
-      mR2CAST(fsiGeneralData->FlexSPH_MeshPos_LRF_D), U1CAST(fsiGeneralData->FlexIdentifierD),
+      mR3CAST(fsiGeneralData->FlexSPH_MeshPos_LRF_D), U1CAST(fsiGeneralData->FlexIdentifierD),
       mR4CAST(fsiGeneralData->derivVelRhoD), mR3CAST(fsiGeneralData->Flex_FSI_ForcesD_nA),
       mR3CAST(fsiGeneralData->Flex_FSI_ForcesD_nB), mR3CAST(fsiGeneralData->Flex_FSI_ForcesD_nC),
       mR3CAST(fsiGeneralData->Flex_FSI_ForcesD_nD));
@@ -805,12 +815,12 @@ void ChBce::UpdateFlexMarkersPositionVelocity(SphMarkerDataD* sphMarkersD, FsiSh
 
   computeGridSize(numObjectsH->numFlex_SphMarkers, 256, nBlocks_numFlex_SphMarkers, nThreads_SphMarkers);
   UpdateFlexMarkersPositionVelocityAccD<<<nBlocks_numFlex_SphMarkers, nThreads_SphMarkers>>>(
-      mR3CAST(sphMarkersD->posRadD), mR2CAST(fsiGeneralData->FlexSPH_MeshPos_LRF_D), mR3CAST(sphMarkersD->velMasD),
+      mR3CAST(sphMarkersD->posRadD), mR3CAST(fsiGeneralData->FlexSPH_MeshPos_LRF_D), mR3CAST(sphMarkersD->velMasD),
       U1CAST(fsiGeneralData->FlexIdentifierD), mR3CAST(fsiShellsD->posFlex_fsiBodies_nA_D),
       mR3CAST(fsiShellsD->posFlex_fsiBodies_nB_D), mR3CAST(fsiShellsD->posFlex_fsiBodies_nC_D),
       mR3CAST(fsiShellsD->posFlex_fsiBodies_nD_D), mR3CAST(fsiShellsD->velFlex_fsiBodies_nA_D),
       mR3CAST(fsiShellsD->velFlex_fsiBodies_nB_D), mR3CAST(fsiShellsD->velFlex_fsiBodies_nC_D),
-      mR3CAST(fsiShellsD->velFlex_fsiBodies_nD_D));
+      mR3CAST(fsiShellsD->velFlex_fsiBodies_nD_D), paramsH->HSML * paramsH->MULT_INITSPACE_Shells);
   cudaThreadSynchronize();
   cudaCheckError();
 }

@@ -94,12 +94,12 @@ typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 Real bxDim = 3;
-Real byDim = 0.2;
+Real byDim = 1;
 Real bzDim = 2;
 
-Real fxDim = 1;
+Real fxDim = 1.0;
 Real fyDim = byDim;
-Real fzDim = 1.8;
+Real fzDim = 1.0;
 
 void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
 void writeMesh(std::shared_ptr<ChMesh> my_mesh, std::string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement);
@@ -174,8 +174,9 @@ int main(int argc, char* argv[]) {
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
     utils::GridSampler<> sampler(initSpace0);
 
-    chrono::fsi::Real3 boxCenter = chrono::fsi::mR3(-bxDim / 2 + fxDim / 2, 0 * initSpace0, fzDim / 2 + 1 * initSpace0);
-    chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
+    chrono::fsi::Real3 boxCenter =
+        chrono::fsi::mR3(-bxDim / 2 + initSpace0 + fxDim / 2, 0 * initSpace0, fzDim / 2 + 1 * initSpace0);
+    chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2 - initSpace0, fzDim / 2);
     utils::Generator::PointVector points = sampler.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter),
                                                              fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim));
     int numPart = points.size();
@@ -245,7 +246,8 @@ int main(int argc, char* argv[]) {
 #endif
 
     mphysicalSystem.SetupInitial();
-
+    ChVector<> test =
+        std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(0))->EvaluateSectionStrains();
     mphysicalSystem.SetSolverType(ChSystem::SOLVER_MINRES);  // <- NEEDED because other solvers can't
                                                              // handle stiffness matrices
     chrono::ChSolverMINRES* msolver = (chrono::ChSolverMINRES*)mphysicalSystem.GetSolverSpeed();
@@ -264,8 +266,9 @@ int main(int argc, char* argv[]) {
 
     int stepEnd = int(paramsH->tFinal / paramsH->dT);
     stepEnd = 1000000;
-    cout << "Before saving mesh size: " << my_mesh->GetNelements() << endl;
     SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, my_mesh, NodeNeighborElementMesh, paramsH, 0, mTime);
+    std::cout << "referenceArraySize " << myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA.size()
+              << "\n";
 
     Real time = 0;
     Real Global_max_dT = paramsH->dT_Max;
@@ -279,11 +282,6 @@ int main(int argc, char* argv[]) {
             paramsH->dT_Max = std::min(Global_max_dT, max_allowable_dt);
         else
             paramsH->dT_Max = Global_max_dT;
-
-        //        std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(my_mesh->GetNnodes() - 1))
-        //            ->SetForce(ChVector<>(+5, 0, 0));
-        //        std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(my_mesh->GetNnodes() - 23))
-        //            ->SetForce(ChVector<>(+5, 0, 0));
 
         printf("next_frame is:%d,  max dt is set to %f\n", next_frame, paramsH->dT_Max);
 
@@ -334,42 +332,9 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     ground->GetCollisionModel()->ClearModel();
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
 
-    // Bottom wall
-    ChVector<> sizeBottom(bxDim / 2 + 3 * initSpace0, byDim / 2 + 3 * initSpace0, 2 * initSpace0);
-    ChVector<> posBottom(0, 0, -2 * initSpace0);
-    ChVector<> posTop(0, 0, bzDim + 2 * initSpace0);
-
-    // left and right Wall
-    ChVector<> size_YZ(2 * initSpace0, byDim / 2 + 3 * initSpace0, bzDim / 2);
-    ChVector<> pos_xp(bxDim / 2 + initSpace0, 0.0, bzDim / 2 + 1 * initSpace0);
-    ChVector<> pos_xn(-bxDim / 2 - 3 * initSpace0, 0.0, bzDim / 2 + 1 * initSpace0);
-
-    // Front and back Wall
-    ChVector<> size_XZ(bxDim / 2, 2 * initSpace0, bzDim / 2);
-    ChVector<> pos_yp(0, byDim / 2 + initSpace0, bzDim / 2 + 1 * initSpace0);
-    ChVector<> pos_yn(0, -byDim / 2 - 3 * initSpace0, bzDim / 2 + 1 * initSpace0);
-
-    chrono::utils::AddBoxGeometry(ground.get(), sizeBottom, posBottom, chrono::QUNIT, true);
-    chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xp, chrono::QUNIT, true);
-    chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xn, chrono::QUNIT, true);
-    chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yp, chrono::QUNIT, true);
-    chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yn, chrono::QUNIT, true);
     mphysicalSystem.AddBody(ground);
 
 #if haveFluid
-
-    /*================== Walls =================*/
-
-    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posBottom, chrono::QUNIT, sizeBottom);
-    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT, sizeBottom);
-
-    chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xp, chrono::QUNIT, size_YZ);
-
-    chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xn, chrono::QUNIT, size_YZ);
-
-    chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yp, chrono::QUNIT, size_XZ);
-
-    chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT, size_XZ);
 
     /*================== Flexible-Body =================*/
 
@@ -384,8 +349,9 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     std::vector<int> BC_NODES;
 
     double rho = 500;
-    double E = 1e6;
+    double E = 1e8;
     double nu = 0.3;
+    double dz = 0.1;
     auto material = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
     try {
         ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Plate.mesh").c_str(), material,
@@ -395,10 +361,26 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         GetLog() << myerr.what();
         return;
     }
-    for (int node = 0; node < BC_NODES.size(); node++) {
+
+    for (int node = 0; node < my_mesh->GetNnodes(); node++) {
         auto FixedNode = std::make_shared<ChNodeFEAxyzD>();
-        FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(BC_NODES[node]));
-        FixedNode->SetFixed(true);
+        FixedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node));
+        if (FixedNode->GetPos().x < 0.05) {
+            printf("Fixing node: %d\n", node);
+            FixedNode->SetFixed(true);
+        }
+    }
+
+    double TotalNumNodes = my_mesh->GetNnodes();
+    double TotalNumElements = my_mesh->GetNelements();
+    for (int ele = 0; ele < TotalNumElements; ele++) {
+        auto element = std::make_shared<ChElementShellANCF>();
+        element = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(ele));
+        // Add a single layers with a fiber angle of 0 degrees.
+        element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, material);
+        // Set other element properties
+        element->SetAlphaDamp(0.05);   // Structural damping for this element
+        element->SetGravityOn(false);  // gravitational forces
     }
 
     // Add the mesh to the system
@@ -440,7 +422,8 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
         chrono::fsi::utils::PrintToParaViewFile(
             myFsiSystem.GetDataManager()->sphMarkersD2.posRadD, myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
             myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
-            myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray, data_folder);
+            myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
+            myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, data_folder);
 
 #ifdef AddCylinder
         char SaveAsRigidObjVTK[256];  // The filename buffer.
@@ -478,8 +461,6 @@ void writeMesh(std::shared_ptr<ChMesh> my_mesh,
                std::vector<std::vector<int>>& NodeNeighborElement) {
     utils::CSV_writer MESH(" ");
     NodeNeighborElement.resize(my_mesh->GetNnodes());
-    printf("writing   %d, mesh_size=%d\n", NodeNeighborElement.size(), my_mesh->GetNnodes());
-
     MESH.stream().setf(std::ios::scientific | std::ios::showpos);
     MESH.stream().precision(6);
     //    out << my_system.GetChTime() << nodetip->GetPos() << std::endl;
@@ -545,7 +526,6 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
         double dx, dy;
         for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
             int myelemInx = NodeNeighborElement[i][j];
-            printf("writing NodeNeighborElement[%d][%d]=%d\n ", i, j, myelemInx);
             std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->EvaluateDeflection(scalar);
             dx = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
@@ -555,6 +535,26 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
 
         output << areaAve / myarea << "\n";
     }
+
+    output << "\nVECTORS Strains float\n";
+    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
+        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+        double myarea = 0;
+        double dx, dy;
+        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
+            int myelemInx = NodeNeighborElement[i][j];
+            ChVector<> StrainVector(0.0);
+            StrainVector = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
+                               ->EvaluateSectionStrains();
+            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
+            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
+            myarea += dx * dy / NodeNeighborElement[i].size();
+            areaAve1 += StrainVector.x * dx * dy / NodeNeighborElement[i].size();
+            areaAve2 += StrainVector.y * dx * dy / NodeNeighborElement[i].size();
+            areaAve3 += StrainVector.z * dx * dy / NodeNeighborElement[i].size();
+        }
+        output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
+    }
     std::vector<ChVector<>> MyResult;
     output << "\nVECTORS ep12_ratio float\n";
     for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
@@ -563,7 +563,6 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
         double dx, dy;
         for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
             int myelemInx = NodeNeighborElement[i][j];
-            printf("Trying to access NodeNeighborElement[%d][%d]=%d\n ", i, j, myelemInx);
             MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
                            ->GetPrincipalStrains();
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
@@ -584,99 +583,6 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
-    output << "\nVECTORS E_Princ_Dir1 float\n";
-    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
-        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
-        double myarea = 0;
-        double dx, dy;
-        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
-            int myelemInx = NodeNeighborElement[i][j];
-            MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
-                           ->GetPrincipalStrains();
-            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
-            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve1 += MyResult[1].x * dx * dy / NodeNeighborElement[i].size();
-            areaAve2 += MyResult[1].y * dx * dy / NodeNeighborElement[i].size();
-            areaAve3 += MyResult[1].z * dx * dy / NodeNeighborElement[i].size();
-        }
-        output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
-    }
-    output << "\nVECTORS E_Princ_Dir2 float\n";
-    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
-        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
-        double myarea = 0;
-        double dx, dy;
-        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
-            int myelemInx = NodeNeighborElement[i][j];
-            MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
-                           ->GetPrincipalStrains();
-            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
-            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve1 += MyResult[2].x * dx * dy / NodeNeighborElement[i].size();
-            areaAve2 += MyResult[2].y * dx * dy / NodeNeighborElement[i].size();
-            areaAve3 += MyResult[2].z * dx * dy / NodeNeighborElement[i].size();
-        }
-        output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
-    }
-
-    output << "\nVECTORS sigma12_theta float\n";
-    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
-        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
-        double myarea = 0;
-        double dx, dy;
-        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
-            int myelemInx = NodeNeighborElement[i][j];
-            MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
-                           ->GetPrincipalStresses();
-            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
-            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve1 += MyResult[0].x * dx * dy / NodeNeighborElement[i].size();
-            areaAve2 += MyResult[0].y * dx * dy / NodeNeighborElement[i].size();
-            areaAve3 += MyResult[0].z * dx * dy / NodeNeighborElement[i].size();
-        }
-        output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
-    }
-    output << "\nVECTORS S_Princ_Dir1 float\n";
-    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
-        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
-        double myarea = 0;
-        double dx, dy;
-        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
-            int myelemInx = NodeNeighborElement[i][j];
-            MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
-                           ->GetPrincipalStresses();
-            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
-            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve1 += MyResult[1].x * dx * dy / NodeNeighborElement[i].size();
-            areaAve2 += MyResult[1].y * dx * dy / NodeNeighborElement[i].size();
-            areaAve3 += MyResult[1].z * dx * dy / NodeNeighborElement[i].size();
-        }
-        output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
-    }
-
-    output << "\nVECTORS S_Princ_Dir2 float\n";
-    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
-        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
-        double myarea = 0;
-        double dx, dy;
-        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
-            int myelemInx = NodeNeighborElement[i][j];
-            MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
-                           ->GetPrincipalStresses();
-            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
-            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve1 += MyResult[2].x * dx * dy / NodeNeighborElement[i].size();
-            areaAve2 += MyResult[2].y * dx * dy / NodeNeighborElement[i].size();
-            areaAve3 += MyResult[2].z * dx * dy / NodeNeighborElement[i].size();
-        }
-        output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
-    }
-
     output.close();
 }
 void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]) {

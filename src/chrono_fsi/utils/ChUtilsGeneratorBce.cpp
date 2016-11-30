@@ -129,30 +129,31 @@ void CreateBCE_On_shell(thrust::host_vector<Real3>& posRadBCE,
 
   int nFX = ceil(dx / (initSpace0));
   int nFY = ceil(dy / (initSpace0));
-  int nFZ = 0;
+  //  int nFZ = 1;
 
   Real initSpaceX = dx / nFX;
   Real initSpaceY = dy / nFY;
-  Real initSpaceZ = initSpace0 / 2;
+  Real initSpaceZ = paramsH->HSML * paramsH->MULT_INITSPACE_Shells;
 
   int2 iBound = mI2(-nFX, nFX);
   int2 jBound = mI2(-nFY, nFY);
-  int2 kBound = mI2(-nFZ, nFZ);
+  //  int2 kBound = mI2(0, 2);
+  int2 kBound = mI2(-2, 0);
 
   for (int i = iBound.x; i <= iBound.y; i++) {
     for (int j = jBound.x; j <= jBound.y; j++) {
       for (int k = kBound.x; k <= kBound.y; k++) {
-        Real3 relMarkerPos = mR3(i * initSpaceX, j * initSpaceY, k * initSpaceZ);
+        Real3 relMarkerPos = mR3(i * initSpaceX, j * initSpaceY, k);
+        //        if (k == 0)
+        //          continue;
+        //        printf(" adding relMarkerPos:%f,%f,%f\n", relMarkerPos.x, relMarkerPos.y, relMarkerPos.z);
 
-        if ((relMarkerPos.x < paramsH->cMin.x || relMarkerPos.x > paramsH->cMax.x) ||
-            (relMarkerPos.y < paramsH->cMin.y || relMarkerPos.y > paramsH->cMax.y) ||
-            (relMarkerPos.z < paramsH->cMin.z || relMarkerPos.z > paramsH->cMax.z)) {
-          continue;
-        }
         posRadBCE.push_back(relMarkerPos);
       }
     }
   }
+
+  printf(" posRadBCE.size()in CreateBCE_On_shell= :%d\n", posRadBCE.size());
 }
 // =============================================================================
 

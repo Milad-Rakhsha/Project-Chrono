@@ -646,30 +646,30 @@ void ChMeshFileLoader::ANCFShellFromGMFFile(std::shared_ptr<ChMesh> mesh,
         }
     }
 
-    // Calculate all the elements that are attached to a node
-    //    std::vector<std::shared_ptr<ChNodeFEAbase>> myvector;
-    //    myvector.resize(mesh->GetNnodes());
-    //    NodeNeighborElement.resize(mesh->GetNnodes());
-    //    for (int i = 0; i < mesh->GetNnodes(); i++) {
-    //        myvector[i] = std::dynamic_pointer_cast<ChNodeFEAbase>(mesh->GetNode(i));
-    //    }
-    //    for (int iele = 0; iele < mesh->GetNelements(); iele++) {
-    //        auto element = (mesh->GetElement(iele));
-    //        int nodeOrder[] = {0, 1, 2, 3};
-    //        for (int myNodeN = 0; myNodeN < 4; myNodeN++) {
-    //            auto nodeA = (element->GetNodeN(nodeOrder[myNodeN]));
-    //            std::vector<std::shared_ptr<ChNodeFEAbase>>::iterator it;
-    //            it = find(myvector.begin(), myvector.end(), nodeA);
-    //            if (it == myvector.end()) {
-    //                // name not in vector
-    //            } else {
-    //                auto index = std::distance(myvector.begin(), it);
-    //                NodeNeighborElement[index].push_back(iele);
-    //                printf("[%d][%d], ", index, iele);
-    //            }
-    //        }
-    //        printf("\n");
-    //    }
+    //    Calculate all the elements that are attached to a node
+    std::vector<std::shared_ptr<ChNodeFEAbase>> myvector;
+    myvector.resize(mesh->GetNnodes());
+    NodeNeighborElement.resize(mesh->GetNnodes());
+    for (int i = 0; i < mesh->GetNnodes(); i++) {
+        myvector[i] = std::dynamic_pointer_cast<ChNodeFEAbase>(mesh->GetNode(i));
+    }
+    for (int iele = 0; iele < mesh->GetNelements(); iele++) {
+        auto element = (mesh->GetElement(iele));
+        int nodeOrder[] = {0, 1, 2, 3};
+        for (int myNodeN = 0; myNodeN < 4; myNodeN++) {
+            auto nodeA = (element->GetNodeN(nodeOrder[myNodeN]));
+            std::vector<std::shared_ptr<ChNodeFEAbase>>::iterator it;
+            it = find(myvector.begin(), myvector.end(), nodeA);
+            if (it == myvector.end()) {
+                // name not in vector
+            } else {
+                auto index = std::distance(myvector.begin(), it);
+                NodeNeighborElement[index].push_back(iele);
+                printf("[%d][%d], ", index, iele);
+            }
+        }
+        printf("\n");
+    }
 }
 
 }  // end namespace fea

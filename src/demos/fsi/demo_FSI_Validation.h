@@ -46,6 +46,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->sizeScale = 1;  // don't change it.
     paramsH->HSML = 0.0025;
     paramsH->MULT_INITSPACE = 1.0;
+    paramsH->MULT_INITSPACE_Shells = 1.0;
     paramsH->epsMinMarkersDis = .01;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);

@@ -20,17 +20,18 @@ enum PPE_SolutionType { IterativeJacobi, SPARSE_MATRIX_JACOBI };
  * 		The description of each variable is in front of it
  */
 struct SimParams {
-  int3 gridSize;          /* dx, dy, dz distances between particle centers. */
-  Real3 worldOrigin;      /* */
-  Real3 cellSize;         /* */
-  uint numBodies;         /* */
-  Real3 boxDims;          /* Dimensions of the domain. How big is the box that the domain is in. */
-  Real sizeScale;         /* Useless (Don't change it !) */
-  Real HSML;              /* Interaction Radius. (or h) */
-  Real MULT_INITSPACE;    /* Multiplier to hsml to determine the initial separation of the fluid particles and the fixed
-      separation for the boundary particles. This means that the separation will always be a
-      multiple of hsml. Default value = 1.0. */
-  Real epsMinMarkersDis;  // epsilon mult for minimum distance between markers (d_min = eps * HSML)
+  int3 gridSize;       /* dx, dy, dz distances between particle centers. */
+  Real3 worldOrigin;   /* */
+  Real3 cellSize;      /* */
+  uint numBodies;      /* */
+  Real3 boxDims;       /* Dimensions of the domain. How big is the box that the domain is in. */
+  Real sizeScale;      /* Useless (Don't change it !) */
+  Real HSML;           /* Interaction Radius. (or h) */
+  Real MULT_INITSPACE; /* Multiplier to hsml to determine the initial separation of the fluid particles and the fixed
+   separation for the boundary particles. This means that the separation will always be a
+   multiple of hsml. Default value = 1.0. */
+  Real MULT_INITSPACE_Shells;
+  Real epsMinMarkersDis;   // epsilon mult for minimum distance between markers (d_min = eps * HSML)
   int NUM_BOUNDARY_LAYERS; /*  Number of particles layers that will be used in the boundary. Default value = 3. */
   Real toleranceZone; /* Helps determine the particles that are in the domain but are outside the boundaries, so they
    are not considered fluid particles and are dropped at the beginning of the simulation. */

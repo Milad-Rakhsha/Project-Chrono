@@ -56,6 +56,8 @@ void ChSystemFsi::Finalize() {
     bceWorker->Finalize(&(fsiData->sphMarkersD1), &(fsiData->fsiBodiesD1), &(fsiData->fsiShellsD));
     printf("\n\n ChSystemFsi::Finalize 3-fluidDynamics->Finalize..\n");
     fluidDynamics->Finalize();
+    std::cout << "referenceArraySize in 3-fluidDynamics->Finalize.. "
+              << GetDataManager()->fsiGeneralData.referenceArray.size() << "\n";
   }
 }
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -133,18 +135,18 @@ void ChSystemFsi::DoStepDynamics_FSI() {
 
 void ChSystemFsi::DoStepDynamics_FSI_Implicit() {
   fsiInterface->Copy_ChSystem_to_External();
-
+  printf("IntegrateIISPH\n");
   fluidDynamics->IntegrateIISPH(&(fsiData->sphMarkersD2), &(fsiData->fsiBodiesD2), &(fsiData->fsiShellsD));
-
   bceWorker->Rigid_Forces_Torques(&(fsiData->sphMarkersD2), &(fsiData->fsiBodiesD2));
   bceWorker->Flex_Forces(&(fsiData->sphMarkersD2), &(fsiData->fsiShellsD));
-
+  printf("DataTransfer\n");
   fsiInterface->Add_Rigid_ForceTorques_To_ChSystem();
   fsiInterface->Add_Flex_Forces_To_ChSystem();
 
   mTime += 1 * paramsH->dT;
-
+  printf("DoStepChronoSystem\n");
   DoStepChronoSystem(1 * paramsH->dT, mTime);
+  printf("DataTransfer\n");
   fsiInterface->Copy_fsiShells_ChSystem_to_FluidSystem(&(fsiData->fsiShellsD));
   fsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem(&(fsiData->fsiBodiesD2));
 
@@ -166,11 +168,6 @@ void ChSystemFsi::DoStepDynamics_ChronoRK2() {
 
 //--------------------------------------------------------------------------------------------------------------------------------
 void ChSystemFsi::FinalizeData() {
-  //  printf("ChSystemFsi::FinalizeData pos[%d]=%f,%f,%f, pos[%d]=%f,%f,%f\n", 22995,
-  //  fsiData->sphMarkersH.posRadH[22995].x,
-  //         fsiData->sphMarkersH.posRadH[22995].y, fsiData->sphMarkersH.posRadH[22995].z, 23054,
-  //         fsiData->sphMarkersH.posRadH[23054].x, fsiData->sphMarkersH.posRadH[23054].y,
-  //         fsiData->sphMarkersH.posRadH[23054].z);
   printf("\n\n fsiData->ResizeDataManager...\n");
   fsiData->ResizeDataManager();
   // Arman: very important: you cannot change the order of (1-3). Fix the issue
@@ -182,6 +179,7 @@ void ChSystemFsi::FinalizeData() {
   printf("\n\n fsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem()\n");
   fsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem(&(fsiData->fsiBodiesD1));  //(1)
   fsiInterface->Copy_fsiShells_ChSystem_to_FluidSystem(&(fsiData->fsiShellsD));   //(1)
+  std::cout << "referenceArraySize in FinalizeData " << GetDataManager()->fsiGeneralData.referenceArray.size() << "\n";
 
   fsiData->fsiBodiesD2 = fsiData->fsiBodiesD1;  //(2) construct midpoint rigid data
 }

@@ -171,23 +171,36 @@ void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
   chrono::ChVector<> nBa = shell->GetNodeB()->GetPos_dtdt();
   chrono::ChVector<> nCa = shell->GetNodeC()->GetPos_dtdt();
   chrono::ChVector<> nDa = shell->GetNodeD()->GetPos_dtdt();
-
+  printf(" posRadBCE.size()= :%d\n", posRadBCE.size());
   for (int i = 0; i < posRadBCE.size(); i++) {
     //    chrono::ChVector<> posGlob =
     chrono::ChVector<> pos_physical = ChFsiTypeConvert::Real3ToChVector(posRadBCE[i]);
     chrono::ChVector<> pos_natural = pos_physical * physic_to_natural;
     shell->ShapeFunctions(N, pos_natural.x, pos_natural.y, pos_natural.z);
-    chrono::ChVector<> Correct_Pos = N(0) * nAp + N(2) * nBp + N(4) * nCp + N(6) * nDp;
+    chrono::ChVector<> x_dir = (nBp - nAp + nCp - nDp);
+    chrono::ChVector<> y_dir = (nCp - nBp + nDp - nAp);
+    chrono::ChVector<> Normal;
+    Normal.Cross(x_dir, y_dir);
+    Normal.Normalize();
+    //    printf("GetNormalized :%f,%f,%f\n", Normal.x, Normal.y, Normal.z);
+
+    chrono::ChVector<> Correct_Pos = N(0) * nAp + N(2) * nBp + N(4) * nCp + N(6) * nDp +
+                                     Normal * pos_physical.z * paramsH->HSML * paramsH->MULT_INITSPACE_Shells;
+
+    if ((Correct_Pos.x < paramsH->cMin.x || Correct_Pos.x > paramsH->cMax.x) ||
+        (Correct_Pos.y < paramsH->cMin.y || Correct_Pos.y > paramsH->cMax.y) ||
+        (Correct_Pos.z < paramsH->cMin.z || Correct_Pos.z > paramsH->cMax.z)) {
+      continue;
+    }
+    //    printf("fsiData->sphMarkersH.posRadH.push_back :%f,%f,%f\n", Correct_Pos.x, Correct_Pos.y, Correct_Pos.z);
+
     fsiData->sphMarkersH.posRadH.push_back(ChFsiTypeConvert::ChVectorToReal3(Correct_Pos));
     chrono::ChVector<> Correct_Vel = N(0) * nAv + N(2) * nBv + N(4) * nCv + N(6) * nDv;
     Real3 v3 = ChFsiTypeConvert::ChVectorToReal3(Correct_Vel);
     fsiData->sphMarkersH.velMasH.push_back(v3);
     fsiData->sphMarkersH.rhoPresMuH.push_back(mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, type));
   }
-  //  printf("CreateBceGlobalMarkersFromBceLocalPos_ShellANCF pos[%d]=%f,%f,%f, pos[%d]=%f,%f,%f\n", 22995,
-  //         fsiData->sphMarkersH.posRadH[22995].x, fsiData->sphMarkersH.posRadH[22995].y,
-  //         fsiData->sphMarkersH.posRadH[22995].z, 23054, fsiData->sphMarkersH.posRadH[23054].x,
-  //         fsiData->sphMarkersH.posRadH[23054].y, fsiData->sphMarkersH.posRadH[23054].z);
+
   // ------------------------
   // Modify number of objects
   // ------------------------

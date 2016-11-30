@@ -617,7 +617,8 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
         chrono::fsi::utils::PrintToParaViewFile(
             myFsiSystem.GetDataManager()->sphMarkersD2.posRadD, myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
             myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
-            myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray, pov_dir_fluid);
+            myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
+            myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, pov_dir_fluid);
 
         // **** out mbd
         if (tStep / out_steps == 0) {

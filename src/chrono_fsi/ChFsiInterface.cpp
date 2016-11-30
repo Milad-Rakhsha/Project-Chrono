@@ -200,7 +200,7 @@ void ChFsiInterface::Copy_ChSystem_to_External() {
   int numBodies = mphysicalSystem->Get_bodylist()->size();
   auto bodyList = mphysicalSystem->Get_bodylist();
 
-  printf("\n\n bodyList.size()=%d \n", bodyList->size());
+  //  printf("\n\n bodyList.size()=%d \n", bodyList->size());
 
   if (chronoRigidBackup->pos_ChSystemH.size() != numBodies) {
     throw std::runtime_error(
