@@ -70,7 +70,7 @@ class ChApiFea ChMeshFileLoader {
         std::vector<double>& node_ave_area,
         std::vector<int>& BC_nodes,
         std::vector<std::vector<int>>& elementsNode,  // nodes of each element
-        std::vector<std::vector<int>> NodeNeighborElement,
+        std::vector<std::vector<int>>& NodeNeighborElement,
         ChVector<> pos_transform = VNULL,              ///< optional displacement of imported mesh
         ChMatrix33<> rot_transform = ChMatrix33<>(1),  ///< optional rotation/scaling of imported mesh
         double scaleFactor = 1,

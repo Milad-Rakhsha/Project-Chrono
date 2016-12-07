@@ -85,7 +85,7 @@ std::string MESH_CONNECTIVITY = data_folder + "Flex_MESH.vtk";
 std::vector<std::vector<int>> NodeNeighborElementMesh;
 
 bool povray_output = true;
-int out_fps = 400;
+int out_fps = 100;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -97,6 +97,10 @@ Real bzDim = 0.2;
 Real fxDim = 0.1;
 Real fyDim = byDim;
 Real fzDim = 0.14;
+
+// Real fxDim = 0.02;
+// Real fyDim = byDim;
+// Real fzDim = 0.02;
 
 void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
 void writeMesh(std::shared_ptr<ChMesh> my_mesh, std::string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement);
@@ -388,7 +392,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     double plate_lenght_z = 0.005;
     // Specification of the mesh
     int numDiv_x = 16;
-    int numDiv_y = 1;
+    int numDiv_y = 2;
     int numDiv_z = 1;
     int N_x = numDiv_x + 1;
     int N_y = numDiv_y + 1;
@@ -400,7 +404,10 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     double dx = plate_lenght_x / numDiv_x;
     double dy = plate_lenght_y / numDiv_y;
     double dz = plate_lenght_z / numDiv_z;
-
+    std::vector<std::vector<int>> elementsNodes_mesh;
+    std::vector<std::vector<int>> NodeNeighborElement_mesh;
+    elementsNodes_mesh.resize(TotalNumElements);
+    NodeNeighborElement_mesh.resize(TotalNumNodes);
     // Create and add the nodes
     for (int i = 0; i < TotalNumNodes; i++) {
         // Node location
@@ -432,7 +439,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // Create an orthotropic material.
     // All layers for all elements share the same material.
     double rho = 1000;
-    double E = 4e6;
+    double E = 10e6;
     double nu = 0.4;
     //    ChVector<> E(1e5, 1e5, 1e5);
     //    ChVector<> nu(0.3, 0.3, 0.3);
@@ -445,6 +452,14 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         int node1 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + 1;
         int node2 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + 1 + N_x;
         int node3 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + N_x;
+        elementsNodes_mesh[i].push_back(node0 + 1);
+        elementsNodes_mesh[i].push_back(node1 + 1);
+        elementsNodes_mesh[i].push_back(node2 + 1);
+        elementsNodes_mesh[i].push_back(node3 + 1);
+        NodeNeighborElement_mesh[node0].push_back(i);
+        NodeNeighborElement_mesh[node1].push_back(i);
+        NodeNeighborElement_mesh[node2].push_back(i);
+        NodeNeighborElement_mesh[node3].push_back(i);
 
         // Create the element and set its nodes.
         auto element = std::make_shared<ChElementShellANCF>();
@@ -475,7 +490,12 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
     std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* FSI_Shells = myFsiSystem.GetFsiShellsPtr();
 
-    chrono::fsi::utils::AddBCE_ShellANCF(myFsiSystem.GetDataManager(), paramsH, FSI_Shells, my_mesh);
+    bool multilayer = false;
+    bool removeMiddleLayer = false;
+
+    chrono::fsi::utils::AddBCE_ShellFromMesh(myFsiSystem.GetDataManager(), paramsH, FSI_Shells, my_mesh,
+                                             elementsNodes_mesh, NodeNeighborElement_mesh, multilayer,
+                                             removeMiddleLayer, 0);
 
     int numShells =
         std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem.Get_otherphysicslist()->at(0))->GetNelements();

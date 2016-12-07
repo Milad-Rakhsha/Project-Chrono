@@ -94,12 +94,12 @@ typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 Real bxDim = 3;
-Real byDim = 1;
+Real byDim = 0.1;
 Real bzDim = 2;
 
-Real fxDim = 1.0;
+Real fxDim = 0.1;
 Real fyDim = byDim;
-Real fzDim = 1.0;
+Real fzDim = 0.1;
 
 void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
 void writeMesh(std::shared_ptr<ChMesh> my_mesh, std::string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement);
@@ -332,10 +332,49 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     ground->GetCollisionModel()->ClearModel();
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
 
+    // Bottom wall
+    ChVector<> sizeBottom(bxDim / 2 + 3 * initSpace0, byDim / 2 + 3 * initSpace0, 2 * initSpace0);
+    ChVector<> posBottom(0, 0, -2 * initSpace0);
+    ChVector<> posTop(0, 0, bzDim + 2 * initSpace0);
+
+    // left and right Wall
+    ChVector<> size_YZ(2 * initSpace0, byDim / 2 + 3 * initSpace0, bzDim / 2);
+    ChVector<> pos_xp(bxDim / 2 + initSpace0, 0.0, bzDim / 2 + 1 * initSpace0);
+    ChVector<> pos_xn(-bxDim / 2 - 3 * initSpace0, 0.0, bzDim / 2 + 1 * initSpace0);
+
+    // Front and back Wall
+    ChVector<> size_XZ(bxDim / 2, 2 * initSpace0, bzDim / 2);
+    ChVector<> pos_yp(0, byDim / 2 + initSpace0, bzDim / 2 + 1 * initSpace0);
+    ChVector<> pos_yn(0, -byDim / 2 - 3 * initSpace0, bzDim / 2 + 1 * initSpace0);
+
+    chrono::utils::AddBoxGeometry(ground.get(), sizeBottom, posBottom, chrono::QUNIT, true);
+    chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xp, chrono::QUNIT, true);
+    chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xn, chrono::QUNIT, true);
+    chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yp, chrono::QUNIT, true);
+    chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yn, chrono::QUNIT, true);
     mphysicalSystem.AddBody(ground);
 
 #if haveFluid
+    /*================== Walls =================*/
 
+    //    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posBottom, chrono::QUNIT,
+    //    sizeBottom);
+    //    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT,
+    //    sizeBottom);
+    //
+    //    chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xp, chrono::QUNIT,
+    //    size_YZ);
+    //
+    //    chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xn, chrono::QUNIT,
+    //    size_YZ);
+    //
+    //    chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yp, chrono::QUNIT,
+    //    size_XZ);
+    //
+    //    chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT,
+    //    size_XZ);
+
+    /*================== Flexible-Body =================*/
     /*================== Flexible-Body =================*/
 
     GetLog() << "-----------------------------------------------------------\n";
@@ -344,7 +383,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     GetLog() << "-----------------------------------------------------------\n";
 
     auto my_mesh = std::make_shared<fea::ChMesh>();
-    std::vector<std::vector<int>> elementsNode;  // nodes of each element
+    std::vector<std::vector<int>> elementsNodes;  // nodes of each element
     std::vector<double> NODE_AVE_AREA;
     std::vector<int> BC_NODES;
 
@@ -354,9 +393,9 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     double dz = 0.1;
     auto material = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
     try {
-        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Plate.mesh").c_str(), material,
-                                               NODE_AVE_AREA, BC_NODES, elementsNode, NodeNeighborElementMesh,
-                                               ChVector<>(0, 0, 0), QUNIT, 1, false, false);
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fea/Torus.mesh").c_str(), material,
+                                               NODE_AVE_AREA, BC_NODES, elementsNodes, NodeNeighborElementMesh,
+                                               ChVector<>(0, 0, 0), Q_from_AngX(3.1415 / 2), 0.1, false, false);
     } catch (ChException myerr) {
         GetLog() << myerr.what();
         return;
@@ -388,7 +427,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
     std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* FSI_Shells = myFsiSystem.GetFsiShellsPtr();
 
-    chrono::fsi::utils::AddBCE_ShellANCF(myFsiSystem.GetDataManager(), paramsH, FSI_Shells, my_mesh);
+    chrono::fsi::utils::AddBCE_ShellFromMesh(myFsiSystem.GetDataManager(), paramsH, FSI_Shells, my_mesh, elementsNodes,
+                                             NodeNeighborElementMesh, true, false, 0);
 
     int numShells =
         std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem.Get_otherphysicslist()->at(0))->GetNelements();

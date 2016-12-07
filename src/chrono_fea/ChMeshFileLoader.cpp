@@ -412,7 +412,7 @@ void ChMeshFileLoader::ANCFShellFromGMFFile(std::shared_ptr<ChMesh> mesh,
                                             std::vector<double>& node_ave_area,
                                             std::vector<int>& Boundary_nodes,
                                             std::vector<std::vector<int>>& elementsNode,  // nodes of each element
-                                            std::vector<std::vector<int>> NodeNeighborElement,
+                                            std::vector<std::vector<int>>& NodeNeighborElement,
                                             ChVector<> pos_transform,
                                             ChMatrix33<> rot_transform,
                                             double scaleFactor,
@@ -665,7 +665,6 @@ void ChMeshFileLoader::ANCFShellFromGMFFile(std::shared_ptr<ChMesh> mesh,
             } else {
                 auto index = std::distance(myvector.begin(), it);
                 NodeNeighborElement[index].push_back(iele);
-                printf("[%d][%d], ", index, iele);
             }
         }
         printf("\n");

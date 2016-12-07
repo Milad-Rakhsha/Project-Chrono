@@ -118,13 +118,20 @@ CH_FSI_API void CreateBoxFSI(ChFsiDataManager* fsiData,
 void AddBCE_ShellANCF(ChFsiDataManager* fsiData,
                       SimParams* paramsH,
                       std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* fsiShellsPtr,
-                      std::shared_ptr<chrono::fea::ChMesh> my_mesh);
+                      std::shared_ptr<chrono::fea::ChMesh> my_mesh,
+                      bool multiLayer = true,
+                      bool removeMiddleLayer = false,
+                      int SIDE = -2);
 
 void AddBCE_ShellFromMesh(ChFsiDataManager* fsiData,
                           SimParams* paramsH,
                           std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* fsiShellsPtr,
                           std::shared_ptr<chrono::fea::ChMesh> my_mesh,
-                          std::vector<std::vector<int>> elementsNode);
+                          std::vector<std::vector<int>> elementsNodes,
+                          std::vector<std::vector<int>> NodeNeighborElement,
+                          bool multiLayer = true,
+                          bool removeMiddleLayer = false,
+                          int SIDE = -2);
 
 }  // end namespace utils
 }  // end namespace fsi

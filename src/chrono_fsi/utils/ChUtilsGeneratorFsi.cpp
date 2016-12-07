@@ -371,14 +371,17 @@ void AddBoxBceXZ(ChFsiDataManager* fsiData,
 void AddBCE_ShellANCF(ChFsiDataManager* fsiData,
                       SimParams* paramsH,
                       std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* fsiShellsPtr,
-                      std::shared_ptr<chrono::fea::ChMesh> my_mesh) {
+                      std::shared_ptr<chrono::fea::ChMesh> my_mesh,
+                      bool multiLayer,
+                      bool removeMiddleLayer,
+                      int SIDE) {
   thrust::host_vector<Real3> posRadBCE;
   int numShells = my_mesh->GetNelements();
   printf("number of shells to be meshed is %d\n", numShells);
   for (int i = 0; i < numShells; i++) {
     auto thisShell = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(i));
     fsiShellsPtr->push_back(thisShell);
-    CreateBCE_On_shell(posRadBCE, paramsH, thisShell);
+    CreateBCE_On_shell(posRadBCE, paramsH, thisShell, multiLayer, removeMiddleLayer, SIDE);
     CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(fsiData, paramsH, posRadBCE, thisShell);
 
     posRadBCE.clear();
@@ -391,16 +394,61 @@ void AddBCE_ShellFromMesh(ChFsiDataManager* fsiData,
                           SimParams* paramsH,
                           std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* fsiShellsPtr,
                           std::shared_ptr<chrono::fea::ChMesh> my_mesh,
-                          std::vector<std::vector<int>> elementsNode) {
+                          std::vector<std::vector<int>> elementsNodes,
+                          std::vector<std::vector<int>> NodeNeighborElement,
+                          bool multiLayer,
+                          bool removeMiddleLayer,
+                          int SIDE) {
   thrust::host_vector<Real3> posRadBCE;
   int numShells = my_mesh->GetNelements();
-  printf("number of shells to be meshed is %d\n", numShells);
+  std::vector<int> remove;
+
+  for (int i = 0; i < NodeNeighborElement.size(); i++) {
+    for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
+      printf("NodeNeighborElement[%d][%d]=%d\n", i + 1, j + 1, NodeNeighborElement[i][j]);
+    }
+  }
+
   for (int i = 0; i < numShells; i++) {
+    remove.resize(4);
+    std::fill(remove.begin(), remove.begin() + 4, 0);
     auto thisShell = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(i));
     fsiShellsPtr->push_back(thisShell);
-    CreateBCE_On_Mesh(posRadBCE, paramsH, thisShell, elementsNode);
-    CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(fsiData, paramsH, posRadBCE, thisShell);
+    // Look into the nodes of this element
+    int myNumNodes = (elementsNodes[i].size() > 4) ? 4 : elementsNodes[i].size();
 
+    for (int j = 0; j < myNumNodes; j++) {
+      int thisNode = elementsNodes[i][j] - 1;
+      printf("Considering elementsNodes[%d][%d]=%d\n", i, j, thisNode);
+
+      // Look into the elements attached to thisNode
+      for (int k = 0; k < NodeNeighborElement[thisNode].size(); k++) {
+        // If this neighbor element has more than one common node with the previous node this means that we must not
+        // add BCEs to this edge anymore. Because that edge has already been given BCE markers
+        // The kth element of this node:
+        int neighborElement = NodeNeighborElement[thisNode][k];
+        if (neighborElement >= i)
+          continue;
+        printf("neighborElement %d\n", neighborElement);
+
+        int JNumNodes = (elementsNodes[neighborElement].size() > 4) ? 4 : elementsNodes[neighborElement].size();
+
+        for (int inode = 0; inode < myNumNodes; inode++) {
+          for (int jnode = 0; jnode < JNumNodes; jnode++) {
+            if (elementsNodes[i][inode] - 1 == elementsNodes[neighborElement][jnode] - 1 &&
+                thisNode != elementsNodes[i][inode] - 1 && i > neighborElement) {
+              printf("node %d is common between %d and %d\n", elementsNodes[i][inode] - 1, i, neighborElement);
+              remove[inode] = 1;
+            }
+          }
+        }
+      }
+    }
+
+    printf("remove: %d, %d, %d, %d\n", remove[0], remove[1], remove[2], remove[3]);
+
+    CreateBCE_On_Mesh(posRadBCE, paramsH, thisShell, remove, multiLayer, removeMiddleLayer, SIDE);
+    CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(fsiData, paramsH, posRadBCE, thisShell);
     posRadBCE.clear();
   }
 }

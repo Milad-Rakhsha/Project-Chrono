@@ -122,14 +122,17 @@ void CreateBCE_On_Box(thrust::host_vector<Real3>& posRadBCE, const Real3& hsize,
 
 void CreateBCE_On_shell(thrust::host_vector<Real3>& posRadBCE,
                         SimParams* paramsH,
-                        std::shared_ptr<chrono::fea::ChElementShellANCF> shell) {
+                        std::shared_ptr<chrono::fea::ChElementShellANCF> shell,
+                        bool multiLayer,
+                        bool removeMiddleLayer,
+                        int SIDE) {
   Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
   double dx = shell->GetLengthX() / 2;
   double dy = shell->GetLengthY() / 2;
 
   int nFX = ceil(dx / (initSpace0));
   int nFY = ceil(dy / (initSpace0));
-  //  int nFZ = 1;
+  int nFZ = SIDE;
 
   Real initSpaceX = dx / nFX;
   Real initSpaceY = dy / nFY;
@@ -137,56 +140,106 @@ void CreateBCE_On_shell(thrust::host_vector<Real3>& posRadBCE,
 
   int2 iBound = mI2(-nFX, nFX);
   int2 jBound = mI2(-nFY, nFY);
-  //  int2 kBound = mI2(0, 2);
-  int2 kBound = mI2(-2, 0);
+  int2 kBound;
+  // If multi-layer BCE is required
+  if (SIDE > 0 && multiLayer)  // Do SIDE number layers in one side
+    kBound = mI2(0, SIDE);
+  else if (SIDE < 0 && multiLayer)  // Do SIDE number layers in the other side
+    kBound = mI2(SIDE, 0);
+  else if (SIDE == 0 && multiLayer)  // Do 1 layer on each side. Note that there would be 3 layers in total
+    kBound = mI2(-1, 1);             // The middle layer would be on the shell
+  else                               // IF you do not want multi-layer just use one layer on the shell
+    kBound = mI2(0, 0);              // This will create some marker deficiency and reduce the accuracy but look nicer
 
   for (int i = iBound.x; i <= iBound.y; i++) {
     for (int j = jBound.x; j <= jBound.y; j++) {
       for (int k = kBound.x; k <= kBound.y; k++) {
         Real3 relMarkerPos = mR3(i * initSpaceX, j * initSpaceY, k);
-        //        if (k == 0)
-        //          continue;
-        //        printf(" adding relMarkerPos:%f,%f,%f\n", relMarkerPos.x, relMarkerPos.y, relMarkerPos.z);
+
+        if (k == 0 && SIDE == 0 && multiLayer && removeMiddleLayer) {
+          // skip the middle layer for this specific case
+          paramsH->MULT_INITSPACE_Shells = 0.5;
+          continue;
+        }
 
         posRadBCE.push_back(relMarkerPos);
       }
     }
   }
-
-  printf(" posRadBCE.size()in CreateBCE_On_shell= :%d\n", posRadBCE.size());
 }
 // =============================================================================
 
 void CreateBCE_On_Mesh(thrust::host_vector<Real3>& posRadBCE,
                        SimParams* paramsH,
                        std::shared_ptr<chrono::fea::ChElementShellANCF> shell,
-                       std::vector<std::vector<int>> elementsNode) {
+                       std::vector<int> remove,
+                       bool multiLayer,
+                       bool removeMiddleLayer,
+                       int SIDE) {
   Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
+
   double dx = shell->GetLengthX() / 2;
   double dy = shell->GetLengthY() / 2;
 
-  int nFX = ceil(dx / (initSpace0));
-  int nFY = ceil(dy / (initSpace0));
-  int nFZ = 0;
+  double nX = dx / (initSpace0)-floor(dx / (initSpace0));
+  double nY = dy / (initSpace0)-floor(dy / (initSpace0));
+  int nFX = floor(dx / (initSpace0));
+  int nFY = floor(dy / (initSpace0));
+  if (nX > 0.5)
+    nFX++;
+  if (nY > 0.5)
+    nFY++;
+
+  int nFZ = SIDE;
 
   Real initSpaceX = dx / nFX;
   Real initSpaceY = dy / nFY;
-  Real initSpaceZ = initSpace0 / 2;
+  Real initSpaceZ = paramsH->HSML * paramsH->MULT_INITSPACE_Shells;
 
   int2 iBound = mI2(-nFX, nFX);
   int2 jBound = mI2(-nFY, nFY);
-  int2 kBound = mI2(-nFZ, nFZ);
+  int2 kBound;
+  // If multi-layer BCE is required
+  if (SIDE > 0 && multiLayer)  // Do SIDE number layers in one side
+    kBound = mI2(0, SIDE);
+  else if (SIDE < 0 && multiLayer)  // Do SIDE number layers in the other side
+    kBound = mI2(SIDE, 0);
+  else if (SIDE == 0 && multiLayer)  // Do 1 layer on each side. Note that there would be 3 layers in total
+    kBound = mI2(-1, 1);             // The middle layer would be on the shell
+  else                               // IF you do not want multi-layer just use one layer on the shell
+    kBound = mI2(0, 0);              // This will create some marker deficiency and reduce the accuracy but look nicer
 
-  for (int i = iBound.x; i <= iBound.y; i++) {
+  for (int k = kBound.x; k <= kBound.y; k++) {
     for (int j = jBound.x; j <= jBound.y; j++) {
-      for (int k = kBound.x; k <= kBound.y; k++) {
-        Real3 relMarkerPos = mR3(i * initSpaceX, j * initSpaceY, k * initSpaceZ);
+      for (int i = iBound.x; i <= iBound.y; i++) {
+        Real3 relMarkerPos = mR3(i * initSpaceX, j * initSpaceY, k);
 
-        if ((relMarkerPos.x < paramsH->cMin.x || relMarkerPos.x > paramsH->cMax.x) ||
-            (relMarkerPos.y < paramsH->cMin.y || relMarkerPos.y > paramsH->cMax.y) ||
-            (relMarkerPos.z < paramsH->cMin.z || relMarkerPos.z > paramsH->cMax.z)) {
+        if (k == 0 && SIDE == 0 && multiLayer && removeMiddleLayer) {
+          // skip the middle layer for this specific case
+          paramsH->MULT_INITSPACE_Shells = 0.5;
           continue;
         }
+        // It has to skip puting BCE on the nodes if one of the following conditions is true
+        bool con1 = (remove[0] && remove[1] && j == jBound.x);
+        bool con2 = (remove[2] && remove[3] && j == jBound.y);
+        bool con3 = (remove[1] && remove[2] && i == iBound.y);
+        bool con4 = (remove[3] && remove[0] && i == iBound.x);
+        if (con1)
+          printf("con1 is set for element with relMarkerPos %f,%f,%f \n", relMarkerPos.x, relMarkerPos.y,
+                 relMarkerPos.z);
+        if (con2)
+          printf("con2 is set for element with relMarkerPos %f,%f,%f \n", relMarkerPos.x, relMarkerPos.y,
+                 relMarkerPos.z);
+        if (con3)
+          printf("con3 is set for element with relMarkerPos %f,%f,%f \n", relMarkerPos.x, relMarkerPos.y,
+                 relMarkerPos.z);
+        if (con4)
+          printf("con4 is set for element with relMarkerPos %f,%f,%f \n", relMarkerPos.x, relMarkerPos.y,
+                 relMarkerPos.z);
+
+        if (con1 || con2 || con3 || con4)
+          continue;
+
         posRadBCE.push_back(relMarkerPos);
       }
     }

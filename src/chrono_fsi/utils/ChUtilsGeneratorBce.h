@@ -36,12 +36,18 @@ void CreateBCE_On_Box(thrust::host_vector<Real3>& posRadBCE, const Real3& hsize,
 
 void CreateBCE_On_shell(thrust::host_vector<Real3>& posRadBCE,
                         SimParams* paramsH,
-                        std::shared_ptr<chrono::fea::ChElementShellANCF> shell);
+                        std::shared_ptr<chrono::fea::ChElementShellANCF> shell,
+                        bool multiLayer = true,
+                        bool removeMiddleLayer = false,
+                        int SIDE = -2);
 
 void CreateBCE_On_Mesh(thrust::host_vector<Real3>& posRadBCE,
                        SimParams* paramsH,
                        std::shared_ptr<chrono::fea::ChElementShellANCF> shell,
-                       std::vector<std::vector<int>> elementsNode);
+                       std::vector<int> remove,
+                       bool multiLayer = true,
+                       bool removeMiddleLayer = false,
+                       int SIDE = -2);
 
 void LoadBCE_fromFile(thrust::host_vector<Real3>& posRadBCE,  // do not set the
                                                               // size here since
