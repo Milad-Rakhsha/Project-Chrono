@@ -83,6 +83,7 @@ typedef thrust::zip_iterator<iterTupleChronoBodiesH> zipIterChronoBodiesH;
 struct NumberOfObjects {
   int numRigidBodies;      /* Number of rigid bodies */
   int numFlexBodies;       /* Number of Flexible bodies, Each FE is one body*/
+  int numFlexNodes;        /* Number of Nodes in a flexible mesh, Each FE is made up of nodes*/
   int numFluidMarkers;     /* Number of fluid SPH markers*/
   int numBoundaryMarkers;  /* Number of boundary SPH markers */
   int startRigidMarkers;   /* */
@@ -151,6 +152,34 @@ class FsiBodiesDataD {
   void CopyFromH(const FsiBodiesDataH& other);
   FsiBodiesDataD& operator=(const FsiBodiesDataD& other);
 
+  // resize
+  void resize(int s);
+
+ private:
+};
+
+class FsiMeshDataH {
+ public:
+  thrust::host_vector<Real3> pos_fsi_fea_H;
+  thrust::host_vector<Real3> vel_fsi_fea_H;
+  thrust::host_vector<Real3> acc_fsi_fea_H;
+
+  //  zipIterFlexH iterator();
+  // resize
+  void resize(int s);
+
+ private:
+};
+
+class FsiMeshDataD {
+ public:
+  thrust::device_vector<Real3> pos_fsi_fea_D;
+  thrust::device_vector<Real3> vel_fsi_fea_D;
+  thrust::device_vector<Real3> acc_fsi_fea_D;
+
+  //  zipIterFlexD iterator();
+  void CopyFromH(const FsiMeshDataH& other);
+  FsiMeshDataD& operator=(const FsiMeshDataD& other);
   // resize
   void resize(int s);
 
@@ -267,6 +296,20 @@ class ChronoShellsDataH {
 
  private:
 };
+class ChronoMeshDataH {
+ public:
+  ChronoMeshDataH() {}
+  ChronoMeshDataH(int s);
+
+  thrust::host_vector<Real3> posFlex_ChSystemH_H;
+  thrust::host_vector<Real3> velFlex_ChSystemH_H;
+  thrust::host_vector<Real3> accFlex_ChSystemH_H;
+
+  // resize
+  void resize(int s);
+
+ private:
+};
 
 // make them classes
 class FsiGeneralData {
@@ -301,6 +344,11 @@ class FsiGeneralData {
   thrust::device_vector<Real3> Flex_FSI_ForcesD_nC;
   thrust::device_vector<Real3> Flex_FSI_ForcesD_nD;
 
+  thrust::device_vector<Real3> Flex_FSI_ForcesD;
+
+  thrust::host_vector<int4> ShellelementsNodesH;
+  thrust::device_vector<int4> ShellelementsNodes;
+
  private:
 };
 
@@ -310,7 +358,7 @@ class CH_FSI_API ChFsiDataManager {
   ~ChFsiDataManager();
 
   void AddSphMarker(Real3 pos, Real3 vel, Real4 rhoPresMu);
-  void ResizeDataManager();
+  void ResizeDataManager(int numNodes);
 
   NumberOfObjects numObjects;
 
@@ -322,6 +370,9 @@ class CH_FSI_API ChFsiDataManager {
   FsiBodiesDataD fsiBodiesD1;
   FsiBodiesDataD fsiBodiesD2;
   FsiBodiesDataH fsiBodiesH;
+
+  FsiMeshDataD fsiMeshD;
+  FsiMeshDataH fsiMeshH;
 
   FsiShellsDataD fsiShellsD;
   FsiShellsDataH fsiShellsH;

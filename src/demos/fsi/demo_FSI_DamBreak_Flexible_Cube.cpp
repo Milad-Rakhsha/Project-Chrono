@@ -426,9 +426,13 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     mphysicalSystem.Add(my_mesh);
 
     std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* FSI_Shells = myFsiSystem.GetFsiShellsPtr();
+    std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* FSI_Nodes = myFsiSystem.GetFsiNodesPtr();
 
-    chrono::fsi::utils::AddBCE_ShellFromMesh(myFsiSystem.GetDataManager(), paramsH, FSI_Shells, my_mesh, elementsNodes,
-                                             NodeNeighborElementMesh, true, false, 0);
+    bool multilayer = false;
+    bool removeMiddleLayer = false;
+
+    chrono::fsi::utils::AddBCE_ShellFromMesh(myFsiSystem.GetDataManager(), paramsH, FSI_Shells, FSI_Nodes, my_mesh,
+                                             elementsNodes, NodeNeighborElementMesh, multilayer, removeMiddleLayer, 0);
 
     int numShells =
         std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem.Get_otherphysicslist()->at(0))->GetNelements();

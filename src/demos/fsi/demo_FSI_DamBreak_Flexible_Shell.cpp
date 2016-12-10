@@ -93,7 +93,7 @@ typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 Real bxDim = 3;
-Real byDim = 0.2;
+Real byDim = 0.4;
 Real bzDim = 2;
 
 Real fxDim = 1;
@@ -105,7 +105,7 @@ void writeMesh(std::shared_ptr<ChMesh> my_mesh, std::string SaveAs, std::vector<
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[256],
                 char MeshFileBuffer[256],
-                std::vector<std::vector<int>> NodeNeighborElement);
+                std::vector<std::vector<int>>& NodeNeighborElement);
 void saveInputFile(std::string inputFile, std::string outAddress);
 void SetArgumentsForMbdFromInput(int argc,
                                  char* argv[],
@@ -385,8 +385,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     double plate_lenght_y = byDim;
     double plate_lenght_z = 0.02;
     // Specification of the mesh
-    int numDiv_x = 10;
-    int numDiv_y = 1;
+    int numDiv_x = 5;
+    int numDiv_y = 4;
     int numDiv_z = 1;
     int N_x = numDiv_x + 1;
     int N_y = numDiv_y + 1;
@@ -398,7 +398,9 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     double dx = plate_lenght_x / numDiv_x;
     double dy = plate_lenght_y / numDiv_y;
     double dz = plate_lenght_z / numDiv_z;
-
+    std::vector<std::vector<int>> elementsNodes_mesh;
+    elementsNodes_mesh.resize(TotalNumElements);
+    NodeNeighborElementMesh.resize(TotalNumNodes);
     // Create and add the nodes
     for (int i = 0; i < TotalNumNodes; i++) {
         // Node location
@@ -435,7 +437,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     //    ChVector<> E(1e5, 1e5, 1e5);
     //    ChVector<> nu(0.3, 0.3, 0.3);
     auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
-
+    NodeNeighborElementMesh.resize(TotalNumNodes);
     // Create the elements
     for (int i = 0; i < TotalNumElements; i++) {
         // Adjacent nodes
@@ -443,7 +445,14 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         int node1 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + 1;
         int node2 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + 1 + N_x;
         int node3 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + N_x;
-
+        elementsNodes_mesh[i].push_back(node0 + 1);
+        elementsNodes_mesh[i].push_back(node1 + 1);
+        elementsNodes_mesh[i].push_back(node2 + 1);
+        elementsNodes_mesh[i].push_back(node3 + 1);
+        NodeNeighborElementMesh[node0].push_back(i);
+        NodeNeighborElementMesh[node1].push_back(i);
+        NodeNeighborElementMesh[node2].push_back(i);
+        NodeNeighborElementMesh[node3].push_back(i);
         // Create the element and set its nodes.
         auto element = std::make_shared<ChElementShellANCF>();
         element->SetNodes(std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node0)),
@@ -458,7 +467,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, mat);
 
         // Set other element properties
-        element->SetAlphaDamp(0.1);    // Structural damping for this element
+        element->SetAlphaDamp(0.05);   // Structural damping for this element
         element->SetGravityOn(false);  // turn internal gravitational force calculation off
 
         // Add element to mesh
@@ -472,11 +481,15 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     mphysicalSystem.Add(my_mesh);
 
     std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* FSI_Shells = myFsiSystem.GetFsiShellsPtr();
+    std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* FSI_Nodes = myFsiSystem.GetFsiNodesPtr();
 
-    chrono::fsi::utils::AddBCE_ShellANCF(myFsiSystem.GetDataManager(), paramsH, FSI_Shells, my_mesh);
+    bool multilayer = true;
+    bool removeMiddleLayer = true;
 
-    int numShells =
-        std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem.Get_otherphysicslist()->at(0))->GetNelements();
+    chrono::fsi::utils::AddBCE_ShellFromMesh(myFsiSystem.GetDataManager(), paramsH, FSI_Shells, FSI_Nodes, my_mesh,
+                                             elementsNodes_mesh, NodeNeighborElementMesh, multilayer, removeMiddleLayer,
+                                             0);
+    myFsiSystem.SetShellelementsNodes(elementsNodes_mesh);
 
     writeMesh(my_mesh, MESH_CONNECTIVITY, NodeNeighborElementMesh);
 
@@ -586,7 +599,7 @@ void writeMesh(std::shared_ptr<ChMesh> my_mesh,
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[256],
                 char MeshFileBuffer[256],
-                std::vector<std::vector<int>> NodeNeighborElement) {
+                std::vector<std::vector<int>>& NodeNeighborElement) {
     std::ofstream output;
     output.open(SaveAsBuffer, std::ios::app);
 

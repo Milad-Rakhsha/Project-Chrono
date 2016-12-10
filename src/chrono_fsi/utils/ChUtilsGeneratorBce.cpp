@@ -127,11 +127,18 @@ void CreateBCE_On_shell(thrust::host_vector<Real3>& posRadBCE,
                         bool removeMiddleLayer,
                         int SIDE) {
   Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
-  double dx = shell->GetLengthX() / 2;
-  double dy = shell->GetLengthY() / 2;
+  double dx = shell->GetLengthX() / 2 - initSpace0 / 2;
+  double dy = shell->GetLengthY() / 2 - initSpace0 / 2;
 
-  int nFX = ceil(dx / (initSpace0));
-  int nFY = ceil(dy / (initSpace0));
+  double nX = dx / (initSpace0)-floor(dx / (initSpace0));
+  double nY = dy / (initSpace0)-floor(dy / (initSpace0));
+  int nFX = floor(dx / (initSpace0));
+  int nFY = floor(dy / (initSpace0));
+  if (nX > 0.5)
+    nFX++;
+  if (nY > 0.5)
+    nFY++;
+
   int nFZ = SIDE;
 
   Real initSpaceX = dx / nFX;

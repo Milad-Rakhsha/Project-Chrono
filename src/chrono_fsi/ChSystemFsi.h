@@ -91,10 +91,14 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
   /// vector.
   std::vector<std::shared_ptr<ChBody>>* GetFsiBodiesPtr() { return &fsiBodeisPtr; }
   std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* GetFsiShellsPtr() { return &fsiShellsPtr; }
+  std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* GetFsiNodesPtr() { return &fsiNodesPtr; }
 
   /// Initialize the graphics interface of the chrono system
   void InitializeChronoGraphics(chrono::ChVector<> CameraLocation = chrono::ChVector<>(1, 0, 0),
                                 chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0));
+
+  void SetShellelementsNodes(std::vector<std::vector<int>> elementsNodes) { ShellelementsNodes = elementsNodes; }
+  void SetNodesShellElements(std::vector<std::vector<int>> NodesElements) { NodesShellElements = NodesElements; }
 
   /// Finzalize data by calling FinalizeData function and finalize fluid and bce
   /// objects if the
@@ -108,7 +112,12 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
   ChFsiDataManager* fsiData;                          ///< pointer to data manager which holds all the data
   std::vector<std::shared_ptr<ChBody>> fsiBodeisPtr;  ///< vector of a pointers to fsi bodies. fsi bodies
                                                       /// are those that interact with fluid
+
+  std::vector<std::vector<int>> ShellelementsNodes;  // These are the indices of nodes of each Element
+  std::vector<std::vector<int>> NodesShellElements;  // These are the indices of Shell elements attached to each node
+
   std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>> fsiShellsPtr;  ///< vector of a pointers to fsi Shells
+  std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>> fsiNodesPtr;  // These are all the nodes available to fsi
 
   ChFluidDynamics* fluidDynamics;  ///< pointer to the fluid system
   ChFsiInterface* fsiInterface;    ///< pointer to the fsi interface system

@@ -1106,24 +1106,17 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
                                const Real4* sortedRhoPreMu,
                                Real3* V_new,
                                Real* p_old,
+
                                Real3* bceAcc,
                                Real4* velMassRigid_fsiBodies_D,
                                Real3* accRigid_fsiBodies_D,
                                uint* rigidIdentifierD,
 
-                               Real3* posFlex_fsiBodies_nA_D,
-                               Real3* posFlex_fsiBodies_nB_D,
-                               Real3* posFlex_fsiBodies_nC_D,
-                               Real3* posFlex_fsiBodies_nD_D,
-                               Real3* velFlex_fsiBodies_nA_D,
-                               Real3* velFlex_fsiBodies_nB_D,
-                               Real3* velFlex_fsiBodies_nC_D,
-                               Real3* velFlex_fsiBodies_nD_D,
-                               Real3* accFlex_fsiBodies_nA_D,
-                               Real3* accFlex_fsiBodies_nB_D,
-                               Real3* accFlex_fsiBodies_nC_D,
-                               Real3* accFlex_fsiBodies_nD_D,
+                               Real3* pos_fsi_fea_D,
+                               Real3* vel_fsi_fea_D,
+                               Real3* acc_fsi_fea_D,
                                uint* FlexIdentifierD,
+                               uint4* ShellelementsNodes,
 
                                int4 updatePortion,
                                uint* gridMarkerIndexD,
@@ -1163,17 +1156,30 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
   } else if (Original_idx >= updatePortion.z && Original_idx < updatePortion.w) {
     int FlexIndex = FlexIdentifierD[Original_idx - updatePortion.z];
     //    printf("My FlexIndex is %d \n", FlexIndex);
+    int nA = ShellelementsNodes[FlexIndex].x;
+    int nB = ShellelementsNodes[FlexIndex].y;
+    int nC = ShellelementsNodes[FlexIndex].z;
+    int nD = ShellelementsNodes[FlexIndex].w;
 
-    Real3 Shell_center = 0.25 * (posFlex_fsiBodies_nA_D[FlexIndex] + posFlex_fsiBodies_nB_D[FlexIndex] +
-                                 posFlex_fsiBodies_nC_D[FlexIndex] + posFlex_fsiBodies_nD_D[FlexIndex]);
+    Real3 pos_fsi_fea_D_nA = pos_fsi_fea_D[nA];
+    Real3 pos_fsi_fea_D_nB = pos_fsi_fea_D[nB];
+    Real3 pos_fsi_fea_D_nC = pos_fsi_fea_D[nC];
+    Real3 pos_fsi_fea_D_nD = pos_fsi_fea_D[nD];
 
+    Real3 vel_fsi_fea_D_nA = vel_fsi_fea_D[nA];
+    Real3 vel_fsi_fea_D_nB = vel_fsi_fea_D[nB];
+    Real3 vel_fsi_fea_D_nC = vel_fsi_fea_D[nC];
+    Real3 vel_fsi_fea_D_nD = vel_fsi_fea_D[nD];
+
+    Real3 acc_fsi_fea_D_nA = acc_fsi_fea_D[nA];
+    Real3 acc_fsi_fea_D_nB = acc_fsi_fea_D[nB];
+    Real3 acc_fsi_fea_D_nC = acc_fsi_fea_D[nC];
+    Real3 acc_fsi_fea_D_nD = acc_fsi_fea_D[nD];
+
+    Real3 Shell_center = 0.25 * (pos_fsi_fea_D_nA + pos_fsi_fea_D_nB + pos_fsi_fea_D_nC + pos_fsi_fea_D_nD);
     Real3 dist3 = sortedPosRad[Original_idx] - Shell_center;
-    Real Shell_x = 0.25 * (length(posFlex_fsiBodies_nB_D[FlexIndex] - posFlex_fsiBodies_nA_D[FlexIndex]) +
-                           length(posFlex_fsiBodies_nD_D[FlexIndex] - posFlex_fsiBodies_nC_D[FlexIndex]));
-
-    Real Shell_y = 0.25 * (length(posFlex_fsiBodies_nD_D[FlexIndex] - posFlex_fsiBodies_nA_D[FlexIndex]) +
-                           length(posFlex_fsiBodies_nC_D[FlexIndex] - posFlex_fsiBodies_nB_D[FlexIndex]));
-
+    Real Shell_x = 0.25 * (length(pos_fsi_fea_D_nB - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nC));
+    Real Shell_y = 0.25 * (length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nC - pos_fsi_fea_D_nB));
     Real2 FlexSPH_MeshPos_Natural = mR2(dist3.x / Shell_x, dist3.y / Shell_y);
 
     Real4 N_shell = Shells_ShapeFunctions(FlexSPH_MeshPos_Natural.x, FlexSPH_MeshPos_Natural.y);
@@ -1181,12 +1187,8 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
     Real NB = N_shell.y;
     Real NC = N_shell.z;
     Real ND = N_shell.w;
-
-    V_prescribed = NA * velFlex_fsiBodies_nA_D[FlexIndex] + NB * velFlex_fsiBodies_nB_D[FlexIndex] +
-                   NC * velFlex_fsiBodies_nC_D[FlexIndex] + ND * velFlex_fsiBodies_nD_D[FlexIndex];
-
-    myAcc = NA * accFlex_fsiBodies_nA_D[FlexIndex] + NB * accFlex_fsiBodies_nB_D[FlexIndex] +
-            NC * accFlex_fsiBodies_nC_D[FlexIndex] + ND * accFlex_fsiBodies_nD_D[FlexIndex];
+    V_prescribed = NA * vel_fsi_fea_D_nA + NB * vel_fsi_fea_D_nB + NC * vel_fsi_fea_D_nC + ND * vel_fsi_fea_D_nD;
+    myAcc = NA * acc_fsi_fea_D_nA + NB * acc_fsi_fea_D_nB + NC * acc_fsi_fea_D_nC + ND * acc_fsi_fea_D_nD;
 
   } else {
     printf("i_idx=%d, Original_idx:%d was not found\n\n", i_idx, Original_idx);
@@ -1415,19 +1417,11 @@ __global__ void FormAXB(Real* csrValA,
                         Real3* accRigid_fsiBodies_D,
                         uint* rigidIdentifierD,
 
-                        Real3* posFlex_fsiBodies_nA_D,
-                        Real3* posFlex_fsiBodies_nB_D,
-                        Real3* posFlex_fsiBodies_nC_D,
-                        Real3* posFlex_fsiBodies_nD_D,
-                        Real3* velFlex_fsiBodies_nA_D,
-                        Real3* velFlex_fsiBodies_nB_D,
-                        Real3* velFlex_fsiBodies_nC_D,
-                        Real3* velFlex_fsiBodies_nD_D,
-                        Real3* accFlex_fsiBodies_nA_D,
-                        Real3* accFlex_fsiBodies_nB_D,
-                        Real3* accFlex_fsiBodies_nC_D,
-                        Real3* accFlex_fsiBodies_nD_D,
+                        Real3* pos_fsi_fea_D,
+                        Real3* vel_fsi_fea_D,
+                        Real3* acc_fsi_fea_D,
                         uint* FlexIdentifierD,
+                        uint4* ShellelementsNodes,
 
                         int4 updatePortion,
                         uint* gridMarkerIndexD,
@@ -1449,16 +1443,15 @@ __global__ void FormAXB(Real* csrValA,
     Calc_fluid_aij_Bi(i_idx, csrValA, csrColIndA, GlobalcsrColIndA, numContacts, B_i, d_ii, a_ii, rho_np, summGradW,
                       sortedPosRad, sortedRhoPreMu, cellStart, cellEnd, numAllMarkers, m_0, RHO_0, dT, true);
   else
-    Calc_BC_aij_Bi(
-        i_idx, csrValA, csrColIndA, GlobalcsrColIndA, numContacts, a_ii, B_i, sortedPosRad, sortedVelMas,
+    Calc_BC_aij_Bi(i_idx, csrValA, csrColIndA, GlobalcsrColIndA, numContacts, a_ii, B_i, sortedPosRad, sortedVelMas,
 
-        sortedRhoPreMu, V_new, p_old, bceAcc, velMassRigid_fsiBodies_D, accRigid_fsiBodies_D, rigidIdentifierD,
+                   sortedRhoPreMu, V_new, p_old,
 
-        posFlex_fsiBodies_nA_D, posFlex_fsiBodies_nB_D, posFlex_fsiBodies_nC_D, posFlex_fsiBodies_nD_D,
-        velFlex_fsiBodies_nA_D, velFlex_fsiBodies_nB_D, velFlex_fsiBodies_nC_D, velFlex_fsiBodies_nD_D,
-        accFlex_fsiBodies_nA_D, accFlex_fsiBodies_nB_D, accFlex_fsiBodies_nC_D, accFlex_fsiBodies_nD_D, FlexIdentifierD,
+                   bceAcc, velMassRigid_fsiBodies_D, accRigid_fsiBodies_D, rigidIdentifierD,
 
-        updatePortion, gridMarkerIndexD, cellStart, cellEnd, numAllMarkers, m_0, gravity, true);
+                   pos_fsi_fea_D, vel_fsi_fea_D, acc_fsi_fea_D, FlexIdentifierD, ShellelementsNodes,
+
+                   updatePortion, gridMarkerIndexD, cellStart, cellEnd, numAllMarkers, m_0, gravity, true);
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -1475,6 +1468,7 @@ __global__ void Calc_Pressure_AXB_USING_CSR(Real* csrValA,
                                             Real* B_i,  // Read
                                             Real RHO_0,
                                             const int numAllMarkers,
+                                            bool ClampPressure,
                                             volatile bool* isErrorD) {
   uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (i_idx >= numAllMarkers)
@@ -1505,10 +1499,10 @@ __global__ void Calc_Pressure_AXB_USING_CSR(Real* csrValA,
     //    Real RHS = B_i[i_idx];
 
     sortedRhoPreMu[i_idx].y = (RHS - aij_pj) / csrValA[startIdx - 1];
-    if (sortedRhoPreMu[i_idx].y < 0.0)
-      sortedRhoPreMu[i_idx].y = 0.0;
   }
 
+  if (ClampPressure && sortedRhoPreMu[i_idx].y < 0.0)
+    sortedRhoPreMu[i_idx].y = 0.0;
   /// This updates the velocity but it is done here since its faster
   if (sortedRhoPreMu[i_idx].w > -1) {
     sortedVelMas[i_idx] = V_new[i_idx];
@@ -1868,21 +1862,9 @@ __global__ void PrepPressure(Real3* sortedPosRad,  // Read
 void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
                                            thrust::device_vector<Real4> velMassRigid_fsiBodies_D,
                                            thrust::device_vector<Real3> accRigid_fsiBodies_D,
-
-                                           thrust::device_vector<Real3> posFlex_fsiBodies_nA_D,
-                                           thrust::device_vector<Real3> posFlex_fsiBodies_nB_D,
-                                           thrust::device_vector<Real3> posFlex_fsiBodies_nC_D,
-                                           thrust::device_vector<Real3> posFlex_fsiBodies_nD_D,
-
-                                           thrust::device_vector<Real3> velFlex_fsiBodies_nA_D,
-                                           thrust::device_vector<Real3> velFlex_fsiBodies_nB_D,
-                                           thrust::device_vector<Real3> velFlex_fsiBodies_nC_D,
-                                           thrust::device_vector<Real3> velFlex_fsiBodies_nD_D,
-
-                                           thrust::device_vector<Real3> accFlex_fsiBodies_nA_D,
-                                           thrust::device_vector<Real3> accFlex_fsiBodies_nB_D,
-                                           thrust::device_vector<Real3> accFlex_fsiBodies_nC_D,
-                                           thrust::device_vector<Real3> accFlex_fsiBodies_nD_D) {
+                                           thrust::device_vector<Real3> pos_fsi_fea_D,
+                                           thrust::device_vector<Real3> vel_fsi_fea_D,
+                                           thrust::device_vector<Real3> acc_fsi_fea_D) {
   Real RES = paramsH->PPE_res;
   PPE_SolutionType mySolutionType = paramsH->PPE_Solution_type;
   //  std::cout << "size of RIGID IDEN: " << fsiGeneralData->rigidIdentifierD.size() << "\n";
@@ -2088,11 +2070,8 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
         mR3CAST(bceAcc), mR4CAST(velMassRigid_fsiBodies_D), mR3CAST(accRigid_fsiBodies_D),
         U1CAST(fsiGeneralData->rigidIdentifierD),
 
-        mR3CAST(posFlex_fsiBodies_nA_D), mR3CAST(posFlex_fsiBodies_nB_D), mR3CAST(posFlex_fsiBodies_nC_D),
-        mR3CAST(posFlex_fsiBodies_nD_D), mR3CAST(velFlex_fsiBodies_nA_D), mR3CAST(velFlex_fsiBodies_nB_D),
-        mR3CAST(velFlex_fsiBodies_nC_D), mR3CAST(velFlex_fsiBodies_nD_D), mR3CAST(accFlex_fsiBodies_nA_D),
-        mR3CAST(accFlex_fsiBodies_nB_D), mR3CAST(accFlex_fsiBodies_nC_D), mR3CAST(accFlex_fsiBodies_nD_D),
-        U1CAST(fsiGeneralData->FlexIdentifierD),
+        mR3CAST(pos_fsi_fea_D), mR3CAST(vel_fsi_fea_D), mR3CAST(acc_fsi_fea_D), U1CAST(fsiGeneralData->FlexIdentifierD),
+        U4CAST(fsiGeneralData->ShellelementsNodes),
 
         updatePortion, U1CAST(markersProximityD->gridMarkerIndexD), U1CAST(markersProximityD->cellStartD),
         U1CAST(markersProximityD->cellEndD), numAllMarkers, paramsH->markerMass, paramsH->rho0, paramsH->dT,
@@ -2175,7 +2154,7 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
       Calc_Pressure_AXB_USING_CSR<<<numBlocks, numThreads>>>(
           R1CAST(csrValA), R1CAST(a_ii), U1CAST(csrColIndA), LU1CAST(numContacts),
           mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(nonNormRho), mR3CAST(sortedSphMarkersD->velMasD),
-          mR3CAST(V_new), R1CAST(p_old), R1CAST(B_i), paramsH->rho0, numAllMarkers, isErrorD);
+          mR3CAST(V_new), R1CAST(p_old), R1CAST(B_i), paramsH->rho0, numAllMarkers, paramsH->ClampPressure, isErrorD);
       cudaThreadSynchronize();
       cudaCheckError();
       cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
@@ -2269,11 +2248,11 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
   //	printf(" Linear System: %f \n Total: %f \n ", durationLinearSystem,
   //			durationtotal_step_time);
 
-  printf("\n--------IISPH CLOCK-----------\n");
+  printf("\---------------IISPH CLOCK-------------------\n");
   printf(" Total: %f \n FormAXB: %f\n Linear System: %f \n", durationtotal_step_time, durationFormAXB,
          durationLinearSystem);
   printf("Iter# = %d, Res= %f \n", Iteration, MaxRes);
-  printf("------------------------------\n");
+  printf("----------------------------------------------\n");
 
   //------------------------------------------------------------------------
   //------------------------------------------------------------------------
@@ -2298,7 +2277,8 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
 
 void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
                                     FsiBodiesDataD* otherFsiBodiesD,
-                                    FsiShellsDataD* otherFsiShellsD) {
+                                    FsiShellsDataD* otherFsiShellsD,
+                                    FsiMeshDataD* otherFsiMeshD) {
   std::cout << "dT in ForceSPH brfore calcPressure: " << paramsH->dT << "\n";
 
   sphMarkersD = otherSphMarkersD;
@@ -2317,15 +2297,7 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
   //  }
 
   calcPressureIISPH(bceAcc, otherFsiBodiesD->velMassRigid_fsiBodies_D, otherFsiBodiesD->accRigid_fsiBodies_D,
-
-                    otherFsiShellsD->posFlex_fsiBodies_nA_D, otherFsiShellsD->posFlex_fsiBodies_nB_D,
-                    otherFsiShellsD->posFlex_fsiBodies_nC_D, otherFsiShellsD->posFlex_fsiBodies_nD_D,
-
-                    otherFsiShellsD->velFlex_fsiBodies_nA_D, otherFsiShellsD->velFlex_fsiBodies_nB_D,
-                    otherFsiShellsD->velFlex_fsiBodies_nC_D, otherFsiShellsD->velFlex_fsiBodies_nD_D,
-
-                    otherFsiShellsD->accFlex_fsiBodies_nA_D, otherFsiShellsD->accFlex_fsiBodies_nB_D,
-                    otherFsiShellsD->accFlex_fsiBodies_nC_D, otherFsiShellsD->accFlex_fsiBodies_nD_D);
+                    otherFsiMeshD->pos_fsi_fea_D, otherFsiMeshD->vel_fsi_fea_D, otherFsiMeshD->acc_fsi_fea_D);
 
   bceAcc.clear();
 

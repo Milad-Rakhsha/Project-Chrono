@@ -58,7 +58,8 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
 
   virtual void ForceIISPH(SphMarkerDataD* otherSphMarkersD,
                           FsiBodiesDataD* otherFsiBodiesD,
-                          FsiShellsDataD* otherFsiShellsD);
+                          FsiShellsDataD* otherFsiShellsD,
+                          FsiMeshDataD* fsiMeshD);
 
   /// Synchronize the copy of the data (parameters and number of objects)
   /// between
@@ -138,21 +139,9 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
   void calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
                          thrust::device_vector<Real4> velMassRigid_fsiBodies_D,
                          thrust::device_vector<Real3> accRigid_fsiBodies_D,
-
-                         thrust::device_vector<Real3> posFlex_fsiBodies_nA_D,
-                         thrust::device_vector<Real3> posFlex_fsiBodies_nB_D,
-                         thrust::device_vector<Real3> posFlex_fsiBodies_nC_D,
-                         thrust::device_vector<Real3> posFlex_fsiBodies_nD_D,
-
-                         thrust::device_vector<Real3> velFlex_fsiBodies_nA_D,
-                         thrust::device_vector<Real3> velFlex_fsiBodies_nB_D,
-                         thrust::device_vector<Real3> velFlex_fsiBodies_nC_D,
-                         thrust::device_vector<Real3> velFlex_fsiBodies_nD_D,
-
-                         thrust::device_vector<Real3> accFlex_fsiBodies_nA_D,
-                         thrust::device_vector<Real3> accFlex_fsiBodies_nB_D,
-                         thrust::device_vector<Real3> accFlex_fsiBodies_nC_D,
-                         thrust::device_vector<Real3> accFlex_fsiBodies_nD_D);
+                         thrust::device_vector<Real3> pos_fsi_fea_D,
+                         thrust::device_vector<Real3> vel_fsi_fea__D,
+                         thrust::device_vector<Real3> acc_fsi_fea_D);
 
   ChCollisionSystemFsi* fsiCollisionSystem;  ///< collision system; takes care of
                                              /// constructing neighbors list

@@ -67,6 +67,8 @@ __global__ void Populate_RigidSPH_MeshPos_LRF_kernel(Real3* rigidSPH_MeshPos_LRF
 __global__ void Populate_FlexSPH_MeshPos_LRF_kernel(Real3* FlexSPH_MeshPos_LRF_D,
                                                     Real3* posRadD,
                                                     uint* FlexIdentifierD,
+                                                    uint4* ShellelementsNodes,
+                                                    Real3* pos_fsi_fea_D,
                                                     Real3* posFlex_fsiBodies_nA_D,
                                                     Real3* posFlex_fsiBodies_nB_D,
                                                     Real3* posFlex_fsiBodies_nC_D,
@@ -80,9 +82,27 @@ __global__ void Populate_FlexSPH_MeshPos_LRF_kernel(Real3* FlexSPH_MeshPos_LRF_D
 
   int FlexIndex = FlexIdentifierD[index];
   uint FlexMarkerIndex = index + numObjectsD.startFlexMarkers;  // updatePortion = [start, end]
+  uint4 shellNodes = ShellelementsNodes[FlexIndex];
+  Real3 pos_fsi_fea_D_nA = pos_fsi_fea_D[shellNodes.x];
+  Real3 pos_fsi_fea_D_nB = pos_fsi_fea_D[shellNodes.y];
+  Real3 pos_fsi_fea_D_nC = pos_fsi_fea_D[shellNodes.z];
+  Real3 pos_fsi_fea_D_nD = pos_fsi_fea_D[shellNodes.w];
+  printf(" %d shellNodes %d %d %d %d\n", FlexIndex, shellNodes.x, shellNodes.y, shellNodes.z, shellNodes.w);
+  Real3 Shell_center = 0.25 * (pos_fsi_fea_D_nA + pos_fsi_fea_D_nB + pos_fsi_fea_D_nC + pos_fsi_fea_D_nD);
 
+  Real3 dist3 = posRadD[FlexMarkerIndex] - Shell_center;
+  Real Shell_x = 0.25 * (length(pos_fsi_fea_D_nB - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nC - pos_fsi_fea_D_nD));
+
+  Real Shell_y = 0.25 * (length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nC - pos_fsi_fea_D_nB));
+
+  Real3 x_dir = (pos_fsi_fea_D_nB - pos_fsi_fea_D_nA + (pos_fsi_fea_D_nC - pos_fsi_fea_D_nD));
+
+  Real3 y_dir = (pos_fsi_fea_D_nD - pos_fsi_fea_D_nA + (pos_fsi_fea_D_nC - pos_fsi_fea_D_nB));
+
+  /*
   Real3 Shell_center = 0.25 * (posFlex_fsiBodies_nA_D[FlexIndex] + posFlex_fsiBodies_nB_D[FlexIndex] +
-                               posFlex_fsiBodies_nC_D[FlexIndex] + posFlex_fsiBodies_nD_D[FlexIndex]);
+                                 posFlex_fsiBodies_nC_D[FlexIndex] + posFlex_fsiBodies_nD_D[FlexIndex]);
+
   Real3 dist3 = posRadD[FlexMarkerIndex] - Shell_center;
   Real Shell_x = 0.25 * (length(posFlex_fsiBodies_nB_D[FlexIndex] - posFlex_fsiBodies_nA_D[FlexIndex]) +
                          length(posFlex_fsiBodies_nC_D[FlexIndex] - posFlex_fsiBodies_nD_D[FlexIndex]));
@@ -95,7 +115,7 @@ __global__ void Populate_FlexSPH_MeshPos_LRF_kernel(Real3* FlexSPH_MeshPos_LRF_D
 
   Real3 y_dir = (posFlex_fsiBodies_nD_D[FlexIndex] - posFlex_fsiBodies_nA_D[FlexIndex] +
                  (posFlex_fsiBodies_nC_D[FlexIndex] - posFlex_fsiBodies_nB_D[FlexIndex]));
-
+*/
   Real3 Normal = normalize(cross(x_dir, y_dir));
   Real zSide;
 
@@ -110,19 +130,22 @@ __global__ void Populate_FlexSPH_MeshPos_LRF_kernel(Real3* FlexSPH_MeshPos_LRF_D
 
   Real dx = dot(dist3, x_dir) / length(x_dir);
   Real dy = dot(dist3, y_dir) / length(y_dir);
-  printf(" FlexMarkerIndex:%d dist3=%f,%f,%f, normal= %f,%f,%f, zside= %f\n", FlexMarkerIndex, dist3.x, dist3.y,
-         dist3.z, Normal.x, Normal.y, Normal.z, zSide);
+  //  printf(" FlexMarkerIndex:%d dist3=%f,%f,%f, normal= %f,%f,%f, zside= %f\n", FlexMarkerIndex, dist3.x, dist3.y,
+  //         dist3.z, Normal.x, Normal.y, Normal.z, zSide);
 
   FlexSPH_MeshPos_LRF_D[index] = mR3(dx / Shell_x, dy / Shell_y, zSide);
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Calc_Flex_FSI_ForcesD(Real3* FlexSPH_MeshPos_LRF_D,
                                       uint* FlexIdentifierD,
+                                      uint4* ShellelementsNodes,  // This is the connectivity of FEA mesh.
                                       Real4* derivVelRhoD,
+                                      Real3* pos_fsi_fea_D,
                                       Real3* Flex_FSI_ForcesD_nA,
                                       Real3* Flex_FSI_ForcesD_nB,
                                       Real3* Flex_FSI_ForcesD_nC,
-                                      Real3* Flex_FSI_ForcesD_nD) {
+                                      Real3* Flex_FSI_ForcesD_nD,
+                                      Real3* Flex_FSI_ForcesD) {
   uint index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index >= numObjectsD.numFlex_SphMarkers) {
     return;
@@ -145,25 +168,42 @@ __global__ void Calc_Flex_FSI_ForcesD(Real3* FlexSPH_MeshPos_LRF_D,
   // Later on I can implement 4 arrays for each flex marker, assign the nodal values to each and then reduce_by_key
   // For now I am using atomic here,
   // Also derivVelRhoD is given as m*dv/dt not dv/dt, please look at the ChForceParallel::CalcForces
-  atomicAdd(&(Flex_FSI_ForcesD_nA[FlexIndex].x), NA * (double)derivVelRhoD[FlexMarkerIndex].x);
-  atomicAdd(&(Flex_FSI_ForcesD_nA[FlexIndex].y), NA * (double)derivVelRhoD[FlexMarkerIndex].y);
-  atomicAdd(&(Flex_FSI_ForcesD_nA[FlexIndex].z), NA * (double)derivVelRhoD[FlexMarkerIndex].z);
+  //  atomicAdd(&(Flex_FSI_ForcesD_nA[FlexIndex].x), NA * (double)derivVelRhoD[FlexMarkerIndex].x);
+  //  atomicAdd(&(Flex_FSI_ForcesD_nA[FlexIndex].y), NA * (double)derivVelRhoD[FlexMarkerIndex].y);
+  //  atomicAdd(&(Flex_FSI_ForcesD_nA[FlexIndex].z), NA * (double)derivVelRhoD[FlexMarkerIndex].z);
+  //
+  //  atomicAdd(&(Flex_FSI_ForcesD_nB[FlexIndex].x), NB * (double)derivVelRhoD[FlexMarkerIndex].x);
+  //  atomicAdd(&(Flex_FSI_ForcesD_nB[FlexIndex].y), NB * (double)derivVelRhoD[FlexMarkerIndex].y);
+  //  atomicAdd(&(Flex_FSI_ForcesD_nB[FlexIndex].z), NB * (double)derivVelRhoD[FlexMarkerIndex].z);
+  //
+  //  atomicAdd(&(Flex_FSI_ForcesD_nC[FlexIndex].x), NC * (double)derivVelRhoD[FlexMarkerIndex].x);
+  //  atomicAdd(&(Flex_FSI_ForcesD_nC[FlexIndex].y), NC * (double)derivVelRhoD[FlexMarkerIndex].y);
+  //  atomicAdd(&(Flex_FSI_ForcesD_nC[FlexIndex].z), NC * (double)derivVelRhoD[FlexMarkerIndex].z);
+  //
+  //  atomicAdd(&(Flex_FSI_ForcesD_nD[FlexIndex].x), ND * (double)derivVelRhoD[FlexMarkerIndex].x);
+  //  atomicAdd(&(Flex_FSI_ForcesD_nD[FlexIndex].y), ND * (double)derivVelRhoD[FlexMarkerIndex].y);
+  //  atomicAdd(&(Flex_FSI_ForcesD_nD[FlexIndex].z), ND * (double)derivVelRhoD[FlexMarkerIndex].z);
 
-  atomicAdd(&(Flex_FSI_ForcesD_nB[FlexIndex].x), NB * (double)derivVelRhoD[FlexMarkerIndex].x);
-  atomicAdd(&(Flex_FSI_ForcesD_nB[FlexIndex].y), NB * (double)derivVelRhoD[FlexMarkerIndex].y);
-  atomicAdd(&(Flex_FSI_ForcesD_nB[FlexIndex].z), NB * (double)derivVelRhoD[FlexMarkerIndex].z);
+  int nA = ShellelementsNodes[FlexIndex].x;
+  int nB = ShellelementsNodes[FlexIndex].y;
+  int nC = ShellelementsNodes[FlexIndex].z;
+  int nD = ShellelementsNodes[FlexIndex].w;
 
-  atomicAdd(&(Flex_FSI_ForcesD_nC[FlexIndex].x), NC * (double)derivVelRhoD[FlexMarkerIndex].x);
-  atomicAdd(&(Flex_FSI_ForcesD_nC[FlexIndex].y), NC * (double)derivVelRhoD[FlexMarkerIndex].y);
-  atomicAdd(&(Flex_FSI_ForcesD_nC[FlexIndex].z), NC * (double)derivVelRhoD[FlexMarkerIndex].z);
+  atomicAdd(&(Flex_FSI_ForcesD[nA].x), NA * (double)derivVelRhoD[FlexMarkerIndex].x);
+  atomicAdd(&(Flex_FSI_ForcesD[nA].y), NA * (double)derivVelRhoD[FlexMarkerIndex].y);
+  atomicAdd(&(Flex_FSI_ForcesD[nA].z), NA * (double)derivVelRhoD[FlexMarkerIndex].z);
 
-  atomicAdd(&(Flex_FSI_ForcesD_nD[FlexIndex].x), ND * (double)derivVelRhoD[FlexMarkerIndex].x);
-  atomicAdd(&(Flex_FSI_ForcesD_nD[FlexIndex].y), ND * (double)derivVelRhoD[FlexMarkerIndex].y);
-  atomicAdd(&(Flex_FSI_ForcesD_nD[FlexIndex].z), ND * (double)derivVelRhoD[FlexMarkerIndex].z);
+  atomicAdd(&(Flex_FSI_ForcesD[nB].x), NB * (double)derivVelRhoD[FlexMarkerIndex].x);
+  atomicAdd(&(Flex_FSI_ForcesD[nB].y), NB * (double)derivVelRhoD[FlexMarkerIndex].y);
+  atomicAdd(&(Flex_FSI_ForcesD[nB].z), NB * (double)derivVelRhoD[FlexMarkerIndex].z);
 
-  //  atomicAdd(&Flex_FSI_ForcesD_nB[FlexIndex], NB * (double)make_Real3(derivVelRhoD[FlexMarkerIndex]));
-  //  atomicAdd(&Flex_FSI_ForcesD_nC[FlexIndex], NC * (double)make_Real3(derivVelRhoD[FlexMarkerIndex]));
-  //  atomicAdd(&Flex_FSI_ForcesD_nD[FlexIndex], ND * (double)make_Real3(derivVelRhoD[FlexMarkerIndex]));
+  atomicAdd(&(Flex_FSI_ForcesD[nC].x), NC * (double)derivVelRhoD[FlexMarkerIndex].x);
+  atomicAdd(&(Flex_FSI_ForcesD[nC].y), NC * (double)derivVelRhoD[FlexMarkerIndex].y);
+  atomicAdd(&(Flex_FSI_ForcesD[nC].z), NC * (double)derivVelRhoD[FlexMarkerIndex].z);
+
+  atomicAdd(&(Flex_FSI_ForcesD[nD].x), ND * (double)derivVelRhoD[FlexMarkerIndex].x);
+  atomicAdd(&(Flex_FSI_ForcesD[nD].y), ND * (double)derivVelRhoD[FlexMarkerIndex].y);
+  atomicAdd(&(Flex_FSI_ForcesD[nD].z), ND * (double)derivVelRhoD[FlexMarkerIndex].z);
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 // collide a particle against all other particles in a given cell
@@ -367,6 +407,11 @@ __global__ void UpdateFlexMarkersPositionVelocityAccD(Real3* posRadD,
                                                       Real3* FlexSPH_MeshPos_LRF_D,
                                                       Real3* velMasD,
                                                       const uint* FlexIdentifierD,
+                                                      uint4* ShellelementsNodes,
+
+                                                      Real3* pos_fsi_fea_D,
+                                                      Real3* vel_fsi_fea_D,
+
                                                       Real3* posFlex_fsiBodies_nA_D,
                                                       Real3* posFlex_fsiBodies_nB_D,
                                                       Real3* posFlex_fsiBodies_nC_D,
@@ -388,18 +433,21 @@ __global__ void UpdateFlexMarkersPositionVelocityAccD(Real3* posRadD,
 
   uint FlexMarkerIndex = index + numObjectsD.startFlexMarkers;  // updatePortion = [start, end]
 
-  Real3 Shell_center = 0.25 * (posFlex_fsiBodies_nA_D[FlexIndex] + posFlex_fsiBodies_nB_D[FlexIndex] +
-                               posFlex_fsiBodies_nC_D[FlexIndex] + posFlex_fsiBodies_nD_D[FlexIndex]);
+  uint4 shellNodes = ShellelementsNodes[FlexIndex];
+  Real3 pos_fsi_fea_D_nA = pos_fsi_fea_D[shellNodes.x];
+  Real3 pos_fsi_fea_D_nB = pos_fsi_fea_D[shellNodes.y];
+  Real3 pos_fsi_fea_D_nC = pos_fsi_fea_D[shellNodes.z];
+  Real3 pos_fsi_fea_D_nD = pos_fsi_fea_D[shellNodes.w];
+
+  Real3 Shell_center = 0.25 * (pos_fsi_fea_D_nA + pos_fsi_fea_D_nB + pos_fsi_fea_D_nC + pos_fsi_fea_D_nD);
 
   Real3 dist3 = FlexSPH_MeshPos_LRF_D[index] - Shell_center;
   //  printf(" %d dist3= %f,%f,%f center= %f,%f,%f\n", FlexMarkerIndex, dist3.x, dist3.y, dist3.z, Shell_center.x,
   //         Shell_center.y, Shell_center.z);
 
-  Real3 x_dir = ((posFlex_fsiBodies_nB_D[FlexIndex] - posFlex_fsiBodies_nA_D[FlexIndex]) +
-                 (posFlex_fsiBodies_nC_D[FlexIndex] - posFlex_fsiBodies_nD_D[FlexIndex]));
+  Real3 x_dir = ((pos_fsi_fea_D_nB - pos_fsi_fea_D_nA) + (pos_fsi_fea_D_nC - pos_fsi_fea_D_nD));
 
-  Real3 y_dir = ((posFlex_fsiBodies_nD_D[FlexIndex] - posFlex_fsiBodies_nA_D[FlexIndex]) +
-                 (posFlex_fsiBodies_nC_D[FlexIndex] - posFlex_fsiBodies_nB_D[FlexIndex]));
+  Real3 y_dir = ((pos_fsi_fea_D_nD - pos_fsi_fea_D_nA) + (pos_fsi_fea_D_nC - pos_fsi_fea_D_nB));
 
   Real3 Normal = normalize(cross(x_dir, y_dir));
   //  printf(" %d Shell (x,y)= %f,%f\n", FlexMarkerIndex, Shell_x, Shell_y);
@@ -415,12 +463,16 @@ __global__ void UpdateFlexMarkersPositionVelocityAccD(Real3* posRadD,
   Real NC = N_shell.z;
   Real ND = N_shell.w;
 
-  posRadD[FlexMarkerIndex] = NA * posFlex_fsiBodies_nA_D[FlexIndex] + NB * posFlex_fsiBodies_nB_D[FlexIndex] +
-                             NC * posFlex_fsiBodies_nC_D[FlexIndex] + ND * posFlex_fsiBodies_nD_D[FlexIndex] +
-                             Normal * FlexSPH_MeshPos_LRF_D[index].z * Spacing;
+  Real3 vel_fsi_fea_D_nA = vel_fsi_fea_D[shellNodes.x];
+  Real3 vel_fsi_fea_D_nB = vel_fsi_fea_D[shellNodes.y];
+  Real3 vel_fsi_fea_D_nC = vel_fsi_fea_D[shellNodes.z];
+  Real3 vel_fsi_fea_D_nD = vel_fsi_fea_D[shellNodes.w];
 
-  velMasD[FlexMarkerIndex] = NA * VelFlex_fsiBodies_nA_D[FlexIndex] + NB * VelFlex_fsiBodies_nB_D[FlexIndex] +
-                             NC * VelFlex_fsiBodies_nC_D[FlexIndex] + ND * VelFlex_fsiBodies_nD_D[FlexIndex];
+  posRadD[FlexMarkerIndex] = NA * pos_fsi_fea_D_nA + NB * pos_fsi_fea_D_nB + NC * pos_fsi_fea_D_nC +
+                             ND * pos_fsi_fea_D_nD + Normal * FlexSPH_MeshPos_LRF_D[index].z * Spacing;
+
+  velMasD[FlexMarkerIndex] =
+      NA * vel_fsi_fea_D_nA + NB * vel_fsi_fea_D_nB + NC * vel_fsi_fea_D_nC + ND * vel_fsi_fea_D_nD;
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -461,7 +513,10 @@ ChBce::ChBce(SphMarkerDataD* otherSortedSphMarkersD,
       paramsH(otherParamsH),
       numObjectsH(otherNumObjects) {}
 //--------------------------------------------------------------------------------------------------------------------------------
-void ChBce::Finalize(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD, FsiShellsDataD* fsiShellsD) {
+void ChBce::Finalize(SphMarkerDataD* sphMarkersD,
+                     FsiBodiesDataD* fsiBodiesD,
+                     FsiShellsDataD* fsiShellsD,
+                     FsiMeshDataD* fsiMeshD) {
   cudaMemcpyToSymbolAsync(paramsD, paramsH, sizeof(SimParams));
   cudaMemcpyToSymbolAsync(numObjectsD, numObjectsH, sizeof(NumberOfObjects));
 
@@ -488,7 +543,7 @@ void ChBce::Finalize(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD, Fs
   // Populate local position of BCE markers
   Populate_RigidSPH_MeshPos_LRF(sphMarkersD, fsiBodiesD);
 
-  Populate_FlexSPH_MeshPos_LRF(sphMarkersD, fsiShellsD);
+  Populate_FlexSPH_MeshPos_LRF(sphMarkersD, fsiShellsD, fsiMeshD);
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 ChBce::~ChBce() {
@@ -561,7 +616,9 @@ void ChBce::Populate_RigidSPH_MeshPos_LRF(SphMarkerDataD* sphMarkersD, FsiBodies
 }
 ////--------------------------------------------------------------------------------------------------------------------------------
 
-void ChBce::Populate_FlexSPH_MeshPos_LRF(SphMarkerDataD* sphMarkersD, FsiShellsDataD* fsiShellsD) {
+void ChBce::Populate_FlexSPH_MeshPos_LRF(SphMarkerDataD* sphMarkersD,
+                                         FsiShellsDataD* fsiShellsD,
+                                         FsiMeshDataD* fsiMeshD) {
   if (numObjectsH->numFlexBodies == 0) {
     return;
   }
@@ -574,14 +631,15 @@ void ChBce::Populate_FlexSPH_MeshPos_LRF(SphMarkerDataD* sphMarkersD, FsiShellsD
 
   Populate_FlexSPH_MeshPos_LRF_kernel<<<nBlocks_numFlex_SphMarkers, nThreads_SphMarkers>>>(
       mR3CAST(fsiGeneralData->FlexSPH_MeshPos_LRF_D), mR3CAST(sphMarkersD->posRadD),
-      U1CAST(fsiGeneralData->FlexIdentifierD), mR3CAST(fsiShellsD->posFlex_fsiBodies_nA_D),
+      U1CAST(fsiGeneralData->FlexIdentifierD), U4CAST(fsiGeneralData->ShellelementsNodes),
+      mR3CAST(fsiMeshD->pos_fsi_fea_D), mR3CAST(fsiShellsD->posFlex_fsiBodies_nA_D),
       mR3CAST(fsiShellsD->posFlex_fsiBodies_nB_D), mR3CAST(fsiShellsD->posFlex_fsiBodies_nC_D),
       mR3CAST(fsiShellsD->posFlex_fsiBodies_nD_D), paramsH->HSML * paramsH->MULT_INITSPACE_Shells);
 
   cudaThreadSynchronize();
   cudaCheckError();
 
-  UpdateFlexMarkersPositionVelocity(sphMarkersD, fsiShellsD);
+  UpdateShellsMarkersPositionVelocity(sphMarkersD, fsiShellsD, fsiMeshD);
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 void ChBce::RecalcSortedVelocityPressure_BCE(thrust::device_vector<Real3>& velMas_ModifiedBCE,
@@ -752,7 +810,7 @@ void ChBce::Rigid_Forces_Torques(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fs
                               binary_pred, thrust::plus<Real3>());
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-void ChBce::Flex_Forces(SphMarkerDataD* sphMarkersD, FsiShellsDataD* fsiShellsD) {
+void ChBce::Flex_Forces(SphMarkerDataD* sphMarkersD, FsiShellsDataD* fsiShellsD, FsiMeshDataD* fsiMeshD) {
   if (numObjectsH->numFlexBodies == 0) {
     return;
   }
@@ -761,6 +819,9 @@ void ChBce::Flex_Forces(SphMarkerDataD* sphMarkersD, FsiShellsDataD* fsiShellsD)
   thrust::fill(fsiGeneralData->Flex_FSI_ForcesD_nB.begin(), fsiGeneralData->Flex_FSI_ForcesD_nB.end(), mR3(0));
   thrust::fill(fsiGeneralData->Flex_FSI_ForcesD_nC.begin(), fsiGeneralData->Flex_FSI_ForcesD_nC.end(), mR3(0));
   thrust::fill(fsiGeneralData->Flex_FSI_ForcesD_nD.begin(), fsiGeneralData->Flex_FSI_ForcesD_nD.end(), mR3(0));
+
+  thrust::fill(fsiGeneralData->Flex_FSI_ForcesD.begin(), fsiGeneralData->Flex_FSI_ForcesD.end(), mR3(0));
+
   // Markers' forces cannot be simply reduced by "reduce_by_key" since the forces should be interpolated position
   // coordinates
 
@@ -772,9 +833,10 @@ void ChBce::Flex_Forces(SphMarkerDataD* sphMarkersD, FsiShellsDataD* fsiShellsD)
 
   Calc_Flex_FSI_ForcesD<<<nBlocks_numFlex_SphMarkers, nThreads_SphMarkers>>>(
       mR3CAST(fsiGeneralData->FlexSPH_MeshPos_LRF_D), U1CAST(fsiGeneralData->FlexIdentifierD),
-      mR4CAST(fsiGeneralData->derivVelRhoD), mR3CAST(fsiGeneralData->Flex_FSI_ForcesD_nA),
+      U4CAST(fsiGeneralData->ShellelementsNodes), mR4CAST(fsiGeneralData->derivVelRhoD),
+      mR3CAST(fsiMeshD->pos_fsi_fea_D), mR3CAST(fsiGeneralData->Flex_FSI_ForcesD_nA),
       mR3CAST(fsiGeneralData->Flex_FSI_ForcesD_nB), mR3CAST(fsiGeneralData->Flex_FSI_ForcesD_nC),
-      mR3CAST(fsiGeneralData->Flex_FSI_ForcesD_nD));
+      mR3CAST(fsiGeneralData->Flex_FSI_ForcesD_nD), mR3CAST(fsiGeneralData->Flex_FSI_ForcesD));
   cudaThreadSynchronize();
   cudaCheckError();
 }
@@ -804,7 +866,9 @@ void ChBce::UpdateRigidMarkersPositionVelocity(SphMarkerDataD* sphMarkersD, FsiB
   cudaCheckError();
 }
 //--------------------------------------------------------------------------------------------------------------------------------
-void ChBce::UpdateFlexMarkersPositionVelocity(SphMarkerDataD* sphMarkersD, FsiShellsDataD* fsiShellsD) {
+void ChBce::UpdateShellsMarkersPositionVelocity(SphMarkerDataD* sphMarkersD,
+                                                FsiShellsDataD* fsiShellsD,
+                                                FsiMeshDataD* fsiMeshD) {
   if (numObjectsH->numFlexBodies == 0) {
     return;
   }
@@ -816,11 +880,15 @@ void ChBce::UpdateFlexMarkersPositionVelocity(SphMarkerDataD* sphMarkersD, FsiSh
   computeGridSize(numObjectsH->numFlex_SphMarkers, 256, nBlocks_numFlex_SphMarkers, nThreads_SphMarkers);
   UpdateFlexMarkersPositionVelocityAccD<<<nBlocks_numFlex_SphMarkers, nThreads_SphMarkers>>>(
       mR3CAST(sphMarkersD->posRadD), mR3CAST(fsiGeneralData->FlexSPH_MeshPos_LRF_D), mR3CAST(sphMarkersD->velMasD),
-      U1CAST(fsiGeneralData->FlexIdentifierD), mR3CAST(fsiShellsD->posFlex_fsiBodies_nA_D),
-      mR3CAST(fsiShellsD->posFlex_fsiBodies_nB_D), mR3CAST(fsiShellsD->posFlex_fsiBodies_nC_D),
-      mR3CAST(fsiShellsD->posFlex_fsiBodies_nD_D), mR3CAST(fsiShellsD->velFlex_fsiBodies_nA_D),
-      mR3CAST(fsiShellsD->velFlex_fsiBodies_nB_D), mR3CAST(fsiShellsD->velFlex_fsiBodies_nC_D),
-      mR3CAST(fsiShellsD->velFlex_fsiBodies_nD_D), paramsH->HSML * paramsH->MULT_INITSPACE_Shells);
+      U1CAST(fsiGeneralData->FlexIdentifierD), U4CAST(fsiGeneralData->ShellelementsNodes),
+
+      mR3CAST(fsiMeshD->pos_fsi_fea_D), mR3CAST(fsiMeshD->vel_fsi_fea_D),
+
+      mR3CAST(fsiShellsD->posFlex_fsiBodies_nA_D), mR3CAST(fsiShellsD->posFlex_fsiBodies_nB_D),
+      mR3CAST(fsiShellsD->posFlex_fsiBodies_nC_D), mR3CAST(fsiShellsD->posFlex_fsiBodies_nD_D),
+      mR3CAST(fsiShellsD->velFlex_fsiBodies_nA_D), mR3CAST(fsiShellsD->velFlex_fsiBodies_nB_D),
+      mR3CAST(fsiShellsD->velFlex_fsiBodies_nC_D), mR3CAST(fsiShellsD->velFlex_fsiBodies_nD_D),
+      paramsH->HSML * paramsH->MULT_INITSPACE_Shells);
   cudaThreadSynchronize();
   cudaCheckError();
 }

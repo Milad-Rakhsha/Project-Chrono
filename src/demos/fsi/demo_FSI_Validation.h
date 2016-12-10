@@ -44,7 +44,7 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.005;
+    paramsH->HSML = 0.0025;
     paramsH->MULT_INITSPACE = 1.0;
     paramsH->MULT_INITSPACE_Shells = 1.0;
     paramsH->epsMinMarkersDis = .01;
@@ -64,7 +64,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
 
     paramsH->PPE_res = 0.001;
     paramsH->PPE_Solution_type = SPARSE_MATRIX_JACOBI;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
-    paramsH->PPE_relaxation = 0.3;                      // Increasing this to 0.5 causes instability
+    paramsH->PPE_relaxation = 0.6;                      // Increasing this to 0.5 causes instability
+    paramsH->ClampPressure = true;                      // If the negative pressure should be clamped to zero or not
     paramsH->IncompressibilityFactor = 1;     // Increasing this causes lager compressibility, but let for larger dt
     paramsH->USE_CUSP = false;                // Experimentally,don't use if for now
     paramsH->Adaptive_time_stepping = false;  // This let you use large time steps when possible

@@ -30,15 +30,21 @@ class CH_FSI_API ChFsiInterface : public ChFsiGeneral {
  public:
   ChFsiInterface(FsiBodiesDataH* other_fsiBodiesH,
                  FsiShellsDataH* other_fsiShellsH,
+                 FsiMeshDataH* other_fsiMeshH,
                  chrono::ChSystem* other_mphysicalSystem,
                  std::vector<std::shared_ptr<chrono::ChBody>>* other_fsiBodeisPtr,
+                 std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* other_fsiNodesPtr,
                  std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* other_fsiShellsPtr,
+                 thrust::host_vector<int4>* other_ShellelementsNodesH,
+                 thrust::device_vector<int4>* other_ShellelementsNodes,
                  thrust::device_vector<Real3>* other_rigid_FSI_ForcesD,
                  thrust::device_vector<Real3>* other_rigid_FSI_TorquesD,
                  thrust::device_vector<Real3>* other_Flex_FSI_ForcesD_nA,
                  thrust::device_vector<Real3>* other_Flex_FSI_ForcesD_nB,
                  thrust::device_vector<Real3>* other_Flex_FSI_ForcesD_nC,
-                 thrust::device_vector<Real3>* other_Flex_FSI_ForcesD_nD);
+                 thrust::device_vector<Real3>* other_Flex_FSI_ForcesD_nD,
+                 thrust::device_vector<Real3>* other_Flex_FSI_ForcesD);
+
   virtual ~ChFsiInterface();  // TODO
 
   virtual void Add_Rigid_ForceTorques_To_ChSystem();
@@ -48,8 +54,12 @@ class CH_FSI_API ChFsiInterface : public ChFsiGeneral {
   virtual void Copy_ChSystem_to_External();
   virtual void Copy_fsiBodies_ChSystem_to_FluidSystem(FsiBodiesDataD* fsiBodiesD);
   virtual void Copy_fsiShells_ChSystem_to_FluidSystem(FsiShellsDataD* fsiShellsD);
+  virtual void Copy_fsiNodes_ChSystem_to_FluidSystem(FsiMeshDataD* FsiMeshD);
   virtual void ResizeChronoBodiesData();
-  virtual void ResizeChronoShellsData();
+  virtual void ResizeChronoNodesData();
+  virtual void ResizeChronoShellsData(std::vector<std::vector<int>> ShellelementsNodesSTDVector,
+                                      thrust::host_vector<int4>* ShellelementsNodesH);
+  virtual int ResizeChronoFEANodesData();
 
  private:
   FsiBodiesDataH* fsiBodiesH;
@@ -58,10 +68,17 @@ class CH_FSI_API ChFsiInterface : public ChFsiGeneral {
   FsiShellsDataH* fsiShellsH;
   ChronoShellsDataH* chronoFlexBackup;
 
+  FsiMeshDataH* fsiMeshH;
+  ChronoMeshDataH* chronoFlexMeshBackup;
+
   chrono::ChSystem* mphysicalSystem;
 
   std::vector<std::shared_ptr<chrono::ChBody>>* fsiBodeisPtr;
   std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* fsiShellsPtr;
+  std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* fsiNodesPtr;  // These are all the FE nodes available to fsi
+
+  thrust::host_vector<int4>* ShellelementsNodesH;   // These are the indices of nodes of each Element
+  thrust::device_vector<int4>* ShellelementsNodes;  // These are the indices of nodes of each Element
 
   thrust::device_vector<Real3>* rigid_FSI_ForcesD;
   thrust::device_vector<Real3>* rigid_FSI_TorquesD;
@@ -70,6 +87,8 @@ class CH_FSI_API ChFsiInterface : public ChFsiGeneral {
   thrust::device_vector<Real3>* Flex_FSI_ForcesD_nB;
   thrust::device_vector<Real3>* Flex_FSI_ForcesD_nC;
   thrust::device_vector<Real3>* Flex_FSI_ForcesD_nD;
+
+  thrust::device_vector<Real3>* Flex_FSI_ForcesD;
 };
 }  // end namespace fsi
 }  // end namespace chrono

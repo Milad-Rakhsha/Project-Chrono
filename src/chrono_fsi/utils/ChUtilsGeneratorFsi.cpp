@@ -393,6 +393,7 @@ void AddBCE_ShellANCF(ChFsiDataManager* fsiData,
 void AddBCE_ShellFromMesh(ChFsiDataManager* fsiData,
                           SimParams* paramsH,
                           std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* fsiShellsPtr,
+                          std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* fsiNodesPtr,
                           std::shared_ptr<chrono::fea::ChMesh> my_mesh,
                           std::vector<std::vector<int>> elementsNodes,
                           std::vector<std::vector<int>> NodeNeighborElement,
@@ -404,9 +405,8 @@ void AddBCE_ShellFromMesh(ChFsiDataManager* fsiData,
   std::vector<int> remove;
 
   for (int i = 0; i < NodeNeighborElement.size(); i++) {
-    for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
-      printf("NodeNeighborElement[%d][%d]=%d\n", i + 1, j + 1, NodeNeighborElement[i][j]);
-    }
+    auto thisNode = std::dynamic_pointer_cast<fea::ChNodeFEAxyzD>(my_mesh->GetNode(i));
+    fsiNodesPtr->push_back(thisNode);
   }
 
   for (int i = 0; i < numShells; i++) {
