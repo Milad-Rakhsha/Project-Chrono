@@ -96,9 +96,9 @@ Real bxDim = 3;
 Real byDim = 0.4;
 Real bzDim = 2;
 
-Real fxDim = 1;
+Real fxDim = 0.1;
 Real fyDim = byDim;
-Real fzDim = 1.8;
+Real fzDim = 0.2;
 
 void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
 void writeMesh(std::shared_ptr<ChMesh> my_mesh, std::string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement);
@@ -281,8 +281,7 @@ int main(int argc, char* argv[]) {
 
         //        std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(my_mesh->GetNnodes() - 1))
         //            ->SetForce(ChVector<>(+5, 0, 0));
-        //        std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(my_mesh->GetNnodes() - 23))
-        //            ->SetForce(ChVector<>(+5, 0, 0));
+        std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(40))->SetForce(ChVector<>(+100, 0, 0));
 
         printf("next_frame is:%d,  max dt is set to %f\n", next_frame, paramsH->dT_Max);
 
@@ -385,8 +384,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     double plate_lenght_y = byDim;
     double plate_lenght_z = 0.02;
     // Specification of the mesh
-    int numDiv_x = 5;
-    int numDiv_y = 4;
+    int numDiv_x = 10;
+    int numDiv_y = 8;
     int numDiv_z = 1;
     int N_x = numDiv_x + 1;
     int N_y = numDiv_y + 1;
@@ -399,8 +398,9 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     double dy = plate_lenght_y / numDiv_y;
     double dz = plate_lenght_z / numDiv_z;
     std::vector<std::vector<int>> elementsNodes_mesh;
+    std::vector<std::vector<int>> NodeNeighborElement_mesh;
     elementsNodes_mesh.resize(TotalNumElements);
-    NodeNeighborElementMesh.resize(TotalNumNodes);
+    NodeNeighborElement_mesh.resize(TotalNumNodes);
     // Create and add the nodes
     for (int i = 0; i < TotalNumNodes; i++) {
         // Node location
@@ -432,12 +432,11 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // Create an orthotropic material.
     // All layers for all elements share the same material.
     double rho = 500;
-    double E = 1e6;
+    double E = 3e6;
     double nu = 0.3;
     //    ChVector<> E(1e5, 1e5, 1e5);
     //    ChVector<> nu(0.3, 0.3, 0.3);
     auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
-    NodeNeighborElementMesh.resize(TotalNumNodes);
     // Create the elements
     for (int i = 0; i < TotalNumElements; i++) {
         // Adjacent nodes
@@ -449,10 +448,10 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         elementsNodes_mesh[i].push_back(node1 + 1);
         elementsNodes_mesh[i].push_back(node2 + 1);
         elementsNodes_mesh[i].push_back(node3 + 1);
-        NodeNeighborElementMesh[node0].push_back(i);
-        NodeNeighborElementMesh[node1].push_back(i);
-        NodeNeighborElementMesh[node2].push_back(i);
-        NodeNeighborElementMesh[node3].push_back(i);
+        NodeNeighborElement_mesh[node0].push_back(i);
+        NodeNeighborElement_mesh[node1].push_back(i);
+        NodeNeighborElement_mesh[node2].push_back(i);
+        NodeNeighborElement_mesh[node3].push_back(i);
         // Create the element and set its nodes.
         auto element = std::make_shared<ChElementShellANCF>();
         element->SetNodes(std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node0)),
@@ -484,12 +483,13 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* FSI_Nodes = myFsiSystem.GetFsiNodesPtr();
 
     bool multilayer = true;
-    bool removeMiddleLayer = true;
+    bool removeMiddleLayer = false;
 
     chrono::fsi::utils::AddBCE_ShellFromMesh(myFsiSystem.GetDataManager(), paramsH, FSI_Shells, FSI_Nodes, my_mesh,
-                                             elementsNodes_mesh, NodeNeighborElementMesh, multilayer, removeMiddleLayer,
-                                             0);
+                                             elementsNodes_mesh, NodeNeighborElement_mesh, multilayer,
+                                             removeMiddleLayer, 0);
     myFsiSystem.SetShellelementsNodes(elementsNodes_mesh);
+    myFsiSystem.SetFsiMesh(my_mesh);
 
     writeMesh(my_mesh, MESH_CONNECTIVITY, NodeNeighborElementMesh);
 
