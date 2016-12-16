@@ -22,6 +22,11 @@ demo_FSI_Validation
 demo_FSI_DamBreak_Flexible_Cube
 )
 
+SET(FSI_PARALLEL_MKL_DEMOS	
+demo_AC_model
+testMKL
+)
+
 # List all FSI demos use vehicle
 SET(FSI_VEHICLE_DEMOS
 # add fluid demos here
@@ -81,6 +86,39 @@ IF(ENABLE_MODULE_PARALLEL)
 		ENDFOREACH()
 	ENDIF()
 
+	IF(ENABLE_MODULE_MKL)
+        INCLUDE_DIRECTORIES(${CH_MKL_INCLUDES})
+       
+       FOREACH(PROGRAM ${FSI_PARALLEL_MKL_DEMOS})
+            MESSAGE(STATUS "...add ${PROGRAM}")
+
+            CUDA_ADD_EXECUTABLE(${PROGRAM}  "${PROGRAM}.cpp")
+            SOURCE_GROUP(""  FILES  "${PROGRAM}.cpp")    
+            SET_TARGET_PROPERTIES(${PROGRAM} PROPERTIES 
+                FOLDER demos
+                COMPILE_FLAGS "${CH_CXX_FLAGS} ${CH_MKL_CXX_FLAGS} ${CH_PARALLEL_CXX_FLAGS}"
+                LINK_FLAGS "${CH_LINKERFLAG_EXE} ${CH_MKL_LINK_FLAGS}")
+            TARGET_LINK_LIBRARIES(${PROGRAM}
+            	${LIBRARIES}
+                ChronoEngine
+                ChronoEngine_fea
+                ChronoEngine_mkl
+                ChronoEngine_parallel
+                ChronoEngine_fsi)
+            TARGET_INCLUDE_DIRECTORIES(${PROGRAM} PUBLIC
+			${CH_MKL_INCLUDES})
+            ADD_DEPENDENCIES(${PROGRAM}
+             	${LIBRARIES}
+                ChronoEngine
+                ChronoEngine_fea
+                ChronoEngine_mkl
+                ChronoEngine_parallel
+                ChronoEngine_fsi)
+            INSTALL(TARGETS ${PROGRAM} DESTINATION bin)
+       ENDFOREACH()
+    ENDIF()   
+    
+    
 	FOREACH(PROGRAM ${FSI_PARALLEL_DEMOS})
 	    MESSAGE(STATUS "...add ${PROGRAM}")
 
@@ -122,6 +160,7 @@ ELSE()
 
 		ENDFOREACH()
 	ENDIF()
+
 
 	FOREACH(PROGRAM ${FSI_DEMOS})
 	    MESSAGE(STATUS "...add ${PROGRAM}")
