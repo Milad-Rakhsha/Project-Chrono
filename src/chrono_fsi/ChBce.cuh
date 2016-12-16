@@ -41,9 +41,7 @@ class CH_FSI_API ChBce : public ChFsiGeneral {
   ~ChBce();
 
   virtual void UpdateRigidMarkersPositionVelocity(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD);
-  virtual void UpdateShellsMarkersPositionVelocity(SphMarkerDataD* sphMarkersD,
-                                                   FsiShellsDataD* fsiShellsD,
-                                                   FsiMeshDataD* fsiMeshD);
+  virtual void UpdateShellsMarkersPositionVelocity(SphMarkerDataD* sphMarkersD, FsiMeshDataD* fsiMeshD);
 
   virtual void Rigid_Forces_Torques(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD);
   virtual void Flex_Forces(SphMarkerDataD* sphMarkersD, FsiShellsDataD* fsiShellsD, FsiMeshDataD* fsiMeshD);

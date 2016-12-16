@@ -29,8 +29,9 @@
 #ifdef CHRONO_OPENGL
 #include "chrono_opengl/ChOpenGLWindow.h"
 #endif
-
+#include "chrono_fea/ChMesh.h"
 #include "chrono_fea/ChElementShellANCF.h"
+#include "chrono_fea/ChNodeFEAxyzD.h"
 
 namespace chrono {
 namespace fsi {
@@ -51,6 +52,9 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
   /// instantiation is handled by sending a pointer to other objects or data.
   /// Therefore, the sub-classes have pointers to the same data
   ChSystemFsi(ChSystem* other_physicalSystem, bool other_haveFluid);
+  ChSystemFsi(ChSystem* other_physicalSystem,
+              bool other_haveFluid,
+              std::shared_ptr<chrono::fea::ChMesh> other_fsi_mesh);
 
   /// destructor for the fsi system
   ~ChSystemFsi();
@@ -97,12 +101,18 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
   void InitializeChronoGraphics(chrono::ChVector<> CameraLocation = chrono::ChVector<>(1, 0, 0),
                                 chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0));
 
-  void SetShellelementsNodes(std::vector<std::vector<int>> elementsNodes) { ShellelementsNodes = elementsNodes; }
-  void SetNodesShellElements(std::vector<std::vector<int>> NodesElements) { NodesShellElements = NodesElements; }
+  void SetShellelementsNodes(std::vector<std::vector<int>> elementsNodes) {
+    ShellelementsNodes = elementsNodes;
+    int test = fsiData->fsiGeneralData.ShellelementsNodes.size();
+
+    std::cout << "numObjects.numFlexNodes" << test << std::endl;
+  }
+  void SetFsiMesh(const std::shared_ptr<chrono::fea::ChMesh>& other_fsi_mesh) { fsi_mesh = other_fsi_mesh; }
+
+  std::shared_ptr<chrono::fea::ChMesh> GetFsiMesh() { return fsi_mesh; }
 
   /// Finzalize data by calling FinalizeData function and finalize fluid and bce
-  /// objects if the
-  /// system have fluid.
+  /// objects if the system have fluid.
   virtual void Finalize();
 
  private:
@@ -116,8 +126,9 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
   std::vector<std::vector<int>> ShellelementsNodes;  // These are the indices of nodes of each Element
   std::vector<std::vector<int>> NodesShellElements;  // These are the indices of Shell elements attached to each node
 
-  std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>> fsiShellsPtr;  ///< vector of a pointers to fsi Shells
-  std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>> fsiNodesPtr;  // These are all the nodes available to fsi
+  std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>> fsiShellsPtr;  ///<vector of ChElementShellANCF pointers
+  std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>> fsiNodesPtr;        ///<vector of ChNodeFEAxyzD nodes
+  std::shared_ptr<chrono::fea::ChMesh> fsi_mesh;                               ///< ChMesh Pointer
 
   ChFluidDynamics* fluidDynamics;  ///< pointer to the fluid system
   ChFsiInterface* fsiInterface;    ///< pointer to the fsi interface system

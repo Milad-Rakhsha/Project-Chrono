@@ -419,7 +419,7 @@ void AddBCE_ShellFromMesh(ChFsiDataManager* fsiData,
 
     for (int j = 0; j < myNumNodes; j++) {
       int thisNode = elementsNodes[i][j] - 1;
-      printf("Considering elementsNodes[%d][%d]=%d\n", i, j, thisNode);
+      //      printf("Considering elementsNodes[%d][%d]=%d\n", i, j, thisNode);
 
       // Look into the elements attached to thisNode
       for (int k = 0; k < NodeNeighborElement[thisNode].size(); k++) {
@@ -429,7 +429,7 @@ void AddBCE_ShellFromMesh(ChFsiDataManager* fsiData,
         int neighborElement = NodeNeighborElement[thisNode][k];
         if (neighborElement >= i)
           continue;
-        printf("neighborElement %d\n", neighborElement);
+        //        printf("neighborElement %d\n", neighborElement);
 
         int JNumNodes = (elementsNodes[neighborElement].size() > 4) ? 4 : elementsNodes[neighborElement].size();
 
@@ -437,7 +437,8 @@ void AddBCE_ShellFromMesh(ChFsiDataManager* fsiData,
           for (int jnode = 0; jnode < JNumNodes; jnode++) {
             if (elementsNodes[i][inode] - 1 == elementsNodes[neighborElement][jnode] - 1 &&
                 thisNode != elementsNodes[i][inode] - 1 && i > neighborElement) {
-              printf("node %d is common between %d and %d\n", elementsNodes[i][inode] - 1, i, neighborElement);
+              //              printf("node %d is common between %d and %d\n", elementsNodes[i][inode] - 1, i,
+              //              neighborElement);
               remove[inode] = 1;
             }
           }
@@ -445,7 +446,7 @@ void AddBCE_ShellFromMesh(ChFsiDataManager* fsiData,
       }
     }
 
-    printf("remove: %d, %d, %d, %d\n", remove[0], remove[1], remove[2], remove[3]);
+    //    printf("remove: %d, %d, %d, %d\n", remove[0], remove[1], remove[2], remove[3]);
 
     CreateBCE_On_Mesh(posRadBCE, paramsH, thisShell, remove, multiLayer, removeMiddleLayer, SIDE);
     CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(fsiData, paramsH, posRadBCE, thisShell);

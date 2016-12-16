@@ -367,7 +367,7 @@ void ChFsiDataManager::CalcNumObjects() {
         break;
     }
   }
-  numObjects.numFlexNodes = this->fsiGeneralData.ShellelementsNodes.size();
+  numObjects.numFlexNodes = this->fsiGeneralData.ShellelementsNodesH.size();
 
   std::cout << "numObjects.numFlexNodes" << numObjects.numFlexNodes << std::endl;
 
@@ -501,20 +501,11 @@ void ChFsiDataManager::ResizeDataManager(int numNodes) {
   // copy Flex
   fsiShellsD.resize(numObjects.numFlexBodies);
   fsiShellsH.resize(numObjects.numFlexBodies);
-  fsiGeneralData.Flex_FSI_ForcesD_nA.resize(numObjects.numFlexBodies);
-  fsiGeneralData.Flex_FSI_ForcesD_nB.resize(numObjects.numFlexBodies);
-  fsiGeneralData.Flex_FSI_ForcesD_nC.resize(numObjects.numFlexBodies);
-  fsiGeneralData.Flex_FSI_ForcesD_nD.resize(numObjects.numFlexBodies);
+
   fsiGeneralData.FlexIdentifierD.resize(numObjects.numFlex_SphMarkers);
   fsiGeneralData.ShellelementsNodes.resize(numObjects.numFlexBodies);
   thrust::copy(fsiGeneralData.ShellelementsNodesH.begin(), fsiGeneralData.ShellelementsNodesH.end(),
                fsiGeneralData.ShellelementsNodes.begin());
-
-  //  for (int i = 0; i < fsiGeneralData.ShellelementsNodes.size(); i++) {
-  //    printf("Copied  shell %d, [%d,%d,%d,%d]\n", i, fsiGeneralData.ShellelementsNodes[i].x,
-  //           fsiGeneralData.ShellelementsNodes[i].y, fsiGeneralData.ShellelementsNodes[i].z,
-  //           fsiGeneralData.ShellelementsNodes[i].w);
-  //  }
 
   fsiMeshD.resize(numObjects.numFlexNodes);
   fsiMeshH.resize(numObjects.numFlexNodes);

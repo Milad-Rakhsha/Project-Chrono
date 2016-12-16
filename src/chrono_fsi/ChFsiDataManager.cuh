@@ -339,11 +339,6 @@ class FsiGeneralData {
   thrust::device_vector<Real3> rigid_FSI_ForcesD;
   thrust::device_vector<Real3> rigid_FSI_TorquesD;
 
-  thrust::device_vector<Real3> Flex_FSI_ForcesD_nA;
-  thrust::device_vector<Real3> Flex_FSI_ForcesD_nB;
-  thrust::device_vector<Real3> Flex_FSI_ForcesD_nC;
-  thrust::device_vector<Real3> Flex_FSI_ForcesD_nD;
-
   thrust::device_vector<Real3> Flex_FSI_ForcesD;
 
   thrust::host_vector<int4> ShellelementsNodesH;

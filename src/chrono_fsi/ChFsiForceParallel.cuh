@@ -56,10 +56,7 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
   /// This is a basic force computation relying on WCSPH approach.
   virtual void ForceSPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD);
 
-  virtual void ForceIISPH(SphMarkerDataD* otherSphMarkersD,
-                          FsiBodiesDataD* otherFsiBodiesD,
-                          FsiShellsDataD* otherFsiShellsD,
-                          FsiMeshDataD* fsiMeshD);
+  virtual void ForceIISPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD, FsiMeshDataD* fsiMeshD);
 
   /// Synchronize the copy of the data (parameters and number of objects)
   /// between

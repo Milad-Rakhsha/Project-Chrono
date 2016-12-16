@@ -414,7 +414,7 @@ void ChFluidDynamics::IntegrateIISPH(SphMarkerDataD* sphMarkersD2,
                                      FsiBodiesDataD* fsiBodiesD1,
                                      FsiShellsDataD* fsiShellsD,
                                      FsiMeshDataD* fsiMeshD) {
-  forceSystem->ForceIISPH(sphMarkersD2, fsiBodiesD1, fsiShellsD, fsiMeshD);
+  forceSystem->ForceIISPH(sphMarkersD2, fsiBodiesD1, fsiMeshD);
   this->UpdateFluid_Implicit(sphMarkersD2);
   this->ApplyBoundarySPH_Markers(sphMarkersD2);
 }
@@ -459,6 +459,7 @@ void ChFluidDynamics::UpdateFluid_Implicit(SphMarkerDataD* sphMarkersD) {
 
   int4 NON_updatePortion =
       mI4(fsiData->fsiGeneralData.referenceArray[1].x, fsiData->fsiGeneralData.referenceArray[1].y, 0, 0);
+  std::cout << "Skipping the markers >: " << fsiData->fsiGeneralData.referenceArray[1].x << " in position update\n";
 
   bool *isErrorH, *isErrorD;
   isErrorH = (bool*)malloc(sizeof(bool));

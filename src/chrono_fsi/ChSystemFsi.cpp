@@ -18,6 +18,7 @@
 
 #include "chrono_fsi/ChSystemFsi.h"
 #include "chrono_fsi/ChDeviceUtils.cuh"
+#include "chrono_fea/ChMesh.h"
 
 namespace chrono {
 namespace fsi {
@@ -33,6 +34,7 @@ ChSystemFsi::ChSystemFsi(ChSystem* other_physicalSystem, bool other_haveFluid)
   fsiBodeisPtr.resize(0);
   fsiShellsPtr.resize(0);
   fsiNodesPtr.resize(0);
+  //  auto fsi_mesh = std::make_shared<fea::ChMesh>();
 
   numObjectsH = &(fsiData->numObjects);
 
@@ -43,11 +45,16 @@ ChSystemFsi::ChSystemFsi(ChSystem* other_physicalSystem, bool other_haveFluid)
       new ChFsiInterface(&(fsiData->fsiBodiesH), &(fsiData->fsiShellsH), &(fsiData->fsiMeshH), mphysicalSystem,
                          &fsiBodeisPtr, &fsiNodesPtr, &fsiShellsPtr, &(fsiData->fsiGeneralData.ShellelementsNodesH),
                          &(fsiData->fsiGeneralData.ShellelementsNodes), &(fsiData->fsiGeneralData.rigid_FSI_ForcesD),
-                         &(fsiData->fsiGeneralData.rigid_FSI_TorquesD), &(fsiData->fsiGeneralData.Flex_FSI_ForcesD_nA),
-                         &(fsiData->fsiGeneralData.Flex_FSI_ForcesD_nB), &(fsiData->fsiGeneralData.Flex_FSI_ForcesD_nC),
-                         &(fsiData->fsiGeneralData.Flex_FSI_ForcesD_nD), &(fsiData->fsiGeneralData.Flex_FSI_ForcesD));
+                         &(fsiData->fsiGeneralData.rigid_FSI_TorquesD), &(fsiData->fsiGeneralData.Flex_FSI_ForcesD));
 }
+//--------------------------------------------------------------------------------------------------------------------------------
 
+ChSystemFsi::ChSystemFsi(ChSystem* other_physicalSystem,
+                         bool other_haveFluid,
+                         std::shared_ptr<chrono::fea::ChMesh> other_fsi_mesh)
+    : fsi_mesh(other_fsi_mesh) {
+  ChSystemFsi(other_physicalSystem, other_haveFluid);
+}
 //--------------------------------------------------------------------------------------------------------------------------------
 
 void ChSystemFsi::Finalize() {
@@ -138,6 +145,7 @@ void ChSystemFsi::DoStepDynamics_FSI() {
 }
 
 void ChSystemFsi::DoStepDynamics_FSI_Implicit() {
+  printf("Copy_ChSystem_to_External\n ");
   fsiInterface->Copy_ChSystem_to_External();
   printf("IntegrateIISPH\n");
   fluidDynamics->IntegrateIISPH(&(fsiData->sphMarkersD2), &(fsiData->fsiBodiesD2), &(fsiData->fsiShellsD),
@@ -155,12 +163,11 @@ void ChSystemFsi::DoStepDynamics_FSI_Implicit() {
 
   printf("DataTransfer...(Flexible pos-vel-acc from host to device)\n");
   fsiInterface->Copy_fsiNodes_ChSystem_to_FluidSystem(&(fsiData->fsiMeshD));
-  fsiInterface->Copy_fsiShells_ChSystem_to_FluidSystem(&(fsiData->fsiShellsD));
   fsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem(&(fsiData->fsiBodiesD2));
+  printf("Update Marker\n");
 
   bceWorker->UpdateRigidMarkersPositionVelocity(&(fsiData->sphMarkersD2), &(fsiData->fsiBodiesD2));
-  bceWorker->UpdateShellsMarkersPositionVelocity(&(fsiData->sphMarkersD2), &(fsiData->fsiShellsD),
-                                                 &(fsiData->fsiMeshD));
+  bceWorker->UpdateShellsMarkersPositionVelocity(&(fsiData->sphMarkersD2), &(fsiData->fsiMeshD));
   printf("============================================================\n");
 }
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -180,18 +187,18 @@ void ChSystemFsi::DoStepDynamics_ChronoRK2() {
 void ChSystemFsi::FinalizeData() {
   // Arman: very important: you cannot change the order of (1-3).
   // Fix the issue later
+  fsiInterface->GetFsiMesh(fsi_mesh);
+
   printf("\n\n fsiInterface->ResizeChronoBodiesData()\n");
   fsiInterface->ResizeChronoBodiesData();
-  int numNodes = fsiInterface->ResizeChronoFEANodesData();
   fsiInterface->ResizeChronoShellsData(ShellelementsNodes, &(fsiData->fsiGeneralData.ShellelementsNodesH));
-
-  // I am tricking here, I am resizing the dara manager after I know the size of the
+  fsiInterface->ResizeChronoFEANodesData();
+  printf("passing %d to ResizeDataManager..\n", fsi_mesh->GetNnodes());
   printf("\n\n fsiData->ResizeDataManager...\n");
-  fsiData->ResizeDataManager(numNodes);
+  fsiData->ResizeDataManager(fsi_mesh->GetNnodes());
 
   printf("\n\n fsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem()\n");
   fsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem(&(fsiData->fsiBodiesD1));  //(1)
-  fsiInterface->Copy_fsiShells_ChSystem_to_FluidSystem(&(fsiData->fsiShellsD));
   fsiInterface->Copy_fsiNodes_ChSystem_to_FluidSystem(&(fsiData->fsiMeshD));
   std::cout << "referenceArraySize in FinalizeData " << GetDataManager()->fsiGeneralData.referenceArray.size() << "\n";
 

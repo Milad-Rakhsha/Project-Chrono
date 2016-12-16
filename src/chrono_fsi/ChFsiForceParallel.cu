@@ -1784,14 +1784,14 @@ __global__ void CalcForces(Real3* new_vel,  // Write
           Real3 grad_i_wij = GradW(dist3);
           Real3 V_ij = (Veli - Velj);
           // Only Consider (fluid-fluid + fluid-solid) or Solid-Fluid Interaction
-          if (sortedRhoPreMu[i_idx].w == -1 || (sortedRhoPreMu[i_idx].w == 2 && sortedRhoPreMu[j].w == -1))
+          if (sortedRhoPreMu[i_idx].w < 0 || (sortedRhoPreMu[i_idx].w > 0 && sortedRhoPreMu[j].w < 0))
             F_i_p += -m_0 * ((p_i / (rho_i * rho_i)) + (p_j / (rho_j * rho_j))) * grad_i_wij;
 
           Real Rho_bar = (rho_j + rho_i) * 0.5;
           Real3 muNumerator = 2 * mu_0 * dot(dist3, grad_i_wij) * V_ij;
           Real muDenominator = (Rho_bar * Rho_bar) * (d * d + paramsD.HSML * paramsD.HSML * epsilon);
           // Only Consider (fluid-fluid + fluid-solid) or Solid-Fluid Interaction
-          if (sortedRhoPreMu[i_idx].w == -1 || (sortedRhoPreMu[i_idx].w == 2 && sortedRhoPreMu[j].w == -1))
+          if (sortedRhoPreMu[i_idx].w < 0 || (sortedRhoPreMu[i_idx].w > 0 && sortedRhoPreMu[j].w < 0))
             F_i_np += m_0 * muNumerator / muDenominator;
           if (!isfinite(length(F_i_np))) {
             printf("F_i_np in CalcForces returns Nan or Inf");
@@ -1802,11 +1802,15 @@ __global__ void CalcForces(Real3* new_vel,  // Write
   }
   // Forces are per unit mass at this point.
   derivVelRhoD[i_idx] = mR4((F_i_p + F_i_np) * m_0);
+  // Add the gravity forces only to the fluid markers
+  if (sortedRhoPreMu[i_idx].w < 0)
+    derivVelRhoD[i_idx] = derivVelRhoD[i_idx] + mR4(gravity) * m_0;
+
   //  if (sortedRhoPreMu[i_idx].w == 1)
   //    printf("Total force on FlexMArker %d= %f,%f,%f\n", i_idx, derivVelRhoD[i_idx].x, derivVelRhoD[i_idx].y,
   //           derivVelRhoD[i_idx].z);
 
-  new_vel[i_idx] = Veli + dT * (F_i_p + F_i_np) + gravity * dT;
+  new_vel[i_idx] = Veli + dT * mR3(derivVelRhoD[i_idx]) / m_0;
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void PrepPressure(Real3* sortedPosRad,  // Read
@@ -2277,7 +2281,6 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
 
 void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
                                     FsiBodiesDataD* otherFsiBodiesD,
-                                    FsiShellsDataD* otherFsiShellsD,
                                     FsiMeshDataD* otherFsiMeshD) {
   std::cout << "dT in ForceSPH brfore calcPressure: " << paramsH->dT << "\n";
 
@@ -2303,7 +2306,7 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
 
   int numAllMarkers = numObjectsH->numBoundaryMarkers + numObjectsH->numFluidMarkers;
   uint numThreads, numBlocks;
-  computeGridSize(numAllMarkers, 256, numBlocks, numThreads);
+  computeGridSize(numAllMarkers, 128, numBlocks, numThreads);
   bool *isErrorH, *isErrorD;
 
   isErrorH = (bool*)malloc(sizeof(bool));
@@ -2312,8 +2315,10 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
   cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
   //------------------------------------------------------------------------
   // thread per particle
-  thrust::fill(vel_XSPH_Sorted_D.begin(), vel_XSPH_Sorted_D.end(), mR3(0));
   std::cout << "dT in ForceSPH after calcPressure: " << paramsH->dT << "\n";
+
+  thrust::fill(derivVelRhoD_Sorted_D.begin(), derivVelRhoD_Sorted_D.end(), mR4(0));
+  thrust::fill(vel_XSPH_Sorted_D.begin(), vel_XSPH_Sorted_D.end(), mR3(0));
 
   CalcForces<<<numBlocks, numThreads>>>(
       mR3CAST(vel_XSPH_Sorted_D), mR4CAST(derivVelRhoD_Sorted_D), mR3CAST(sortedSphMarkersD->posRadD),

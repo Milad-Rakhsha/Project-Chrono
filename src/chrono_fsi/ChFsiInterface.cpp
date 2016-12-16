@@ -35,10 +35,6 @@ ChFsiInterface::ChFsiInterface(FsiBodiesDataH* other_fsiBodiesH,
                                thrust::device_vector<int4>* other_ShellelementsNodes,
                                thrust::device_vector<Real3>* other_rigid_FSI_ForcesD,
                                thrust::device_vector<Real3>* other_rigid_FSI_TorquesD,
-                               thrust::device_vector<Real3>* other_Flex_FSI_ForcesD_nA,
-                               thrust::device_vector<Real3>* other_Flex_FSI_ForcesD_nB,
-                               thrust::device_vector<Real3>* other_Flex_FSI_ForcesD_nC,
-                               thrust::device_vector<Real3>* other_Flex_FSI_ForcesD_nD,
                                thrust::device_vector<Real3>* other_Flex_FSI_ForcesD)
     : fsiBodiesH(other_fsiBodiesH),
       fsiShellsH(other_fsiShellsH),
@@ -49,10 +45,6 @@ ChFsiInterface::ChFsiInterface(FsiBodiesDataH* other_fsiBodiesH,
       fsiShellsPtr(other_fsiShellsPtr),
       rigid_FSI_ForcesD(other_rigid_FSI_ForcesD),
       rigid_FSI_TorquesD(other_rigid_FSI_TorquesD),
-      Flex_FSI_ForcesD_nA(other_Flex_FSI_ForcesD_nA),
-      Flex_FSI_ForcesD_nB(other_Flex_FSI_ForcesD_nB),
-      Flex_FSI_ForcesD_nC(other_Flex_FSI_ForcesD_nC),
-      Flex_FSI_ForcesD_nD(other_Flex_FSI_ForcesD_nD),
       ShellelementsNodesH(other_ShellelementsNodesH),
       ShellelementsNodes(other_ShellelementsNodes),
       Flex_FSI_ForcesD(other_Flex_FSI_ForcesD) {
@@ -144,58 +136,22 @@ void ChFsiInterface::Add_Rigid_ForceTorques_To_ChSystem() {
     mtorque.Normalize();
     hydroTorque->SetDir(mtorque);
   }
-
-  int numShells = 0;
-  auto my_mesh = std::make_shared<fea::ChMesh>();
-  if (mphysicalSystem->Get_otherphysicslist()->size()) {
-    my_mesh = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0));
-    numShells = my_mesh->GetNelements();
-  }
-
-  for (int i = 0; i < numShells; i++) {
-  }
 }
 
 void ChFsiInterface::Add_Flex_Forces_To_ChSystem() {
   int numShells = 0;
   int numNodes_ChSystem = 0;
 
-  auto my_mesh = std::make_shared<fea::ChMesh>();
-  if (mphysicalSystem->Get_otherphysicslist()->size()) {
-    my_mesh = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0));
-    numShells = my_mesh->GetNelements();
-    numNodes_ChSystem = my_mesh->GetNnodes();
-  }
+  numShells = fsi_mesh->GetNelements();
+
   int numFlex = fsiShellsPtr->size();
   int numNodes = fsiNodesPtr->size();
-
-  if (numFlex != numShells || numNodes_ChSystem != numNodes)
-    throw std::runtime_error(
-        "Size of the external data does not match the "
-        "ChSystem; thrown from Add_Flex_Forces_To_ChSystem "
-        "!\n");
-
-  //  for (int i = 0; i < numFlex; i++) {
-  //    auto ShellPtr = (*fsiShellsPtr)[i];
-  //    chrono::ChVector<> mforceA = ChFsiTypeConvert::Real3ToChVector((*Flex_FSI_ForcesD_nA)[i]);
-  //    chrono::ChVector<> mforceB = ChFsiTypeConvert::Real3ToChVector((*Flex_FSI_ForcesD_nB)[i]);
-  //    chrono::ChVector<> mforceC = ChFsiTypeConvert::Real3ToChVector((*Flex_FSI_ForcesD_nC)[i]);
-  //    chrono::ChVector<> mforceD = ChFsiTypeConvert::Real3ToChVector((*Flex_FSI_ForcesD_nD)[i]);
-  //
-  //    auto element = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(i));
-  //    element->GetNodeA()->SetForce(-mforceA);
-  //    element->GetNodeB()->SetForce(-mforceB);
-  //    element->GetNodeC()->SetForce(-mforceC);
-  //    element->GetNodeD()->SetForce(-mforceD);
-  //    chrono::ChVector<> TotalForce = (mforceA + mforceB + mforceC + mforceD);
-  //    //    printf("Added the force of %f,%f,%f to the flex body %d\n", TotalForce.x, TotalForce.y, TotalForce.z, i);
-  //  }
 
   for (int i = 0; i < numNodes; i++) {
     chrono::ChVector<> mforce = ChFsiTypeConvert::Real3ToChVector((*Flex_FSI_ForcesD)[i]);
     //    printf("Added the force of %f,%f,%f to the flex body %d\n", mforce.x, mforce.y, mforce.z, i);
-    auto node = std::dynamic_pointer_cast<fea::ChNodeFEAxyzD>(my_mesh->GetNode(i));
-    node->SetForce(-mforce);
+    auto node = std::dynamic_pointer_cast<fea::ChNodeFEAxyzD>(fsi_mesh->GetNode(i));
+    node->SetForce(mforce);
   }
 }
 
@@ -228,10 +184,9 @@ void ChFsiInterface::Copy_External_To_ChSystem() {
 void ChFsiInterface::Copy_ChSystem_to_External() {
   //	// Arman, assume no change in chrono num bodies. the resize is done in
   // initializaiton.
+
   int numBodies = mphysicalSystem->Get_bodylist()->size();
   auto bodyList = mphysicalSystem->Get_bodylist();
-
-  //  printf("\n\n bodyList.size()=%d \n", bodyList->size());
 
   if (chronoRigidBackup->pos_ChSystemH.size() != numBodies) {
     throw std::runtime_error(
@@ -239,7 +194,9 @@ void ChFsiInterface::Copy_ChSystem_to_External() {
         "ChSystem; thrown from Copy_ChSystem_to_External "
         "!\n");
   }
-  //	chronoRigidBackup->resize(numBodies);
+
+  chronoRigidBackup->resize(numBodies);
+
   //#pragma omp parallel for // Arman: you can bring it back later, when you
   // have a lot of bodies
   for (int i = 0; i < numBodies; i++) {
@@ -258,31 +215,12 @@ void ChFsiInterface::Copy_ChSystem_to_External() {
   auto my_mesh = std::make_shared<fea::ChMesh>();
   if (mphysicalSystem->Get_otherphysicslist()->size()) {
     my_mesh = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0));
-    numShells = my_mesh->GetNelements();
-    numNodes = my_mesh->GetNnodes();
   }
 
-  for (int i = 0; i < numShells; i++) {
-    auto element = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(i));
-
-    chronoFlexBackup->posFlex_ChSystemH_nA_H[i] = ChFsiTypeConvert::ChVectorToReal3(element->GetNodeA()->GetPos());
-    chronoFlexBackup->posFlex_ChSystemH_nB_H[i] = ChFsiTypeConvert::ChVectorToReal3(element->GetNodeB()->GetPos());
-    chronoFlexBackup->posFlex_ChSystemH_nC_H[i] = ChFsiTypeConvert::ChVectorToReal3(element->GetNodeC()->GetPos());
-    chronoFlexBackup->posFlex_ChSystemH_nD_H[i] = ChFsiTypeConvert::ChVectorToReal3(element->GetNodeD()->GetPos());
-
-    chronoFlexBackup->velFlex_ChSystemH_nA_H[i] = ChFsiTypeConvert::ChVectorToReal3(element->GetNodeA()->GetPos_dt());
-    chronoFlexBackup->velFlex_ChSystemH_nB_H[i] = ChFsiTypeConvert::ChVectorToReal3(element->GetNodeB()->GetPos_dt());
-    chronoFlexBackup->velFlex_ChSystemH_nC_H[i] = ChFsiTypeConvert::ChVectorToReal3(element->GetNodeC()->GetPos_dt());
-    chronoFlexBackup->velFlex_ChSystemH_nD_H[i] = ChFsiTypeConvert::ChVectorToReal3(element->GetNodeD()->GetPos_dt());
-
-    chronoFlexBackup->accFlex_ChSystemH_nA_H[i] = ChFsiTypeConvert::ChVectorToReal3(element->GetNodeA()->GetPos_dtdt());
-    chronoFlexBackup->accFlex_ChSystemH_nB_H[i] = ChFsiTypeConvert::ChVectorToReal3(element->GetNodeB()->GetPos_dtdt());
-    chronoFlexBackup->accFlex_ChSystemH_nC_H[i] = ChFsiTypeConvert::ChVectorToReal3(element->GetNodeC()->GetPos_dtdt());
-    chronoFlexBackup->accFlex_ChSystemH_nD_H[i] = ChFsiTypeConvert::ChVectorToReal3(element->GetNodeD()->GetPos_dtdt());
-  }
-
+  numShells = fsi_mesh->GetNelements();
+  numNodes = fsi_mesh->GetNnodes();
   for (int i = 0; i < numNodes; i++) {
-    auto node = std::dynamic_pointer_cast<fea::ChNodeFEAxyz>(my_mesh->GetNode(i));
+    auto node = std::dynamic_pointer_cast<fea::ChNodeFEAxyz>(fsi_mesh->GetNode(i));
     chronoFlexMeshBackup->posFlex_ChSystemH_H[i] = ChFsiTypeConvert::ChVectorToReal3(node->GetPos());
     chronoFlexMeshBackup->velFlex_ChSystemH_H[i] = ChFsiTypeConvert::ChVectorToReal3(node->GetPos_dt());
     chronoFlexMeshBackup->accFlex_ChSystemH_H[i] = ChFsiTypeConvert::ChVectorToReal3(node->GetPos_dtdt());
@@ -365,27 +303,26 @@ void ChFsiInterface::ResizeChronoNodesData() {
   int numNodes = 0;
   auto my_mesh = std::make_shared<fea::ChMesh>();
   if (mphysicalSystem->Get_otherphysicslist()->size()) {
-    my_mesh = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0));
-    numNodes = my_mesh->GetNnodes();
+    printf("fsi_mesh.size in ResizeChronNodesData  %d\n", numNodes);
   }
-
+  numNodes = fsi_mesh->GetNnodes();
   printf("\n\n numNodes in ResizeChronNodesData  %d\n", numNodes);
   chronoFlexMeshBackup->resize(numNodes);
 }
 //------------------------------------------------------------------------------------
 
-int ChFsiInterface::ResizeChronoFEANodesData() {
+void ChFsiInterface::ResizeChronoFEANodesData() {
   int numNodes = 0;
   auto my_mesh = std::make_shared<fea::ChMesh>();
   if (mphysicalSystem->Get_otherphysicslist()->size()) {
     my_mesh = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0));
-    numNodes = my_mesh->GetNnodes();
   }
+  numNodes = fsi_mesh->GetNnodes();
+  printf("fsi_mesh.size in ResizeChronoFEANodesData  %d\n", numNodes);
 
   printf("\n\n numNodes in ResizeChronoFEANodeData  %d\n", numNodes);
 
   chronoFlexMeshBackup->resize(numNodes);
-  return numNodes;
 }
 //------------------------------------------------------------------------------------
 
@@ -395,9 +332,9 @@ void ChFsiInterface::ResizeChronoShellsData(std::vector<std::vector<int>> Shelle
   auto my_mesh = std::make_shared<fea::ChMesh>();
   if (mphysicalSystem->Get_otherphysicslist()->size()) {
     my_mesh = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0));
-    numShells = my_mesh->GetNelements();
   }
-
+  numShells = fsi_mesh->GetNelements();
+  printf("fsi_mesh.size.shell in ResizeChronoShellsData  %d\n", numShells);
   printf("\n\n numShells in ResizeChronoShellsData  %d\n", numShells);
   printf("ShellelementsNodesSTDVector.size() in ResizeChronoShellsData  %d\n", ShellelementsNodesSTDVector.size());
 

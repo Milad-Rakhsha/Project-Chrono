@@ -223,26 +223,21 @@ void CreateBCE_On_Mesh(thrust::host_vector<Real3>& posRadBCE,
 
         if (k == 0 && SIDE == 0 && multiLayer && removeMiddleLayer) {
           // skip the middle layer for this specific case
+          printf("---------------paramsH->MULT_INITSPACE_Shells was changed in CreateBCE_On_Mesh to 0.5. \n");
           paramsH->MULT_INITSPACE_Shells = 0.5;
           continue;
         }
+
+        if (std::abs(i) <= 1 && std::abs(j) <= 1) {
+          // skip the middle layer for this specific case
+          continue;
+        }
+
         // It has to skip puting BCE on the nodes if one of the following conditions is true
         bool con1 = (remove[0] && remove[1] && j == jBound.x);
         bool con2 = (remove[2] && remove[3] && j == jBound.y);
         bool con3 = (remove[1] && remove[2] && i == iBound.y);
         bool con4 = (remove[3] && remove[0] && i == iBound.x);
-        if (con1)
-          printf("con1 is set for element with relMarkerPos %f,%f,%f \n", relMarkerPos.x, relMarkerPos.y,
-                 relMarkerPos.z);
-        if (con2)
-          printf("con2 is set for element with relMarkerPos %f,%f,%f \n", relMarkerPos.x, relMarkerPos.y,
-                 relMarkerPos.z);
-        if (con3)
-          printf("con3 is set for element with relMarkerPos %f,%f,%f \n", relMarkerPos.x, relMarkerPos.y,
-                 relMarkerPos.z);
-        if (con4)
-          printf("con4 is set for element with relMarkerPos %f,%f,%f \n", relMarkerPos.x, relMarkerPos.y,
-                 relMarkerPos.z);
 
         if (con1 || con2 || con3 || con4)
           continue;
