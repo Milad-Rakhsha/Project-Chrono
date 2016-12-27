@@ -15,8 +15,8 @@
 #ifndef CHQUATERNION_H
 #define CHQUATERNION_H
 
-#include "chrono/core/ChVector.h"
-#include "chrono/core/ChApiCE.h"
+#include "core/ChVector.h"
+#include "ChApiCE.h"
 
 namespace chrono {
 
@@ -514,7 +514,7 @@ class ChQuaternion {
         this->e3 = axis.z * sinhalf;
     }
 
-	/// Sets the quaternion from an agle of rotation about X axis
+    /// Sets the quaternion from an agle of rotation about X axis
     void Q_from_AngX(const Real angleX) { Q_from_AngAxis(angleX, ChVector<Real>(1, 0, 0)); }
 
     /// Sets the quaternion from an agle of rotation about Y axis
@@ -789,17 +789,11 @@ ChApi ChQuaternion<double> Qconjugate(const ChQuaternion<double>& q);
 ChApi ChQuaternion<double> Qcross(const ChQuaternion<double>& qa, const ChQuaternion<double>& qb);
 ChApi bool Qequal(const ChQuaternion<double>& qa, const ChQuaternion<double>& qb);
 ChApi bool Qnotnull(const ChQuaternion<double>& qa);
-<<<<<<< HEAD
-ChApi ChQuaternion<double> ImmQ_complete(ChVector<double>* qimm);
-ChApi ChQuaternion<double> ImmQ_dt_complete(ChQuaternion<double>* mq, ChVector<double>* qimm_dt);
-ChApi ChQuaternion<double> ImmQ_dtdt_complete(ChQuaternion<double>* mq,
-                                              ChQuaternion<double>* mqdt,
-                                              ChVector<double>* qimm_dtdt);
-=======
 ChApi ChQuaternion<double> ImmQ_complete(const ChVector<double>& qimm);
 ChApi ChQuaternion<double> ImmQ_dt_complete(const ChQuaternion<double>& mq, const ChVector<double>& qimm_dt);
-ChApi ChQuaternion<double> ImmQ_dtdt_complete(const ChQuaternion<double>& mq, const ChQuaternion<double>& mqdt, const ChVector<double>& qimm_dtdt);
->>>>>>> develop
+ChApi ChQuaternion<double> ImmQ_dtdt_complete(const ChQuaternion<double>& mq,
+                                              const ChQuaternion<double>& mqdt,
+                                              const ChVector<double>& qimm_dtdt);
 
 ChApi ChVector<double> VaxisXfromQuat(const ChQuaternion<double>& quat);
 
@@ -814,7 +808,6 @@ ChApi ChVector<double> VaxisXfromQuat(const ChQuaternion<double>& quat);
 #define ANGLESET_RXYZ 4
 #define ANGLESET_RODRIGUEZ 5
 #define ANGLESET_QUATERNION 6
-#define ANGLESET_RZXY 7
 
 // Angle conversion utilities
 

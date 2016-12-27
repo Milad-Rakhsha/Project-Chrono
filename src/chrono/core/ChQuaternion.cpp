@@ -14,8 +14,8 @@
 
 #include <math.h>
 
-#include "chrono/core/ChQuaternion.h"
-#include "chrono/core/ChMatrix33.h"
+#include "core/ChQuaternion.h"
+#include "core/ChMatrix33.h"
 
 namespace chrono {
 
@@ -102,7 +102,6 @@ ChQuaternion<double> Q_from_AngAxis(double angle, const ChVector<double>& axis) 
     return (quat);
 }
 
-
 // Declarations used for Q_from_Vect_to_Vect()
 static ChVector<double> getOrthogonalVector(const ChVector<double>& vect);
 static int maxComponent(const ChVector<double>& vect);
@@ -111,73 +110,76 @@ static int maxComponent(const ChVector<double>& vect);
 // which specifies the rotation from one to the other.  The vectors
 // do not need to be normalized.
 ChQuaternion<double> Q_from_Vect_to_Vect(const ChVector<double>& fr_vect, const ChVector<double>& to_vect) {
-	const double ANGLE_TOLERANCE = 1e-6;
-	ChQuaternion<double> quat;
-	double halfang;
-	double sinhalf;
-	ChVector<double> axis;
+    const double ANGLE_TOLERANCE = 1e-6;
+    ChQuaternion<double> quat;
+    double halfang;
+    double sinhalf;
+    ChVector<double> axis;
 
-	double lenXlen = fr_vect.Length() * to_vect.Length();
-	axis = fr_vect % to_vect;
-	double sinangle = ChClamp(axis.Length() / lenXlen, -1.0, +1.0);
-	double cosangle = ChClamp(fr_vect ^ to_vect / lenXlen, -1.0, +1.0);
+    double lenXlen = fr_vect.Length() * to_vect.Length();
+    axis = fr_vect % to_vect;
+    double sinangle = ChClamp(axis.Length() / lenXlen, -1.0, +1.0);
+    double cosangle = ChClamp(fr_vect ^ to_vect / lenXlen, -1.0, +1.0);
 
-	// Consider three cases: Parallel, Opposite, non-colinear
-	if (abs(sinangle) == 0.0 && cosangle > 0) {
-		// fr_vect & to_vect are parallel 
-		quat.e0 = 1.0;
-		quat.e1 = 0.0;
-		quat.e2 = 0.0;
-		quat.e3 = 0.0;
-	}
-	else if (abs(sinangle) < ANGLE_TOLERANCE && cosangle < 0) {
-		// fr_vect & to_vect are opposite, i.e. ~180 deg apart
-		axis = getOrthogonalVector(fr_vect) + getOrthogonalVector(-to_vect);
-		axis.Normalize();
-		quat.e0 = 0.0;
-		quat.e1 = ChClamp(axis.x, -1.0, +1.0);
-		quat.e2 = ChClamp(axis.y, -1.0, +1.0);
-		quat.e3 = ChClamp(axis.z, -1.0, +1.0);
-	}
-	else {
-		// fr_vect & to_vect are not co-linear case
-		axis.Normalize();
-		halfang = 0.5 * ChAtan2(sinangle, cosangle);
-		sinhalf = sin(halfang);
+    // Consider three cases: Parallel, Opposite, non-colinear
+    if (abs(sinangle) == 0.0 && cosangle > 0) {
+        // fr_vect & to_vect are parallel
+        quat.e0 = 1.0;
+        quat.e1 = 0.0;
+        quat.e2 = 0.0;
+        quat.e3 = 0.0;
+    } else if (abs(sinangle) < ANGLE_TOLERANCE && cosangle < 0) {
+        // fr_vect & to_vect are opposite, i.e. ~180 deg apart
+        axis = getOrthogonalVector(fr_vect) + getOrthogonalVector(-to_vect);
+        axis.Normalize();
+        quat.e0 = 0.0;
+        quat.e1 = ChClamp(axis.x, -1.0, +1.0);
+        quat.e2 = ChClamp(axis.y, -1.0, +1.0);
+        quat.e3 = ChClamp(axis.z, -1.0, +1.0);
+    } else {
+        // fr_vect & to_vect are not co-linear case
+        axis.Normalize();
+        halfang = 0.5 * ChAtan2(sinangle, cosangle);
+        sinhalf = sin(halfang);
 
-		quat.e0 = cos(halfang);
-		quat.e1 = ChClamp(axis.x, -1.0, +1.0);
-		quat.e2 = ChClamp(axis.y, -1.0, +1.0);
-		quat.e3 = ChClamp(axis.z, -1.0, +1.0);
-	}
-	return (quat);
+        quat.e0 = cos(halfang);
+        quat.e1 = ChClamp(axis.x, -1.0, +1.0);
+        quat.e2 = ChClamp(axis.y, -1.0, +1.0);
+        quat.e3 = ChClamp(axis.z, -1.0, +1.0);
+    }
+    return (quat);
 }
-
 
 // Returns the maximum component of a vector.
 static int maxComponent(const ChVector<double>& vect) {
-	int idx = 0;
-	double max = abs(vect(0));
-	if (abs(vect(1)) > max) { idx = 1; max = vect(1); }
-	if (abs(vect(2)) > max) { idx = 2; max = vect(2); }
-	return idx;
+    int idx = 0;
+    double max = abs(vect(0));
+    if (abs(vect(1)) > max) {
+        idx = 1;
+        max = vect(1);
+    }
+    if (abs(vect(2)) > max) {
+        idx = 2;
+        max = vect(2);
+    }
+    return idx;
 }
 
 // Find a vector which is orthogonal to the given vector.
 static ChVector<double> getOrthogonalVector(const ChVector<double>& vect) {
-	ChVector<double> v2, ortho;
-	int idx1 = maxComponent(vect);
-	int idx2 = (idx1 + 1) % 3;  // Cycle to the next component
-	int idx3 = (idx2 + 1) % 3;  // Cycle to the next component
+    ChVector<double> v2, ortho;
+    int idx1 = maxComponent(vect);
+    int idx2 = (idx1 + 1) % 3;  // Cycle to the next component
+    int idx3 = (idx2 + 1) % 3;  // Cycle to the next component
 
-	// Construct v2 by rotating in the plane containing the maximum component
-	v2(idx1) = -vect(idx2);
-	v2(idx2) = vect(idx1);
-	v2(idx3) = vect(idx3);
+    // Construct v2 by rotating in the plane containing the maximum component
+    v2(idx1) = -vect(idx2);
+    v2(idx2) = vect(idx1);
+    v2(idx3) = vect(idx3);
 
-	ortho = vect % v2;
-	ortho.Normalize();
-	return ortho;
+    ortho = vect % v2;
+    ortho.Normalize();
+    return ortho;
 }
 
 ChQuaternion<double> Q_from_AngZ(double angleZ) {
@@ -350,15 +352,9 @@ ChQuaternion<double> ImmQ_dt_complete(const ChQuaternion<double>& mq, const ChVe
     return (mqdt);
 }
 
-<<<<<<< HEAD
-ChQuaternion<double> ImmQ_dtdt_complete(ChQuaternion<double>* mq,
-                                        ChQuaternion<double>* mqdt,
-                                        ChVector<double>* qimm_dtdt) {
-=======
 ChQuaternion<double> ImmQ_dtdt_complete(const ChQuaternion<double>& mq,
                                         const ChQuaternion<double>& mqdt,
                                         const ChVector<double>& qimm_dtdt) {
->>>>>>> develop
     ChQuaternion<double> mqdtdt;
     mqdtdt.e1 = qimm_dtdt.x;
     mqdtdt.e2 = qimm_dtdt.y;
@@ -389,9 +385,6 @@ ChQuaternion<double> Angle_to_Quat(int angset, const ChVector<double>& mangles) 
         case ANGLESET_RXYZ:
             Acoord.Set_A_Rxyz(mangles);
             break;
-        case ANGLESET_RZXY:
-            Acoord.Set_A_Rzxy(mangles);
-            break;
         case ANGLESET_RODRIGUEZ:
             Acoord.Set_A_Rodriguez(mangles);
             break;
@@ -418,9 +411,6 @@ ChVector<double> Quat_to_Angle(int angset, const ChQuaternion<double>& mquat) {
             break;
         case ANGLESET_RXYZ:
             res = Acoord.Get_A_Rxyz();
-            break;
-        case ANGLESET_RZXY:
-            res = Acoord.Get_A_Rzxy();
             break;
         case ANGLESET_RODRIGUEZ:
             res = Acoord.Get_A_Rodriguez();
@@ -475,9 +465,6 @@ ChVector<double> Angle_to_Angle(int setfrom, int setto, const ChVector<double>& 
         case ANGLESET_RXYZ:
             Acoord.Set_A_Rxyz(mangles);
             break;
-        case ANGLESET_RZXY:
-            Acoord.Set_A_Rzxy(mangles);
-            break;
         case ANGLESET_RODRIGUEZ:
             Acoord.Set_A_Rodriguez(mangles);
             break;
@@ -496,9 +483,6 @@ ChVector<double> Angle_to_Angle(int setfrom, int setto, const ChVector<double>& 
         case ANGLESET_RXYZ:
             res = Acoord.Get_A_Rxyz();
             break;
-        case ANGLESET_RZXY:
-            res = Acoord.Get_A_Rzxy();
-            break;
         case ANGLESET_RODRIGUEZ:
             res = Acoord.Get_A_Rodriguez();
             break;
@@ -516,4 +500,6 @@ ChVector<double> VaxisXfromQuat(const ChQuaternion<double>& quat) {
     return res;
 }
 
-}  // end namespace chrono
+}  // END_OF_NAMESPACE____
+
+////////
