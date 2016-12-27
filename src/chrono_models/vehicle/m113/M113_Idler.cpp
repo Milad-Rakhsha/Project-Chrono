@@ -70,7 +70,7 @@ class M113_TensionerForce : public ChSpringForceCallback {
 
 // -----------------------------------------------------------------------------
 // -----------------------------------------------------------------------------
-M113_Idler::M113_Idler(const std::string& name) : ChDoubleIdler(name), m_vis_type(VisualizationType::PRIMITIVES) {
+M113_Idler::M113_Idler(const std::string& name) : ChDoubleIdler(name) {
     SetContactFrictionCoefficient(0.7f);
     SetContactRestitutionCoefficient(0.1f);
     SetContactMaterialProperties(1e8f, 0.3f);
@@ -80,20 +80,16 @@ M113_Idler::M113_Idler(const std::string& name) : ChDoubleIdler(name), m_vis_typ
 
 // -----------------------------------------------------------------------------
 // -----------------------------------------------------------------------------
-void M113_Idler::AddWheelVisualization() {
-    switch (m_vis_type) {
-        case VisualizationType::PRIMITIVES:
-            ChDoubleIdler::AddWheelVisualization();
-            break;
-        case VisualizationType::MESH: {
-            geometry::ChTriangleMeshConnected trimesh;
-            trimesh.LoadWavefrontMesh(GetMeshFile(), false, false);
-            auto trimesh_shape = std::make_shared<ChTriangleMeshShape>();
-            trimesh_shape->SetMesh(trimesh);
-            trimesh_shape->SetName(GetMeshName());
-            m_wheel->AddAsset(trimesh_shape);
-            break;
-        }
+void M113_Idler::AddVisualizationAssets(VisualizationType vis) {
+    ChDoubleIdler::AddVisualizationAssets(vis);
+
+    if (vis == VisualizationType::MESH) {
+        geometry::ChTriangleMeshConnected trimesh;
+        trimesh.LoadWavefrontMesh(GetMeshFile(), false, false);
+        auto trimesh_shape = std::make_shared<ChTriangleMeshShape>();
+        trimesh_shape->SetMesh(trimesh);
+        trimesh_shape->SetName(GetMeshName());
+        m_wheel->AddAsset(trimesh_shape);
     }
 }
 
@@ -127,12 +123,6 @@ const ChVector<> M113_Idler::GetLocation(PointId which) {
         point.y *= -1;
 
     return point;
-}
-
-// -----------------------------------------------------------------------------
-// -----------------------------------------------------------------------------
-void M113_Idler::ExportMeshPovray(const std::string& out_dir) {
-    utils::WriteMeshPovray(GetMeshFile(), GetMeshName(), out_dir, ChColor(0.15f, 0.15f, 0.15f));
 }
 
 }  // end namespace m113

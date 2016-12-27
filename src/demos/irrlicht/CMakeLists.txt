@@ -30,6 +30,7 @@ SET(DEMOS
   demo_rev_sph
   demo_rev_trans
   demo_rev_limits
+  demo_rot_spring
   demo_spring
   demo_ujoint
   demo_earthquake
@@ -77,7 +78,7 @@ FOREACH(PROGRAM ${DEMOS})
     
   ADD_DEPENDENCIES (${PROGRAM} ChronoEngine ChronoEngine_irrlicht)
 
-  INSTALL(TARGETS ${PROGRAM} DESTINATION bin)
+  INSTALL(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
 
 ENDFOREACH()
 

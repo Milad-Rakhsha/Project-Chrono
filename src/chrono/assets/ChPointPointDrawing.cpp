@@ -9,7 +9,7 @@
 // and at http://projectchrono.org/license-chrono.txt.
 //
 
-#include "assets/ChPointPointDrawing.h"
+#include "chrono/assets/ChPointPointDrawing.h"
 #include "chrono/physics/ChLinkMarkers.h"
 #include "chrono/physics/ChLinkDistance.h"
 
@@ -46,8 +46,7 @@ void ChPointPointSpring::UpdateLineGeometry(const ChVector<>& endpoint1, const C
 	ChVector<> Vx, Vy, Vz;
 	double length = dist.Length();
 	ChVector<> dir = dist.GetNormalized();
-	ChVector<> singul = VECT_Y;
-	XdirToDxDyDz(&dir, &singul, &Vx, &Vy, &Vz);
+    XdirToDxDyDz(dir, VECT_Y, Vx, Vy, Vz);
 
 	ChMatrix33<> rel_matrix;
 	rel_matrix.Set_A_axis(Vx, Vy, Vz);
@@ -73,4 +72,4 @@ void ChPointPointSpring::UpdateLineGeometry(const ChVector<>& endpoint1, const C
 	this->SetLineGeometry(std::static_pointer_cast<geometry::ChLine>(linepath));
 }
 
-}  // END_OF_NAMESPACE____
+}  // end namespace chrono

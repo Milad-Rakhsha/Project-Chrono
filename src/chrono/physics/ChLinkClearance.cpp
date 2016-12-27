@@ -17,7 +17,7 @@
 namespace chrono {
 
 // Register into the object factory, to enable run-time dynamic creation and persistence
-ChClassRegister<ChLinkClearance> a_registration_ChLinkClearance;
+CH_FACTORY_REGISTER(ChLinkClearance)
 
 ChLinkClearance::ChLinkClearance() {
     type = LNK_CLEARANCE;  // initializes type
@@ -66,8 +66,7 @@ double ChLinkClearance::Get_axis_phase() {
         return 0;
     double mangle;
     Vector maxis;
-    Quaternion temp = this->GetMarker2()->GetCoord().rot;
-    Q_to_AngAxis(&temp, &mangle, &maxis);
+    Q_to_AngAxis(this->GetMarker2()->GetCoord().rot, mangle, maxis);
     if (maxis.z < 0.0) {
         maxis = Vmul(maxis, -1.0);
         mangle = (2.0 * CH_C_PI) - mangle;

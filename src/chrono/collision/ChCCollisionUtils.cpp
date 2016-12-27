@@ -151,7 +151,7 @@ double ChCollisionUtils::PointTriangleDistance(Vector B,
     mA.Set_A_axis(Dx, Dy, Dz);
 
     // invert triangle coordinate matrix -if singular matrix, was degenerate triangle-.
-    if (fabs(mA.FastInvert(&mAi)) < 0.000001)
+    if (fabs(mA.FastInvert(mAi)) < 0.000001)
         return mdistance;
 
     T1 = mAi.Matr_x_Vect(Vsub(B, A1));
@@ -221,7 +221,5 @@ void ChConvexHullLibraryWrapper::ComputeHull(std::vector<ChVector<> >& points,
     hl.ReleaseResult(hresult);
 }
 
-}  // END_OF_NAMESPACE____
-}  // END_OF_NAMESPACE____
-
-////// end
+}  // end namespace collision
+}  // end namespace chrono

@@ -73,7 +73,7 @@ FOREACH(PROGRAM ${FEA_DEMOS})
     ADD_DEPENDENCIES(${PROGRAM}
         ChronoEngine
         ChronoEngine_fea)
-    INSTALL(TARGETS ${PROGRAM} DESTINATION bin)
+    INSTALL(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
 ENDFOREACH()
 
 #--------------------------------------------------------------
@@ -99,7 +99,7 @@ FOREACH(PROGRAM ${FEA_DEMOS_MKL})
         ChronoEngine
 		ChronoEngine_mkl
         ChronoEngine_fea)
-    INSTALL(TARGETS ${PROGRAM} DESTINATION bin)
+    INSTALL(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
 ENDFOREACH()
 
 #--------------------------------------------------------------
@@ -126,7 +126,7 @@ IF(ENABLE_MODULE_IRRLICHT)
             ChronoEngine_irrlicht)
         ADD_DEPENDENCIES(${PROGRAM}
             ChronoEngine ChronoEngine_fea ChronoEngine_irrlicht)
-        INSTALL(TARGETS ${PROGRAM} DESTINATION bin)
+        INSTALL(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
     
     ENDFOREACH()
 
@@ -156,7 +156,7 @@ IF(ENABLE_MODULE_IRRLICHT)
                 ChronoEngine_irrlicht
                 ChronoEngine_parallel
                 ChronoEngine_opengl)
-            INSTALL(TARGETS ${PROGRAM} DESTINATION bin)
+            INSTALL(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
         ENDFOREACH()
     ENDIF()
 
@@ -184,7 +184,7 @@ IF(ENABLE_MODULE_IRRLICHT)
                 ChronoEngine_fea
                 ChronoEngine_irrlicht
                 ChronoEngine_matlab)
-            INSTALL(TARGETS ${PROGRAM} DESTINATION bin)
+            INSTALL(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
         ENDFOREACH()
     ENDIF()
 
@@ -212,7 +212,7 @@ IF(ENABLE_MODULE_IRRLICHT)
                 ChronoEngine_fea
                 ChronoEngine_mkl
                 ChronoEngine_irrlicht)
-            INSTALL(TARGETS ${PROGRAM} DESTINATION bin)
+            INSTALL(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
         ENDFOREACH()
     ENDIF()
 
@@ -247,7 +247,7 @@ IF(ENABLE_MODULE_IRRLICHT)
                 ChronoEngine_mkl
                 ChronoEngine_irrlicht
                 ChronoEngine_matlab)
-            INSTALL(TARGETS ${PROGRAM} DESTINATION bin)
+            INSTALL(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
         ENDFOREACH()
     ENDIF()
 

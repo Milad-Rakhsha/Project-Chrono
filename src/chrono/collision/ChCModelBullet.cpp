@@ -35,7 +35,7 @@ namespace collision {
 
 // Register into the object factory, to enable run-time
 // dynamic creation and persistence
-ChClassRegisterABSTRACT<ChModelBullet> a_registration_ChModelBullet;
+CH_FACTORY_REGISTER(ChModelBullet)
 
 
 ChModelBullet::ChModelBullet() {
@@ -954,5 +954,5 @@ void ChModelBullet::StreamOUT(ChStreamOutBinary& mstream) {
 }
 */
 
-}  // END_OF_NAMESPACE____
-}  // END_OF_NAMESPACE____
+}  // end namespace collision
+}  // end namespace chrono

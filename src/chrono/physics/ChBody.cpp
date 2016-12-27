@@ -31,7 +31,7 @@ using namespace collision;
 using namespace geometry;
 
 // Register into the object factory, to enable run-time dynamic creation and persistence
-ChClassRegister<ChBody> a_registration_ChBody;
+CH_FACTORY_REGISTER(ChBody)
 
 ChBody::ChBody(ChMaterialSurfaceBase::ContactMethod contact_method) {
     marklist.clear();
@@ -261,15 +261,15 @@ void ChBody::IntToDescriptor(const unsigned int off_v,  // offset in v, R
                              const unsigned int off_L,  // offset in L, Qc
                              const ChVectorDynamic<>& L,
                              const ChVectorDynamic<>& Qc) {
-    this->variables.Get_qb().PasteClippedMatrix(&v, off_v, 0, 6, 1, 0, 0);  // for solver warm starting only
-    this->variables.Get_fb().PasteClippedMatrix(&R, off_v, 0, 6, 1, 0, 0);  // solver known term
+    this->variables.Get_qb().PasteClippedMatrix(v, off_v, 0, 6, 1, 0, 0);  // for solver warm starting only
+    this->variables.Get_fb().PasteClippedMatrix(R, off_v, 0, 6, 1, 0, 0);  // solver known term
 }
 
 void ChBody::IntFromDescriptor(const unsigned int off_v,  // offset in v
                                ChStateDelta& v,
                                const unsigned int off_L,  // offset in L
                                ChVectorDynamic<>& L) {
-    v.PasteMatrix(&this->variables.Get_qb(), off_v, 0);
+    v.PasteMatrix(this->variables.Get_qb(), off_v, 0);
 }
 
 ////
@@ -405,7 +405,7 @@ void ChBody::SetInertiaXX(const ChVector<>& iner) {
     variables.GetBodyInertia().SetElement(0, 0, iner.x);
     variables.GetBodyInertia().SetElement(1, 1, iner.y);
     variables.GetBodyInertia().SetElement(2, 2, iner.z);
-    variables.GetBodyInertia().FastInvert(&variables.GetBodyInvInertia());
+    variables.GetBodyInertia().FastInvert(variables.GetBodyInvInertia());
 }
 void ChBody::SetInertiaXY(const ChVector<>& iner) {
     variables.GetBodyInertia().SetElement(0, 1, iner.x);
@@ -414,7 +414,7 @@ void ChBody::SetInertiaXY(const ChVector<>& iner) {
     variables.GetBodyInertia().SetElement(1, 0, iner.x);
     variables.GetBodyInertia().SetElement(2, 0, iner.y);
     variables.GetBodyInertia().SetElement(2, 1, iner.z);
-    variables.GetBodyInertia().FastInvert(&variables.GetBodyInvInertia());
+    variables.GetBodyInertia().FastInvert(variables.GetBodyInvInertia());
 }
 
 ChVector<> ChBody::GetInertiaXX() {
@@ -609,7 +609,7 @@ void ChBody::UpdateForces(double mytime) {
     Xforce = Force_acc;
 
     // 1b- force caused by accumulation of torques in body's accumulator Force_acc
-    if (Vnotnull(&Torque_acc)) {
+    if (Vnotnull(Torque_acc)) {
         Xtorque = Dir_World2Body(Torque_acc);
     } else {
         Xtorque = VNULL;
@@ -631,7 +631,7 @@ void ChBody::UpdateForces(double mytime) {
     // 3 - accumulation of script forces
     Xforce += Scr_force;
 
-    if (Vnotnull(&Scr_torque)) {
+    if (Vnotnull(Scr_torque)) {
         Xtorque += Dir_World2Body(Scr_torque);
     }
 
@@ -644,29 +644,6 @@ void ChBody::UpdateTime(double mytime) {
     ChTime = mytime;
 }
 
-void ChBody::UpdateState(const ChCoordsys<>& mypos, const ChCoordsys<>& mypos_dt) {
-    SetCoord(mypos);        // Set the state coordsys,
-    SetCoord_dt(mypos_dt);  // automatically updating auxiliary variables
-
-    // TrySleeping();          // See if the body can fall asleep; if so, put it to sleeping
-    ClampSpeed();   // Apply limits (if in speed clamping mode) to speeds.
-    ComputeGyro();  // Set the gyroscopic momentum.
-}
-
-void ChBody::UpdateStateTime(const ChCoordsys<>& mypos, const ChCoordsys<>& mypos_dt, double mytime) {
-    UpdateTime(mytime);
-    UpdateState(mypos, mypos_dt);
-}
-
-void ChBody::Update(const ChCoordsys<>& mypos, const ChCoordsys<>& mypos_dt, double mytime) {
-    UpdateTime(mytime);
-
-    ChCoordsys<> pos = mypos;
-    pos.rot.Normalize();
-    UpdateState(pos, mypos_dt);
-
-    Update();
-}
 
 // UpdateALL updates the state and time
 // of the object AND the dependant (linked)
@@ -804,12 +781,12 @@ void ChBody::ComputeJacobianForContactPart(const ChVector<>& abs_point,
     if (second)
         Jr1.MatrNeg();
 
-    jacobian_tuple_N.Get_Cq()->PasteClippedMatrix(&Jx1, 0, 0, 1, 3, 0, 0);
-    jacobian_tuple_U.Get_Cq()->PasteClippedMatrix(&Jx1, 1, 0, 1, 3, 0, 0);
-    jacobian_tuple_V.Get_Cq()->PasteClippedMatrix(&Jx1, 2, 0, 1, 3, 0, 0);
-    jacobian_tuple_N.Get_Cq()->PasteClippedMatrix(&Jr1, 0, 0, 1, 3, 0, 3);
-    jacobian_tuple_U.Get_Cq()->PasteClippedMatrix(&Jr1, 1, 0, 1, 3, 0, 3);
-    jacobian_tuple_V.Get_Cq()->PasteClippedMatrix(&Jr1, 2, 0, 1, 3, 0, 3);
+    jacobian_tuple_N.Get_Cq()->PasteClippedMatrix(Jx1, 0, 0, 1, 3, 0, 0);
+    jacobian_tuple_U.Get_Cq()->PasteClippedMatrix(Jx1, 1, 0, 1, 3, 0, 0);
+    jacobian_tuple_V.Get_Cq()->PasteClippedMatrix(Jx1, 2, 0, 1, 3, 0, 0);
+    jacobian_tuple_N.Get_Cq()->PasteClippedMatrix(Jr1, 0, 0, 1, 3, 0, 3);
+    jacobian_tuple_U.Get_Cq()->PasteClippedMatrix(Jr1, 1, 0, 1, 3, 0, 3);
+    jacobian_tuple_V.Get_Cq()->PasteClippedMatrix(Jr1, 2, 0, 1, 3, 0, 3);
 }
 
 void ChBody::ComputeJacobianForRollingContactPart(
@@ -825,12 +802,12 @@ void ChBody::ComputeJacobianForRollingContactPart(
     if (!second)
         Jr1.MatrNeg();
 
-    jacobian_tuple_N.Get_Cq()->PasteClippedMatrix(&Jx1, 0, 0, 1, 3, 0, 0);
-    jacobian_tuple_U.Get_Cq()->PasteClippedMatrix(&Jx1, 1, 0, 1, 3, 0, 0);
-    jacobian_tuple_V.Get_Cq()->PasteClippedMatrix(&Jx1, 2, 0, 1, 3, 0, 0);
-    jacobian_tuple_N.Get_Cq()->PasteClippedMatrix(&Jr1, 0, 0, 1, 3, 0, 3);
-    jacobian_tuple_U.Get_Cq()->PasteClippedMatrix(&Jr1, 1, 0, 1, 3, 0, 3);
-    jacobian_tuple_V.Get_Cq()->PasteClippedMatrix(&Jr1, 2, 0, 1, 3, 0, 3);
+    jacobian_tuple_N.Get_Cq()->PasteClippedMatrix(Jx1, 0, 0, 1, 3, 0, 0);
+    jacobian_tuple_U.Get_Cq()->PasteClippedMatrix(Jx1, 1, 0, 1, 3, 0, 0);
+    jacobian_tuple_V.Get_Cq()->PasteClippedMatrix(Jx1, 2, 0, 1, 3, 0, 0);
+    jacobian_tuple_N.Get_Cq()->PasteClippedMatrix(Jr1, 0, 0, 1, 3, 0, 3);
+    jacobian_tuple_U.Get_Cq()->PasteClippedMatrix(Jr1, 1, 0, 1, 3, 0, 3);
+    jacobian_tuple_V.Get_Cq()->PasteClippedMatrix(Jr1, 2, 0, 1, 3, 0, 3);
 }
 
 ChVector<> ChBody::GetContactForce() {

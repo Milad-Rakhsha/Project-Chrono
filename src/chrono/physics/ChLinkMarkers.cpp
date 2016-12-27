@@ -17,7 +17,7 @@
 namespace chrono {
 
 // Register into the object factory, to enable run-time dynamic creation and persistence
-ChClassRegisterABSTRACT<ChLinkMarkers> a_registration_ChLinkMarkers;
+//CH_FACTORY_REGISTER(ChLinkMarkers)    // NO! Abstract class!
 
 ChLinkMarkers::ChLinkMarkers()
     : marker1(NULL),
@@ -308,7 +308,7 @@ void ChLinkMarkers::UpdateRelMarkerCoords() {
     // ... and also "user-friendly" relative coordinates:
 
     // relAngle and relAxis
-    Q_to_AngAxis(&relM.rot, &relAngle, &relAxis);
+    Q_to_AngAxis(relM.rot, relAngle, relAxis);
     // flip rel rotation axis if jerky sign
     if (relAxis.z < 0) {
         relAxis = Vmul(relAxis, -1);
@@ -357,7 +357,7 @@ void ChLinkMarkers::IntLoadResidual_F(const unsigned int off,  // offset in R re
 
     Vector mbody_force;
     Vector mbody_torque;
-    if (Vnotnull(&C_force)) {
+    if (Vnotnull(C_force)) {
         Vector m_abs_force = Body2->GetA().Matr_x_Vect(marker2->GetA().Matr_x_Vect(C_force));
 
         if (Body2->Variables().IsActive()) {
@@ -380,7 +380,7 @@ void ChLinkMarkers::IntLoadResidual_F(const unsigned int off,  // offset in R re
                              Body1->Variables().GetOffset() + 3, 0);
         }
     }
-    if (Vnotnull(&C_torque)) {
+    if (Vnotnull(C_torque)) {
         Vector m_abs_torque = Body2->GetA().Matr_x_Vect(marker2->GetA().Matr_x_Vect(C_torque));
         // load torques in 'fb' vector accumulator of body variables (torques in local coords)
         if (Body1->Variables().IsActive()) {
@@ -402,7 +402,7 @@ void ChLinkMarkers::ConstraintsFbLoadForces(double factor) {
 
     Vector mbody_force;
     Vector mbody_torque;
-    if (Vnotnull(&C_force)) {
+    if (Vnotnull(C_force)) {
         Vector m_abs_force = Body2->GetA().Matr_x_Vect(marker2->GetA().Matr_x_Vect(C_force));
         Body2->To_abs_forcetorque(m_abs_force,
                                   marker1->GetAbsCoord().pos,  // absolute application point is always marker1
@@ -419,7 +419,7 @@ void ChLinkMarkers::ConstraintsFbLoadForces(double factor) {
         Body1->Variables().Get_fb().PasteSumVector(mbody_force * factor, 0, 0);
         Body1->Variables().Get_fb().PasteSumVector(Body1->TransformDirectionParentToLocal(mbody_torque) * factor, 3, 0);
     }
-    if (Vnotnull(&C_torque)) {
+    if (Vnotnull(C_torque)) {
         Vector m_abs_torque = Body2->GetA().Matr_x_Vect(marker2->GetA().Matr_x_Vect(C_torque));
         // load torques in 'fb' vector accumulator of body variables (torques in local coords)
         Body1->Variables().Get_fb().PasteSumVector(Body1->TransformDirectionParentToLocal(m_abs_torque) * factor, 3, 0);

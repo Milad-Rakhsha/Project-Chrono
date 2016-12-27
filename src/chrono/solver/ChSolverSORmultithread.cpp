@@ -13,6 +13,7 @@
 // =============================================================================
 
 #include <stdio.h>
+
 #include "chrono/parallel/ChThreadsSync.h"
 #include "chrono/solver/ChConstraintTwoTuplesFrictionT.h"
 #include "chrono/solver/ChConstraintTwoTuplesRollingN.h"
@@ -22,7 +23,7 @@
 namespace chrono {
 
 // Register into the object factory, to enable run-time dynamic creation and persistence
-ChClassRegister<ChSolverSORmultithread> a_registration_ChSolverSORmultithread;
+CH_FACTORY_REGISTER(ChSolverSORmultithread)
 
 // Each thread will own an instance of the following data:
 

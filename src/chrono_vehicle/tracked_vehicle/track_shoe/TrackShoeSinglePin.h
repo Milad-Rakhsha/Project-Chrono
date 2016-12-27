@@ -47,16 +47,16 @@ class CH_VEHICLE_API TrackShoeSinglePin : public ChTrackShoeSinglePin {
     virtual double GetPitch() const override { return m_shoe_pitch; }
 
     /// Return the mass of the shoe body.
-    virtual double GetShoeMass() const { return m_shoe_mass; }
+    virtual double GetShoeMass() const override { return m_shoe_mass; }
     /// Return the moments of inertia of the shoe body.
     virtual const ChVector<>& GetShoeInertia() const override { return m_shoe_inertia; }
 
     /// Return the location of the front contact cylinder.
-    virtual double GetFrontCylinderLoc() const { return m_front_cyl_loc; }
+    virtual double GetFrontCylinderLoc() const override { return m_front_cyl_loc; }
     /// Return the location of the rear contact cylinder.
-    virtual double GetRearCylinderLoc() const { return m_rear_cyl_loc; }
+    virtual double GetRearCylinderLoc() const override { return m_rear_cyl_loc; }
     /// Return the radius of the contact cylinders.
-    virtual double GetCylinderRadius() const { return m_cyl_radius; }
+    virtual double GetCylinderRadius() const override { return m_cyl_radius; }
 
     /// Return dimensions and locations of the contact boxes for the shoe and guiding pin.
     /// Note that this is for contact with wheels, idler, and ground only.
@@ -66,8 +66,8 @@ class CH_VEHICLE_API TrackShoeSinglePin : public ChTrackShoeSinglePin {
     virtual const ChVector<>& GetGuideBoxDimensions() const override { return m_guide_box_dims; }
     virtual const ChVector<>& GetGuideBoxLocation() const override { return m_guide_box_loc; }
 
-    /// Add visualization of the track shoe.
-    virtual void AddShoeVisualization() override;
+    /// Add visualization assets for the idler subsystem.
+    virtual void AddVisualizationAssets(VisualizationType vis) override;
 
   private:
     void Create(const rapidjson::Document& d);
@@ -86,7 +86,7 @@ class CH_VEHICLE_API TrackShoeSinglePin : public ChTrackShoeSinglePin {
     ChVector<> m_guide_box_dims;
     ChVector<> m_guide_box_loc;
 
-    VisualizationType m_vis_type;
+    bool m_has_mesh;
     std::string m_meshName;
     std::string m_meshFile;
 };

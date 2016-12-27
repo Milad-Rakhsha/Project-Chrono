@@ -15,6 +15,7 @@
 //
 // =============================================================================
 
+#include "chrono/core/ChFileutils.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
 
 #include "chrono_vehicle/ChVehicleModelData.h"
@@ -45,39 +46,42 @@ std::string filename("M113/track_assembly/M113_TrackAssemblySinglePin_Left.json"
 double post_limit = 0.2;
 
 // Simulation step size
-double step_size = 1e-2;
-double render_step_size = 1.0 / 50;  // Time interval between two render frames
+double step_size = 1e-3;
+
+// Time interval between two render frames
+double render_step_size = 1.0 / 50;
+
+// Output (screenshot captures)
+bool img_output = false;
+
+const std::string out_dir = "../TRACK_TESTRIG";
 
 // =============================================================================
 int main(int argc, char* argv[]) {
     ChTrackTestRig* rig = nullptr;
-    ChVector<> location(0, 1, 0);
+    ChVector<> attach_loc(0, 1, 0);
 
     if (use_JSON) {
-        rig = new ChTrackTestRig(vehicle::GetDataFile(filename), location);
+        rig = new ChTrackTestRig(vehicle::GetDataFile(filename), attach_loc);
     } else {
-        // Create an M113 track assembly.
         VehicleSide side = LEFT;
         TrackShoeType type = TrackShoeType::SINGLE_PIN;
-        VisualizationType shoe_vis = VisualizationType::PRIMITIVES;
 
         std::shared_ptr<ChTrackAssembly> track_assembly;
         switch (type) {
             case TrackShoeType::SINGLE_PIN: {
                 auto assembly = std::make_shared<M113_TrackAssemblySinglePin>(side);
-                assembly->SetTrackShoeVisType(shoe_vis);
                 track_assembly = assembly;
                 break;
             }
             case TrackShoeType::DOUBLE_PIN: {
                 auto assembly = std::make_shared<M113_TrackAssemblyDoublePin>(side);
-                assembly->SetTrackShoeVisType(shoe_vis);
                 track_assembly = assembly;
                 break;
             }
         }
 
-        rig = new ChTrackTestRig(track_assembly, location, ChMaterialSurfaceBase::DVI);
+        rig = new ChTrackTestRig(track_assembly, attach_loc, ChMaterialSurfaceBase::DVI);
     }
 
     //rig->GetSystem()->Set_G_acc(ChVector<>(0, 0, 0));
@@ -92,20 +96,29 @@ int main(int argc, char* argv[]) {
 
     rig->SetMaxTorque(6000);
 
-    rig->Initialize(ChCoordsys<>());
+    ChVector<> rig_loc(0, 0, 2);
+    ChQuaternion<> rig_rot(1, 0, 0, 0);
+    rig->Initialize(ChCoordsys<>(rig_loc, rig_rot));
 
+    rig->GetTrackAssembly()->SetSprocketVisualizationType(VisualizationType::PRIMITIVES);
+    rig->GetTrackAssembly()->SetIdlerVisualizationType(VisualizationType::PRIMITIVES);
+    rig->GetTrackAssembly()->SetRoadWheelAssemblyVisualizationType(VisualizationType::PRIMITIVES);
+    rig->GetTrackAssembly()->SetRoadWheelVisualizationType(VisualizationType::PRIMITIVES);
+    rig->GetTrackAssembly()->SetTrackShoeVisualizationType(VisualizationType::PRIMITIVES);
+
+    ////rig->SetCollide(TrackCollide::NONE);
     ////rig->SetCollide(TrackCollide::SPROCKET_LEFT | TrackCollide::SHOES_LEFT);
     ////rig->GetTrackAssembly()->GetSprocket()->GetGearBody()->SetCollide(false);
 
     // Create the vehicle Irrlicht application.
-    ChVector<> target_point = rig->GetPostPosition();
-    ////ChVector<> target_point = idler_loc;
-    ////ChVector<> target_point = sprocket_loc;
+    ////ChVector<> target_point = rig->GetPostPosition();
+    ////ChVector<> target_point = rig->GetTrackAssembly()->GetIdler()->GetWheelBody()->GetPos();
+    ChVector<> target_point = rig->GetTrackAssembly()->GetSprocket()->GetGearBody()->GetPos();
 
     ChVehicleIrrApp app(rig, NULL, L"Suspension Test Rig");
     app.SetSkyBox();
     app.AddTypicalLights(irr::core::vector3df(30.f, -30.f, 100.f), irr::core::vector3df(30.f, 50.f, 100.f), 250, 130);
-    app.SetChaseCamera(target_point, 3.0, 1.0);
+    app.SetChaseCamera(ChVector<>(0), 3.0, 0.0);
     app.SetChaseCameraPosition(target_point + ChVector<>(0, 3, 0));
     app.SetChaseCameraMultipliers(1e-4, 10);
     app.SetTimestep(step_size);
@@ -119,6 +132,12 @@ int main(int argc, char* argv[]) {
     driver.SetSteeringDelta(render_step_size / steering_time);
     driver.SetDisplacementDelta(render_step_size / displacement_time * post_limit);
     driver.Initialize();
+
+    // Initialize output
+    if (ChFileutils::MakeDirectory(out_dir.c_str()) < 0) {
+        std::cout << "Error creating directory " << out_dir << std::endl;
+        return 1;
+    }
 
     // ---------------
     // Simulation loop
@@ -135,11 +154,11 @@ int main(int argc, char* argv[]) {
 
     // Initialize simulation frame counter
     int step_number = 0;
-    ChRealtimeStepTimer realtime_timer;
+    int render_frame = 0;
 
     while (app.GetDevice()->run()) {
         // Debugging output
-        const ChFrameMoving<>& c_ref = rig->GetChassis()->GetFrame_REF_to_abs();
+        const ChFrameMoving<>& c_ref = rig->GetChassisBody()->GetFrame_REF_to_abs();
         const ChVector<>& i_pos_abs = rig->GetTrackAssembly()->GetIdler()->GetWheelBody()->GetPos();
         const ChVector<>& s_pos_abs = rig->GetTrackAssembly()->GetSprocket()->GetGearBody()->GetPos();
         ChVector<> i_pos_rel = c_ref.TransformPointParentToLocal(i_pos_abs);
@@ -154,8 +173,13 @@ int main(int argc, char* argv[]) {
             app.DrawAll();
             app.EndScene();
 
-            if (step_number == 2)
-                app.WriteImageToFile("assembled_track.jpg");
+            if (img_output && step_number > 1000) {
+                char filename[100];
+                sprintf(filename, "%s/img_%03d.jpg", out_dir.c_str(), render_frame + 1);
+                app.WriteImageToFile(filename);
+            }
+
+            render_frame++;
         }
 
         // Collect output data from modules
@@ -169,10 +193,9 @@ int main(int argc, char* argv[]) {
         app.Synchronize("", 0, throttle_input, 0);
 
         // Advance simulation for one timestep for all modules
-        double step = realtime_timer.SuggestSimulationStep(step_size);
-        driver.Advance(step);
-        rig->Advance(step);
-        app.Advance(step);
+        driver.Advance(step_size);
+        rig->Advance(step_size);
+        app.Advance(step_size);
 
         // Increment frame number
         step_number++;

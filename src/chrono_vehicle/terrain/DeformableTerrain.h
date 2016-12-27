@@ -22,9 +22,8 @@
 #include <set>
 #include <string>
 
-#include "chrono/assets/ChColor.h"
 #include "chrono/assets/ChColorAsset.h"
-#include "chrono/geometry/ChTriangleMeshConnected.h"
+#include "chrono/assets/ChTriangleMeshShape.h"
 #include "chrono/physics/ChBody.h"
 #include "chrono/physics/ChLoadContainer.h"
 #include "chrono/physics/ChLoadsBody.h"
@@ -59,7 +58,8 @@ public:
         PLOT_SHEAR,
         PLOT_K_JANOSI,
         PLOT_IS_TOUCHED,
-        PLOT_ISLAND_ID
+        PLOT_ISLAND_ID,
+        PLOT_MASSREMAINDER
     };
 
     /// Construct a default DeformableSoil.
@@ -110,7 +110,8 @@ public:
         double mMohr_cohesion,  ///< Cohesion in, Pa, for shear failure
         double mMohr_friction,  ///< Friction angle (in degrees!), for shear failure
         double mJanosi_shear,   ///< J , shear parameter, in meters, in Janosi-Hanamoto formula (usually few mm or cm)
-        double melastic_K       ///< elastic stiffness K (must be > Kphi; very high values gives the original SCM model)
+        double melastic_K,      ///< elastic stiffness K, per unit area, [Pa/m] (must be > Kphi; very high values gives the original SCM model)
+        double mdamping_R       ///< vertical damping R, per unit area [Pa s/m] (proportional to vertical negative speed, it is zero in original SCM model)
         );
 
     /// If true, enable the creation of soil inflation at the side of the ruts, 
@@ -215,24 +216,33 @@ class CH_VEHICLE_API DeformableSoil : public ChLoadContainer {
                     );
 
   private:
+
+    // Updates the forces and the geometry, at the beginning of each timestep
+    virtual void Setup() override {
+        
+        //GetLog() << " Setup update soil t= "<< this->ChTime << "\n";
+        this->ComputeInternalForces();
+
+        ChLoadContainer::Update(ChTime, true);
+       
+    }
+
     // Updates the forces and the geometry
     virtual void Update(double mytime, bool update_assets = true) override {
-        // optimization to avoid double updates per each integration time step
-        if (last_t != mytime) {
-            // Computes the internal forces
-            this->UpdateInternalForces();
-            // Overloading base class
-            ChLoadContainer::Update(mytime, update_assets);
-            last_t = mytime;
-            //GetLog() << "update soil t= "<< mytime << "\n";
-        } 
-        //else GetLog() << "unneeded update t= "<< mytime << "\n";
+        
+        // Note!!! we cannot call ComputeInternalForces here, because Update() could
+        // be called multiple times per timestep (ex. see HHT or RungKutta) and not
+        // necessarily in time-increasing order; this is a problem because in this
+        // force model the force is dissipative and keeps an 'history'. So we do
+        // ComputeInternalForces only at the beginning of the timestep; look Setup().
+
+        ChTime = mytime;
     }
 
     // Reset the list of forces, and fills it with forces from a soil contact model.
     // This is called automatically during timestepping (only at the beginning of
     // each IntLoadResidual_F() for performance reason, not at each Update() that might be overkill).
-    void UpdateInternalForces();
+    void ComputeInternalForces();
 
     
     // Override the ChLoadContainer method for computing the generalized force F term:
@@ -240,10 +250,7 @@ class CH_VEHICLE_API DeformableSoil : public ChLoadContainer {
                                    ChVectorDynamic<>& R,    ///< result: the R residual, R += c*F
                                    const double c           ///< a scaling factor
                                    ) override {
-        // reset the internal forces
-        // this->GetLoadList().clear();
-        // Computes the internal forces
-        // this->UpdateInternalForces();
+
         // Overloading base class, that takes all F vectors from the list of forces and put all them in R
         ChLoadContainer::IntLoadResidual_F(off, R, c);
     }
@@ -271,6 +278,7 @@ class CH_VEHICLE_API DeformableSoil : public ChLoadContainer {
     std::vector<double> p_sigma;
     std::vector<double> p_sigma_yeld;
     std::vector<double> p_tau;
+    std::vector<double> p_massremainder;
     std::vector<int>    p_id_island;
     std::vector<bool>   p_erosion;
 
@@ -281,6 +289,7 @@ class CH_VEHICLE_API DeformableSoil : public ChLoadContainer {
     double Mohr_friction;
     double Janosi_shear;
     double elastic_K;
+    double damping_R;
 
     int plot_type;
     double plot_v_min;

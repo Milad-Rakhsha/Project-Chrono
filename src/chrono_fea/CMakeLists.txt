@@ -18,6 +18,7 @@ MESSAGE(STATUS "==== Chrono FEA module ====")
 
 SET(ChronoEngine_FEA_SOURCES
     ChBuilderBeam.cpp
+    ChElementBeamANCF.cpp
     ChElementGeneric.cpp
     ChElementSpring.cpp  
     ChElementBar.cpp  
@@ -33,6 +34,7 @@ SET(ChronoEngine_FEA_SOURCES
     ChNodeFEAxyzrot.cpp
     ChNodeFEAxyzP.cpp
     ChNodeFEAxyzD.cpp
+    ChNodeFEAxyzDD.cpp
     ChNodeFEAcurv.cpp
     ChGaussIntegrationRule.cpp
     ChGaussPoint.cpp
@@ -67,6 +69,7 @@ SET(ChronoEngine_FEA_HEADERS
     ChNodeFEAxyzrot.h
     ChNodeFEAxyzP.h 
     ChNodeFEAxyzD.h 
+    ChNodeFEAxyzDD.h
     ChNodeFEAcurv.h
     ChElementBase.h
     ChElementGeneric.h
@@ -74,8 +77,9 @@ SET(ChronoEngine_FEA_HEADERS
     ChElementSpring.h
     ChElementBar.h 
     ChElementBeam.h
-    ChElementBeamEuler.h
     ChElementBeamANCF.h
+    ChElementBeamEuler.h
+    ChElementCableANCF.h
     ChElementBrick.h 
     ChElementBrick_9.h
     ChElement3D.h
@@ -139,8 +143,8 @@ ADD_DEPENDENCIES(ChronoEngine_fea ChronoEngine)
 
 INSTALL(TARGETS ChronoEngine_fea
         RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
+        LIBRARY DESTINATION lib64
+        ARCHIVE DESTINATION lib64)
 
 INSTALL(FILES ${ChronoEngine_FEA_HEADERS}
         DESTINATION include/chrono_fea)

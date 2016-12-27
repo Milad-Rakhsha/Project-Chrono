@@ -48,11 +48,15 @@ class TerrainNode : public BaseNode {
     ~TerrainNode();
 
     /// Set container dimensions.
-    void SetContainerDimensions(double length,    ///< length in direction X (default: 2)
+    void SetContainerDimensions(double length,    ///< length in X direction (default: 2)
                                 double width,     ///< width in Y direction (default: 0.5)
                                 double height,    ///< height in Z direction (default: 1)
                                 double thickness  ///< wall thickness (default: 0.2)
                                 );
+
+    /// Set rear platform length.
+    void SetPlatformLength(double length  ///< length in X direction (default: 0)
+                           );
 
     /// Set properties of granular material.
     /// Note that this settings are only relevant when using GRANULAR terrain.
@@ -94,6 +98,9 @@ class TerrainNode : public BaseNode {
     /// Enable/disable output during settling (default: false).
     /// If enabled, output files are generated with a frequency of 100 FPS.
     void EnableSettlingOutput(bool val) { m_settling_output = val; }
+
+    /// Enable rendering of the specified Bezier path.
+    void SetPath(const chrono::ChBezierCurve& path);
 
     /// Initialize this node.
     /// This function allows the node to initialize itself and, optionally, perform an
@@ -168,6 +175,9 @@ class TerrainNode : public BaseNode {
     bool m_fixed_proxies;               ///< flag indicating whether or not proxy bodies are fixed to ground
     std::vector<TireData> m_tire_data;  ///< data for the vehicle tire proxies
 
+    std::shared_ptr<chrono::ChBody> m_platform;  ///< platform rigid body
+
+    double m_hlenX;   ///< rear platform half-length (X direction)
     double m_hdimX;   ///< container half-length (X direction)
     double m_hdimY;   ///< container half-width (Y direction)
     double m_hdimZ;   ///< container half-height (Z direction)
@@ -191,6 +201,9 @@ class TerrainNode : public BaseNode {
 
     int m_particles_start_index;       ///< start index for granular material bodies in system body list
     unsigned int m_proxy_start_index;  ///< start index for proxy contact shapes in global arrays
+
+    bool m_render_path;            ///< if true, render the Bezier curve
+    chrono::ChBezierCurve m_path;  ///< path for closed-loop driver (for rendering only)
 
     bool m_render;  ///< if true, use OpenGL rendering
 
