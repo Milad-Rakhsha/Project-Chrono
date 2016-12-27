@@ -65,6 +65,7 @@
 
 #define haveFluid 1
 #define addPressure
+#define NormalSP  // Defines whether spring and dampers will always remain normal to the surface
 
 // Chrono namespaces
 using namespace chrono;
@@ -97,10 +98,16 @@ Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 Real bxDim = 0.032;
 Real byDim = 0.032;
 Real bzDim = 0.005;
-Real p0 = 1;
+Real p0 = 0;
 Real fxDim = bxDim;
 Real fyDim = byDim;
 Real fzDim = bzDim;
+
+double init_def = 0;
+double K_SPRINGS = 50e8;
+double C_DAMPERS = 0;
+double L0_t = 0.005;
+bool addSprings = true;
 
 void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
 void writeMesh(std::shared_ptr<ChMesh> my_mesh, std::string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement);
@@ -128,6 +135,132 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
                           double mTime);
 
 void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, chrono::fsi::SimParams* paramsH);
+class MyLoadSpringDamper : public ChLoadCustomMultiple {
+  public:
+    MyLoadSpringDamper(std::vector<std::shared_ptr<ChLoadable>>& mloadables,
+                       std::shared_ptr<ChBody> AttachBodyInput,
+                       double init_sp_def)
+        : ChLoadCustomMultiple(mloadables),
+          AttachBody(AttachBodyInput),
+          K_sp(mloadables.size(), 1e4),
+          C_dp(mloadables.size(), 1e2),
+          LocalBodyAtt(mloadables.size(), AttachBody->GetPos()) {
+        assert(std::dynamic_pointer_cast<ChNodeFEAxyzD>(mloadables[0]));
+        loadables.push_back(AttachBody);
+        load_Q.Reset(this->LoadGet_ndof_w());
+        for (size_t i = 0; i < mloadables.size(); i++) {
+            auto Node = std::static_pointer_cast<ChNodeFEAxyzD>(mloadables[i]);
+            l0.push_back((Node->GetPos() - AttachBody->GetPos()).Length());
+        }
+        init_spring_def = init_sp_def;
+    }
+
+    std::shared_ptr<ChBody> AttachBody;    // Body to attach springs and dampers
+    std::vector<double> K_sp;              // Stiffness of springs
+    std::vector<double> C_dp;              // Damping coefficient of dampers
+    std::vector<double> l0;                // Initial, undeformed spring-damper length
+    std::vector<ChVector<>> LocalBodyAtt;  // Local Body Attachment
+    double init_spring_def;
+
+    virtual void ComputeQ(ChState* state_x,      ///< state position to evaluate Q
+                          ChStateDelta* state_w  ///< state speed to evaluate Q
+                          ) {
+        ChVector<> Node_Pos;
+        ChVector<> Node_Vel;
+        ChVector<> Node_Grad;
+
+        ChVector<> dij;   // Vector describing current spring-damper relative location
+        ChVector<> ddij;  // Vector describing current spring-damper relative velocity
+
+        ChVector<> NodeAttachment;
+        if (state_x && state_w) {
+            // GetLog() << " We are reaching this" << loadables.size();
+            for (int iii = 0; iii < loadables.size() - 1; iii++) {
+                Node_Pos = state_x->ClipVector(iii * 6, 0);
+                Node_Grad = state_x->ClipVector(iii * 6 + 3, 0);
+                Node_Vel = state_w->ClipVector(iii * 6, 0);
+
+                ChVector<> BodyAttachWorld = AttachBody->Point_Body2World(LocalBodyAtt[iii]);
+                dij = Node_Pos - BodyAttachWorld;  // Current relative vector between attachment points
+                double c_length = dij.Length();    // l
+                ddij = Node_Vel - AttachBody->PointSpeedLocalToParent(LocalBodyAtt[iii]);  // Time derivative of dij
+                double dc_length = 1 / c_length * (dij.x * ddij.x + dij.y * ddij.y + dij.z * ddij.z);  // ldot
+                double for_spdp = K_sp[iii] * (c_length - l0[iii] - init_spring_def) +
+                                  C_dp[iii] * dc_length;  // Absolute value of spring-damper force
+
+#ifdef NormalSP
+
+                ChVector<> UnitNormal = Node_Grad.GetNormalized();
+                this->load_Q(iii * 6 + 0) = -for_spdp * UnitNormal.x;
+                this->load_Q(iii * 6 + 1) = -for_spdp * UnitNormal.y;
+                this->load_Q(iii * 6 + 2) = -for_spdp * UnitNormal.z;
+
+                ChVectorDynamic<> Qi(6);  // Vector of generalized forces from spring and damper
+                ChVectorDynamic<> Fi(6);  // Vector of applied forces and torques (6 components)
+                double detJi = 0;         // Determinant of transformation (Not used)
+
+                Fi(0) = for_spdp * UnitNormal.x;
+                Fi(1) = for_spdp * UnitNormal.y;
+                Fi(2) = for_spdp * UnitNormal.z;
+                Fi(3) = 0.0;
+                Fi(4) = 0.0;
+                Fi(5) = 0.0;
+#else
+
+                this->load_Q(iii * 6 + 0) = -for_spdp * dij.GetNormalized().x;
+                this->load_Q(iii * 6 + 1) = -for_spdp * dij.GetNormalized().y;
+                this->load_Q(iii * 6 + 2) = -for_spdp * dij.GetNormalized().z;
+
+                ChVectorDynamic<> Qi(6);  // Vector of generalized forces from spring and damper
+                ChVectorDynamic<> Fi(6);  // Vector of applied forces and torques (6 components)
+                double detJi = 0;         // Determinant of transformation (Not used)
+
+                Fi(0) = for_spdp * dij.GetNormalized().x;
+                Fi(1) = for_spdp * dij.GetNormalized().y;
+                Fi(2) = for_spdp * dij.GetNormalized().z;
+                Fi(3) = 0.0;
+                Fi(4) = 0.0;
+                Fi(5) = 0.0;
+#endif
+                ChState stateBody_x(7, NULL);
+                ChStateDelta stateBody_w(6, NULL);
+
+                stateBody_x(0) = (*state_x)((loadables.size() - 1) * 6);
+                stateBody_x(1) = (*state_x)((loadables.size() - 1) * 6 + 1);
+                stateBody_x(2) = (*state_x)((loadables.size() - 1) * 6 + 2);
+                stateBody_x(3) = (*state_x)((loadables.size() - 1) * 6 + 3);
+                stateBody_x(4) = (*state_x)((loadables.size() - 1) * 6 + 4);
+                stateBody_x(5) = (*state_x)((loadables.size() - 1) * 6 + 5);
+                stateBody_x(6) = (*state_x)((loadables.size() - 1) * 6 + 6);
+
+                stateBody_w(0) = (*state_w)((loadables.size() - 1) * 6);
+                stateBody_w(1) = (*state_w)((loadables.size() - 1) * 6 + 1);
+                stateBody_w(2) = (*state_w)((loadables.size() - 1) * 6 + 2);
+                stateBody_w(3) = (*state_w)((loadables.size() - 1) * 6 + 3);
+                stateBody_w(4) = (*state_w)((loadables.size() - 1) * 6 + 4);
+                stateBody_w(5) = (*state_w)((loadables.size() - 1) * 6 + 5);
+
+                // Apply generalized force to rigid body (opposite sign)
+                AttachBody->ComputeNF(BodyAttachWorld.x, BodyAttachWorld.y, BodyAttachWorld.z, Qi, detJi, Fi,
+                                      &stateBody_x, &stateBody_w);
+                // Apply forces to body (If body fixed, we should set those to zero not Qi(coordinate))
+                if (!AttachBody->GetBodyFixed()) {
+                    this->load_Q((loadables.size() - 1) * 6) = -for_spdp * dij.GetNormalized().x;
+                    this->load_Q((loadables.size() - 1) * 6 + 1) = -for_spdp * dij.GetNormalized().y;
+                    this->load_Q((loadables.size() - 1) * 6 + 2) = -for_spdp * dij.GetNormalized().z;
+                    this->load_Q((loadables.size() - 1) * 6 + 3) = 0.0;
+                    this->load_Q((loadables.size() - 1) * 6 + 4) = 0.0;
+                    this->load_Q((loadables.size() - 1) * 6 + 5) = 0.0;
+                }
+            }
+        } else {
+            // explicit integrators might call ComputeQ(0,0), null pointers mean
+            // that we assume current state, without passing state_x for efficiency
+        }
+    }
+    // Remember to set this as stiff, to enable the jacobians
+    virtual bool IsStiff() { return false; }
+};
 
 // =============================================================================
 
@@ -337,7 +470,6 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
     ground->SetBodyFixed(true);
     ground->SetCollide(true);
-
     ground->SetMaterialSurface(mat_g);
 
     ground->GetCollisionModel()->ClearModel();
@@ -422,7 +554,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         // Node location
         double loc_x = (i % (numDiv_x + 1)) * dx - bxDim / 2 - 0 * initSpace0;
         double loc_y = (i / (numDiv_x + 1)) % (numDiv_y + 1) * dy - byDim / 2 - 0 * initSpace0;
-        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + bzDim + 3 * initSpace0;
+        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + bzDim + 4 * initSpace0;
 
         // Node direction
         double dir_x = 0;
@@ -495,6 +627,47 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         my_mesh->AddElement(element);
     }
 
+    double NODE_AVE_AREA = dx * dy;
+    double Tottal_stiff = 0;
+    double Tottal_damp = 0;
+
+    auto mloadcontainer = std::make_shared<ChLoadContainer>();
+
+    if (addSprings) {
+        // Select on which nodes we are going to apply a load
+        std::vector<std::shared_ptr<ChLoadable>> NodeList;
+        for (int iNode = 0; iNode < my_mesh->GetNnodes(); iNode++) {
+            auto NodeLoad = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(iNode));
+            NodeList.push_back(NodeLoad);
+        }
+        auto OneLoadSpringDamper = std::make_shared<MyLoadSpringDamper>(NodeList, ground, init_def);
+        for (int iNode = 0; iNode < my_mesh->GetNnodes(); iNode++) {
+            auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(iNode));
+            ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
+            // attachment point in the body in global coordiantes
+            // Stiffness of the Elastic Foundation
+            double K_S = K_SPRINGS * NODE_AVE_AREA;  // Stiffness Constant
+            double C_S = C_DAMPERS * NODE_AVE_AREA;  // Damper Constant
+            Tottal_stiff += K_S;
+            Tottal_damp += C_S;
+            // Initial length
+            OneLoadSpringDamper->C_dp[iNode] = C_S;
+            OneLoadSpringDamper->K_sp[iNode] = K_S;
+            OneLoadSpringDamper->l0[iNode] = L0_t;
+
+            // Calculate the damping ratio zeta
+            double zeta, m_ele;
+            m_ele = rho * dz * NODE_AVE_AREA;
+            zeta = C_S / (2 * sqrt(K_S * m_ele));
+            //            GetLog() << "Zeta of node # " << iNode << " is set to : " << zeta << "\n";
+            OneLoadSpringDamper->LocalBodyAtt[iNode] = ground->Point_World2Body(AttachBodyGlobal);
+        }
+        mloadcontainer->Add(OneLoadSpringDamper);
+        GetLog() << "Total Stiffness (N/mm)= " << Tottal_stiff / 1e3 << " Total Damping = " << Tottal_damp
+                 << " Average zeta= " << Tottal_damp / (2 * sqrt(Tottal_stiff * (rho * dz * 1e-3))) << "\n";
+
+        mphysicalSystem.Add(mloadcontainer);
+    }
     my_mesh->SetAutomaticGravity(false);
 
 #ifdef addPressure

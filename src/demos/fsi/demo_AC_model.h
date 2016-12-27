@@ -44,7 +44,7 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.0005;
+    paramsH->HSML = 0.002;
     paramsH->MULT_INITSPACE = 1.0;
     paramsH->MULT_INITSPACE_Shells = 1;
     paramsH->epsMinMarkersDis = .01;
@@ -54,15 +54,15 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->LARGE_PRES = 0;
     paramsH->deltaPress;
     paramsH->multViscosity_FSI = 1;
-    paramsH->gravity = mR3(0, 0, 0.1);
+    paramsH->gravity = mR3(0, 0, -0.1);
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 0.1;
+    paramsH->mu0 = 0.01;
     paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
-    paramsH->PPE_res = 0.0001;
+    paramsH->PPE_res = 0.001;
     paramsH->PPE_Solution_type = SPARSE_MATRIX_JACOBI;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
     paramsH->PPE_relaxation = 0.3;                      // Increasing this to 0.5 causes instability
     paramsH->ClampPressure = true;                      // If the negative pressure should be clamped to zero or not
