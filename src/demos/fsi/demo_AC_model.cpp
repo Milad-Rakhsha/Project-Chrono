@@ -9,13 +9,9 @@
 // http://projectchrono.org/license-chrono.txt.
 //
 // =============================================================================
-// Author: Arman Pazouki
+// Author: Milad Rakhsha
 // =============================================================================
-//
-// Model file to generate a Cylinder, as a FSI body, a sphere, as a non-fsi
-// body, fluid, and boundary. The cyliner is dropped on the water. Water is not
-// steady and is modeled initially a cube of falling particles.
-// parametrization of this model relies on params_demo_FSI_cylinderDrop.h
+
 // =============================================================================
 
 // General Includes
@@ -42,9 +38,9 @@
 #include "chrono_mkl/ChSolverMKL.h"
 
 // Chrono general utils
+
 #include "chrono/core/ChFileutils.h"
 #include "chrono/core/ChTransform.h"  //transform acc from GF to LF for post process
-
 // Chrono fsi includes
 #include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFsiTypeConvert.h"
@@ -90,7 +86,7 @@ std::string MESH_CONNECTIVITY = data_folder + "Flex_MESH.vtk";
 std::vector<std::vector<int>> NodeNeighborElementMesh;
 
 bool povray_output = true;
-int out_fps = 200;
+int out_fps = 1000;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -99,33 +95,31 @@ Real bxDim = 0.032;
 Real byDim = 0.032;
 Real bzDim = 0.005;
 Real p0 = 0;
+double p_max = 1000;
+double t_ramp = 0.05;
+
 Real fxDim = bxDim;
 Real fyDim = byDim;
 Real fzDim = bzDim;
 
 double init_def = 0;
-double K_SPRINGS = 50e8;
-double C_DAMPERS = 0;
+double K_SPRINGS = 1000;
+double C_DAMPERS = 0.;
 double L0_t = 0.005;
 bool addSprings = true;
 
-void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
 void writeMesh(std::shared_ptr<ChMesh> my_mesh, std::string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement);
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[256],
                 char MeshFileBuffer[256],
                 std::vector<std::vector<int>>& NodeNeighborElement);
 void saveInputFile(std::string inputFile, std::string outAddress);
-void SetArgumentsForMbdFromInput(int argc,
-                                 char* argv[],
-                                 int& threads,
-                                 int& max_iteration_sliding,
-                                 int& max_iteration_bilateral,
-                                 int& max_iteration_normal,
-                                 int& max_iteration_spinning);
-
-void InitializeMbdPhysicalSystem(ChSystemDEM& mphysicalSystem, ChVector<> gravity, int argc, char* argv[]);
-
+double applyRampPressure(double t, double t_ramp, double p_max);
+void applySpringForce(std::shared_ptr<fea::ChMesh>& my_mesh,
+                      double K_tot,
+                      std::vector<ChVector<double>>& x0,
+                      bool saveInitials);
+void Calculator(std::shared_ptr<fea::ChMesh> my_mesh, std::vector<ChVector<double>>& x0, bool saveInitials);
 void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
                           ChSystemDEM& mphysicalSystem,
                           std::shared_ptr<fea::ChMesh> my_mesh,
@@ -264,6 +258,10 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
 
 // =============================================================================
 
+#ifdef addPressure
+std::vector<std::shared_ptr<ChLoad<ChLoaderPressure>>> faceload_mesh;
+#endif
+
 int main(int argc, char* argv[]) {
     time_t rawtime;
     struct tm* timeinfo;
@@ -295,6 +293,7 @@ int main(int argc, char* argv[]) {
 #if haveFluid
     mHaveFluid = true;
 #endif
+
     // ************* Create Fluid *************************
     ChSystemDEM mphysicalSystem;
     chrono::fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid);
@@ -341,7 +340,6 @@ int main(int argc, char* argv[]) {
     ChVector<> gravity = ChVector<>(paramsH->gravity.x, paramsH->gravity.y, paramsH->gravity.z);
 
     Create_MB_FE(mphysicalSystem, myFsiSystem, paramsH);
-
     myFsiSystem.Finalize();
     auto my_fsi_mesh = myFsiSystem.GetFsiMesh();
 
@@ -352,16 +350,10 @@ int main(int argc, char* argv[]) {
                myFsiSystem.GetDataManager()->numObjects.numAllMarkers);
         return -1;
     }
-    //*** Add sph data to the physics system
 
-    cout << " -- ChSystem size : " << mphysicalSystem.Get_bodylist()->size() << endl;
-
-    // ***************************** System Initialize
-    // ********************************************
     myFsiSystem.InitializeChronoGraphics(CameraLocation, CameraLookAt);
 
     int step_count = 0;
-
     double mTime = 0;
 #ifdef CHRONO_FSI_USE_DOUBLE
     printf("Double Precision\n");
@@ -406,9 +398,10 @@ int main(int argc, char* argv[]) {
 
     int stepEnd = int(paramsH->tFinal / paramsH->dT);
     stepEnd = 1000000;
+    int TotalNumNodes = my_fsi_mesh->GetNnodes();
 
     SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, my_fsi_mesh, NodeNeighborElementMesh, paramsH, 0, mTime);
-
+    std::vector<ChVector<double>> x0;  // displacement of the nodes
     Real time = 0;
     Real Global_max_dT = paramsH->dT_Max;
     for (int tStep = 0; tStep < stepEnd + 1; tStep++) {
@@ -422,20 +415,28 @@ int main(int argc, char* argv[]) {
         else
             paramsH->dT_Max = Global_max_dT;
 
-//        printf("next_frame is:%d,  max dt is set to %f\n", next_frame, paramsH->dT_Max);
-//        auto node = std::dynamic_pointer_cast<fea::ChNodeFEAxyzD>(my_fsi_mesh->GetNode(55));
-//        printf("point pos(z) : %f\n", node->GetPos().z);
-
-//        mphysicalSystem.DoStepDynamics(paramsH->dT);
-
 #if haveFluid
+
+#ifdef addPressure
+        double pressure = applyRampPressure(time, t_ramp, p_max);
+        printf("The applied pressure is %f kPa. p_Max= %f, total Force= %f\n", pressure / 1000, p_max / 1000,
+               pressure * bxDim * byDim);
+        for (int i = 0; i < faceload_mesh.size(); i++) {
+            faceload_mesh[i]->loader.SetPressure(pressure);
+        }
+#endif
         myFsiSystem.DoStepDynamics_FSI_Implicit();
+        Calculator(my_fsi_mesh, x0, tStep == 0);
+
 #else
         myFsiSystem.DoStepDynamics_ChronoRK2();
 #endif
         time += paramsH->dT;
         SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, my_fsi_mesh, NodeNeighborElementMesh, paramsH, next_frame,
                              time);
+
+        if (time > 0.3)
+            break;
     }
 
     return 0;
@@ -554,7 +555,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         // Node location
         double loc_x = (i % (numDiv_x + 1)) * dx - bxDim / 2 - 0 * initSpace0;
         double loc_y = (i / (numDiv_x + 1)) % (numDiv_y + 1) * dy - byDim / 2 - 0 * initSpace0;
-        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + bzDim + 4 * initSpace0;
+        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + bzDim + 3 * initSpace0;
 
         // Node direction
         double dir_x = 0;
@@ -573,6 +574,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         //        if (i == 0 || i == numDiv_x) {
         //            node->SetFixed(true);
         //        }
+
         if (i % (numDiv_x + 1) == 0 || i % (numDiv_x) == 0 || i < (numDiv_x + 1) ||
             i >= (TotalNumNodes - numDiv_x - 1)) {
             auto NodeDir = std::make_shared<ChLinkDirFrame>();
@@ -582,12 +584,20 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         }
 
         //        if (abs(loc_x) < bxDim / 4 && abs(loc_y) < byDim / 4) {
-        //            node->SetForce(ChVector<>(0, 0, -0.1));
+        //            node->SetForce(ChVector<>(0, 0, 1));
         //        }
 
         // Add node to mesh
         my_mesh->AddNode(node);
     }
+
+    ChVector<> mforce;
+    for (int iNode = 0; iNode < TotalNumNodes; iNode++) {
+        auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(iNode));
+        //            Node->SetForce(ChVector<>(0, 0, 0.1));
+        mforce += Node->GetForce();
+    }
+    printf("GET.FORCES INITIAL=%f\n", mforce.Length());
 
     // Create an orthotropic material.
     // All layers for all elements share the same material.
@@ -631,7 +641,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     double Tottal_stiff = 0;
     double Tottal_damp = 0;
 
-    auto mloadcontainer = std::make_shared<ChLoadContainer>();
+    auto Springsloadcontainer = std::make_shared<ChLoadContainer>();
 
     if (addSprings) {
         // Select on which nodes we are going to apply a load
@@ -646,8 +656,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
             ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
             // attachment point in the body in global coordiantes
             // Stiffness of the Elastic Foundation
-            double K_S = K_SPRINGS * NODE_AVE_AREA;  // Stiffness Constant
-            double C_S = C_DAMPERS * NODE_AVE_AREA;  // Damper Constant
+            double K_S = K_SPRINGS / TotalNumNodes;  // Stiffness Constant
+            double C_S = C_DAMPERS / TotalNumNodes;  // Damper Constant
             Tottal_stiff += K_S;
             Tottal_damp += C_S;
             // Initial length
@@ -662,19 +672,18 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
             //            GetLog() << "Zeta of node # " << iNode << " is set to : " << zeta << "\n";
             OneLoadSpringDamper->LocalBodyAtt[iNode] = ground->Point_World2Body(AttachBodyGlobal);
         }
-        mloadcontainer->Add(OneLoadSpringDamper);
+        Springsloadcontainer->Add(OneLoadSpringDamper);
         GetLog() << "Total Stiffness (N/mm)= " << Tottal_stiff / 1e3 << " Total Damping = " << Tottal_damp
                  << " Average zeta= " << Tottal_damp / (2 * sqrt(Tottal_stiff * (rho * dz * 1e-3))) << "\n";
 
-        mphysicalSystem.Add(mloadcontainer);
+        mphysicalSystem.Add(Springsloadcontainer);
     }
     my_mesh->SetAutomaticGravity(false);
 
 #ifdef addPressure
-    std::vector<std::shared_ptr<ChLoad<ChLoaderPressure>>> faceload_mesh;
     // First: loads must be added to "load containers",
     // and load containers must be added to your ChSystem
-    auto Mloadcontainer = std::make_shared<ChLoadContainer>();
+    auto Pressureloadcontainer = std::make_shared<ChLoadContainer>();
     // Add constant pressure using ChLoaderPressure (preferred for simple, constant pressure)
     for (int NoElmPre = 0; NoElmPre < TotalNumElements; NoElmPre++) {
         auto faceload = std::make_shared<ChLoad<ChLoaderPressure>>(
@@ -683,9 +692,9 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         faceload->loader.SetStiff(true);
         faceload->loader.SetIntegrationPoints(2);
         faceload_mesh.push_back(faceload);
-        Mloadcontainer->Add(faceload);
+        Pressureloadcontainer->Add(faceload);
     }
-    mphysicalSystem.Add(Mloadcontainer);
+    mphysicalSystem.Add(Pressureloadcontainer);
 #endif
 
     // Add the mesh to the system
@@ -708,6 +717,52 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
 #endif
 }
+
+double applyRampPressure(double t, double t_ramp, double p_max) {
+    if (t > t_ramp)
+        return (p_max);
+    else
+        return (p_max * t / t_ramp);
+}
+
+void applySpringForce(std::shared_ptr<fea::ChMesh>& my_mesh,
+                      double K_tot,
+                      std::vector<ChVector<double>>& x0,
+                      bool saveInitials) {
+    int TotalNumNodes = my_mesh->GetNnodes();
+    double k_i = K_tot / TotalNumNodes;
+    ChVector<> Dir;
+    double delta_Ave;
+    for (int iNode = 0; iNode < TotalNumNodes; iNode++) {
+        auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(iNode));
+        if (saveInitials) {
+            x0.push_back(Node->GetPos());
+        }
+        double delta = Vdot(Node->GetPos() - x0[iNode], Node->GetD().GetNormalized());
+        ChVector<> myForce = -1 * delta * k_i * Node->GetD().GetNormalized();
+        delta_Ave += delta;
+        Node->SetForce(myForce + Node->GetForce());
+        Dir += Node->GetD().GetNormalized();
+    }
+    delta_Ave /= TotalNumNodes;
+    printf("The spring forces=%f, delta_ave= %f, Total Stiffness= %f\n", delta_Ave * K_tot, delta_Ave, K_tot);
+}
+
+void Calculator(std::shared_ptr<fea::ChMesh> my_mesh, std::vector<ChVector<double>>& x0, bool saveInitials) {
+    int TotalNumNodes = my_mesh->GetNnodes();
+    double delta_Ave;
+    for (int iNode = 0; iNode < TotalNumNodes; iNode++) {
+        auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(iNode));
+        if (saveInitials) {
+            x0.push_back(Node->GetPos());
+        }
+        double delta = Vdot(Node->GetPos() - x0[iNode], Node->GetD().GetNormalized());
+        delta_Ave += delta;
+    }
+    delta_Ave /= TotalNumNodes;
+    printf("Articular Surface Displacement (mm)= %f\n", delta_Ave * 1000);
+}
+
 //------------------------------------------------------------------
 // Function to save the povray files of the MBD
 //------------------------------------------------------------------
@@ -756,7 +811,7 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
         snprintf(SaveAsBuffer, sizeof(char) * 256, (data_folder + "/flex_body.%d.vtk").c_str(), next_frame);
         char MeshFileBuffer[256];  // The filename buffer.
         snprintf(MeshFileBuffer, sizeof(char) * 256, ("%s"), MESH_CONNECTIVITY.c_str());
-        printf("%s from here\n", MeshFileBuffer);
+        //        printf("%s from here\n", MeshFileBuffer);
         writeFrame(my_mesh, SaveAsBuffer, MeshFileBuffer, NodeNeighborElementMesh);
 
         out_frame++;
@@ -965,69 +1020,6 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
     }
 
     output.close();
-}
-void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]) {
-    std::ofstream output;
-    output.open(SaveAsBuffer, std::ios::app);
-    output << "# vtk DataFile Version 1.0\nUnstructured Grid Example\nASCII\n\n" << std::endl;
-    output << "DATASET UNSTRUCTURED_GRID\nPOINTS " << 2 * res << " float\n";
-
-    ChVector<> center = Body->GetPos();
-    ChMatrix33<> Rotation = Body->GetRot();
-    ChVector<double> vertex;
-    for (int i = 0; i < res; i++) {
-        ChVector<double> thisNode;
-        thisNode.x = radius * cos(2 * i * 3.1415 / res);
-        thisNode.y = -1 * length / 2;
-        thisNode.z = radius * sin(2 * i * 3.1415 / res);
-        vertex = Rotation * thisNode + center;  // rotate/scale, if needed
-        output << vertex.x << " " << vertex.y << " " << vertex.z << "\n";
-    }
-
-    for (int i = 0; i < res; i++) {
-        ChVector<double> thisNode;
-        thisNode.x = radius * cos(2 * i * 3.1415 / res);
-        thisNode.y = +1 * length / 2;
-        thisNode.z = radius * sin(2 * i * 3.1415 / res);
-        vertex = Rotation * thisNode + center;  // rotate/scale, if needed
-        output << vertex.x << " " << vertex.y << " " << vertex.z << "\n";
-    }
-
-    output << "\n\nCELLS " << (unsigned int)res + res << "\t" << (unsigned int)5 * (res + res) << "\n";
-
-    for (int i = 0; i < res - 1; i++) {
-        output << "4 " << i << " " << i + 1 << " " << i + res + 1 << " " << i + res << "\n";
-    }
-    output << "4 " << res - 1 << " " << 0 << " " << res << " " << 2 * res - 1 << "\n";
-
-    for (int i = 0; i < res / 4; i++) {
-        output << "4 " << i << " " << i + 1 << " " << +res / 2 - i - 1 << " " << +res / 2 - i << "\n";
-    }
-
-    for (int i = 0; i < res / 4; i++) {
-        output << "4 " << i + res << " " << i + 1 + res << " " << +res / 2 - i - 1 + res << " " << +res / 2 - i + res
-               << "\n";
-    }
-
-    output << "4 " << +res / 2 << " " << 1 + res / 2 << " " << +res - 1 << " " << 0 << "\n";
-
-    for (int i = 1; i < res / 4; i++) {
-        output << "4 " << i + res / 2 << " " << i + 1 + res / 2 << " " << +res / 2 - i - 1 + res / 2 << " "
-               << +res / 2 - i + res / 2 << "\n";
-    }
-
-    output << "4 " << 3 * res / 2 << " " << 1 + 3 * res / 2 << " " << +2 * res - 1 << " " << +res << "\n";
-
-    for (int i = 1; i < res / 4; i++) {
-        output << "4 " << i + 3 * res / 2 << " " << i + 1 + 3 * res / 2 << " " << +2 * res - i - 1 << " "
-               << +2 * res - i << "\n";
-    }
-
-    output << "\nCELL_TYPES " << res + res << "\n";
-
-    for (int iele = 0; iele < (res + res); iele++) {
-        output << "9\n";
-    }
 }
 
 //------------------------------------------------------------------

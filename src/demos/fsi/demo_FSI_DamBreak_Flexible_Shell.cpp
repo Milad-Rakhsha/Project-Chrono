@@ -9,13 +9,9 @@
 // http://projectchrono.org/license-chrono.txt.
 //
 // =============================================================================
-// Author: Arman Pazouki
+// Author: Milad Rakhsha
 // =============================================================================
-//
-// Model file to generate a Cylinder, as a FSI body, a sphere, as a non-fsi
-// body, fluid, and boundary. The cyliner is dropped on the water. Water is not
-// steady and is modeled initially a cube of falling particles.
-// parametrization of this model relies on params_demo_FSI_cylinderDrop.h
+
 // =============================================================================
 
 // General Includes
@@ -96,9 +92,9 @@ Real bxDim = 3;
 Real byDim = 0.4;
 Real bzDim = 2;
 
-Real fxDim = 0.1;
+Real fxDim = 1;
 Real fyDim = byDim;
-Real fzDim = 0.2;
+Real fzDim = 1;
 
 void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
 void writeMesh(std::shared_ptr<ChMesh> my_mesh, std::string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement);
@@ -281,7 +277,7 @@ int main(int argc, char* argv[]) {
 
         //        std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(my_mesh->GetNnodes() - 1))
         //            ->SetForce(ChVector<>(+5, 0, 0));
-        std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(40))->SetForce(ChVector<>(+100, 0, 0));
+        //        std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(40))->SetForce(ChVector<>(+100, 0, 0));
 
         printf("next_frame is:%d,  max dt is set to %f\n", next_frame, paramsH->dT_Max);
 
@@ -384,8 +380,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     double plate_lenght_y = byDim;
     double plate_lenght_z = 0.02;
     // Specification of the mesh
-    int numDiv_x = 10;
-    int numDiv_y = 8;
+    int numDiv_x = 5;
+    int numDiv_y = 4;
     int numDiv_z = 1;
     int N_x = numDiv_x + 1;
     int N_y = numDiv_y + 1;

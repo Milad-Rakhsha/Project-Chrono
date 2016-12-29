@@ -1523,7 +1523,7 @@ __global__ void PrepareForCusp(Real* csrValA,
   uint startIdx = numContacts[i_idx] + 1;  // numContacts[i_idx] is the diagonal itself
   uint endIdx = numContacts[i_idx + 1];
 
-  if ((sortedRhoPreMu[i_idx].x < 0.998 * RHO_0) && (sortedRhoPreMu[i_idx].w == -1)) {
+  if ((sortedRhoPreMu[i_idx].x < 0.950 * RHO_0) && (sortedRhoPreMu[i_idx].w == -1)) {
     sortedRhoPreMu[i_idx].y = 0.0;
 
     for (int myIdx = startIdx; myIdx < endIdx; myIdx++) {
@@ -1813,52 +1813,56 @@ __global__ void CalcForces(Real3* new_vel,  // Write
   new_vel[i_idx] = Veli + dT * mR3(derivVelRhoD[i_idx]) / m_0;
 }
 //--------------------------------------------------------------------------------------------------------------------------------
-__global__ void PrepPressure(Real3* sortedPosRad,  // Read
-                             Real4* sortedRhoPreMu,
-                             Real* p_old,
-                             uint* cellStart,
-                             uint* cellEnd,
-                             uint numAllMarkers,
-                             volatile bool* isErrorD) {
+__global__ void FinalizePressure(Real3* sortedPosRad,  // Read
+                                 Real4* sortedRhoPreMu,
+                                 Real* p_old,
+                                 uint* cellStart,
+                                 uint* cellEnd,
+                                 uint numAllMarkers,
+                                 volatile bool* isErrorD) {
   uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (i_idx >= numAllMarkers)
     return;
 
-  Real3 posi = sortedPosRad[i_idx];
-  Real p_i = sortedRhoPreMu[i_idx].y;
-  Real sum_pW = 0;
-  Real sum_W = 0;
+  //  Real3 posi = sortedPosRad[i_idx];
+  //  Real p_i = sortedRhoPreMu[i_idx].y;
+  //  Real sum_pW = 0;
+  //  Real sum_W = 0;
 
-  // get address in grid
-  int3 gridPos = calcGridPos(posi);
-  for (int z = -1; z <= 1; z++) {
-    for (int y = -1; y <= 1; y++) {
-      for (int x = -1; x <= 1; x++) {
-        int3 neighbourPos = gridPos + mI3(x, y, z);
-        uint gridHash = calcGridHash(neighbourPos);
-        // get start of bucket for this cell
-        uint startIndex = cellStart[gridHash];
-        uint endIndex = cellEnd[gridHash];
-
-        for (uint j = startIndex; j < endIndex; j++) {
-          Real3 posJ = sortedPosRad[j];
-          Real3 dist3 = Distance(posi, posJ);
-          Real d = length(dist3);
-          if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML || i_idx == j)
-            continue;
-          Real p_j = p_old[j];
-          sum_pW += p_j * W3(d);
-          sum_W += W3(d);
-        }
-      }
-    }
-  }
-
-  if (abs(sum_W) < EPSILON) {
+  if (p_old[i_idx] > 0)
+    sortedRhoPreMu[i_idx].y = p_old[i_idx];
+  else
     sortedRhoPreMu[i_idx].y = 0;
-  } else {
-    sortedRhoPreMu[i_idx].y = sum_pW / sum_W;
-  }
+  //  // get address in grid
+  //  int3 gridPos = calcGridPos(posi);
+  //  for (int z = -1; z <= 1; z++) {
+  //    for (int y = -1; y <= 1; y++) {
+  //      for (int x = -1; x <= 1; x++) {
+  //        int3 neighbourPos = gridPos + mI3(x, y, z);
+  //        uint gridHash = calcGridHash(neighbourPos);
+  //        // get start of bucket for this cell
+  //        uint startIndex = cellStart[gridHash];
+  //        uint endIndex = cellEnd[gridHash];
+  //
+  //        for (uint j = startIndex; j < endIndex; j++) {
+  //          Real3 posJ = sortedPosRad[j];
+  //          Real3 dist3 = Distance(posi, posJ);
+  //          Real d = length(dist3);
+  //          if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML || i_idx == j)
+  //            continue;
+  //          Real p_j = p_old[j];
+  //          sum_pW += p_j * W3(d);
+  //          sum_W += W3(d);
+  //        }
+  //      }
+  //    }
+  //  }
+
+  //  if (abs(sum_W) < EPSILON) {
+  //    sortedRhoPreMu[i_idx].y = 0;
+  //  } else {
+  //    sortedRhoPreMu[i_idx].y = sum_pW / sum_W;
+  //  }
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -2193,8 +2197,8 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
     //			printf("Iter= %d, Res= %f\n", Iteration,
     //					MaxRes);
 
-    //    if (paramsH->USE_CUSP && Iteration > 20)
-    //      break;
+    if (paramsH->USE_CUSP && (Iteration > paramsH->PPE_Max_Iter))
+      break;
   }
 
   if (paramsH->USE_CUSP) {
@@ -2220,33 +2224,37 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
     // set stopping criteria:
 
     cusp::convergence_monitor<double> monitor(b, 1000, 1e-6, 1e-5);
-    //    cusp::default_monitor<double> monitor(b, 1000, 1e-6, RES);
+    //    cusp::verbose_monitor<double> monitor(b, 1000, 1e-6, RES);
 
-    //    cusp::precond::diagonal<double, cusp::device_memory> M2(AMatrix);
+    //    cusp::precond::diagonal<double, cusp::device_memory> M(AMatrix);
+
     cusp::identity_operator<double, cusp::device_memory> M(AMatrix.num_rows, AMatrix.num_rows);
 
     // solve the linear system A * x = b with the Conjugate Gradient method
     //    cusp::krylov::cg(AMatrix, x, b, monitor, M);
-    int restart = 200;
+    int restart = 50;
     //    cusp::krylov::cg_m(AMatrix, x, b, restart, monitor, M);
-    cusp::krylov::gmres(AMatrix, x, b, restart, monitor);
+    if (paramsH->ClampPressure) {
+      cusp::krylov::gmres(AMatrix, x, b, restart, monitor, M);
+    } else
+      cusp::krylov::gmres(AMatrix, x, b, restart, monitor);
+
     //    cusp::krylov::bicgstab(AMatrix, x, b, monitor);
     //    cusp::krylov::cr(AMatrix, x, b, monitor);
+
+    *isErrorH = false;
+    cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+    FinalizePressure<<<numBlocks, numThreads>>>(
+        mR3CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(x),
+        U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
+    cudaThreadSynchronize();
+    cudaCheckError();
+    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+    if (*isErrorH == true) {
+      throw std::runtime_error("Error! program crashed after PrepPressure!\n");
+    }
   }
 
-  //  *isErrorH = false;
-  //  cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
-  //
-  //  PrepPressure<<<numBlocks, numThreads>>>(mR3CAST(sortedSphMarkersD->posRadD),
-  //  mR4CAST(sortedSphMarkersD->rhoPresMuD),
-  //                                          R1CAST(p_old), U1CAST(markersProximityD->cellStartD),
-  //                                          U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
-  //  cudaThreadSynchronize();
-  //  cudaCheckError();
-  //  cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
-  //  if (*isErrorH == true) {
-  //    throw std::runtime_error("Error! program crashed after PrepPressure!\n");
-  //  }
   double durationLinearSystem = (clock() - LinearSystemClock) / (double)CLOCKS_PER_SEC;
   double durationtotal_step_time = (clock() - total_step_timeClock) / (double)CLOCKS_PER_SEC;
   //	printf(" Linear System: %f \n Total: %f \n ", durationLinearSystem,

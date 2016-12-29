@@ -62,7 +62,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
-    paramsH->PPE_res = 0.001;
+    paramsH->PPE_res = 0.01;
+    paramsH->PPE_Max_Iter = 10000;
     paramsH->PPE_Solution_type = SPARSE_MATRIX_JACOBI;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
     paramsH->PPE_relaxation = 0.3;                      // Increasing this to 0.5 causes instability
     paramsH->ClampPressure = true;                      // If the negative pressure should be clamped to zero or not
@@ -72,7 +73,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->Co_number = 1;                   // 0.2 works well for most cases
     paramsH->dT_Max = 0.01;  // This is problem dependent should set by the user based on characteristic time step
 
-    paramsH->dT = 5e-3;
+    paramsH->dT = 1e-2;
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;  // I don't know what is kdT

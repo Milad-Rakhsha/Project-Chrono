@@ -808,6 +808,7 @@ ChApi ChVector<double> VaxisXfromQuat(const ChQuaternion<double>& quat);
 #define ANGLESET_RXYZ 4
 #define ANGLESET_RODRIGUEZ 5
 #define ANGLESET_QUATERNION 6
+#define ANGLESET_RZXY 7
 
 // Angle conversion utilities
 

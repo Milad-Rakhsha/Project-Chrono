@@ -96,7 +96,8 @@ struct SimParams {
   Real tweakMultRho;  /* maximum allowed density change in one time step: tweakMultRho * rho0 */
   BceVersion bceType; /* maximum allowed density change in one time step: tweakMultRho * rho0 */
 
-  Real PPE_res;  // Poisson Pressure Equation residual
+  Real PPE_res;      // Poisson Pressure Equation residual
+  int PPE_Max_Iter;  // Poisson Pressure Equation maximum number of iteration
   PPE_SolutionType PPE_Solution_type;
   Real PPE_relaxation;
   bool ClampPressure;

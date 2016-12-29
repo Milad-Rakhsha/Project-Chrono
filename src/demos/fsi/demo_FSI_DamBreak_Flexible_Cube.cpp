@@ -9,13 +9,9 @@
 // http://projectchrono.org/license-chrono.txt.
 //
 // =============================================================================
-// Author: Arman Pazouki
+// Author: Milad Rakhsha
 // =============================================================================
-//
-// Model file to generate a Cylinder, as a FSI body, a sphere, as a non-fsi
-// body, fluid, and boundary. The cyliner is dropped on the water. Water is not
-// steady and is modeled initially a cube of falling particles.
-// parametrization of this model relies on params_demo_FSI_cylinderDrop.h
+
 // =============================================================================
 
 // General Includes

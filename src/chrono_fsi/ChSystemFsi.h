@@ -52,9 +52,6 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
   /// instantiation is handled by sending a pointer to other objects or data.
   /// Therefore, the sub-classes have pointers to the same data
   ChSystemFsi(ChSystem* other_physicalSystem, bool other_haveFluid);
-  ChSystemFsi(ChSystem* other_physicalSystem,
-              bool other_haveFluid,
-              std::shared_ptr<chrono::fea::ChMesh> other_fsi_mesh);
 
   /// destructor for the fsi system
   ~ChSystemFsi();
@@ -107,7 +104,7 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
 
     std::cout << "numObjects.numFlexNodes" << test << std::endl;
   }
-  void SetFsiMesh(const std::shared_ptr<chrono::fea::ChMesh>& other_fsi_mesh) { fsi_mesh = other_fsi_mesh; }
+  void SetFsiMesh(std::shared_ptr<chrono::fea::ChMesh>& other_fsi_mesh) { fsi_mesh = other_fsi_mesh; }
 
   std::shared_ptr<chrono::fea::ChMesh> GetFsiMesh() { return fsi_mesh; }
 
