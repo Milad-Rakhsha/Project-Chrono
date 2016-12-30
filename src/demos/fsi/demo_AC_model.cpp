@@ -45,8 +45,12 @@
 #include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFsiTypeConvert.h"
 #include "chrono_fsi/ChSystemFsi.h"
+
 #include "chrono_fsi/utils/ChUtilsGeneratorFsi.h"
 #include "chrono_fsi/utils/ChUtilsPrintSph.h"
+#include "chrono_fsi/custom_math.h"
+#include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 
 // Chrono fea includes
 #include "chrono/physics/ChLoadContainer.h"
@@ -119,7 +123,11 @@ void applySpringForce(std::shared_ptr<fea::ChMesh>& my_mesh,
                       double K_tot,
                       std::vector<ChVector<double>>& x0,
                       bool saveInitials);
-void Calculator(std::shared_ptr<fea::ChMesh> my_mesh, std::vector<ChVector<double>>& x0, bool saveInitials);
+void Calculator(fsi::ChSystemFsi& myFsiSystem,
+                std::shared_ptr<fea::ChMesh> my_mesh,
+                std::vector<ChVector<double>>& x0,
+                double time,
+                bool saveInitials);
 void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
                           ChSystemDEM& mphysicalSystem,
                           std::shared_ptr<fea::ChMesh> my_mesh,
@@ -426,7 +434,7 @@ int main(int argc, char* argv[]) {
         }
 #endif
         myFsiSystem.DoStepDynamics_FSI_Implicit();
-        Calculator(my_fsi_mesh, x0, tStep == 0);
+        Calculator(myFsiSystem, my_fsi_mesh, x0, time, tStep == 0);
 
 #else
         myFsiSystem.DoStepDynamics_ChronoRK2();
@@ -435,7 +443,7 @@ int main(int argc, char* argv[]) {
         SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, my_fsi_mesh, NodeNeighborElementMesh, paramsH, next_frame,
                              time);
 
-        if (time > 0.3)
+        if (time > 0.2)
             break;
     }
 
@@ -748,7 +756,29 @@ void applySpringForce(std::shared_ptr<fea::ChMesh>& my_mesh,
     printf("The spring forces=%f, delta_ave= %f, Total Stiffness= %f\n", delta_Ave * K_tot, delta_Ave, K_tot);
 }
 
-void Calculator(std::shared_ptr<fea::ChMesh> my_mesh, std::vector<ChVector<double>>& x0, bool saveInitials) {
+void Calculator(fsi::ChSystemFsi& myFsiSystem,
+                std::shared_ptr<fea::ChMesh> my_mesh,
+                std::vector<ChVector<double>>& x0,
+                double time,
+                bool saveInitials) {
+    std::ofstream output;
+    output.open((data_folder + "/Analysis.txt").c_str(), std::ios::app);
+
+    //    thrust::host_vector<Real3> posRadH = myFsiSystem.GetDataManager()->sphMarkersD2.posRadD;
+    //    thrust::host_vector<Real3> velMasH = myFsiSystem.GetDataManager()->sphMarkersD2.velMasD;
+    thrust::host_vector<chrono::fsi::Real4> rhoPresMuH = myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD;
+    thrust::host_vector<int4> referenceArray = myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray;
+    Real p_Ave = 0;
+    for (int i = referenceArray[0].x; i < referenceArray[0].y; i++) {
+        //    Real3 pos = posRadH[i];
+        //    Real3 vel = velMasH[i];
+        p_Ave += rhoPresMuH[i].y;
+    }
+    p_Ave /= (referenceArray[0].y - referenceArray[0].x);
+    //    posRadH.clear();
+    //    velMasH.clear();
+    rhoPresMuH.clear();
+
     int TotalNumNodes = my_mesh->GetNnodes();
     double delta_Ave;
     for (int iNode = 0; iNode < TotalNumNodes; iNode++) {
@@ -756,11 +786,14 @@ void Calculator(std::shared_ptr<fea::ChMesh> my_mesh, std::vector<ChVector<doubl
         if (saveInitials) {
             x0.push_back(Node->GetPos());
         }
-        double delta = Vdot(Node->GetPos() - x0[iNode], Node->GetD().GetNormalized());
+        ChVector<> x_i = x0[iNode];
+        double delta = Vdot(Node->GetPos() - x_i, Node->GetD().GetNormalized());
         delta_Ave += delta;
     }
     delta_Ave /= TotalNumNodes;
-    printf("Articular Surface Displacement (mm)= %f\n", delta_Ave * 1000);
+    printf("delta(mm)=%f, sigma_s=%f, sigma_f=%f\n", delta_Ave * 1000, K_SPRINGS * delta_Ave / bxDim / byDim, p_Ave);
+    output << time << " " << delta_Ave << " " << K_SPRINGS * delta_Ave / bxDim / byDim << " " << p_Ave << std::endl;
+    output.close();
 }
 
 //------------------------------------------------------------------
