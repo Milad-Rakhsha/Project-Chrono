@@ -541,8 +541,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     double plate_lenght_y = byDim + 0 * initSpace0;
     double plate_lenght_z = 0.001;
     // Specification of the mesh
-    int numDiv_x = 8;
-    int numDiv_y = 8;
+    int numDiv_x = 16;
+    int numDiv_y = 16;
     int numDiv_z = 1;
     int N_x = numDiv_x + 1;
     int N_y = numDiv_y + 1;
@@ -791,8 +791,11 @@ void Calculator(fsi::ChSystemFsi& myFsiSystem,
         delta_Ave += delta;
     }
     delta_Ave /= TotalNumNodes;
-    printf("delta(mm)=%f, sigma_s=%f, sigma_f=%f\n", delta_Ave * 1000, K_SPRINGS * delta_Ave / bxDim / byDim, p_Ave);
-    output << time << " " << delta_Ave << " " << K_SPRINGS * delta_Ave / bxDim / byDim << " " << p_Ave << std::endl;
+    double AppliedPressure = applyRampPressure(time, t_ramp, p_max);
+    printf("delta(mm)=%f, applied_Pressure=%f, sigma_s=%f, sigma_f=%f\n", delta_Ave * 1000, AppliedPressure,
+           K_SPRINGS * delta_Ave / bxDim / byDim, p_Ave);
+    output << time << " " << delta_Ave << " " << AppliedPressure << " " << K_SPRINGS * delta_Ave / bxDim / byDim << " "
+           << p_Ave << std::endl;
     output.close();
 }
 
