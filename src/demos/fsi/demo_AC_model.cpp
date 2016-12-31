@@ -443,7 +443,7 @@ int main(int argc, char* argv[]) {
         SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, my_fsi_mesh, NodeNeighborElementMesh, paramsH, next_frame,
                              time);
 
-        if (time > 0.2)
+        if (time > 0.4)
             break;
     }
 
@@ -541,8 +541,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     double plate_lenght_y = byDim + 0 * initSpace0;
     double plate_lenght_z = 0.001;
     // Specification of the mesh
-    int numDiv_x = 16;
-    int numDiv_y = 16;
+    int numDiv_x = 8;
+    int numDiv_y = 8;
     int numDiv_z = 1;
     int N_x = numDiv_x + 1;
     int N_y = numDiv_y + 1;
