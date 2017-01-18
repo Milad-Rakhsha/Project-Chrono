@@ -31,21 +31,22 @@ ChSystemFsi::ChSystemFsi(ChSystem* other_physicalSystem, bool other_haveFluid)
     : mphysicalSystem(other_physicalSystem), haveFluid(other_haveFluid), mTime(0) {
   fsiData = new ChFsiDataManager();
   paramsH = new SimParams;
+  fsi_mesh = std::make_shared<fea::ChMesh>();
+  printf("fsi_mesh.sizeElements()=%d\n", fsi_mesh->GetNelements());
+  printf("fsi_mesh.sizeNodes()..\n", fsi_mesh->GetNnodes());
   fsiBodeisPtr.resize(0);
   fsiShellsPtr.resize(0);
   fsiNodesPtr.resize(0);
-  //  auto fsi_mesh = std::make_shared<fea::ChMesh>();
-
   numObjectsH = &(fsiData->numObjects);
 
   bceWorker = new ChBce(&(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD), &(fsiData->fsiGeneralData),
                         paramsH, numObjectsH);
   fluidDynamics = new ChFluidDynamics(bceWorker, fsiData, paramsH, numObjectsH);
-  fsiInterface =
-      new ChFsiInterface(&(fsiData->fsiBodiesH), &(fsiData->fsiShellsH), &(fsiData->fsiMeshH), mphysicalSystem,
-                         &fsiBodeisPtr, &fsiNodesPtr, &fsiShellsPtr, &(fsiData->fsiGeneralData.ShellelementsNodesH),
-                         &(fsiData->fsiGeneralData.ShellelementsNodes), &(fsiData->fsiGeneralData.rigid_FSI_ForcesD),
-                         &(fsiData->fsiGeneralData.rigid_FSI_TorquesD), &(fsiData->fsiGeneralData.Flex_FSI_ForcesD));
+  fsiInterface = new ChFsiInterface(
+      &(fsiData->fsiBodiesH), &(fsiData->fsiShellsH), &(fsiData->fsiMeshH), mphysicalSystem, &fsiBodeisPtr,
+      &fsiNodesPtr, &fsiShellsPtr, fsi_mesh, &(fsiData->fsiGeneralData.ShellelementsNodesH),
+      &(fsiData->fsiGeneralData.ShellelementsNodes), &(fsiData->fsiGeneralData.rigid_FSI_ForcesD),
+      &(fsiData->fsiGeneralData.rigid_FSI_TorquesD), &(fsiData->fsiGeneralData.Flex_FSI_ForcesD));
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -183,7 +184,6 @@ void ChSystemFsi::DoStepDynamics_ChronoRK2() {
 void ChSystemFsi::FinalizeData() {
   // Arman: very important: you cannot change the order of (1-3).
   // Fix the issue later
-  fsiInterface->GetFsiMesh(fsi_mesh);
 
   printf("\n\n fsiInterface->ResizeChronoBodiesData()\n");
   fsiInterface->ResizeChronoBodiesData();

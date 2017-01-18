@@ -228,10 +228,10 @@ void CreateBCE_On_Mesh(thrust::host_vector<Real3>& posRadBCE,
           continue;
         }
 
-        if (std::abs(i) <= 1 && std::abs(j) <= 1) {
-          // skip the middle layer for this specific case
-          continue;
-        }
+        //        if (std::abs(i) <= 2 && std::abs(j) <= 2) {
+        //          // skip the middle layer for this specific case
+        //          continue;
+        //        }
 
         // It has to skip puting BCE on the nodes if one of the following conditions is true
         bool con1 = (remove[0] && remove[1] && j == jBound.x);

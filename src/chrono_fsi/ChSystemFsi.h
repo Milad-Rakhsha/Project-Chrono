@@ -121,7 +121,6 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
                                                       /// are those that interact with fluid
 
   std::vector<std::vector<int>> ShellelementsNodes;  // These are the indices of nodes of each Element
-  std::vector<std::vector<int>> NodesShellElements;  // These are the indices of Shell elements attached to each node
 
   std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>> fsiShellsPtr;  ///<vector of ChElementShellANCF pointers
   std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>> fsiNodesPtr;        ///<vector of ChNodeFEAxyzD nodes

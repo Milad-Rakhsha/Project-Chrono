@@ -21,6 +21,7 @@
 #include "chrono_fsi/ChApiFsi.h"
 #include "chrono_fsi/ChFsiDataManager.cuh"
 #include "chrono_fsi/ChFsiGeneral.cuh"
+#include "chrono_fea/ChMesh.h"
 
 namespace chrono {
 namespace fsi {
@@ -34,6 +35,7 @@ class CH_FSI_API ChFsiInterface : public ChFsiGeneral {
                  std::vector<std::shared_ptr<chrono::ChBody>>* other_fsiBodeisPtr,
                  std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* other_fsiNodesPtr,
                  std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* other_fsiShellsPtr,
+                 std::shared_ptr<chrono::fea::ChMesh> other_fsiMesh,
                  thrust::host_vector<int4>* other_ShellelementsNodesH,
                  thrust::device_vector<int4>* other_ShellelementsNodes,
                  thrust::device_vector<Real3>* other_rigid_FSI_ForcesD,

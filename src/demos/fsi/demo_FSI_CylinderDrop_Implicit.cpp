@@ -50,6 +50,7 @@
 #define haveFluid 1
 
 #define AddCylinder
+//#define AddBoundaries
 
 // Chrono namespaces
 using namespace chrono;
@@ -156,10 +157,13 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI& mphysicalSystem,
     ChVector<> pos_yn(0, -byDim / 2 - 3 * paramsH->HSML, bzDim / 2 + 1 * paramsH->HSML);
 
     chrono::utils::AddBoxGeometry(ground.get(), sizeBottom, posBottom, chrono::QUNIT, true);
+#ifdef AddBoundaries
     chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xp, chrono::QUNIT, true);
     chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xn, chrono::QUNIT, true);
     chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yp, chrono::QUNIT, true);
     chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yn, chrono::QUNIT, true);
+#endif
+
     ground->GetCollisionModel()->BuildModel();
     mphysicalSystem.AddBody(ground);
 
@@ -168,14 +172,12 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI& mphysicalSystem,
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posBottom, chrono::QUNIT, sizeBottom);
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT, sizeBottom);
 
+#ifdef AddBoundaries
     chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xp, chrono::QUNIT, size_YZ);
-
     chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xn, chrono::QUNIT, size_YZ);
-
     chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yp, chrono::QUNIT, size_XZ);
-
     chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT, size_XZ);
-
+#endif
     // Add floating cylinder
 
     ChVector<> cyl_pos = ChVector<>(0, 0, fzDim + cyl_radius + 2 * paramsH->HSML);
@@ -400,7 +402,6 @@ int main(int argc, char* argv[]) {
 
     // ***************************** System Initialize
     // ********************************************
-    myFsiSystem.InitializeChronoGraphics(CameraLocation, CameraLookAt);
 
     double mTime = 0;
 

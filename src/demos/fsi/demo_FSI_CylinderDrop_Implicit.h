@@ -44,7 +44,7 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.05;
+    paramsH->HSML = 0.025;
     paramsH->MULT_INITSPACE = 1.0;
     paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
@@ -57,22 +57,22 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = .001;
+    paramsH->mu0 = 1.0;
     paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
-    paramsH->PPE_res = 0.00001;
-    paramsH->PPE_Max_Iter = 2000;
-
-    paramsH->PPE_Solution_type = SPARSE_MATRIX_JACOBI;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
-    paramsH->PPE_relaxation = 0.5;                      // Increasing this to 0.5 causes instability
-    paramsH->IncompressibilityFactor = 1;    // Increasing this causes lager compressibility, but let for larger dt
-    paramsH->USE_CUSP = false;               // Experimentally,don't use if for now
-    paramsH->Adaptive_time_stepping = true;  // This let you use large time steps when possible
-    paramsH->Co_number = 0.2;                // 0.2 works well for most cases
+    paramsH->PPE_res = 0.01;
+    paramsH->PPE_Max_Iter = 10000;
+    paramsH->PPE_Solution_type = IterativeJacobi;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
+    paramsH->PPE_relaxation = 0.5;                 // Increasing this to 0.5 causes instability
+    paramsH->ClampPressure = true;                 // If the negative pressure should be clamped to zero or not
+    paramsH->IncompressibilityFactor = 1;     // Increasing this causes lager compressibility, but let for larger dt
+    paramsH->USE_CUSP = false;                // Experimentally,don't use if for now
+    paramsH->Adaptive_time_stepping = false;  // This let you use large time steps when possible
+    paramsH->Co_number = 1;                   // 0.2 works well for most cases
     paramsH->dT_Max = 0.01;  // This is problem dependent should set by the user based on characteristic time step
 
-    paramsH->dT = 5e-3;
+    paramsH->dT = 2.5e-3;
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;  // I don't know what is kdT
@@ -85,8 +85,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
     paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
-    paramsH->cMin = mR3(-0.8, -0.8, -1);
-    paramsH->cMax = mR3(0.8, 0.8, 2.5);
+    paramsH->cMin = mR3(-bxDim / 2, -byDim / 2, -bzDim - paramsH->HSML * 30) - 0.5 * paramsH->HSML;
+    paramsH->cMax = mR3(bxDim / 2, byDim / 2, bzDim + paramsH->HSML * 30) + 0.5 * paramsH->HSML;
 
     //****************************************************************************************
     // printf("a1  paramsH->cMax.x, y, z %f %f %f,  binSize %f\n",

@@ -31,6 +31,7 @@ ChFsiInterface::ChFsiInterface(FsiBodiesDataH* other_fsiBodiesH,
                                std::vector<std::shared_ptr<chrono::ChBody>>* other_fsiBodeisPtr,
                                std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* other_fsiNodesPtr,
                                std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* other_fsiShellsPtr,
+                               std::shared_ptr<chrono::fea::ChMesh> other_fsiMesh,
                                thrust::host_vector<int4>* other_ShellelementsNodesH,
                                thrust::device_vector<int4>* other_ShellelementsNodes,
                                thrust::device_vector<Real3>* other_rigid_FSI_ForcesD,
@@ -39,6 +40,7 @@ ChFsiInterface::ChFsiInterface(FsiBodiesDataH* other_fsiBodiesH,
     : fsiBodiesH(other_fsiBodiesH),
       fsiShellsH(other_fsiShellsH),
       fsiMeshH(other_fsiMeshH),
+      fsi_mesh(other_fsiMesh),
       mphysicalSystem(other_mphysicalSystem),
       fsiBodeisPtr(other_fsiBodeisPtr),
       fsiNodesPtr(other_fsiNodesPtr),
@@ -152,7 +154,7 @@ void ChFsiInterface::Add_Flex_Forces_To_ChSystem() {
     //    printf("Added the force of %f,%f,%f to the flex body %d\n", mforce.x, mforce.y, mforce.z, i);
     auto node = std::dynamic_pointer_cast<fea::ChNodeFEAxyzD>(fsi_mesh->GetNode(i));
     ChVector<> OldForce = node->GetForce();
-    node->SetForce(mforce);
+    node->SetForce(-mforce);
   }
 }
 

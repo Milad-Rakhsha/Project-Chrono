@@ -82,6 +82,8 @@ utils/ChUtilsGeneratorBce.cpp
 utils/ChUtilsGeneratorFluid.cpp
 utils/ChUtilsGeneratorFsi.cpp
 utils/ChUtilsPrintSph.cpp
+utils/ChUtilsReadSph.cpp
+
 )
 
 SET(ChronoEngine_FSI_HEADERS
@@ -102,6 +104,7 @@ utils/ChUtilsGeneratorBce.h
 utils/ChUtilsGeneratorFluid.h
 utils/ChUtilsGeneratorFsi.h
 utils/ChUtilsPrintSph.h
+utils/ChUtilsReadSph.h
 utils/ChUtilsPrintStruct.h
 )
 

@@ -96,7 +96,6 @@ Real fxDim = 1;
 Real fyDim = byDim;
 Real fzDim = 1;
 
-void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
 void writeMesh(std::shared_ptr<ChMesh> my_mesh, std::string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement);
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[256],
@@ -219,9 +218,7 @@ int main(int argc, char* argv[]) {
 
     cout << " -- ChSystem size : " << mphysicalSystem.Get_bodylist()->size() << endl;
 
-    // ***************************** System Initialize
-    // ********************************************
-    myFsiSystem.InitializeChronoGraphics(CameraLocation, CameraLookAt);
+    // ******************** System Initialize ************************
 
     int step_count = 0;
 
@@ -230,13 +227,6 @@ int main(int argc, char* argv[]) {
     printf("Double Precision\n");
 #else
     printf("Single Precision\n");
-#endif
-
-#ifdef USE_IRR
-    application.GetSystem()->Update();
-    //    application.SetPaused(true);
-    int AccuNoIterations = 0;
-    application.SetStepManage(true);
 #endif
 
     mphysicalSystem.SetupInitial();
@@ -259,7 +249,6 @@ int main(int argc, char* argv[]) {
 
     int stepEnd = int(paramsH->tFinal / paramsH->dT);
     stepEnd = 1000000;
-
     SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, my_mesh, NodeNeighborElementMesh, paramsH, 0, mTime);
 
     Real time = 0;
@@ -380,7 +369,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     double plate_lenght_y = byDim;
     double plate_lenght_z = 0.02;
     // Specification of the mesh
-    int numDiv_x = 5;
+    int numDiv_x = 4;
     int numDiv_y = 4;
     int numDiv_z = 1;
     int N_x = numDiv_x + 1;
@@ -428,7 +417,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // Create an orthotropic material.
     // All layers for all elements share the same material.
     double rho = 500;
-    double E = 3e6;
+    double E = 1e7;
     double nu = 0.3;
     //    ChVector<> E(1e5, 1e5, 1e5);
     //    ChVector<> nu(0.3, 0.3, 0.3);
@@ -491,6 +480,30 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
 #endif
 }
+
+//------------------------------------------------------------------
+// Function to save the ParaView files of the MBD
+//------------------------------------------------------------------
+void ReadPreviousData(fsi::ChSystemFsi& myFsiSystem,
+                      ChSystemDEM& mphysicalSystem,
+                      std::shared_ptr<fea::ChMesh> my_mesh,
+                      std::vector<std::vector<int>> NodeNeighborElementMesh,
+                      chrono::fsi::SimParams* paramsH,
+                      int next_frame,
+                      double mTime) {
+    // **** out fluid
+    chrono::fsi::utils::PrintToParaViewFile(
+        myFsiSystem.GetDataManager()->sphMarkersD2.posRadD, myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
+        myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
+        myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
+        myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, data_folder);
+
+    char SaveAsBuffer[256];  // The filename buffer.
+    snprintf(SaveAsBuffer, sizeof(char) * 256, (data_folder + "/flex_body.%d.vtk").c_str(), next_frame);
+    char MeshFileBuffer[256];  // The filename buffer.
+    snprintf(MeshFileBuffer, sizeof(char) * 256, ("%s"), MESH_CONNECTIVITY.c_str());
+}
+
 //------------------------------------------------------------------
 // Function to save the povray files of the MBD
 //------------------------------------------------------------------
@@ -518,15 +531,6 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
             myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
             myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
             myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, data_folder);
-#ifdef AddCylinder
-        char SaveAsRigidObjVTK[256];  // The filename buffer.
-        static int RigidCounter = 0;
-
-        snprintf(SaveAsRigidObjVTK, sizeof(char) * 256, (data_folder + "/Cylinder.%d.vtk").c_str(), RigidCounter);
-        WriteCylinderVTK(Cylinder, cyl_radius, cyl_length, 100, SaveAsRigidObjVTK);
-
-        RigidCounter++;
-#endif
 
         cout << "\n------------ Output frame:   " << next_frame << endl;
         cout << "             Sim frame:      " << next_frame << endl;

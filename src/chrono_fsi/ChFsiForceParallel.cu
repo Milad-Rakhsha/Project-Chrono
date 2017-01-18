@@ -946,7 +946,83 @@ __global__ void Calc_dij_pj(Real3* dij_pj,  // write
   dij_pj[i_idx] = My_dij_pj;
   F_p[i_idx] = my_F_p;
 }
+////--------------------------------------------------------------------------------------------------------------------------------
 
+__device__ void BCE_Vel_Acc(int i_idx,
+                            Real3& myAcc,
+                            Real3& V_prescribed,
+
+                            Real3* sortedPosRad,
+                            int4 updatePortion,
+                            uint* gridMarkerIndexD,
+
+                            Real4* velMassRigid_fsiBodies_D,
+                            Real3* accRigid_fsiBodies_D,
+                            uint* rigidIdentifierD,
+
+                            Real3* pos_fsi_fea_D,
+                            Real3* vel_fsi_fea_D,
+                            Real3* acc_fsi_fea_D,
+                            uint* FlexIdentifierD,
+                            uint4* ShellelementsNodes) {
+  int Original_idx = gridMarkerIndexD[i_idx];
+
+  Real MASS;
+
+  // See if this belongs to boundary
+  if (Original_idx >= updatePortion.x && Original_idx < updatePortion.y) {
+    myAcc = mR3(0.0);
+    V_prescribed = mR3(0.0);
+    // Or not maybe Rigid bodies
+  } else if (Original_idx >= updatePortion.y && Original_idx < updatePortion.z) {
+    int rigidIndex = rigidIdentifierD[Original_idx - updatePortion.y];
+    V_prescribed = mR3(velMassRigid_fsiBodies_D[rigidIndex].x, velMassRigid_fsiBodies_D[rigidIndex].y,
+                       velMassRigid_fsiBodies_D[rigidIndex].z);
+    myAcc =
+        mR3(accRigid_fsiBodies_D[rigidIndex].x, accRigid_fsiBodies_D[rigidIndex].y, accRigid_fsiBodies_D[rigidIndex].z);
+
+    // Or not, Flexible bodies for sure
+  } else if (Original_idx >= updatePortion.z && Original_idx < updatePortion.w) {
+    int FlexIndex = FlexIdentifierD[Original_idx - updatePortion.z];
+    //    printf("My FlexIndex is %d \n", FlexIndex);
+    int nA = ShellelementsNodes[FlexIndex].x;
+    int nB = ShellelementsNodes[FlexIndex].y;
+    int nC = ShellelementsNodes[FlexIndex].z;
+    int nD = ShellelementsNodes[FlexIndex].w;
+
+    Real3 pos_fsi_fea_D_nA = pos_fsi_fea_D[nA];
+    Real3 pos_fsi_fea_D_nB = pos_fsi_fea_D[nB];
+    Real3 pos_fsi_fea_D_nC = pos_fsi_fea_D[nC];
+    Real3 pos_fsi_fea_D_nD = pos_fsi_fea_D[nD];
+
+    Real3 vel_fsi_fea_D_nA = vel_fsi_fea_D[nA];
+    Real3 vel_fsi_fea_D_nB = vel_fsi_fea_D[nB];
+    Real3 vel_fsi_fea_D_nC = vel_fsi_fea_D[nC];
+    Real3 vel_fsi_fea_D_nD = vel_fsi_fea_D[nD];
+
+    Real3 acc_fsi_fea_D_nA = acc_fsi_fea_D[nA];
+    Real3 acc_fsi_fea_D_nB = acc_fsi_fea_D[nB];
+    Real3 acc_fsi_fea_D_nC = acc_fsi_fea_D[nC];
+    Real3 acc_fsi_fea_D_nD = acc_fsi_fea_D[nD];
+
+    Real3 Shell_center = 0.25 * (pos_fsi_fea_D_nA + pos_fsi_fea_D_nB + pos_fsi_fea_D_nC + pos_fsi_fea_D_nD);
+    Real3 dist3 = sortedPosRad[Original_idx] - Shell_center;
+    Real Shell_x = 0.25 * (length(pos_fsi_fea_D_nB - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nC));
+    Real Shell_y = 0.25 * (length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nC - pos_fsi_fea_D_nB));
+    Real2 FlexSPH_MeshPos_Natural = mR2(dist3.x / Shell_x, dist3.y / Shell_y);
+
+    Real4 N_shell = Shells_ShapeFunctions(FlexSPH_MeshPos_Natural.x, FlexSPH_MeshPos_Natural.y);
+    Real NA = N_shell.x;
+    Real NB = N_shell.y;
+    Real NC = N_shell.z;
+    Real ND = N_shell.w;
+    V_prescribed = NA * vel_fsi_fea_D_nA + NB * vel_fsi_fea_D_nB + NC * vel_fsi_fea_D_nC + ND * vel_fsi_fea_D_nD;
+    myAcc = NA * acc_fsi_fea_D_nA + NB * acc_fsi_fea_D_nB + NC * acc_fsi_fea_D_nC + ND * acc_fsi_fea_D_nD;
+
+  } else {
+    printf("i_idx=%d, Original_idx:%d was not found\n\n", i_idx, Original_idx);
+  }
+}
 ////--------------------------------------------------------------------------------------------------------------------------------
 __global__ void CalcNumber_Contacts(unsigned long int* numContacts,
                                     Real3* sortedPosRad,
@@ -1101,7 +1177,7 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
                                ///> The above 4 vectors are used for CSR form.
                                Real* a_ii,  // write
                                Real* B_i,
-                               const Real3* sortedPosRad,
+                               Real3* sortedPosRad,
                                const Real3* sortedVelMas,
                                const Real4* sortedRhoPreMu,
                                Real3* V_new,
@@ -1136,64 +1212,10 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
   int Original_idx = gridMarkerIndexD[i_idx];
   Real3 myAcc;
   Real3 V_prescribed;
-  Real MASS;
 
-  // See if this belongs to boundary
-  if (Original_idx >= updatePortion.x && Original_idx < updatePortion.y) {
-    myAcc = mR3(0.0);
-    V_prescribed = mR3(0.0);
-    MASS = m_0;
-    // Or not maybe Rigid bodies
-  } else if (Original_idx >= updatePortion.y && Original_idx < updatePortion.z) {
-    int rigidIndex = rigidIdentifierD[Original_idx - updatePortion.y];
-    V_prescribed = mR3(velMassRigid_fsiBodies_D[rigidIndex].x, velMassRigid_fsiBodies_D[rigidIndex].y,
-                       velMassRigid_fsiBodies_D[rigidIndex].z);
-    myAcc =
-        mR3(accRigid_fsiBodies_D[rigidIndex].x, accRigid_fsiBodies_D[rigidIndex].y, accRigid_fsiBodies_D[rigidIndex].z);
-
-    MASS = velMassRigid_fsiBodies_D[rigidIndex].w;
-    // Or not, Flexible bodies for sure
-  } else if (Original_idx >= updatePortion.z && Original_idx < updatePortion.w) {
-    int FlexIndex = FlexIdentifierD[Original_idx - updatePortion.z];
-    //    printf("My FlexIndex is %d \n", FlexIndex);
-    int nA = ShellelementsNodes[FlexIndex].x;
-    int nB = ShellelementsNodes[FlexIndex].y;
-    int nC = ShellelementsNodes[FlexIndex].z;
-    int nD = ShellelementsNodes[FlexIndex].w;
-
-    Real3 pos_fsi_fea_D_nA = pos_fsi_fea_D[nA];
-    Real3 pos_fsi_fea_D_nB = pos_fsi_fea_D[nB];
-    Real3 pos_fsi_fea_D_nC = pos_fsi_fea_D[nC];
-    Real3 pos_fsi_fea_D_nD = pos_fsi_fea_D[nD];
-
-    Real3 vel_fsi_fea_D_nA = vel_fsi_fea_D[nA];
-    Real3 vel_fsi_fea_D_nB = vel_fsi_fea_D[nB];
-    Real3 vel_fsi_fea_D_nC = vel_fsi_fea_D[nC];
-    Real3 vel_fsi_fea_D_nD = vel_fsi_fea_D[nD];
-
-    Real3 acc_fsi_fea_D_nA = acc_fsi_fea_D[nA];
-    Real3 acc_fsi_fea_D_nB = acc_fsi_fea_D[nB];
-    Real3 acc_fsi_fea_D_nC = acc_fsi_fea_D[nC];
-    Real3 acc_fsi_fea_D_nD = acc_fsi_fea_D[nD];
-
-    Real3 Shell_center = 0.25 * (pos_fsi_fea_D_nA + pos_fsi_fea_D_nB + pos_fsi_fea_D_nC + pos_fsi_fea_D_nD);
-    Real3 dist3 = sortedPosRad[Original_idx] - Shell_center;
-    Real Shell_x = 0.25 * (length(pos_fsi_fea_D_nB - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nC));
-    Real Shell_y = 0.25 * (length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nC - pos_fsi_fea_D_nB));
-    Real2 FlexSPH_MeshPos_Natural = mR2(dist3.x / Shell_x, dist3.y / Shell_y);
-
-    Real4 N_shell = Shells_ShapeFunctions(FlexSPH_MeshPos_Natural.x, FlexSPH_MeshPos_Natural.y);
-    Real NA = N_shell.x;
-    Real NB = N_shell.y;
-    Real NC = N_shell.z;
-    Real ND = N_shell.w;
-    V_prescribed = NA * vel_fsi_fea_D_nA + NB * vel_fsi_fea_D_nB + NC * vel_fsi_fea_D_nC + ND * vel_fsi_fea_D_nD;
-    myAcc = NA * acc_fsi_fea_D_nA + NB * acc_fsi_fea_D_nB + NC * acc_fsi_fea_D_nC + ND * acc_fsi_fea_D_nD;
-
-  } else {
-    printf("i_idx=%d, Original_idx:%d was not found\n\n", i_idx, Original_idx);
-  }
-
+  BCE_Vel_Acc(i_idx, myAcc, V_prescribed, sortedPosRad, updatePortion, gridMarkerIndexD, velMassRigid_fsiBodies_D,
+              accRigid_fsiBodies_D, rigidIdentifierD, pos_fsi_fea_D, vel_fsi_fea_D, acc_fsi_fea_D, FlexIdentifierD,
+              ShellelementsNodes);
   for (int c = csrStartIdx - 1; c < csrEndIdx; c++) {
     csrValA[c] = 0;
     csrColIndA[c] = i_idx;
@@ -1537,7 +1559,6 @@ __global__ void PrepareForCusp(Real* csrValA,
 }
 
 ////--------------------------------------------------------------------------------------------------------------------------------
-////--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Calc_Pressure(Real* a_ii,     // Read
                               Real3* d_ii,    // Read
                               Real3* dij_pj,  // Read
@@ -1547,6 +1568,20 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
                               Real3* sortedPosRad,
                               Real3* sortedVelMas,
                               Real4* sortedRhoPreMu,
+
+                              Real4* velMassRigid_fsiBodies_D,
+                              Real3* accRigid_fsiBodies_D,
+                              uint* rigidIdentifierD,
+
+                              Real3* pos_fsi_fea_D,
+                              Real3* vel_fsi_fea_D,
+                              Real3* acc_fsi_fea_D,
+                              uint* FlexIdentifierD,
+                              uint4* ShellelementsNodes,
+
+                              int4 updatePortion,
+                              uint* gridMarkerIndexD,
+
                               Real* p_old,
                               Real3* V_new,
                               uint* cellStart,
@@ -1556,6 +1591,7 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
                               const Real RHO_0,
                               const Real dT,
                               const Real3 gravity,
+                              bool ClampPressure,
                               volatile bool* isErrorD) {
   uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (i_idx >= numAllMarkers)
@@ -1620,6 +1656,12 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
     }
   } else {  // Do Adami BC
 
+    Real3 myAcc = mR3(0);
+    Real3 V_prescribed = mR3(0);
+    BCE_Vel_Acc(i_idx, myAcc, V_prescribed, sortedPosRad, updatePortion, gridMarkerIndexD, velMassRigid_fsiBodies_D,
+                accRigid_fsiBodies_D, rigidIdentifierD, pos_fsi_fea_D, vel_fsi_fea_D, acc_fsi_fea_D, FlexIdentifierD,
+                ShellelementsNodes);
+
     Real3 numeratorv = mR3(0);
     Real denumenator = 0;
     Real numeratorp = 0;
@@ -1649,7 +1691,7 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
 
               Real Wd = W3(d);
               numeratorv += Vel_j * Wd;
-              numeratorp += p_j * Wd + dot(gravity, dist3) * Rho_i * Wd;
+              numeratorp += p_j * Wd + dot(gravity - myAcc, dist3) * Rho_i * Wd;
               denumenator += Wd;
               Real3 TobeUsed = (F_i_p / m_0 - F_j_p / m_0);
               my_rho_p += (dT * dT) * m_0 * dot(TobeUsed, GradW(dist3));
@@ -1663,10 +1705,9 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
     }
     if (abs(denumenator) < EPSILON) {
       p_new = 0;
-      Vel_i = mR3(0);
-
+      Vel_i = 2 * V_prescribed;
     } else {
-      Vel_i = -numeratorv / denumenator;
+      Vel_i = 2 * V_prescribed - numeratorv / denumenator;
       p_new = numeratorp / denumenator;
 
       if (isnan(denumenator) || isnan(numeratorp))
@@ -1674,6 +1715,8 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
     }
     V_new[i_idx] = Vel_i;
   }
+  if (ClampPressure && p_new < 0.0)
+    p_new = 0.0;
   rho_p[i_idx] = my_rho_p;
   sortedRhoPreMu[i_idx].y = p_new;
 }
@@ -2145,9 +2188,13 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
       Calc_Pressure<<<numBlocks, numThreads>>>(
           R1CAST(a_ii), mR3CAST(d_ii), mR3CAST(dij_pj), R1CAST(rho_np), R1CAST(rho_p), mR3CAST(F_p),
           mR3CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
-          mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(p_old), mR3CAST(V_new), U1CAST(markersProximityD->cellStartD),
-          U1CAST(markersProximityD->cellEndD), numAllMarkers, paramsH->markerMass, paramsH->rho0, paramsH->dT,
-          paramsH->gravity, isErrorD);
+          mR4CAST(sortedSphMarkersD->rhoPresMuD), mR4CAST(velMassRigid_fsiBodies_D), mR3CAST(accRigid_fsiBodies_D),
+          U1CAST(fsiGeneralData->rigidIdentifierD), mR3CAST(pos_fsi_fea_D), mR3CAST(vel_fsi_fea_D),
+          mR3CAST(acc_fsi_fea_D), U1CAST(fsiGeneralData->FlexIdentifierD), U4CAST(fsiGeneralData->ShellelementsNodes),
+          updatePortion, U1CAST(markersProximityD->gridMarkerIndexD), R1CAST(p_old), mR3CAST(V_new),
+          U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers,
+          paramsH->markerMass, paramsH->rho0, paramsH->dT, paramsH->gravity, paramsH->ClampPressure, isErrorD);
+
       cudaThreadSynchronize();
       cudaCheckError();
       cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
