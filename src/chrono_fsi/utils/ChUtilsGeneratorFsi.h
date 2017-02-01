@@ -134,6 +134,21 @@ void AddBCE_ShellFromMesh(ChFsiDataManager* fsiData,
                           bool removeMiddleLayer = false,
                           int SIDE = -2);
 
+void AddBCE_FromMesh(ChFsiDataManager* fsiData,
+                     SimParams* paramsH,
+                     std::shared_ptr<chrono::fea::ChMesh> my_mesh,
+                     std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* fsiNodesPtr,
+                     std::vector<std::shared_ptr<chrono::fea::ChElementCableANCF>>* fsiCablesPtr,
+                     std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* fsiShellsPtr,
+                     std::vector<std::vector<int>> NodeNeighborElement,
+                     std::vector<std::vector<int>> _1D_elementsNodes,
+                     std::vector<std::vector<int>> _2D_elementsNodes,
+                     bool add1DElem,
+                     bool add2DElem,
+                     bool multiLayer,
+                     bool removeMiddleLayer,
+                     int SIDE);
+
 }  // end namespace utils
 }  // end namespace fsi
 }  // end namespace chrono

@@ -20,6 +20,8 @@
 #include "chrono/core/ChMathematics.h"  // for CH_C_PI
 #include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/utils/ChUtilsGeneratorBce.h"
+#include "chrono_fea/ChNodeFEAxyzD.h"
+#include "chrono_fea/ChElementCableANCF.h"
 #include "chrono_fea/ChElementShellANCF.h"
 
 namespace chrono {
@@ -173,16 +175,86 @@ void CreateBCE_On_shell(thrust::host_vector<Real3>& posRadBCE,
       }
     }
   }
+}  // =============================================================================
+
+void CreateBCE_On_ChElementCableANCF(thrust::host_vector<Real3>& posRadBCE,
+                                     SimParams* paramsH,
+                                     std::shared_ptr<chrono::fea::ChElementCableANCF> cable,
+                                     std::vector<int> remove,
+                                     bool multiLayer,
+                                     bool removeMiddleLayer,
+                                     int SIDE) {
+  Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
+
+  double dx = (cable->GetNodeB()->GetX0() - cable->GetNodeA()->GetX0()).Length();
+  double nX = dx / (initSpace0)-floor(dx / (initSpace0));
+  int nFX = floor(dx / (initSpace0));
+  if (nX > 0.5)
+    nFX++;
+
+  Real initSpaceX;
+  if (nFX != 0)
+    initSpaceX = dx / nFX;
+  else
+    initSpaceX = dx;
+
+  //  initSpaceX = dx / nFX;
+
+  Real initSpaceZ = paramsH->HSML;
+  int2 iBound = mI2(0, nFX);
+
+  for (int i = iBound.x; i <= iBound.y; i++) {
+    bool con1 = (remove[1] && (i == iBound.y));
+    bool con2 = (remove[0] && (i == iBound.x));
+    if (con1 || con2)
+      continue;
+
+    Real3 relMarkerPos;
+    if (multiLayer && removeMiddleLayer) {
+      // skip the middle layer for this specific case
+      paramsH->MULT_INITSPACE_Shells = 0.5;
+      initSpaceZ = paramsH->HSML * paramsH->MULT_INITSPACE_Shells;
+    }
+
+    if (multiLayer) {
+      for (int j = 1; j <= SIDE; j++) {
+        relMarkerPos = mR3(i * initSpaceX, j * initSpaceZ, 0);
+        posRadBCE.push_back(relMarkerPos);
+        relMarkerPos = mR3(i * initSpaceX, -j * initSpaceZ, 0);
+        posRadBCE.push_back(relMarkerPos);
+        relMarkerPos = mR3(i * initSpaceX, 0, j * initSpaceZ);
+        posRadBCE.push_back(relMarkerPos);
+        relMarkerPos = mR3(i * initSpaceX, 0, -j * initSpaceZ);
+        posRadBCE.push_back(relMarkerPos);
+
+        if (!(multiLayer && removeMiddleLayer)) {
+          relMarkerPos = mR3(i * initSpaceX, j * initSpaceZ * sqrt(2) / 2, j * initSpaceZ * sqrt(2) / 2);
+          posRadBCE.push_back(relMarkerPos);
+          relMarkerPos = mR3(i * initSpaceX, -j * initSpaceZ * sqrt(2) / 2, j * initSpaceZ * sqrt(2) / 2);
+          posRadBCE.push_back(relMarkerPos);
+          relMarkerPos = mR3(i * initSpaceX, -j * initSpaceZ * sqrt(2) / 2, -j * initSpaceZ * sqrt(2) / 2);
+          posRadBCE.push_back(relMarkerPos);
+          relMarkerPos = mR3(i * initSpaceX, j * initSpaceZ * sqrt(2) / 2, -j * initSpaceZ * sqrt(2) / 2);
+          posRadBCE.push_back(relMarkerPos);
+        }
+      }
+    }
+
+    if (!removeMiddleLayer) {
+      relMarkerPos = mR3(i * initSpaceX, 0, 0);
+      posRadBCE.push_back(relMarkerPos);
+    }
+  }
 }
 // =============================================================================
 
-void CreateBCE_On_Mesh(thrust::host_vector<Real3>& posRadBCE,
-                       SimParams* paramsH,
-                       std::shared_ptr<chrono::fea::ChElementShellANCF> shell,
-                       std::vector<int> remove,
-                       bool multiLayer,
-                       bool removeMiddleLayer,
-                       int SIDE) {
+void CreateBCE_On_ChElementShellANCF(thrust::host_vector<Real3>& posRadBCE,
+                                     SimParams* paramsH,
+                                     std::shared_ptr<chrono::fea::ChElementShellANCF> shell,
+                                     std::vector<int> remove,
+                                     bool multiLayer,
+                                     bool removeMiddleLayer,
+                                     int SIDE) {
   Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
 
   double dx = shell->GetLengthX() / 2;

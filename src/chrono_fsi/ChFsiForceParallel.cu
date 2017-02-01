@@ -964,6 +964,8 @@ __device__ void BCE_Vel_Acc(int i_idx,
                             Real3* vel_fsi_fea_D,
                             Real3* acc_fsi_fea_D,
                             uint* FlexIdentifierD,
+                            const int numFlex1D,
+                            uint2* CableElementsNodes,
                             uint4* ShellelementsNodes) {
   int Original_idx = gridMarkerIndexD[i_idx];
 
@@ -984,41 +986,68 @@ __device__ void BCE_Vel_Acc(int i_idx,
     // Or not, Flexible bodies for sure
   } else if (Original_idx >= updatePortion.z && Original_idx < updatePortion.w) {
     int FlexIndex = FlexIdentifierD[Original_idx - updatePortion.z];
-    //    printf("My FlexIndex is %d \n", FlexIndex);
-    int nA = ShellelementsNodes[FlexIndex].x;
-    int nB = ShellelementsNodes[FlexIndex].y;
-    int nC = ShellelementsNodes[FlexIndex].z;
-    int nD = ShellelementsNodes[FlexIndex].w;
 
-    Real3 pos_fsi_fea_D_nA = pos_fsi_fea_D[nA];
-    Real3 pos_fsi_fea_D_nB = pos_fsi_fea_D[nB];
-    Real3 pos_fsi_fea_D_nC = pos_fsi_fea_D[nC];
-    Real3 pos_fsi_fea_D_nD = pos_fsi_fea_D[nD];
+    if (FlexIndex < numFlex1D) {
+      int nA = CableElementsNodes[FlexIndex].x;
+      int nB = CableElementsNodes[FlexIndex].y;
 
-    Real3 vel_fsi_fea_D_nA = vel_fsi_fea_D[nA];
-    Real3 vel_fsi_fea_D_nB = vel_fsi_fea_D[nB];
-    Real3 vel_fsi_fea_D_nC = vel_fsi_fea_D[nC];
-    Real3 vel_fsi_fea_D_nD = vel_fsi_fea_D[nD];
+      Real3 pos_fsi_fea_D_nA = pos_fsi_fea_D[nA];
+      Real3 pos_fsi_fea_D_nB = pos_fsi_fea_D[nB];
 
-    Real3 acc_fsi_fea_D_nA = acc_fsi_fea_D[nA];
-    Real3 acc_fsi_fea_D_nB = acc_fsi_fea_D[nB];
-    Real3 acc_fsi_fea_D_nC = acc_fsi_fea_D[nC];
-    Real3 acc_fsi_fea_D_nD = acc_fsi_fea_D[nD];
+      Real3 vel_fsi_fea_D_nA = vel_fsi_fea_D[nA];
+      Real3 vel_fsi_fea_D_nB = vel_fsi_fea_D[nB];
 
-    Real3 Shell_center = 0.25 * (pos_fsi_fea_D_nA + pos_fsi_fea_D_nB + pos_fsi_fea_D_nC + pos_fsi_fea_D_nD);
-    Real3 dist3 = sortedPosRad[Original_idx] - Shell_center;
-    Real Shell_x = 0.25 * (length(pos_fsi_fea_D_nB - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nC));
-    Real Shell_y = 0.25 * (length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nC - pos_fsi_fea_D_nB));
-    Real2 FlexSPH_MeshPos_Natural = mR2(dist3.x / Shell_x, dist3.y / Shell_y);
+      Real3 acc_fsi_fea_D_nA = acc_fsi_fea_D[nA];
+      Real3 acc_fsi_fea_D_nB = acc_fsi_fea_D[nB];
 
-    Real4 N_shell = Shells_ShapeFunctions(FlexSPH_MeshPos_Natural.x, FlexSPH_MeshPos_Natural.y);
-    Real NA = N_shell.x;
-    Real NB = N_shell.y;
-    Real NC = N_shell.z;
-    Real ND = N_shell.w;
-    V_prescribed = NA * vel_fsi_fea_D_nA + NB * vel_fsi_fea_D_nB + NC * vel_fsi_fea_D_nC + ND * vel_fsi_fea_D_nD;
-    myAcc = NA * acc_fsi_fea_D_nA + NB * acc_fsi_fea_D_nB + NC * acc_fsi_fea_D_nC + ND * acc_fsi_fea_D_nD;
+      Real3 dist3 = sortedPosRad[Original_idx] - pos_fsi_fea_D_nA;
+      Real3 x_dir = (pos_fsi_fea_D_nB - pos_fsi_fea_D_nA);
+      Real Cable_x = length(x_dir);
+      x_dir = x_dir / length(x_dir);
+      Real dx = dot(dist3, x_dir);
 
+      Real2 N_shell = Cables_ShapeFunctions(dx / Cable_x);
+      Real NA = N_shell.x;
+      Real NB = N_shell.y;
+
+      V_prescribed = NA * vel_fsi_fea_D_nA + NB * vel_fsi_fea_D_nB;
+      myAcc = NA * acc_fsi_fea_D_nA + NB * acc_fsi_fea_D_nB;
+    }
+    if (FlexIndex >= numFlex1D) {
+      int nA = ShellelementsNodes[FlexIndex].x;
+      int nB = ShellelementsNodes[FlexIndex].y;
+      int nC = ShellelementsNodes[FlexIndex].z;
+      int nD = ShellelementsNodes[FlexIndex].w;
+
+      Real3 pos_fsi_fea_D_nA = pos_fsi_fea_D[nA];
+      Real3 pos_fsi_fea_D_nB = pos_fsi_fea_D[nB];
+      Real3 pos_fsi_fea_D_nC = pos_fsi_fea_D[nC];
+      Real3 pos_fsi_fea_D_nD = pos_fsi_fea_D[nD];
+
+      Real3 vel_fsi_fea_D_nA = vel_fsi_fea_D[nA];
+      Real3 vel_fsi_fea_D_nB = vel_fsi_fea_D[nB];
+      Real3 vel_fsi_fea_D_nC = vel_fsi_fea_D[nC];
+      Real3 vel_fsi_fea_D_nD = vel_fsi_fea_D[nD];
+
+      Real3 acc_fsi_fea_D_nA = acc_fsi_fea_D[nA];
+      Real3 acc_fsi_fea_D_nB = acc_fsi_fea_D[nB];
+      Real3 acc_fsi_fea_D_nC = acc_fsi_fea_D[nC];
+      Real3 acc_fsi_fea_D_nD = acc_fsi_fea_D[nD];
+
+      Real3 Shell_center = 0.25 * (pos_fsi_fea_D_nA + pos_fsi_fea_D_nB + pos_fsi_fea_D_nC + pos_fsi_fea_D_nD);
+      Real3 dist3 = sortedPosRad[Original_idx] - Shell_center;
+      Real Shell_x = 0.25 * (length(pos_fsi_fea_D_nB - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nC));
+      Real Shell_y = 0.25 * (length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nC - pos_fsi_fea_D_nB));
+      Real2 FlexSPH_MeshPos_Natural = mR2(dist3.x / Shell_x, dist3.y / Shell_y);
+
+      Real4 N_shell = Shells_ShapeFunctions(FlexSPH_MeshPos_Natural.x, FlexSPH_MeshPos_Natural.y);
+      Real NA = N_shell.x;
+      Real NB = N_shell.y;
+      Real NC = N_shell.z;
+      Real ND = N_shell.w;
+      V_prescribed = NA * vel_fsi_fea_D_nA + NB * vel_fsi_fea_D_nB + NC * vel_fsi_fea_D_nC + ND * vel_fsi_fea_D_nD;
+      myAcc = NA * acc_fsi_fea_D_nA + NB * acc_fsi_fea_D_nB + NC * acc_fsi_fea_D_nC + ND * acc_fsi_fea_D_nD;
+    }
   } else {
     printf("i_idx=%d, Original_idx:%d was not found\n\n", i_idx, Original_idx);
   }
@@ -1192,6 +1221,8 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
                                Real3* vel_fsi_fea_D,
                                Real3* acc_fsi_fea_D,
                                uint* FlexIdentifierD,
+                               const int numFlex1D,
+                               uint2* CableElementsNodes,
                                uint4* ShellelementsNodes,
 
                                int4 updatePortion,
@@ -1215,7 +1246,7 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
 
   BCE_Vel_Acc(i_idx, myAcc, V_prescribed, sortedPosRad, updatePortion, gridMarkerIndexD, velMassRigid_fsiBodies_D,
               accRigid_fsiBodies_D, rigidIdentifierD, pos_fsi_fea_D, vel_fsi_fea_D, acc_fsi_fea_D, FlexIdentifierD,
-              ShellelementsNodes);
+              numFlex1D, CableElementsNodes, ShellelementsNodes);
   for (int c = csrStartIdx - 1; c < csrEndIdx; c++) {
     csrValA[c] = 0;
     csrColIndA[c] = i_idx;
@@ -1443,6 +1474,8 @@ __global__ void FormAXB(Real* csrValA,
                         Real3* vel_fsi_fea_D,
                         Real3* acc_fsi_fea_D,
                         uint* FlexIdentifierD,
+                        const int numFlex1D,
+                        uint2* CableElementsNodes,
                         uint4* ShellelementsNodes,
 
                         int4 updatePortion,
@@ -1471,7 +1504,8 @@ __global__ void FormAXB(Real* csrValA,
 
                    bceAcc, velMassRigid_fsiBodies_D, accRigid_fsiBodies_D, rigidIdentifierD,
 
-                   pos_fsi_fea_D, vel_fsi_fea_D, acc_fsi_fea_D, FlexIdentifierD, ShellelementsNodes,
+                   pos_fsi_fea_D, vel_fsi_fea_D, acc_fsi_fea_D, FlexIdentifierD, numFlex1D, CableElementsNodes,
+                   ShellelementsNodes,
 
                    updatePortion, gridMarkerIndexD, cellStart, cellEnd, numAllMarkers, m_0, gravity, true);
 }
@@ -1577,6 +1611,8 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
                               Real3* vel_fsi_fea_D,
                               Real3* acc_fsi_fea_D,
                               uint* FlexIdentifierD,
+                              const int numFlex1D,
+                              uint2* CableElementsNodes,
                               uint4* ShellelementsNodes,
 
                               int4 updatePortion,
@@ -1660,7 +1696,7 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
     Real3 V_prescribed = mR3(0);
     BCE_Vel_Acc(i_idx, myAcc, V_prescribed, sortedPosRad, updatePortion, gridMarkerIndexD, velMassRigid_fsiBodies_D,
                 accRigid_fsiBodies_D, rigidIdentifierD, pos_fsi_fea_D, vel_fsi_fea_D, acc_fsi_fea_D, FlexIdentifierD,
-                ShellelementsNodes);
+                numFlex1D, CableElementsNodes, ShellelementsNodes);
 
     Real3 numeratorv = mR3(0);
     Real denumenator = 0;
@@ -2040,10 +2076,11 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
   //  int4 updatePortion = mI4(fsiGeneralData->referenceArray[1].x, fsiGeneralData->referenceArray[1].y,
   //                           fsiGeneralData->referenceArray[1 + numObjectsH->numRigidBodies].y, 0);
 
-  int4 updatePortion =
-      mI4(fsiGeneralData->referenceArray[0].y, fsiGeneralData->referenceArray[1].y,
-          fsiGeneralData->referenceArray[1 + numObjectsH->numRigidBodies].y,
-          fsiGeneralData->referenceArray[1 + numObjectsH->numRigidBodies + numObjectsH->numFlexBodies].y);
+  int numFlexbodies = +numObjectsH->numFlexBodies1D + numObjectsH->numFlexBodies2D;
+
+  int4 updatePortion = mI4(fsiGeneralData->referenceArray[0].y, fsiGeneralData->referenceArray[1].y,
+                           fsiGeneralData->referenceArray[1 + numObjectsH->numRigidBodies].y,
+                           fsiGeneralData->referenceArray[1 + numObjectsH->numRigidBodies + numFlexbodies].y);
 
   uint NNZ;
   if (mySolutionType == SPARSE_MATRIX_JACOBI) {
@@ -2122,7 +2159,8 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
         U1CAST(fsiGeneralData->rigidIdentifierD),
 
         mR3CAST(pos_fsi_fea_D), mR3CAST(vel_fsi_fea_D), mR3CAST(acc_fsi_fea_D), U1CAST(fsiGeneralData->FlexIdentifierD),
-        U4CAST(fsiGeneralData->ShellelementsNodes),
+        numObjectsH->numFlexBodies1D, U2CAST(fsiGeneralData->CableElementsNodes),
+        U4CAST(fsiGeneralData->ShellElementsNodes),
 
         updatePortion, U1CAST(markersProximityD->gridMarkerIndexD), U1CAST(markersProximityD->cellStartD),
         U1CAST(markersProximityD->cellEndD), numAllMarkers, paramsH->markerMass, paramsH->rho0, paramsH->dT,
@@ -2190,8 +2228,9 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
           mR3CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
           mR4CAST(sortedSphMarkersD->rhoPresMuD), mR4CAST(velMassRigid_fsiBodies_D), mR3CAST(accRigid_fsiBodies_D),
           U1CAST(fsiGeneralData->rigidIdentifierD), mR3CAST(pos_fsi_fea_D), mR3CAST(vel_fsi_fea_D),
-          mR3CAST(acc_fsi_fea_D), U1CAST(fsiGeneralData->FlexIdentifierD), U4CAST(fsiGeneralData->ShellelementsNodes),
-          updatePortion, U1CAST(markersProximityD->gridMarkerIndexD), R1CAST(p_old), mR3CAST(V_new),
+          mR3CAST(acc_fsi_fea_D), U1CAST(fsiGeneralData->FlexIdentifierD), numObjectsH->numFlexBodies1D,
+          U2CAST(fsiGeneralData->CableElementsNodes), U4CAST(fsiGeneralData->ShellElementsNodes), updatePortion,
+          U1CAST(markersProximityD->gridMarkerIndexD), R1CAST(p_old), mR3CAST(V_new),
           U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers,
           paramsH->markerMass, paramsH->rho0, paramsH->dT, paramsH->gravity, paramsH->ClampPressure, isErrorD);
 

@@ -30,6 +30,7 @@ struct SimParams {
   Real MULT_INITSPACE; /* Multiplier to hsml to determine the initial separation of the fluid particles and the fixed
    separation for the boundary particles. This means that the separation will always be a
    multiple of hsml. Default value = 1.0. */
+  Real MULT_INITSPACE_Cables;
   Real MULT_INITSPACE_Shells;
   Real epsMinMarkersDis;   // epsilon mult for minimum distance between markers (d_min = eps * HSML)
   int NUM_BOUNDARY_LAYERS; /*  Number of particles layers that will be used in the boundary. Default value = 3. */
@@ -60,6 +61,8 @@ struct SimParams {
   Real dT; /*  Time step. Depending on the model this will vary and the only way to determine what time step to use is
    to run simulations multiple time and find which one is the largest dT that produces a stable simulation.
    */
+  Real dT_Flex;
+
   Real tFinal;    /* Total simulation time. */
   Real timePause; /* Time that we let pass before applying body forces. This is done to allow the particles to stabilize
    first. Run the fluid only during this time, with dTm = 0.1 * dT */

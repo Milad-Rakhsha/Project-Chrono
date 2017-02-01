@@ -23,6 +23,7 @@
 #include <string>
 #include <thrust/host_vector.h>
 #include "chrono_fea/ChElementShellANCF.h"
+#include "chrono_fea/ChElementCableANCF.h"
 
 namespace chrono {
 namespace fsi {
@@ -41,13 +42,21 @@ void CreateBCE_On_shell(thrust::host_vector<Real3>& posRadBCE,
                         bool removeMiddleLayer = false,
                         int SIDE = -2);
 
-void CreateBCE_On_Mesh(thrust::host_vector<Real3>& posRadBCE,
-                       SimParams* paramsH,
-                       std::shared_ptr<chrono::fea::ChElementShellANCF> shell,
-                       std::vector<int> remove,
-                       bool multiLayer = true,
-                       bool removeMiddleLayer = false,
-                       int SIDE = -2);
+void CreateBCE_On_ChElementCableANCF(thrust::host_vector<Real3>& posRadBCE,
+                                     SimParams* paramsH,
+                                     std::shared_ptr<chrono::fea::ChElementCableANCF> cable,
+                                     std::vector<int> remove,
+                                     bool multiLayer = true,
+                                     bool removeMiddleLayer = false,
+                                     int SIDE = 1);
+
+void CreateBCE_On_ChElementShellANCF(thrust::host_vector<Real3>& posRadBCE,
+                                     SimParams* paramsH,
+                                     std::shared_ptr<chrono::fea::ChElementShellANCF> shell,
+                                     std::vector<int> remove,
+                                     bool multiLayer = true,
+                                     bool removeMiddleLayer = false,
+                                     int SIDE = -2);
 
 void LoadBCE_fromFile(thrust::host_vector<Real3>& posRadBCE,  // do not set the
                                                               // size here since

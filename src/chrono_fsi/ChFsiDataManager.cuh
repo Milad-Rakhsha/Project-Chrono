@@ -82,8 +82,9 @@ typedef thrust::zip_iterator<iterTupleChronoBodiesH> zipIterChronoBodiesH;
 // and flex
 struct NumberOfObjects {
   int numRigidBodies;      /* Number of rigid bodies */
-  int numFlexBodies;       /* Number of Flexible bodies, Each FE is one body*/
   int numFlexNodes;        /* Number of Nodes in a flexible mesh, Each FE is made up of nodes*/
+  int numFlexBodies1D;     /* Number of 1D-Flexible bodies, Each FE is one body*/
+  int numFlexBodies2D;     /* Number of 2D-Flexible bodies, Each FE is one body*/
   int numFluidMarkers;     /* Number of fluid SPH markers*/
   int numBoundaryMarkers;  /* Number of boundary SPH markers */
   int startRigidMarkers;   /* */
@@ -167,6 +168,7 @@ class FsiMeshDataH {
   //  zipIterFlexH iterator();
   // resize
   void resize(int s);
+  int size() { return pos_fsi_fea_H.size(); };
 
  private:
 };
@@ -341,8 +343,11 @@ class FsiGeneralData {
 
   thrust::device_vector<Real3> Flex_FSI_ForcesD;
 
-  thrust::host_vector<int4> ShellelementsNodesH;
-  thrust::device_vector<int4> ShellelementsNodes;
+  thrust::host_vector<int2> CableElementsNodesH;
+  thrust::device_vector<int2> CableElementsNodes;
+
+  thrust::host_vector<int4> ShellElementsNodesH;
+  thrust::device_vector<int4> ShellElementsNodes;
 
  private:
 };
@@ -368,9 +373,6 @@ class CH_FSI_API ChFsiDataManager {
 
   FsiMeshDataD fsiMeshD;
   FsiMeshDataH fsiMeshH;
-
-  FsiShellsDataD fsiShellsD;
-  FsiShellsDataH fsiShellsH;
 
   FsiGeneralData fsiGeneralData;
 

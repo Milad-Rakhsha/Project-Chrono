@@ -31,6 +31,7 @@
 #endif
 #include "chrono_fea/ChMesh.h"
 #include "chrono_fea/ChElementShellANCF.h"
+#include "chrono_fea/ChElementCableANCF.h"
 #include "chrono_fea/ChNodeFEAxyzD.h"
 
 namespace chrono {
@@ -91,6 +92,7 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
   /// with two representation in fluid and multibody systems, are stored in a
   /// vector.
   std::vector<std::shared_ptr<ChBody>>* GetFsiBodiesPtr() { return &fsiBodeisPtr; }
+  std::vector<std::shared_ptr<chrono::fea::ChElementCableANCF>>* GetFsiCablesPtr() { return &fsiCablesPtr; }
   std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* GetFsiShellsPtr() { return &fsiShellsPtr; }
   std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* GetFsiNodesPtr() { return &fsiNodesPtr; }
 
@@ -98,13 +100,22 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
   void InitializeChronoGraphics(chrono::ChVector<> CameraLocation = chrono::ChVector<>(1, 0, 0),
                                 chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0));
 
-  void SetShellelementsNodes(std::vector<std::vector<int>> elementsNodes) {
-    ShellelementsNodes = elementsNodes;
-    int test = fsiData->fsiGeneralData.ShellelementsNodes.size();
+  void SetCableElementsNodes(std::vector<std::vector<int>> elementsNodes) {
+    CableElementsNodes = elementsNodes;
+    int test = fsiData->fsiGeneralData.CableElementsNodes.size();
+    std::cout << "numObjects.numFlexNodes" << test << std::endl;
+  }
+
+  void SetShellElementsNodes(std::vector<std::vector<int>> elementsNodes) {
+    ShellElementsNodes = elementsNodes;
+    int test = fsiData->fsiGeneralData.ShellElementsNodes.size();
 
     std::cout << "numObjects.numFlexNodes" << test << std::endl;
   }
-  void SetFsiMesh(std::shared_ptr<chrono::fea::ChMesh>& other_fsi_mesh) { fsi_mesh = other_fsi_mesh; }
+  void SetFsiMesh(std::shared_ptr<chrono::fea::ChMesh> other_fsi_mesh) {
+    fsi_mesh = other_fsi_mesh;
+    fsiInterface->SetFsiMesh(other_fsi_mesh);
+  }
 
   std::shared_ptr<chrono::fea::ChMesh> GetFsiMesh() { return fsi_mesh; }
 
@@ -120,8 +131,10 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
   std::vector<std::shared_ptr<ChBody>> fsiBodeisPtr;  ///< vector of a pointers to fsi bodies. fsi bodies
                                                       /// are those that interact with fluid
 
-  std::vector<std::vector<int>> ShellelementsNodes;  // These are the indices of nodes of each Element
+  std::vector<std::vector<int>> ShellElementsNodes;  // These are the indices of nodes of each Element
+  std::vector<std::vector<int>> CableElementsNodes;  // These are the indices of nodes of each Element
 
+  std::vector<std::shared_ptr<chrono::fea::ChElementCableANCF>> fsiCablesPtr;  ///<vector of ChElementShellANCF pointers
   std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>> fsiShellsPtr;  ///<vector of ChElementShellANCF pointers
   std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>> fsiNodesPtr;        ///<vector of ChNodeFEAxyzD nodes
   std::shared_ptr<chrono::fea::ChMesh> fsi_mesh;                               ///< ChMesh Pointer

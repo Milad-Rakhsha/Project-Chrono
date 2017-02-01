@@ -25,6 +25,7 @@
 #include "chrono_fsi/utils/ChUtilsGeneratorFsi.h"
 #include "chrono_parallel/physics/ChSystemParallel.h"
 
+#include "chrono_fea/ChElementCableANCF.h"
 #include "chrono_fea/ChElementShellANCF.h"
 #include "chrono_fea/ChMesh.h"
 
@@ -145,12 +146,107 @@ void CreateBceGlobalMarkersFromBceLocalPos(ChFsiDataManager* fsiData,
 
   //	SetNumObjects(numObjects, fsiGeneralData.referenceArray, numAllMarkers);
 }
+// =============================================================================
+
+void CreateBceGlobalMarkersFromBceLocalPos_CableANCF(ChFsiDataManager* fsiData,
+                                                     SimParams* paramsH,
+                                                     const thrust::host_vector<Real3>& posRadBCE,
+                                                     std::shared_ptr<chrono::fea::ChElementCableANCF> cable) {
+  int type = 2;
+
+  chrono::ChMatrixNM<double, 4, 1> N;
+  double dx = (cable->GetNodeB()->GetX0() - cable->GetNodeA()->GetX0()).Length();
+
+  chrono::ChVector<> Element_Axis = (cable->GetNodeB()->GetX0() - cable->GetNodeA()->GetX0()).GetNormalized();
+  chrono::ChVector<> Old_axis = ChVector<>(1, 0, 0);
+  chrono::ChQuaternion<double> Rotation = (Q_from_Vect_to_Vect(Old_axis, Element_Axis));
+  Rotation.Normalize();
+  chrono::ChVector<> new_y_axis = Rotation.Rotate(ChVector<>(0, 1, 0));
+  chrono::ChVector<> new_z_axis = Rotation.Rotate(ChVector<>(0, 0, 1));
+  //  printf(" Rotation Q for this element is = (%f,%f,%f,%f)\n", Rotation.e0, Rotation.e1, Rotation.e2, Rotation.e3);
+  //  printf(" new_x_axis element is = (%f,%f,%f)\n", Element_Axis.x, Element_Axis.y, Element_Axis.z);
+  //  printf(" new_y_axis element is = (%f,%f,%f)\n", new_y_axis.x, new_y_axis.y, new_y_axis.z);
+  //  printf(" new_z_axis element is = (%f,%f,%f)\n", new_z_axis.x, new_z_axis.y, new_z_axis.z);
+
+  chrono::ChVector<> physic_to_natural(1 / dx, 1, 1);
+  chrono::ChVector<> nAp = cable->GetNodeA()->GetPos();
+  chrono::ChVector<> nBp = cable->GetNodeB()->GetPos();
+
+  chrono::ChVector<> nAv = cable->GetNodeA()->GetPos_dt();
+  chrono::ChVector<> nBv = cable->GetNodeB()->GetPos_dt();
+
+  chrono::ChVector<> nAa = cable->GetNodeA()->GetPos_dtdt();
+  chrono::ChVector<> nBa = cable->GetNodeB()->GetPos_dtdt();
+
+  //  printf(" posRadBCE.size()= :%d\n", posRadBCE.size());
+  for (int i = 0; i < posRadBCE.size(); i++) {
+    //    chrono::ChVector<> posGlob =
+    chrono::ChVector<> pos_physical = ChFsiTypeConvert::Real3ToChVector(posRadBCE[i]);
+    chrono::ChVector<> pos_natural = pos_physical * physic_to_natural;
+    //    printf(" physic_to_natural is = (%f,%f,%f)\n", physic_to_natural.x, physic_to_natural.y, physic_to_natural.z);
+    //    printf(" pos_physical is = (%f,%f,%f)\n", pos_physical.x, pos_physical.y, pos_physical.z);
+    //    printf(" pos_natural is = (%f,%f,%f)\n", pos_natural.x, pos_natural.y, pos_natural.z);
+
+    cable->ShapeFunctions(N, pos_natural.x);
+    chrono::ChVector<> x_dir = (nBp - nAp);
+    chrono::ChVector<> Normal;
+    chrono::ChVector<> Correct_Pos =
+        N(0) * nAp + N(2) * nBp + new_y_axis * pos_physical.y + new_z_axis * pos_physical.z;
+
+    if ((Correct_Pos.x < paramsH->cMin.x || Correct_Pos.x > paramsH->cMax.x) ||
+        (Correct_Pos.y < paramsH->cMin.y || Correct_Pos.y > paramsH->cMax.y) ||
+        (Correct_Pos.z < paramsH->cMin.z || Correct_Pos.z > paramsH->cMax.z)) {
+      continue;
+    }
+    printf("fsiData->sphMarkersH.posRadH.push_back :%f,%f,%f\n", Correct_Pos.x, Correct_Pos.y, Correct_Pos.z);
+
+    fsiData->sphMarkersH.posRadH.push_back(ChFsiTypeConvert::ChVectorToReal3(Correct_Pos));
+    chrono::ChVector<> Correct_Vel = N(0) * nAv + N(2) * nBv;
+    Real3 v3 = ChFsiTypeConvert::ChVectorToReal3(Correct_Vel);
+    fsiData->sphMarkersH.velMasH.push_back(v3);
+    fsiData->sphMarkersH.rhoPresMuH.push_back(mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, type));
+  }
+
+  // ------------------------
+  // Modify number of objects
+  // ------------------------
+  int numObjects = fsiData->fsiGeneralData.referenceArray.size();
+  int numBce = posRadBCE.size();
+  fsiData->numObjects.numAllMarkers += numBce;
+
+  int numRigid = fsiData->numObjects.numRigidBodies;
+  fsiData->numObjects.numFlex_SphMarkers += numBce;
+  fsiData->numObjects.numFlexBodies1D += 1;
+  fsiData->numObjects.startFlexMarkers = fsiData->fsiGeneralData.referenceArray[numRigid + 1].y;
+  int start_flex = fsiData->numObjects.startFlexMarkers;
+
+  int4 last = fsiData->fsiGeneralData.referenceArray[fsiData->fsiGeneralData.referenceArray.size() - 1];
+  fsiData->fsiGeneralData.referenceArray.push_back(
+      mI4(last.y, last.y + numBce, type, fsiData->numObjects.numFlexBodies1D));  // 2: for Shell
+
+  fsiData->fsiGeneralData.referenceArray_FEA.push_back(
+      mI4(last.y, last.y + numBce, type, fsiData->numObjects.numFlexBodies1D));  // 2: for Shell
+
+  printf(" push_back Index %d. ", fsiData->fsiGeneralData.referenceArray.size() - 1);
+  int4 test = fsiData->fsiGeneralData.referenceArray[fsiData->fsiGeneralData.referenceArray.size() - 1];
+  printf(" x=%d, y=%d, z=%d, w=%d\n", test.x, test.y, test.z, test.w);
+
+  if (fsiData->numObjects.numFlexBodies1D !=
+      fsiData->fsiGeneralData.referenceArray.size() - 2 - fsiData->numObjects.numRigidBodies) {
+    printf("Error! num rigid Flexible does not match reference array size!\n\n");
+    std::cin.get();
+  }
+  numObjects = fsiData->fsiGeneralData.referenceArray.size();
+  printf("numObjects : %d\n ", numObjects);
+  printf("numObjects.startFlexMarkers  : %d\n ", fsiData->numObjects.startFlexMarkers);
+}
+// =============================================================================
 
 void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
                                                      SimParams* paramsH,
                                                      const thrust::host_vector<Real3>& posRadBCE,
                                                      std::shared_ptr<chrono::fea::ChElementShellANCF> shell) {
-  int type = 2;
+  int type = 3;
 
   chrono::ChMatrixNM<double, 8, 1> N;
 
@@ -200,6 +296,9 @@ void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
     fsiData->sphMarkersH.velMasH.push_back(v3);
     fsiData->sphMarkersH.rhoPresMuH.push_back(mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, type));
   }
+  fsiData->sphMarkersH.rhoPresMuH.size();
+  printf(" CreateBceGlobalMarkersFromBceLocalPos_ShellANCF : fsiData->sphMarkersH.rhoPresMuH.size() %d. ",
+         fsiData->sphMarkersH.rhoPresMuH.size());
 
   // ------------------------
   // Modify number of objects
@@ -210,23 +309,24 @@ void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
 
   int numRigid = fsiData->numObjects.numRigidBodies;
   fsiData->numObjects.numFlex_SphMarkers += numBce;
-  fsiData->numObjects.numFlexBodies += 1;
+  fsiData->numObjects.numFlexBodies2D += 1;
   fsiData->numObjects.startFlexMarkers = fsiData->fsiGeneralData.referenceArray[numRigid + 1].y;
   int start_flex = fsiData->numObjects.startFlexMarkers;
 
   int4 last = fsiData->fsiGeneralData.referenceArray[fsiData->fsiGeneralData.referenceArray.size() - 1];
   fsiData->fsiGeneralData.referenceArray.push_back(
-      mI4(last.y, last.y + numBce, type, fsiData->numObjects.numFlexBodies));  // 2: for Shell
+      mI4(last.y, last.y + numBce, type, fsiData->numObjects.numFlexBodies2D));  // 2: for Shell
 
   fsiData->fsiGeneralData.referenceArray_FEA.push_back(
-      mI4(last.y, last.y + numBce, type, fsiData->numObjects.numFlexBodies));  // 2: for Shell
+      mI4(last.y, last.y + numBce, type, fsiData->numObjects.numFlexBodies2D));  // 2: for Shell
 
   printf(" push_back Index %d. ", fsiData->fsiGeneralData.referenceArray.size() - 1);
   int4 test = fsiData->fsiGeneralData.referenceArray[fsiData->fsiGeneralData.referenceArray.size() - 1];
   printf(" x=%d, y=%d, z=%d, w=%d\n", test.x, test.y, test.z, test.w);
 
-  if (fsiData->numObjects.numFlexBodies !=
-      fsiData->fsiGeneralData.referenceArray.size() - 2 - fsiData->numObjects.numRigidBodies) {
+  if (fsiData->numObjects.numFlexBodies2D !=
+      fsiData->fsiGeneralData.referenceArray.size() - 2 - fsiData->numObjects.numRigidBodies -
+          fsiData->numObjects.numFlexBodies1D) {
     printf("Error! num rigid Flexible does not match reference array size!\n\n");
     std::cin.get();
   }
@@ -448,12 +548,139 @@ void AddBCE_ShellFromMesh(ChFsiDataManager* fsiData,
 
     //    printf("remove: %d, %d, %d, %d\n", remove[0], remove[1], remove[2], remove[3]);
 
-    CreateBCE_On_Mesh(posRadBCE, paramsH, thisShell, remove, multiLayer, removeMiddleLayer, SIDE);
+    CreateBCE_On_ChElementShellANCF(posRadBCE, paramsH, thisShell, remove, multiLayer, removeMiddleLayer, SIDE);
     CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(fsiData, paramsH, posRadBCE, thisShell);
     posRadBCE.clear();
   }
 }
 // =============================================================================
+
+// =============================================================================
+
+void AddBCE_FromMesh(ChFsiDataManager* fsiData,
+                     SimParams* paramsH,
+                     std::shared_ptr<chrono::fea::ChMesh> my_mesh,
+                     std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* fsiNodesPtr,
+                     std::vector<std::shared_ptr<chrono::fea::ChElementCableANCF>>* fsiCablesPtr,
+                     std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* fsiShellsPtr,
+                     std::vector<std::vector<int>> NodeNeighborElement,
+                     std::vector<std::vector<int>> _1D_elementsNodes,
+                     std::vector<std::vector<int>> _2D_elementsNodes,
+                     bool add1DElem,
+                     bool add2DElem,
+                     bool multiLayer,
+                     bool removeMiddleLayer,
+                     int SIDE) {
+  thrust::host_vector<Real3> posRadBCE;
+  int numElems = my_mesh->GetNelements();
+  std::vector<int> remove2D;
+  std::vector<int> remove1D;
+
+  for (int i = 0; i < my_mesh->GetNnodes(); i++) {
+    auto thisNode = std::dynamic_pointer_cast<fea::ChNodeFEAxyzD>(my_mesh->GetNode(i));
+    fsiNodesPtr->push_back(thisNode);
+  }
+
+  for (int i = 0; i < numElems; i++) {
+    ///////////////////////////
+    // Check for Cable Elements
+    if (_1D_elementsNodes.size() > 0) {
+      if (auto thisCable = std::dynamic_pointer_cast<fea::ChElementCableANCF>(my_mesh->GetElement(i))) {
+        remove1D.resize(2);
+        std::fill(remove1D.begin(), remove1D.begin() + 2, 0);
+        fsiCablesPtr->push_back(thisCable);
+        // Look into the nodes of this element
+        //      for (int i = 0; i < _1D_elementsNodes.size(); i++) {
+        //        printf("_1D_elementsNodes[%d][1,2]= %d, %d\n", i, _1D_elementsNodes[i][0], _1D_elementsNodes[i][1]);
+        //      }
+        //      printf("NodeNeighborElement.size() after adding beams =%d\n", NodeNeighborElement.size());
+
+        int myNumNodes = (_1D_elementsNodes[i].size() > 2) ? 2 : _1D_elementsNodes[i].size();
+
+        for (int j = 0; j < myNumNodes; j++) {
+          int thisNode = _1D_elementsNodes[i][j];
+
+          // Look into the elements attached to thisNode
+          for (int k = 0; k < NodeNeighborElement[thisNode].size(); k++) {
+            // If this neighbor element has more than one common node with the previous node this means that we must not
+            // add BCEs to this edge anymore. Because that edge has already been given BCE markers
+            // The kth element of this node:
+            int neighborElement = NodeNeighborElement[thisNode][k];
+            if (neighborElement >= i)
+              continue;
+
+            int JNumNodes =
+                (_1D_elementsNodes[neighborElement].size() > 2) ? 2 : _1D_elementsNodes[neighborElement].size();
+
+            for (int inode = 0; inode < myNumNodes; inode++) {
+              for (int jnode = 0; jnode < JNumNodes; jnode++) {
+                if (_1D_elementsNodes[i][inode] - 1 == _1D_elementsNodes[neighborElement][jnode] - 1 &&
+                    thisNode != _1D_elementsNodes[i][inode] && i > neighborElement) {
+                  remove1D[inode] = 1;
+                }
+              }
+            }
+          }
+        }
+        if (add1DElem) {
+          CreateBCE_On_ChElementCableANCF(posRadBCE, paramsH, thisCable, remove1D, multiLayer, removeMiddleLayer, SIDE);
+          CreateBceGlobalMarkersFromBceLocalPos_CableANCF(fsiData, paramsH, posRadBCE, thisCable);
+        }
+        posRadBCE.clear();
+      }
+    }
+    int Curr_size = _1D_elementsNodes.size();
+
+    ///////////////////////////
+    // Check for Shell Elements
+    if (_2D_elementsNodes.size() > 0) {
+      if (auto thisShell = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(i))) {
+        remove2D.resize(4);
+        std::fill(remove2D.begin(), remove2D.begin() + 4, 0);
+
+        fsiShellsPtr->push_back(thisShell);
+        // Look into the nodes of this element
+        int myNumNodes = (_2D_elementsNodes[i - Curr_size].size() > 4) ? 4 : _2D_elementsNodes[i - Curr_size].size();
+
+        for (int j = 0; j < myNumNodes; j++) {
+          int thisNode = _2D_elementsNodes[i - Curr_size][j];
+          //          printf("Considering elementsNodes[%d][%d]=%d\n", i, j, thisNode);
+
+          // Look into the elements attached to thisNode
+          for (int k = 0; k < NodeNeighborElement[thisNode].size(); k++) {
+            // If this neighbor element has more than one common node with the previous node this means that we must not
+            // add BCEs to this edge anymore. Because that edge has already been given BCE markers
+            // The kth element of this node:
+            int neighborElement = NodeNeighborElement[thisNode][k];
+            if (neighborElement >= i - Curr_size)
+              continue;
+
+            int JNumNodes =
+                (_2D_elementsNodes[neighborElement].size() > 4) ? 4 : _2D_elementsNodes[neighborElement].size();
+
+            for (int inode = 0; inode < myNumNodes; inode++) {
+              for (int jnode = 0; jnode < JNumNodes; jnode++) {
+                if (_2D_elementsNodes[i - Curr_size][inode] == _2D_elementsNodes[neighborElement][jnode] &&
+                    thisNode != _2D_elementsNodes[i - Curr_size][inode] && i - Curr_size > neighborElement) {
+                  remove2D[inode] = 1;
+                }
+              }
+            }
+          }
+        }
+        if (add2DElem) {
+          CreateBCE_On_ChElementShellANCF(posRadBCE, paramsH, thisShell, remove2D, multiLayer, removeMiddleLayer, SIDE);
+          CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(fsiData, paramsH, posRadBCE, thisShell);
+        }
+        posRadBCE.clear();
+      }
+    }
+    ///////////////////////////
+    // Check for break Elements
+  }
+}
+// =============================================================================
+
 void AddBCE_FromFile(ChFsiDataManager* fsiData,
                      SimParams* paramsH,
                      std::shared_ptr<chrono::ChBody> body,

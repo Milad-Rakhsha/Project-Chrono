@@ -326,7 +326,8 @@ void ChFsiDataManager::ArrangeDataManager() {
 
 void ChFsiDataManager::InitNumObjects() {
   numObjects.numRigidBodies = 0;      /* Number of rigid bodies */
-  numObjects.numFlexBodies = 0;       /* Number of Flexible bodies*/
+  numObjects.numFlexBodies1D = 0;     /* Number of Flexible bodies*/
+  numObjects.numFlexBodies2D = 0;     /* Number of Flexible bodies*/
   numObjects.numFlexNodes = 0;        /* Number of FE nodes*/
   numObjects.numFluidMarkers = 0;     /* Number of fluid SPH markers*/
   numObjects.numBoundaryMarkers = 0;  /* Number of boundary SPH markers */
@@ -359,7 +360,12 @@ void ChFsiDataManager::CalcNumObjects() {
         break;
       case 2:
         numObjects.numFlex_SphMarkers += numMerkers;
-        numObjects.numFlexBodies++;
+        numObjects.numFlexBodies1D++;
+        flagFlex = true;
+        break;
+      case 3:
+        numObjects.numFlex_SphMarkers += numMerkers;
+        numObjects.numFlexBodies2D++;
         flagFlex = true;
         break;
       default:
@@ -367,7 +373,6 @@ void ChFsiDataManager::CalcNumObjects() {
         break;
     }
   }
-  numObjects.numFlexNodes = this->fsiGeneralData.ShellelementsNodesH.size();
 
   std::cout << "numObjects.numFlexNodes" << numObjects.numFlexNodes << std::endl;
 
@@ -389,18 +394,16 @@ void ChFsiDataManager::CalcNumObjects() {
 }
 
 void ChFsiDataManager::ConstructReferenceArray() {
-  //  printf("ChFsiDataManager::ConstructReferenceArray()-1 pos[%d]=%f,%f,%f, pos[%d]=%f,%f,%f\n", 22995,
-  //         sphMarkersH.posRadH[22995].x, sphMarkersH.posRadH[22995].y, sphMarkersH.posRadH[22995].z, 23054,
-  //         sphMarkersH.posRadH[23054].x, sphMarkersH.posRadH[23054].y, sphMarkersH.posRadH[23054].z);
-  ArrangeDataManager();
+  //  ArrangeDataManager();
 
-  //  printf("ChFsiDataManager::ConstructReferenceArray()-2 pos[%d]=%f,%f,%f, pos[%d]=%f,%f,%f\n", 22995,
-  //         sphMarkersH.posRadH[22995].x, sphMarkersH.posRadH[22995].y, sphMarkersH.posRadH[22995].z, 23054,
-  //         sphMarkersH.posRadH[23054].x, sphMarkersH.posRadH[23054].y, sphMarkersH.posRadH[23054].z);
   CalcNumObjects();
 
   // determine the number of each component
   if (numObjects.numAllMarkers != sphMarkersH.rhoPresMuH.size()) {
+    printf(
+        "\nChFsiDataManager::ConstructReferenceArray()    numObjects.numAllMarkers=%d, "
+        "sphMarkersH.rhoPresMuH.size()=%d\n",
+        numObjects.numAllMarkers, sphMarkersH.rhoPresMuH.size());
     throw std::runtime_error("Error! numObjects wrong! thrown from ConstructReferenceArray !\n");
   }
   thrust::host_vector<int> numComponentMarkers(numObjects.numAllMarkers);
@@ -432,7 +435,9 @@ void ChFsiDataManager::ConstructReferenceArray() {
     } else if (compType == 1) {
       phaseType = 1;
     } else if (compType == 2) {
-      phaseType = 1;  // For Shell Elements
+      phaseType = 1;  // For Cable Elements
+    } else if (compType == 3) {
+      phaseType = 2;  // For Shell Elements
     } else {
       phaseType = 1;
     }
@@ -498,14 +503,32 @@ void ChFsiDataManager::ResizeDataManager(int numNodes) {
 
   printf("fsiData->ResizeDataManager (Flex)...\n");
 
-  // copy Flex
-  fsiShellsD.resize(numObjects.numFlexBodies);
-  fsiShellsH.resize(numObjects.numFlexBodies);
-
   fsiGeneralData.FlexIdentifierD.resize(numObjects.numFlex_SphMarkers);
-  fsiGeneralData.ShellelementsNodes.resize(numObjects.numFlexBodies);
-  thrust::copy(fsiGeneralData.ShellelementsNodesH.begin(), fsiGeneralData.ShellelementsNodesH.end(),
-               fsiGeneralData.ShellelementsNodes.begin());
+
+  if (fsiGeneralData.CableElementsNodesH.size() != numObjects.numFlexBodies1D) {
+    printf("******************************************************************************\n");
+    printf("******************************************************************************\n");
+    printf("******************************Be Careful**************************************\n");
+    printf("There might be 1D Flexible bodies in Chrono that are not a part of ChSystemFSI\n");
+    printf("I am going to transfer nodal data for such elements back and forth although they\n");
+    printf("are not part of FSI calculation. If you want to have some 1D element that are  \n");
+    printf("inside the ChSystem mesh but not FSI system, you can ignore this warning ...\n");
+    printf("******************************************************************************\n");
+    printf("******************************************************************************\n");
+    printf("******************************************************************************\n");
+    fsiGeneralData.CableElementsNodes.resize(fsiGeneralData.CableElementsNodesH.size());
+  } else
+    fsiGeneralData.CableElementsNodes.resize(numObjects.numFlexBodies1D);
+
+  fsiGeneralData.ShellElementsNodes.resize(numObjects.numFlexBodies2D);
+  printf("numObjects.numFlexBodies1D= %d, numObjects.numFlexBodies2D= %d \n", numObjects.numFlexBodies1D,
+         numObjects.numFlexBodies2D);
+  printf("fsiGeneralData.CableElementsNodesH.size()= %d, fsiGeneralData.ShellElementsNodesH= %d \n",
+         fsiGeneralData.CableElementsNodesH.size(), fsiGeneralData.ShellElementsNodesH.size());
+  thrust::copy(fsiGeneralData.CableElementsNodesH.begin(), fsiGeneralData.CableElementsNodesH.end(),
+               fsiGeneralData.CableElementsNodes.begin());
+  thrust::copy(fsiGeneralData.ShellElementsNodesH.begin(), fsiGeneralData.ShellElementsNodesH.end(),
+               fsiGeneralData.ShellElementsNodes.begin());
 
   fsiMeshD.resize(numObjects.numFlexNodes);
   fsiMeshH.resize(numObjects.numFlexNodes);

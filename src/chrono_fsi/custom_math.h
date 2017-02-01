@@ -1524,6 +1524,11 @@ __host__ __device__ inline Real3 cross(Real3 a, Real3 b) {
   return make_Real3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
 }
 
+__host__ __device__ inline Real2 Cables_ShapeFunctions(Real xi) {
+  Real NA = 1 - 3 * pow(xi, 2) + 2 * pow(xi, 3);
+  Real NB = 3 * pow(xi, 2) - 2 * pow(xi, 3);
+  return make_Real2(NA, NB);
+}
 __host__ __device__ inline Real4 Shells_ShapeFunctions(Real x, Real y) {
   Real NA = 0.25 * (1.0 - x) * (1.0 - y);
   Real NB = 0.25 * (1.0 + x) * (1.0 - y);

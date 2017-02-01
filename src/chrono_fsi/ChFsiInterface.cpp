@@ -19,39 +19,46 @@
 #include "chrono_fsi/ChFsiTypeConvert.h"
 #include "chrono_fea/ChMesh.h"
 #include "chrono_fea/ChNodeFEAxyzD.h"
+#include "chrono_fea/ChElementCableANCF.h"
 #include "chrono_fea/ChElementShellANCF.h"
 
 namespace chrono {
 namespace fsi {
 //------------------------------------------------------------------------------------
 ChFsiInterface::ChFsiInterface(FsiBodiesDataH* other_fsiBodiesH,
-                               FsiShellsDataH* other_fsiShellsH,
                                FsiMeshDataH* other_fsiMeshH,
                                chrono::ChSystem* other_mphysicalSystem,
                                std::vector<std::shared_ptr<chrono::ChBody>>* other_fsiBodeisPtr,
                                std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* other_fsiNodesPtr,
+                               std::vector<std::shared_ptr<chrono::fea::ChElementCableANCF>>* other_fsiCablesPtr,
                                std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* other_fsiShellsPtr,
                                std::shared_ptr<chrono::fea::ChMesh> other_fsiMesh,
-                               thrust::host_vector<int4>* other_ShellelementsNodesH,
-                               thrust::device_vector<int4>* other_ShellelementsNodes,
+                               thrust::host_vector<int2>* other_CableElementsNodesH,
+                               thrust::device_vector<int2>* other_CableElementsNodes,
+                               thrust::host_vector<int4>* other_ShellElementsNodesH,
+                               thrust::device_vector<int4>* other_ShellElementsNodes,
                                thrust::device_vector<Real3>* other_rigid_FSI_ForcesD,
                                thrust::device_vector<Real3>* other_rigid_FSI_TorquesD,
                                thrust::device_vector<Real3>* other_Flex_FSI_ForcesD)
-    : fsiBodiesH(other_fsiBodiesH),
-      fsiShellsH(other_fsiShellsH),
+    : mphysicalSystem(other_mphysicalSystem),
+      fsiBodeisPtr(other_fsiBodeisPtr),
+      fsiBodiesH(other_fsiBodiesH),
       fsiMeshH(other_fsiMeshH),
       fsi_mesh(other_fsiMesh),
-      mphysicalSystem(other_mphysicalSystem),
-      fsiBodeisPtr(other_fsiBodeisPtr),
       fsiNodesPtr(other_fsiNodesPtr),
+      fsiCablesPtr(other_fsiCablesPtr),
       fsiShellsPtr(other_fsiShellsPtr),
       rigid_FSI_ForcesD(other_rigid_FSI_ForcesD),
       rigid_FSI_TorquesD(other_rigid_FSI_TorquesD),
-      ShellelementsNodesH(other_ShellelementsNodesH),
-      ShellelementsNodes(other_ShellelementsNodes),
+      CableElementsNodesH(other_CableElementsNodesH),
+      CableElementsNodes(other_CableElementsNodes),
+      ShellElementsNodesH(other_ShellElementsNodesH),
+      ShellElementsNodes(other_ShellElementsNodes),
       Flex_FSI_ForcesD(other_Flex_FSI_ForcesD) {
   int numBodies = mphysicalSystem->Get_bodylist()->size();
   int numShells = 0;
+  int numCables = 0;
+
   int numNodes = 0;
 
   if (mphysicalSystem->Get_otherphysicslist()->size())
@@ -61,11 +68,9 @@ ChFsiInterface::ChFsiInterface(FsiBodiesDataH* other_fsiBodiesH,
     numNodes = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0))->GetNnodes();
 
   chronoRigidBackup = new ChronoBodiesDataH(numBodies);
-  chronoFlexBackup = new ChronoShellsDataH(numShells);
   chronoFlexMeshBackup = new ChronoMeshDataH(numNodes);
 
   printf("** size other_fsiBodiesH %d \n ", other_fsiBodiesH->posRigid_fsiBodies_H.size());
-  printf("** size other_fsiShellsH %d \n ", other_fsiShellsH->posFlex_fsiBodies_nA_H.size());
   printf("** size chronoRigidBackup %d \n ", chronoRigidBackup->pos_ChSystemH.size());
 }
 
@@ -144,17 +149,15 @@ void ChFsiInterface::Add_Flex_Forces_To_ChSystem() {
   int numShells = 0;
   int numNodes_ChSystem = 0;
 
-  numShells = fsi_mesh->GetNelements();
-
-  int numFlex = fsiShellsPtr->size();
   int numNodes = fsiNodesPtr->size();
 
   for (int i = 0; i < numNodes; i++) {
     chrono::ChVector<> mforce = ChFsiTypeConvert::Real3ToChVector((*Flex_FSI_ForcesD)[i]);
-    //    printf("Added the force of %f,%f,%f to the flex body %d\n", mforce.x, mforce.y, mforce.z, i);
+    //    if (mforce.Length() != 0.0)
+    //      printf("Added the force of %f,%f,%f to the flex nodes %d\n", mforce.x, mforce.y, mforce.z, i);
     auto node = std::dynamic_pointer_cast<fea::ChNodeFEAxyzD>(fsi_mesh->GetNode(i));
     ChVector<> OldForce = node->GetForce();
-    node->SetForce(-mforce);
+    node->SetForce(mforce);
   }
 }
 
@@ -213,15 +216,20 @@ void ChFsiInterface::Copy_ChSystem_to_External() {
     chronoRigidBackup->omegaAccGRF_ChSystemH[i] = ChFsiTypeConvert::ChVectorToReal3(mBody->GetWacc_par());
   }
 
-  int numNodes = 0;
-  int numShells = 0;
-  auto my_mesh = std::make_shared<fea::ChMesh>();
-  if (mphysicalSystem->Get_otherphysicslist()->size()) {
-    my_mesh = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0));
-  }
+  int numNodes = fsi_mesh->GetNnodes();
 
-  numShells = fsi_mesh->GetNelements();
-  numNodes = fsi_mesh->GetNnodes();
+  //  int numCables = 0;
+  //  for (int i = 0; i < fsi_mesh->GetNelements(); i++) {
+  //    if (std::dynamic_pointer_cast<fea::ChElementCableANCF>(fsi_mesh->GetElement(i)))
+  //      numCables++;
+  //  }
+  //
+  //  int numShells = 0;
+  //  for (int i = 0; i < fsi_mesh->GetNelements(); i++) {
+  //    if (std::dynamic_pointer_cast<fea::ChElementShellANCF>(fsi_mesh->GetElement(i)))
+  //      numShells++;
+  //  }
+
   for (int i = 0; i < numNodes; i++) {
     auto node = std::dynamic_pointer_cast<fea::ChNodeFEAxyz>(fsi_mesh->GetNode(i));
     chronoFlexMeshBackup->posFlex_ChSystemH_H[i] = ChFsiTypeConvert::ChVectorToReal3(node->GetPos());
@@ -266,36 +274,6 @@ void ChFsiInterface::Copy_fsiNodes_ChSystem_to_FluidSystem(FsiMeshDataD* FsiMesh
   FsiMeshD->CopyFromH(*fsiMeshH);
 }
 
-void ChFsiInterface::Copy_fsiShells_ChSystem_to_FluidSystem(FsiShellsDataD* fsiShellsD) {
-  int num_fsiShell_Felx = fsiShellsPtr->size();
-  ChVector<> centerFEA;
-  for (int i = 0; i < num_fsiShell_Felx; i++) {
-    auto ShellPtr = (*fsiShellsPtr)[i];
-    fsiShellsH->posFlex_fsiBodies_nA_H[i] = ChFsiTypeConvert::ChVectorToReal3(ShellPtr->GetNodeA()->GetPos());
-    fsiShellsH->posFlex_fsiBodies_nB_H[i] = ChFsiTypeConvert::ChVectorToReal3(ShellPtr->GetNodeB()->GetPos());
-    fsiShellsH->posFlex_fsiBodies_nC_H[i] = ChFsiTypeConvert::ChVectorToReal3(ShellPtr->GetNodeC()->GetPos());
-    fsiShellsH->posFlex_fsiBodies_nD_H[i] = ChFsiTypeConvert::ChVectorToReal3(ShellPtr->GetNodeD()->GetPos());
-    centerFEA = 0.25 * (ShellPtr->GetNodeA()->GetPos() + ShellPtr->GetNodeB()->GetPos() +
-                        ShellPtr->GetNodeC()->GetPos() + ShellPtr->GetNodeD()->GetPos());
-    fsiShellsH->velFlex_fsiBodies_nA_H[i] = ChFsiTypeConvert::ChVectorToReal3(ShellPtr->GetNodeA()->GetPos_dt());
-    fsiShellsH->velFlex_fsiBodies_nB_H[i] = ChFsiTypeConvert::ChVectorToReal3(ShellPtr->GetNodeB()->GetPos_dt());
-    fsiShellsH->velFlex_fsiBodies_nC_H[i] = ChFsiTypeConvert::ChVectorToReal3(ShellPtr->GetNodeC()->GetPos_dt());
-    fsiShellsH->velFlex_fsiBodies_nD_H[i] = ChFsiTypeConvert::ChVectorToReal3(ShellPtr->GetNodeD()->GetPos_dt());
-
-    fsiShellsH->accFlex_fsiBodies_nA_H[i] = ChFsiTypeConvert::ChVectorToReal3(ShellPtr->GetNodeA()->GetPos_dtdt());
-    fsiShellsH->accFlex_fsiBodies_nB_H[i] = ChFsiTypeConvert::ChVectorToReal3(ShellPtr->GetNodeB()->GetPos_dtdt());
-    fsiShellsH->accFlex_fsiBodies_nC_H[i] = ChFsiTypeConvert::ChVectorToReal3(ShellPtr->GetNodeC()->GetPos_dtdt());
-    fsiShellsH->accFlex_fsiBodies_nD_H[i] = ChFsiTypeConvert::ChVectorToReal3(ShellPtr->GetNodeD()->GetPos_dtdt());
-  }
-  fsiShellsD->CopyFromH(*fsiShellsH);
-
-  //  Real3 centerFSI = 0.25 * (fsiShellsD->posFlex_fsiBodies_nA_D[0] + fsiShellsD->posFlex_fsiBodies_nB_D[0] +
-  //                            fsiShellsD->posFlex_fsiBodies_nC_D[0] + fsiShellsD->posFlex_fsiBodies_nD_D[0]);
-  //  //
-  //  printf("FlexBody[] centerFSI= %f,%f,%f,  centerFEA= %f,%f,%f\n", centerFSI.x, centerFSI.y, centerFSI.z,
-  //  centerFEA.x,
-  //         centerFEA.y, centerFEA.z);
-}
 //------------------------------------------------------------------------------------
 void ChFsiInterface::ResizeChronoBodiesData() {
   int numBodies = mphysicalSystem->Get_bodylist()->size();
@@ -329,40 +307,76 @@ void ChFsiInterface::ResizeChronoFEANodesData() {
 }
 //------------------------------------------------------------------------------------
 
-void ChFsiInterface::ResizeChronoShellsData(std::vector<std::vector<int>> ShellelementsNodesSTDVector,
-                                            thrust::host_vector<int4>* ShellelementsNodesH) {
-  int numShells = 0;
+void ChFsiInterface::ResizeChronoCablesData(std::vector<std::vector<int>> CableElementsNodesSTDVector,
+                                            thrust::host_vector<int2>* CableElementsNodesH) {
   auto my_mesh = std::make_shared<fea::ChMesh>();
   if (mphysicalSystem->Get_otherphysicslist()->size()) {
     my_mesh = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0));
   }
-  numShells = fsi_mesh->GetNelements();
-  printf("fsi_mesh.size.shell in ResizeChronoShellsData  %d\n", numShells);
+
+  int numCables = 0;
+  for (int i = 0; i < fsi_mesh->GetNelements(); i++) {
+    if (std::dynamic_pointer_cast<fea::ChElementCableANCF>(fsi_mesh->GetElement(i)))
+      numCables++;
+  }
+  printf("fsi_mesh.size.shell in ResizeChronoCablesData  %d\n", numCables);
+  printf("numCables in ResizeChronoCablesData  %d\n", numCables);
+  printf("CableElementsNodesSTDVector.size() in ResizeChronoCablesData  %d\n", CableElementsNodesSTDVector.size());
+
+  if (CableElementsNodesSTDVector.size() != numCables) {
+    throw std::runtime_error(
+        "Size of the external data does not match the "
+        "ChSystem; thrown from ChFsiInterface::ResizeChronoCableData "
+        "!\n");
+  }
+
+  //  ShellElementsNodesH is the elements connectivity
+  // Important: in CableElementsNodesH[i][j] j index starts from 1 not zero
+  // This is because of how the GMF files are read in chrono
+  CableElementsNodesH->resize(numCables);
+  for (int i = 0; i < numCables; i++) {
+    (*CableElementsNodesH)[i].x = CableElementsNodesSTDVector[i][0];
+    (*CableElementsNodesH)[i].y = CableElementsNodesSTDVector[i][1];
+  }
+}
+//------------------------------------------------------------------------------------
+
+void ChFsiInterface::ResizeChronoShellsData(std::vector<std::vector<int>> ShellElementsNodesSTDVector,
+                                            thrust::host_vector<int4>* ShellElementsNodesH) {
+  auto my_mesh = std::make_shared<fea::ChMesh>();
+  if (mphysicalSystem->Get_otherphysicslist()->size()) {
+    my_mesh = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0));
+  }
+
+  int numShells = 0;
+  for (int i = 0; i < fsi_mesh->GetNelements(); i++) {
+    if (std::dynamic_pointer_cast<fea::ChElementShellANCF>(fsi_mesh->GetElement(i)))
+      numShells++;
+  }
+
   printf("\n\n numShells in ResizeChronoShellsData  %d\n", numShells);
-  printf("ShellelementsNodesSTDVector.size() in ResizeChronoShellsData  %d\n", ShellelementsNodesSTDVector.size());
+  printf("ShellElementsNodesSTDVector.size() in ResizeChronoShellsData  %d\n", ShellElementsNodesSTDVector.size());
 
-  chronoFlexBackup->resize(numShells);
-
-  if (ShellelementsNodesSTDVector.size() != numShells) {
+  if (ShellElementsNodesSTDVector.size() != numShells) {
     throw std::runtime_error(
         "Size of the external data does not match the "
         "ChSystem; thrown from ChFsiInterface::ResizeChronoShellsData "
         "!\n");
   }
 
-  //  ShellelementsNodesH is the elements connectivity
-  // Important: in ShellelementsNodesH[i][j] j index starts from 1 not zero
+  //  ShellElementsNodesH is the elements connectivity
+  // Important: in ShellElementsNodesH[i][j] j index starts from 1 not zero
   // This is because of how the GMF files are read in chrono
-  ShellelementsNodesH->resize(numShells);
+  ShellElementsNodesH->resize(numShells);
   for (int i = 0; i < numShells; i++) {
-    (*ShellelementsNodesH)[i].x = ShellelementsNodesSTDVector[i][0] - 1;
-    (*ShellelementsNodesH)[i].y = ShellelementsNodesSTDVector[i][1] - 1;
-    (*ShellelementsNodesH)[i].z = ShellelementsNodesSTDVector[i][2] - 1;
-    (*ShellelementsNodesH)[i].w = ShellelementsNodesSTDVector[i][3] - 1;
+    (*ShellElementsNodesH)[i].x = ShellElementsNodesSTDVector[i][0];
+    (*ShellElementsNodesH)[i].y = ShellElementsNodesSTDVector[i][1];
+    (*ShellElementsNodesH)[i].z = ShellElementsNodesSTDVector[i][2];
+    (*ShellElementsNodesH)[i].w = ShellElementsNodesSTDVector[i][3];
   }
 
   //  (*ShellelementsNodes).resize(numShells);
-  //  thrust::copy(ShellelementsNodes_H.begin(), ShellelementsNodes_H.end(), (*ShellelementsNodes).begin());
+  //  thrust::copy(ShellelementsNodes_H.begin(), ShellelementsNodes_H.end(), (*ShellElementsNodes).begin());
   printf("\n\n Got here\n");
 }
 
