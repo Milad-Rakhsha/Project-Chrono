@@ -53,11 +53,16 @@
 #include <thrust/host_vector.h>
 
 // Chrono fea includes
+#include "chrono_fea/ChElementCableANCF.h"
+#include "chrono_fea/ChBuilderBeam.h"
 #include "chrono/physics/ChLoadContainer.h"
 #include "chrono/physics/ChLoaderUV.h"
 #include "chrono_fea/ChElementShellANCF.h"
 #include "chrono_fea/ChLinkDirFrame.h"
+
+#include "chrono_fea/ChLinkPointFrameGeneral.h"
 #include "chrono_fea/ChLinkPointFrame.h"
+#include "chrono_fea/ChLinkPointPoint.h"
 #include "chrono_fea/ChNodeFEAxyzD.h"
 #include "chrono_fea/ChMesh.h"
 
@@ -98,9 +103,9 @@ Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 Real bxDim = 0.032;
 Real byDim = 0.032;
-Real bzDim = 0.005;
+Real bzDim = 0.006;
 Real p0 = 0;
-double p_max = 1000;
+double p_max = 1000 * 1e3;
 double t_ramp = 0.05;
 
 Real fxDim = bxDim;
@@ -108,12 +113,18 @@ Real fyDim = byDim;
 Real fzDim = bzDim;
 
 double init_def = 0;
-double K_SPRINGS = 1000;
+double K_SPRINGS = 1000 * 1e3;
 double C_DAMPERS = 0.;
 double L0_t = 0.005;
-bool addSprings = true;
+bool addSprings = false;
 
-void writeMesh(std::shared_ptr<ChMesh> my_mesh, std::string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement);
+bool addCable = true;
+
+void writeMesh(std::shared_ptr<ChMesh> my_mesh,
+               std::string SaveAs,
+               std::vector<std::vector<int>>& NodeNeighborElement,
+               std::vector<std::vector<int>> _1D_elementsNodes_mesh,
+               std::vector<std::vector<int>> _2D_elementsNodes_mesh);
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[256],
                 char MeshFileBuffer[256],
@@ -318,7 +329,7 @@ int main(int argc, char* argv[]) {
 
     chrono::fsi::Real3 boxCenter = chrono::fsi::mR3(-bxDim / 2 + fxDim / 2, 0 * initSpace0, fzDim / 2 + 2 * initSpace0);
 
-    chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
+    chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 8);
     utils::Generator::PointVector points = sampler.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter),
                                                              fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim));
     int numPart = points.size();
@@ -359,8 +370,6 @@ int main(int argc, char* argv[]) {
                myFsiSystem.GetDataManager()->numObjects.numAllMarkers);
         return -1;
     }
-
-    myFsiSystem.InitializeChronoGraphics(CameraLocation, CameraLookAt);
 
     int step_count = 0;
     double mTime = 0;
@@ -403,7 +412,7 @@ int main(int argc, char* argv[]) {
     mystepper->SetAbsTolerances(1e-5);
     mystepper->SetMode(ChTimestepperHHT::POSITION);
     mystepper->SetScaling(true);
-    mystepper->SetVerbose(true);
+    mystepper->SetVerbose(false);
 
     int stepEnd = int(paramsH->tFinal / paramsH->dT);
     stepEnd = 1000000;
@@ -535,9 +544,14 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     GetLog() << "-----------------------------------------------------------\n";
 
     // Create a mesh, that is a container for groups of elements and their referenced nodes.
+    /*================== Flexible-Bodies =================*/
     auto my_mesh = std::make_shared<fea::ChMesh>();
 
-    // Geometry of the plate
+    std::vector<std::vector<int>> NodeNeighborElement;
+    std::vector<std::vector<int>> _1D_elementsNodes_mesh;
+    std::vector<std::vector<int>> _2D_elementsNodes_mesh;
+
+    // Geometry of the surface
     double plate_lenght_x = bxDim + 0 * initSpace0;
     double plate_lenght_y = byDim + 0 * initSpace0;
     double plate_lenght_z = 0.001;
@@ -555,10 +569,75 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     double dx = plate_lenght_x / numDiv_x;
     double dy = plate_lenght_y / numDiv_y;
     double dz = plate_lenght_z / numDiv_z;
-    std::vector<std::vector<int>> elementsNodes_mesh;
-    std::vector<std::vector<int>> NodeNeighborElement_mesh;
-    elementsNodes_mesh.resize(TotalNumElements);
-    NodeNeighborElement_mesh.resize(TotalNumNodes);
+
+    std::vector<std::shared_ptr<ChNodeFEAxyzD>> Constraint_nodes_Shell;
+    std::vector<std::shared_ptr<ChNodeFEAxyzD>> Constraint_nodes_fibers;
+
+    if (addCable) {
+        int num_Fibers = TotalNumNodes;
+        double K_Fiber = K_SPRINGS / num_Fibers;
+        int numCableElems_Per_Fiber = 10;
+        double rho = 1000;
+        double Fiber_Diameter = initSpace0 * 2;
+        double Fiber_Length = bzDim;
+
+        double Area = 3.1415 * std::pow(Fiber_Diameter, 2) / 4;
+        double E = K_Fiber * Fiber_Length / Area;
+        double nu = 0.3;
+        auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
+        /*================== Cable Elements =================*/
+        auto msection_cable = std::make_shared<ChBeamSectionCable>();
+        msection_cable->SetDiameter(Fiber_Diameter);
+        msection_cable->SetYoungModulus(E);
+        msection_cable->SetBeamRaleyghDamping(0.02);
+        // Create material.
+
+        for (int Fiber = 0; Fiber < num_Fibers; Fiber++) {
+            ChBuilderBeamANCF builder;
+            double loc_x = (Fiber % (numDiv_x + 1)) * dx - bxDim / 2 - 0 * initSpace0;
+            double loc_y = (Fiber / (numDiv_x + 1)) % (numDiv_y + 1) * dy - byDim / 2 - 0 * initSpace0;
+            double loc_z = (Fiber) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + bzDim + 3 * initSpace0;
+
+            // Now, simply use BuildBeam to create a beam from a point to another:
+            builder.BuildBeam_FSI(
+                my_mesh,                  // the mesh where to put the created nodes and elements
+                msection_cable,           // the ChBeamSectionCable to use for the ChElementBeamANCF elements
+                numCableElems_Per_Fiber,  // the number of ChElementBeamANCF to create
+                ChVector<>(loc_x, loc_y, initSpace0),  // the 'A' point in space (beginning of beam)
+                ChVector<>(loc_x, loc_y, loc_z),       // the 'B' point in space (end of beam) _1D_elementsNodes_mesh,
+                _1D_elementsNodes_mesh, NodeNeighborElementMesh);
+
+            auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(builder.GetLastBeamNodes().back());
+            Constraint_nodes_fibers.push_back(Node);
+
+            printf("Constraint node %f, %f, %f\n", builder.GetLastBeamNodes().back()->GetPos().x,
+                   builder.GetLastBeamNodes().back()->GetPos().y, builder.GetLastBeamNodes().back()->GetPos().z);
+
+            //        // After having used BuildBeam(), you can retrieve the nodes used for the beam,
+            //        // For example say you want to fix both pos and dir of A end and apply a force to the B end:
+            //        builder.GetLastBeamNodes().back()->SetFixed(true);
+
+            //        auto constraint_hinge = std::make_shared<ChLinkPointFrame>();
+            //        constraint_hinge->Initialize(builder.GetLastBeamNodes().back(), mtruss);
+            //        mphysicalSystem.Add(constraint_hinge);
+        }
+
+        for (int i = 0; i < my_mesh->GetNnodes(); i++) {
+            auto node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(i));
+            if (node->GetPos().z <= initSpace0) {
+                node->SetFixed(true);
+                printf("nodes %d is set to be fixed %f, %f, %f\n", i, node->GetPos().x, node->GetPos().y,
+                       node->GetPos().z);
+            }
+        }
+    }
+
+    int currentNodesize = NodeNeighborElementMesh.size();
+    int currentElemsize = _1D_elementsNodes_mesh.size();
+
+    printf("currentElemsize is %d\n", currentElemsize);
+    _2D_elementsNodes_mesh.resize(TotalNumElements);
+    NodeNeighborElementMesh.resize(currentNodesize + TotalNumNodes);
     // Create and add the nodes
     for (int i = 0; i < TotalNumNodes; i++) {
         // Node location
@@ -574,6 +653,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         // Create the node
         auto node = std::make_shared<ChNodeFEAxyzD>(ChVector<>(loc_x, loc_y, loc_z), ChVector<>(dir_x, dir_y, dir_z));
 
+        Constraint_nodes_Shell.push_back(node);
+
         node->SetMass(0);
 
         //        if (i == 0 || i == numDiv_x || i == (TotalNumNodes - 1) || i == (TotalNumNodes - 1) - numDiv_x) {
@@ -584,12 +665,19 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         //            node->SetFixed(true);
         //        }
 
+        //        if (i % (numDiv_x + 1) == 0 || i % (numDiv_x) == 0 || i < (numDiv_x + 1) ||
+        //            i >= (TotalNumNodes - numDiv_x - 1)) {
+        //            auto NodeDir = std::make_shared<ChLinkDirFrame>();
+        //            NodeDir->Initialize(node, ground);
+        //            NodeDir->SetDirectionInAbsoluteCoords(node->D);
+        //            mphysicalSystem.Add(NodeDir);
+        //        }
+
         if (i % (numDiv_x + 1) == 0 || i % (numDiv_x) == 0 || i < (numDiv_x + 1) ||
             i >= (TotalNumNodes - numDiv_x - 1)) {
-            auto NodeDir = std::make_shared<ChLinkDirFrame>();
-            NodeDir->Initialize(node, ground);
-            NodeDir->SetDirectionInAbsoluteCoords(node->D);
-            mphysicalSystem.Add(NodeDir);
+            auto NodePos = std::make_shared<ChLinkPointFrameGeneral>(ChVector<>(0, 0, 1));
+            NodePos->Initialize(node, ground);
+            mphysicalSystem.Add(NodePos);
         }
 
         //        if (abs(loc_x) < bxDim / 4 && abs(loc_y) < byDim / 4) {
@@ -608,27 +696,42 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     }
     printf("GET.FORCES INITIAL=%f\n", mforce.Length());
 
+    if (Constraint_nodes_Shell.size() == Constraint_nodes_fibers.size()) {
+        for (int iNode = 0; iNode < Constraint_nodes_fibers.size(); iNode++) {
+            auto constr = std::make_shared<ChLinkPointPoint>();
+            constr->Initialize(Constraint_nodes_fibers[iNode], Constraint_nodes_Shell[iNode]);
+            mphysicalSystem.Add(constr);
+        }
+    } else {
+        std::cout << "Error! Constraints are not applied correctly\n" << std::endl;
+        std::cin.get();
+    }
+
     // Create an orthotropic material.
     // All layers for all elements share the same material.
     double rho = 1000;
-    double E = 40e7;
+    double E = 1e8;
     double nu = 0.3;
     auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
     // Create the elements
     for (int i = 0; i < TotalNumElements; i++) {
         // Adjacent nodes
-        int node0 = (i / (numDiv_x)) * (N_x) + i % numDiv_x;
-        int node1 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + 1;
-        int node2 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + 1 + N_x;
-        int node3 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + N_x;
-        elementsNodes_mesh[i].push_back(node0 + 1);
-        elementsNodes_mesh[i].push_back(node1 + 1);
-        elementsNodes_mesh[i].push_back(node2 + 1);
-        elementsNodes_mesh[i].push_back(node3 + 1);
-        NodeNeighborElement_mesh[node0].push_back(i);
-        NodeNeighborElement_mesh[node1].push_back(i);
-        NodeNeighborElement_mesh[node2].push_back(i);
-        NodeNeighborElement_mesh[node3].push_back(i);
+        int node0 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + currentNodesize;
+        int node1 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + 1 + currentNodesize;
+        int node2 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + 1 + N_x + currentNodesize;
+        int node3 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + N_x + currentNodesize;
+        _2D_elementsNodes_mesh[i].push_back(node0);
+        _2D_elementsNodes_mesh[i].push_back(node1);
+        _2D_elementsNodes_mesh[i].push_back(node2);
+        _2D_elementsNodes_mesh[i].push_back(node3);
+        printf("Adding nodes %d,%d,%d,%d to the shell element %i\n ", node0, node1, node2, node3, i);
+
+        NodeNeighborElementMesh[node0].push_back(i + currentElemsize);
+        NodeNeighborElementMesh[node1].push_back(i + currentElemsize);
+        NodeNeighborElementMesh[node2].push_back(i + currentElemsize);
+        NodeNeighborElementMesh[node3].push_back(i + currentElemsize);
+        printf("Adding element %d to the nodes %d,%d,%d,%d\n ", i + currentElemsize, node0, node1, node2, node3);
+
         // Create the element and set its nodes.
         auto element = std::make_shared<ChElementShellANCF>();
         element->SetNodes(std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node0)),
@@ -694,35 +797,46 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // and load containers must be added to your ChSystem
     auto Pressureloadcontainer = std::make_shared<ChLoadContainer>();
     // Add constant pressure using ChLoaderPressure (preferred for simple, constant pressure)
-    for (int NoElmPre = 0; NoElmPre < TotalNumElements; NoElmPre++) {
-        auto faceload = std::make_shared<ChLoad<ChLoaderPressure>>(
-            std::static_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(NoElmPre)));
-        faceload->loader.SetPressure(p0);
-        faceload->loader.SetStiff(true);
-        faceload->loader.SetIntegrationPoints(2);
-        faceload_mesh.push_back(faceload);
-        Pressureloadcontainer->Add(faceload);
+    for (int NoElmPre = 0; NoElmPre < my_mesh->GetNelements(); NoElmPre++) {
+        if (auto element = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(NoElmPre))) {
+            ChVector<> center = 0.25 * (element->GetNodeA()->GetPos() + element->GetNodeB()->GetPos() +
+                                        element->GetNodeC()->GetPos() + element->GetNodeD()->GetPos());
+
+            if ((std::abs(center.x) < bxDim / 5) && (std::abs(center.y) < byDim / 5)) {
+                printf("Applying Pressure at the %f, %f, %f\n", center.x, center.y, center.z);
+
+                auto faceload = std::make_shared<ChLoad<ChLoaderPressure>>(
+                    std::static_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(NoElmPre)));
+                faceload->loader.SetPressure(p0);
+                faceload->loader.SetStiff(true);
+                faceload->loader.SetIntegrationPoints(2);
+                faceload_mesh.push_back(faceload);
+                Pressureloadcontainer->Add(faceload);
+            }
+        }
     }
     mphysicalSystem.Add(Pressureloadcontainer);
 #endif
 
     // Add the mesh to the system
 
+    std::vector<std::shared_ptr<chrono::fea::ChElementCableANCF>>* FSI_Cables = myFsiSystem.GetFsiCablesPtr();
     std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* FSI_Shells = myFsiSystem.GetFsiShellsPtr();
     std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* FSI_Nodes = myFsiSystem.GetFsiNodesPtr();
 
     bool multilayer = true;
     bool removeMiddleLayer = false;
-
-    chrono::fsi::utils::AddBCE_ShellFromMesh(myFsiSystem.GetDataManager(), paramsH, FSI_Shells, FSI_Nodes, my_mesh,
-                                             elementsNodes_mesh, NodeNeighborElement_mesh, multilayer,
-                                             removeMiddleLayer, +2);
-
-    mphysicalSystem.Add(my_mesh);
+    bool add1DElem = false;
+    bool add2DElem = true;
+    chrono::fsi::utils::AddBCE_FromMesh(
+        myFsiSystem.GetDataManager(), paramsH, my_mesh, FSI_Nodes, FSI_Cables, FSI_Shells, NodeNeighborElementMesh,
+        _1D_elementsNodes_mesh, _2D_elementsNodes_mesh, add1DElem, add2DElem, multilayer, removeMiddleLayer, +2);
+    myFsiSystem.SetCableElementsNodes(_1D_elementsNodes_mesh);
+    myFsiSystem.SetShellElementsNodes(_2D_elementsNodes_mesh);
     myFsiSystem.SetFsiMesh(my_mesh);
-    myFsiSystem.SetShellelementsNodes(elementsNodes_mesh);
+    mphysicalSystem.Add(my_mesh);
 
-    writeMesh(my_mesh, MESH_CONNECTIVITY, NodeNeighborElementMesh);
+    writeMesh(my_mesh, MESH_CONNECTIVITY, NodeNeighborElementMesh, _1D_elementsNodes_mesh, _2D_elementsNodes_mesh);
 
 #endif
 }
@@ -859,44 +973,84 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
 /////////////////////////////////////////////////////
 void writeMesh(std::shared_ptr<ChMesh> my_mesh,
                std::string SaveAs,
-               std::vector<std::vector<int>>& NodeNeighborElement) {
-    utils::CSV_writer MESH(" ");
+               std::vector<std::vector<int>>& NodeNeighborElement,
+               std::vector<std::vector<int>> _1D_elementsNodes_mesh,
+               std::vector<std::vector<int>> _2D_elementsNodes_mesh) {
     NodeNeighborElement.resize(my_mesh->GetNnodes());
-    MESH.stream().setf(std::ios::scientific | std::ios::showpos);
-    MESH.stream().precision(6);
-    //    out << my_system.GetChTime() << nodetip->GetPos() << std::endl;
+
     std::vector<std::shared_ptr<ChNodeFEAbase>> myvector;
     myvector.resize(my_mesh->GetNnodes());
     for (int i = 0; i < my_mesh->GetNnodes(); i++) {
         myvector[i] = std::dynamic_pointer_cast<ChNodeFEAbase>(my_mesh->GetNode(i));
     }
-    MESH << "\nCELLS " << my_mesh->GetNelements() << 5 * my_mesh->GetNelements() << "\n";
 
-    for (int iele = 0; iele < my_mesh->GetNelements(); iele++) {
-        auto element = (my_mesh->GetElement(iele));
-        MESH << "4 ";
-        int nodeOrder[] = {0, 1, 2, 3};
-        for (int myNodeN = 0; myNodeN < 4; myNodeN++) {
-            auto nodeA = (element->GetNodeN(nodeOrder[myNodeN]));
-            std::vector<std::shared_ptr<ChNodeFEAbase>>::iterator it;
-            it = find(myvector.begin(), myvector.end(), nodeA);
-            if (it == myvector.end()) {
-                // name not in vector
-            } else {
-                auto index = std::distance(myvector.begin(), it);
-                MESH << (unsigned int)index << " ";
-                NodeNeighborElement[index].push_back(iele);
+    int NUM_1D_NODES = 0;
+    //    std::sort(nodeList1D.begin(), nodeList1D.end());
+    if (addCable) {
+        utils::CSV_writer MESH(" ");
+        MESH.stream().setf(std::ios::scientific | std::ios::showpos);
+        MESH.stream().precision(6);
+        MESH << "\nLINES " << _1D_elementsNodes_mesh.size() << 3 * _1D_elementsNodes_mesh.size() << "\n";
+
+        for (int iele = 0; iele < my_mesh->GetNelements(); iele++) {
+            if (auto element = std::dynamic_pointer_cast<ChElementCableANCF>(my_mesh->GetElement(iele))) {
+                MESH << "2 ";
+                int nodeOrder[] = {0, 1};
+                for (int myNodeN = 0; myNodeN < 2; myNodeN++) {
+                    auto nodeA = (element->GetNodeN(nodeOrder[myNodeN]));
+                    std::vector<std::shared_ptr<ChNodeFEAbase>>::iterator it;
+                    it = find(myvector.begin(), myvector.end(), nodeA);
+                    if (it == myvector.end()) {
+                        // name not in vector
+                    } else {
+                        auto index = std::distance(myvector.begin(), it);
+                        if (index > NUM_1D_NODES)
+                            NUM_1D_NODES = index;
+                        MESH << (unsigned int)index << " ";
+                        NodeNeighborElement[index].push_back(iele);
+                    }
+                }
+                MESH << "\n";
             }
         }
-        MESH << "\n";
+        MESH << "\nCELL_DATA " << _1D_elementsNodes_mesh.size() << "\n";
+
+        MESH.write_to_file(SaveAs + "_1D");
     }
-    MESH << "\nCELL_TYPES " << my_mesh->GetNelements() << "\n";
+
+    ///////////////////////////////////////////////////////
+
+    utils::CSV_writer MESH(" ");
+    MESH.stream().setf(std::ios::scientific | std::ios::showpos);
+    MESH.stream().precision(6);
+    MESH << "\nCELLS " << _2D_elementsNodes_mesh.size() << 5 * _2D_elementsNodes_mesh.size() << "\n";
 
     for (int iele = 0; iele < my_mesh->GetNelements(); iele++) {
+        if (auto element = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(iele))) {
+            MESH << "4 ";
+            int nodeOrder[] = {0, 1, 2, 3};
+            for (int myNodeN = 0; myNodeN < 4; myNodeN++) {
+                auto nodeA = (element->GetNodeN(nodeOrder[myNodeN]));
+                std::vector<std::shared_ptr<ChNodeFEAbase>>::iterator it;
+                it = find(myvector.begin(), myvector.end(), nodeA);
+                if (it == myvector.end()) {
+                    // name not in vector
+                } else {
+                    auto index = std::distance(myvector.begin(), it);
+                    MESH << (unsigned int)(index - NUM_1D_NODES - 1) << " ";
+                    NodeNeighborElement[index].push_back(iele);
+                }
+            }
+            MESH << "\n";
+        }
+    }
+    MESH << "\nCELL_TYPES " << _2D_elementsNodes_mesh.size() << "\n";
+
+    for (int iele = 0; iele < _2D_elementsNodes_mesh.size(); iele++) {
         MESH << "9\n";
     }
 
-    MESH.write_to_file(SaveAs);
+    MESH.write_to_file(SaveAs + "_2D");
 }
 ////////////////////////////////////////
 ///////////Write to VTK/////////////////
@@ -905,158 +1059,250 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[256],
                 char MeshFileBuffer[256],
                 std::vector<std::vector<int>>& NodeNeighborElement) {
-    std::ofstream output;
-    output.open(SaveAsBuffer, std::ios::app);
-
-    output << "# vtk DataFile Version 1.0\nUnstructured Grid Example\nASCII\n\n" << std::endl;
-    output << "DATASET UNSTRUCTURED_GRID\nPOINTS " << my_mesh->GetNnodes() << " float\n";
-    for (int i = 0; i < my_mesh->GetNnodes(); i++) {
-        auto node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(i));
-        output << node->GetPos().x << " " << node->GetPos().y << " " << node->GetPos().z << "\n";
-    }
-    std::ifstream CopyFrom(MeshFileBuffer);
-    output << CopyFrom.rdbuf();
-    output << "\nPOINT_DATA " << my_mesh->GetNnodes() << "\n";
-    output << "SCALARS Deflection float\n";
-    output << "LOOKUP_TABLE default\n";
-    for (int i = 0; i < my_mesh->GetNnodes(); i++) {
-        double areaAve = 0;
-        double scalar = 0;
-        double myarea = 0;
-        double dx, dy;
-        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
-            int myelemInx = NodeNeighborElement[i][j];
-            std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->EvaluateDeflection(scalar);
-            dx = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
-            dy = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve += scalar * dx * dy / NodeNeighborElement[i].size();
-        }
-
-        output << areaAve / myarea << "\n";
-    }
-    std::vector<ChVector<>> MyResult;
-    output << "\nVECTORS ep12_ratio float\n";
-    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
-        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
-        double myarea = 0;
-        double dx, dy;
-        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
-            int myelemInx = NodeNeighborElement[i][j];
-            MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
-                           ->GetPrincipalStrains();
-            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
-            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve1 += MyResult[0].x * dx * dy / NodeNeighborElement[i].size();
-            areaAve2 += MyResult[0].y * dx * dy / NodeNeighborElement[i].size();
-            if (abs(MyResult[0].x) > 1e-3 && abs(MyResult[0].y) > 1e-3) {
-                double ratio = abs(areaAve1 / areaAve2);
-                if (ratio > 10)
-                    ratio = 10;
-                if (ratio < 0.1)
-                    ratio = 0.1;
-                areaAve3 += log10(ratio) * dx * dy / NodeNeighborElement[i].size();
-            } else {
-                areaAve3 += 0.0 * dx * dy / NodeNeighborElement[i].size();
+    ///////////
+    if (addCable) {
+        std::vector<int> nodeList;
+        /////////First I will find the nodes that are used by a cable element
+        for (int i = 0; i < my_mesh->GetNelements(); i++) {
+            if (auto element = std::dynamic_pointer_cast<ChElementCableANCF>(my_mesh->GetElement(i))) {
+                if (std::find(nodeList.begin(), nodeList.end(), element->GetNodeA()->GetIndex()) == nodeList.end())
+                    nodeList.push_back(element->GetNodeA()->GetIndex());
+                if (std::find(nodeList.begin(), nodeList.end(), element->GetNodeB()->GetIndex()) == nodeList.end())
+                    nodeList.push_back(element->GetNodeB()->GetIndex());
             }
         }
-        output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
-    }
-    output << "\nVECTORS E_Princ_Dir1 float\n";
-    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
-        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
-        double myarea = 0;
-        double dx, dy;
-        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
-            int myelemInx = NodeNeighborElement[i][j];
-            MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
-                           ->GetPrincipalStrains();
-            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
-            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve1 += MyResult[1].x * dx * dy / NodeNeighborElement[i].size();
-            areaAve2 += MyResult[1].y * dx * dy / NodeNeighborElement[i].size();
-            areaAve3 += MyResult[1].z * dx * dy / NodeNeighborElement[i].size();
+        std::sort(nodeList.begin(), nodeList.end());
+
+        std::string MeshFileBuffer_string(MeshFileBuffer);
+        std::ofstream output;
+        char MeshFileBuffer_1D[256];
+        snprintf(MeshFileBuffer_1D, sizeof(char) * 256, ("%s"), (MeshFileBuffer_string + "_1D").c_str());
+
+        std::string SaveAsBuffer_string(SaveAsBuffer);
+        char SaveAsBuffer_1D[256];
+        SaveAsBuffer_string.erase(SaveAsBuffer_string.length() - 4, 4);
+        cout << SaveAsBuffer_string << endl;
+        snprintf(SaveAsBuffer_1D, sizeof(char) * 256, ("%s"), (SaveAsBuffer_string + ".1D.vtk").c_str());
+        output.open(SaveAsBuffer_1D, std::ios::app);
+
+        output << "# vtk DataFile Version 3.0\nvtk output\nASCII\nDATASET POLYDATA\n" << std::endl;
+        output << "POINTS " << nodeList.size() << " float\n";
+        for (int i = 0; i < nodeList.size(); i++) {
+            auto node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(nodeList[i]));
+            output << node->GetPos().x << " " << node->GetPos().y << " " << node->GetPos().z << "\n";
         }
-        output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
-    }
-    output << "\nVECTORS E_Princ_Dir2 float\n";
-    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
-        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
-        double myarea = 0;
-        double dx, dy;
-        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
-            int myelemInx = NodeNeighborElement[i][j];
-            MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
-                           ->GetPrincipalStrains();
-            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
-            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve1 += MyResult[2].x * dx * dy / NodeNeighborElement[i].size();
-            areaAve2 += MyResult[2].y * dx * dy / NodeNeighborElement[i].size();
-            areaAve3 += MyResult[2].z * dx * dy / NodeNeighborElement[i].size();
+
+        // Later on : if you want to connect to 1D and 2D elements:
+        // you have to interpolate between all elements not just 1D
+        std::ifstream CopyFrom(MeshFileBuffer_1D);
+        output << CopyFrom.rdbuf();
+        output << "\nPOINT_DATA " << nodeList.size() << "\n";
+        output << "scalars strain float\n";
+        output << "LOOKUP_TABLE default\n";
+        for (int i = 0; i < nodeList.size(); i++) {
+            double areaAve = 0;
+            ChVector<> StrainV;
+            ChMatrix<> disp;
+            double myarea = 0;
+            double dx;
+            for (int j = 0; j < NodeNeighborElement[nodeList[i]].size(); j++) {
+                int myelemInx = NodeNeighborElement[nodeList[i]][j];
+                std::dynamic_pointer_cast<ChElementCableANCF>(my_mesh->GetElement(myelemInx))
+                    ->EvaluateSectionStrain(0.0, disp, StrainV);
+                dx = std::dynamic_pointer_cast<ChElementCableANCF>(my_mesh->GetElement(myelemInx))->GetCurrLength();
+                myarea += dx / NodeNeighborElement[nodeList[i]].size();
+                areaAve += StrainV.x * dx / NodeNeighborElement[nodeList[i]].size();
+            }
+
+            output << areaAve / myarea << "\n";
         }
-        output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
+        output.close();
     }
 
-    output << "\nVECTORS sigma12_theta float\n";
-    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
-        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
-        double myarea = 0;
-        double dx, dy;
-        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
-            int myelemInx = NodeNeighborElement[i][j];
-            MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
-                           ->GetPrincipalStresses();
-            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
-            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve1 += MyResult[0].x * dx * dy / NodeNeighborElement[i].size();
-            areaAve2 += MyResult[0].y * dx * dy / NodeNeighborElement[i].size();
-            areaAve3 += MyResult[0].z * dx * dy / NodeNeighborElement[i].size();
+    if (true) {
+        std::vector<int> nodeList;
+        /////////First I will find the nodes that are used by a cable element
+        for (int i = 0; i < my_mesh->GetNelements(); i++) {
+            if (auto element = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(i))) {
+                if (std::find(nodeList.begin(), nodeList.end(), element->GetNodeA()->GetIndex()) == nodeList.end())
+                    nodeList.push_back(element->GetNodeA()->GetIndex());
+                if (std::find(nodeList.begin(), nodeList.end(), element->GetNodeB()->GetIndex()) == nodeList.end())
+                    nodeList.push_back(element->GetNodeB()->GetIndex());
+                if (std::find(nodeList.begin(), nodeList.end(), element->GetNodeC()->GetIndex()) == nodeList.end())
+                    nodeList.push_back(element->GetNodeC()->GetIndex());
+                if (std::find(nodeList.begin(), nodeList.end(), element->GetNodeD()->GetIndex()) == nodeList.end())
+                    nodeList.push_back(element->GetNodeD()->GetIndex());
+            }
         }
-        output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
-    }
-    output << "\nVECTORS S_Princ_Dir1 float\n";
-    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
-        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
-        double myarea = 0;
-        double dx, dy;
-        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
-            int myelemInx = NodeNeighborElement[i][j];
-            MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
-                           ->GetPrincipalStresses();
-            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
-            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve1 += MyResult[1].x * dx * dy / NodeNeighborElement[i].size();
-            areaAve2 += MyResult[1].y * dx * dy / NodeNeighborElement[i].size();
-            areaAve3 += MyResult[1].z * dx * dy / NodeNeighborElement[i].size();
-        }
-        output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
-    }
+        std::sort(nodeList.begin(), nodeList.end());
 
-    output << "\nVECTORS S_Princ_Dir2 float\n";
-    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
-        double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
-        double myarea = 0;
-        double dx, dy;
-        for (int j = 0; j < NodeNeighborElement[i].size(); j++) {
-            int myelemInx = NodeNeighborElement[i][j];
-            MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
-                           ->GetPrincipalStresses();
-            dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
-            dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
-            myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve1 += MyResult[2].x * dx * dy / NodeNeighborElement[i].size();
-            areaAve2 += MyResult[2].y * dx * dy / NodeNeighborElement[i].size();
-            areaAve3 += MyResult[2].z * dx * dy / NodeNeighborElement[i].size();
-        }
-        output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
-    }
+        std::string MeshFileBuffer_string(MeshFileBuffer);
+        std::ofstream output;
+        char MeshFileBuffer_2D[256];
+        snprintf(MeshFileBuffer_2D, sizeof(char) * 256, ("%s"), (MeshFileBuffer_string + "_2D").c_str());
 
-    output.close();
+        std::string SaveAsBuffer_string(SaveAsBuffer);
+        char SaveAsBuffer_2D[256];
+        SaveAsBuffer_string.erase(SaveAsBuffer_string.length() - 4, 4);
+        cout << SaveAsBuffer_string << endl;
+        snprintf(SaveAsBuffer_2D, sizeof(char) * 256, ("%s"), (SaveAsBuffer_string + ".2D.vtk").c_str());
+        output.open(SaveAsBuffer_2D, std::ios::app);
+
+        output << "# vtk DataFile Version 1.0\nUnstructured Grid Example\nASCII\n\n" << std::endl;
+        output << "DATASET UNSTRUCTURED_GRID\nPOINTS " << nodeList.size() << " float\n";
+        for (int i = 0; i < nodeList.size(); i++) {
+            auto node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(nodeList[i]));
+            output << node->GetPos().x << " " << node->GetPos().y << " " << node->GetPos().z << "\n";
+        }
+
+        std::ifstream CopyFrom(MeshFileBuffer_2D);
+        output << CopyFrom.rdbuf();
+
+        printf("NodeNeighborElement.size() in writeFrame = %d\n", NodeNeighborElement.size());
+
+        output << "\nPOINT_DATA " << nodeList.size() << "\n";
+        output << "SCALARS Deflection float\n";
+        output << "LOOKUP_TABLE default\n";
+        for (int i = 0; i < nodeList.size(); i++) {
+            double areaAve = 0;
+            double scalar = 0;
+            double myarea = 0;
+            double dx, dy;
+            for (int j = 0; j < NodeNeighborElement[nodeList[i]].size(); j++) {
+                int myelemInx = NodeNeighborElement[nodeList[i]][j];
+                std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))
+                    ->EvaluateDeflection(scalar);
+                dx = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
+                dy = std::dynamic_pointer_cast<ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
+                myarea += dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve += scalar * dx * dy / NodeNeighborElement[nodeList[i]].size();
+            }
+
+            output << areaAve / myarea << "\n";
+        }
+        std::vector<ChVector<>> MyResult;
+        output << "\nVECTORS ep12_ratio float\n";
+        for (unsigned int i = 0; i < nodeList.size(); i++) {
+            double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+            double myarea = 0;
+            double dx, dy;
+            for (int j = 0; j < NodeNeighborElement[nodeList[i]].size(); j++) {
+                int myelemInx = NodeNeighborElement[nodeList[i]][j];
+                MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
+                               ->GetPrincipalStrains();
+                dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
+                dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
+                myarea += dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve1 += MyResult[0].x * dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve2 += MyResult[0].y * dx * dy / NodeNeighborElement[nodeList[i]].size();
+                if (abs(MyResult[0].x) > 1e-3 && abs(MyResult[0].y) > 1e-3) {
+                    double ratio = abs(areaAve1 / areaAve2);
+                    if (ratio > 10)
+                        ratio = 10;
+                    if (ratio < 0.1)
+                        ratio = 0.1;
+                    areaAve3 += log10(ratio) * dx * dy / NodeNeighborElement[nodeList[i]].size();
+                } else {
+                    areaAve3 += 0.0 * dx * dy / NodeNeighborElement[nodeList[i]].size();
+                }
+            }
+            output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
+        }
+        output << "\nVECTORS E_Princ_Dir1 float\n";
+        for (unsigned int i = 0; i < nodeList.size(); i++) {
+            double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+            double myarea = 0;
+            double dx, dy;
+            for (int j = 0; j < NodeNeighborElement[nodeList[i]].size(); j++) {
+                int myelemInx = NodeNeighborElement[nodeList[i]][j];
+                MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
+                               ->GetPrincipalStrains();
+                dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
+                dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
+                myarea += dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve1 += MyResult[1].x * dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve2 += MyResult[1].y * dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve3 += MyResult[1].z * dx * dy / NodeNeighborElement[nodeList[i]].size();
+            }
+            output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
+        }
+        output << "\nVECTORS E_Princ_Dir2 float\n";
+        for (unsigned int i = 0; i < nodeList.size(); i++) {
+            double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+            double myarea = 0;
+            double dx, dy;
+            for (int j = 0; j < NodeNeighborElement[nodeList[i]].size(); j++) {
+                int myelemInx = NodeNeighborElement[nodeList[i]][j];
+                MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
+                               ->GetPrincipalStrains();
+                dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
+                dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
+                myarea += dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve1 += MyResult[2].x * dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve2 += MyResult[2].y * dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve3 += MyResult[2].z * dx * dy / NodeNeighborElement[nodeList[i]].size();
+            }
+            output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
+        }
+
+        output << "\nVECTORS sigma12_theta float\n";
+        for (unsigned int i = 0; i < nodeList.size(); i++) {
+            double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+            double myarea = 0;
+            double dx, dy;
+            for (int j = 0; j < NodeNeighborElement[nodeList[i]].size(); j++) {
+                int myelemInx = NodeNeighborElement[nodeList[i]][j];
+                MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
+                               ->GetPrincipalStresses();
+                dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
+                dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
+                myarea += dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve1 += MyResult[0].x * dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve2 += MyResult[0].y * dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve3 += MyResult[0].z * dx * dy / NodeNeighborElement[nodeList[i]].size();
+            }
+            output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
+        }
+        output << "\nVECTORS S_Princ_Dir1 float\n";
+        for (unsigned int i = 0; i < nodeList.size(); i++) {
+            double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+            double myarea = 0;
+            double dx, dy;
+            for (int j = 0; j < NodeNeighborElement[nodeList[i]].size(); j++) {
+                int myelemInx = NodeNeighborElement[nodeList[i]][j];
+                MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
+                               ->GetPrincipalStresses();
+                dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
+                dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
+                myarea += dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve1 += MyResult[1].x * dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve2 += MyResult[1].y * dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve3 += MyResult[1].z * dx * dy / NodeNeighborElement[nodeList[i]].size();
+            }
+            output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
+        }
+
+        output << "\nVECTORS S_Princ_Dir2 float\n";
+        for (unsigned int i = 0; i < nodeList.size(); i++) {
+            double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
+            double myarea = 0;
+            double dx, dy;
+            for (int j = 0; j < NodeNeighborElement[nodeList[i]].size(); j++) {
+                int myelemInx = NodeNeighborElement[nodeList[i]][j];
+                MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
+                               ->GetPrincipalStresses();
+                dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
+                dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
+                myarea += dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve1 += MyResult[2].x * dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve2 += MyResult[2].y * dx * dy / NodeNeighborElement[nodeList[i]].size();
+                areaAve3 += MyResult[2].z * dx * dy / NodeNeighborElement[nodeList[i]].size();
+            }
+            output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
+        }
+
+        output.close();
+    }
 }
 
 //------------------------------------------------------------------
