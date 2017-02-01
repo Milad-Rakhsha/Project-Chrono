@@ -473,7 +473,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     chrono::fsi::utils::AddBCE_ShellFromMesh(myFsiSystem.GetDataManager(), paramsH, FSI_Shells, FSI_Nodes, my_mesh,
                                              elementsNodes_mesh, NodeNeighborElement_mesh, multilayer,
                                              removeMiddleLayer, 0);
-    myFsiSystem.SetShellelementsNodes(elementsNodes_mesh);
+    myFsiSystem.SetShellElementsNodes(elementsNodes_mesh);
     myFsiSystem.SetFsiMesh(my_mesh);
 
     writeMesh(my_mesh, MESH_CONNECTIVITY, NodeNeighborElementMesh);

@@ -494,7 +494,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
                                              elementsNodes_mesh, NodeNeighborElement_mesh, multilayer,
                                              removeMiddleLayer, 0);
     // This is very important: You have to give the FsiSystem the connectivity of the nodes
-    myFsiSystem.SetShellelementsNodes(elementsNodes_mesh);
+    myFsiSystem.SetShellElementsNodes(elementsNodes_mesh);
 
     //    chrono::fsi::utils::AddBCE_ShellANCF(myFsiSystem.GetDataManager(), paramsH, FSI_Shells, my_mesh, multilayer,
     //                                         removeMiddleLayer, 0);
