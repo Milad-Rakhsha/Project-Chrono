@@ -24,6 +24,7 @@ demo_FSI_DamBreak_Flexible_Cube
 
 SET(FSI_PARALLEL_MKL_DEMOS	
 demo_AC_model
+demo_FSI_MultuPhysics
 testMKL
 )
 
