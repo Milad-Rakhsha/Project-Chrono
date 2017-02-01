@@ -37,7 +37,7 @@ namespace fea {
 /// Based on the formulation in:
 ///  "Analysis of Thin Beams and Cables Using the Absolute Nodal Co-ordinate Formulation"
 ///  J.GERSTMAYR, A.SHABANA
-///  Nonlinear Dynamics (2006) 45: 109–130
+///  Nonlinear Dynamics (2006) 45: 109ï¿½130
 ///  DOI: 10.1007/s11071-006-1856-1
 /// and in:
 /// "On the Validation and Applications of a Parallel Flexible Multi-body
@@ -70,6 +70,7 @@ class ChElementCableANCF : public ChElementBeam, public ChLoadableU, public ChLo
     virtual int GetNnodes() override { return 2; }
     virtual int GetNdofs() override { return 2 * 6; }
     virtual int GetNodeNdofs(int n) override { return 6; }
+    double GetCurrLength() { return (nodes[1]->GetPos() - nodes[0]->GetPos()).Length(); }
 
     virtual std::shared_ptr<ChNodeFEAbase> GetNodeN(int n) { return nodes[n]; }
 
