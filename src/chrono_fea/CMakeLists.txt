@@ -46,6 +46,7 @@ SET(ChronoEngine_FEA_SOURCES
     ChMatrixCorotation.cpp
     ChVisualizationFEAmesh.cpp
     ChLinkPointFrame.cpp
+    ChLinkPointFrameGeneral.cpp
     ChLinkDirFrame.cpp
     ChLinkPointPoint.cpp
 	ChLinkPointTriface.cpp
@@ -107,6 +108,7 @@ SET(ChronoEngine_FEA_HEADERS
     ChVisualizationFEAmesh.h
 	ChLinkInterface.h
     ChLinkPointFrame.h
+    ChLinkPointFrameGeneral.h
     ChLinkDirFrame.h
     ChLinkPointPoint.h
 	ChLinkPointTriface.h
