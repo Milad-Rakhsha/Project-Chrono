@@ -61,7 +61,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
-    paramsH->PPE_res = 0.0001;
+    paramsH->PPE_res = 0.00001;
     paramsH->PPE_Max_Iter = 2000;
     paramsH->PPE_Solution_type = IterativeJacobi;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
     paramsH->PPE_relaxation = 0.6;                      // Increasing this to 0.5 causes instability
