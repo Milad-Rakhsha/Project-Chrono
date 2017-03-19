@@ -99,17 +99,20 @@ struct SimParams {
   Real tweakMultRho;  /* maximum allowed density change in one time step: tweakMultRho * rho0 */
   BceVersion bceType; /* maximum allowed density change in one time step: tweakMultRho * rho0 */
 
-  Real PPE_res;      // Poisson Pressure Equation residual
-  int PPE_Max_Iter;  // Poisson Pressure Equation maximum number of iteration
+  Real PPE_res;       // Poisson Pressure Equation residual
+  Real Max_Pressure;  // Max Pressure in the pressure solver
+  int PPE_Max_Iter;   // Poisson Pressure Equation maximum number of iteration
   PPE_SolutionType PPE_Solution_type;
   Real PPE_relaxation;
   bool ClampPressure;
   Real IncompressibilityFactor;
-
+  Real Cs;
   bool USE_CUSP;
   bool Adaptive_time_stepping;
   Real Co_number;
   Real dT_Max;
+  bool Apply_BC_U;
+
 };
 
 }  // end namespace fsi

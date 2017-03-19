@@ -809,7 +809,9 @@ __global__ void V_i_np__AND__d_ii_kernel(Real3* sortedPosRad,  // input: sorted 
             My_d_ii += m_0 * (-(dT * dT) / (Rhoi * Rhoi)) * grad_i_wij;
             Real Rho_bar = (Rhoj + Rhoi) * 0.5;
             Real3 V_ij = (Veli - Velj);
-            Real3 muNumerator = 2 * mu_0 * dot(dist3, grad_i_wij) * V_ij;
+            Real nu=mu_0*paramsD.HSML *320/Rho_bar;
+            Real3 muNumerator = nu* fmin(0.0,dot(dist3,  V_ij)) *grad_i_wij;
+           // Real3 muNumerator = 2 * mu_0 * dot(dist3, grad_i_wij) * V_ij;
             Real muDenominator = (Rho_bar * Rho_bar) * (d * d + paramsD.HSML * paramsD.HSML * epsilon);
             My_F_i_np += m_0 * muNumerator / muDenominator;
           }
@@ -973,8 +975,10 @@ __device__ void BCE_Vel_Acc(int i_idx,
 
   // See if this belongs to boundary
   if (Original_idx >= updatePortion.x && Original_idx < updatePortion.y) {
+
     myAcc = mR3(0.0);
-    V_prescribed = mR3(0.0);
+    V_prescribed = user_BC_U(sortedPosRad[i_idx]);
+//    printf ("Set the vel of Original_idx=%d to %f,%f,%f\n", Original_idx, V_prescribed.x,V_prescribed.y,V_prescribed.z);
     // Or not maybe Rigid bodies
   } else if (Original_idx >= updatePortion.y && Original_idx < updatePortion.z) {
     int rigidIndex = rigidIdentifierD[Original_idx - updatePortion.y];
@@ -1066,7 +1070,7 @@ __global__ void CalcNumber_Contacts(unsigned long int* numContacts,
   }
   int myType = sortedRhoPreMu[i_idx].w;
   Real3 pos_i = sortedPosRad[i_idx];
-  uint numCol[800];
+  uint numCol[1600];
   int counter = 1;
   numCol[0] = i_idx;  // The first one is always the idx of the marker itself
   int3 gridPos = calcGridPos(pos_i);
@@ -1525,6 +1529,7 @@ __global__ void Calc_Pressure_AXB_USING_CSR(Real* csrValA,
                                             Real RHO_0,
                                             const int numAllMarkers,
                                             bool ClampPressure,
+                                            Real Max_Pressure,
                                             volatile bool* isErrorD) {
   uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (i_idx >= numAllMarkers)
@@ -1559,6 +1564,7 @@ __global__ void Calc_Pressure_AXB_USING_CSR(Real* csrValA,
 
   if (ClampPressure && sortedRhoPreMu[i_idx].y < 0.0)
     sortedRhoPreMu[i_idx].y = 0.0;
+
   /// This updates the velocity but it is done here since its faster
   if (sortedRhoPreMu[i_idx].w > -1) {
     sortedVelMas[i_idx] = V_new[i_idx];
@@ -1867,7 +1873,8 @@ __global__ void CalcForces(Real3* new_vel,  // Write
             F_i_p += -m_0 * ((p_i / (rho_i * rho_i)) + (p_j / (rho_j * rho_j))) * grad_i_wij;
 
           Real Rho_bar = (rho_j + rho_i) * 0.5;
-          Real3 muNumerator = 2 * mu_0 * dot(dist3, grad_i_wij) * V_ij;
+          Real nu=mu_0*paramsD.HSML *320/Rho_bar;
+          Real3 muNumerator = nu* fminf(0.0,dot(dist3,  V_ij)) *grad_i_wij;
           Real muDenominator = (Rho_bar * Rho_bar) * (d * d + paramsD.HSML * paramsD.HSML * epsilon);
           // Only Consider (fluid-fluid + fluid-solid) or Solid-Fluid Interaction
           if (sortedRhoPreMu[i_idx].w < 0 || (sortedRhoPreMu[i_idx].w > 0 && sortedRhoPreMu[j].w < 0))
@@ -2248,7 +2255,8 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
       Calc_Pressure_AXB_USING_CSR<<<numBlocks, numThreads>>>(
           R1CAST(csrValA), R1CAST(a_ii), U1CAST(csrColIndA), LU1CAST(numContacts),
           mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(nonNormRho), mR3CAST(sortedSphMarkersD->velMasD),
-          mR3CAST(V_new), R1CAST(p_old), R1CAST(B_i), paramsH->rho0, numAllMarkers, paramsH->ClampPressure, isErrorD);
+          mR3CAST(V_new), R1CAST(p_old), R1CAST(B_i), paramsH->rho0, numAllMarkers, paramsH->ClampPressure,
+          paramsH->Max_Pressure, isErrorD);
       cudaThreadSynchronize();
       cudaCheckError();
       cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
@@ -2283,7 +2291,7 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real3>& bceAcc,
     //			printf("Iter= %d, Res= %f\n", Iteration,
     //					MaxRes);
 
-    if (paramsH->USE_CUSP && (Iteration > paramsH->PPE_Max_Iter))
+    if (paramsH->USE_CUSP && (Iteration > 25))
       break;
   }
 

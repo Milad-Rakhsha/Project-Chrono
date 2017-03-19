@@ -14,6 +14,8 @@
 
 #include <algorithm>
 
+#include <cmath>
+
 #include "chrono/core/ChCSR3Matrix.h"
 #include "chrono/core/ChMapMatrix.h"
 #include "chrono/solver/ChSystemDescriptor.h"
