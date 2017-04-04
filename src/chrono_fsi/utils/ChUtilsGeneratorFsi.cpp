@@ -615,7 +615,7 @@ void AddBCE_FromMesh(ChFsiDataManager* fsiData,
             for (int inode = 0; inode < myNumNodes; inode++) {
               for (int jnode = 0; jnode < JNumNodes; jnode++) {
                 if (_1D_elementsNodes[i][inode] - 1 == _1D_elementsNodes[neighborElement][jnode] - 1 &&
-                    thisNode != _1D_elementsNodes[i][inode] && i > neighborElement) {
+                    thisNode != _1D_elementsNodes[i][inode]-1 && i > neighborElement) {
                   remove1D[inode] = 1;
                 }
               }
@@ -644,14 +644,16 @@ void AddBCE_FromMesh(ChFsiDataManager* fsiData,
 
         for (int j = 0; j < myNumNodes; j++) {
           int thisNode = _2D_elementsNodes[i - Curr_size][j];
-          //          printf("Considering elementsNodes[%d][%d]=%d\n", i, j, thisNode);
+                    printf("Considering elementsNodes[%d][%d]=%d\n", i-Curr_size, j, thisNode);
 
           // Look into the elements attached to thisNode
           for (int k = 0; k < NodeNeighborElement[thisNode].size(); k++) {
             // If this neighbor element has more than one common node with the previous node this means that we must not
             // add BCEs to this edge anymore. Because that edge has already been given BCE markers
             // The kth element of this node:
-            int neighborElement = NodeNeighborElement[thisNode][k];
+            int neighborElement = NodeNeighborElement[thisNode][k]-Curr_size;
+            printf("Considering neighbor NodeNeighborElement[%d][%d]=%d\n",thisNode, k, neighborElement);
+
             if (neighborElement >= i - Curr_size)
               continue;
 
@@ -661,8 +663,10 @@ void AddBCE_FromMesh(ChFsiDataManager* fsiData,
             for (int inode = 0; inode < myNumNodes; inode++) {
               for (int jnode = 0; jnode < JNumNodes; jnode++) {
                 if (_2D_elementsNodes[i - Curr_size][inode] == _2D_elementsNodes[neighborElement][jnode] &&
-                    thisNode != _2D_elementsNodes[i - Curr_size][inode] && i - Curr_size > neighborElement) {
+                    thisNode != _2D_elementsNodes[i - Curr_size][inode] && i > neighborElement) {
                   remove2D[inode] = 1;
+                  printf("removing _2D_elementsNodes[%d][%d]=%d\n", i-Curr_size, inode, _2D_elementsNodes[i - Curr_size][inode] );
+
                 }
               }
             }

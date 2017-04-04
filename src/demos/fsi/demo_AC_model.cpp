@@ -105,15 +105,15 @@ Real bxDim = 0.032;
 Real byDim = 0.032;
 Real bzDim = 0.006;
 Real p0 = 0;
-double p_max = 1000 * 1e3;
-double t_ramp = 0.05;
+double p_max = 100;
+double t_ramp = 0.5;
 
 Real fxDim = bxDim;
 Real fyDim = byDim;
 Real fzDim = bzDim;
 
 double init_def = 0;
-double K_SPRINGS = 1000 * 1e3;
+double K_SPRINGS = 10;//1000;
 double C_DAMPERS = 0.;
 double L0_t = 0.005;
 bool addSprings = false;
@@ -329,7 +329,7 @@ int main(int argc, char* argv[]) {
 
     chrono::fsi::Real3 boxCenter = chrono::fsi::mR3(-bxDim / 2 + fxDim / 2, 0 * initSpace0, fzDim / 2 + 2 * initSpace0);
 
-    chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 8);
+    chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
     utils::Generator::PointVector points = sampler.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter),
                                                              fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim));
     int numPart = points.size();
@@ -453,7 +453,7 @@ int main(int argc, char* argv[]) {
         SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, my_fsi_mesh, NodeNeighborElementMesh, paramsH, next_frame,
                              time);
 
-        if (time > 0.4)
+        if (time > 4*t_ramp)
             break;
     }
 
@@ -554,10 +554,10 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // Geometry of the surface
     double plate_lenght_x = bxDim + 0 * initSpace0;
     double plate_lenght_y = byDim + 0 * initSpace0;
-    double plate_lenght_z = 0.001;
+    double plate_lenght_z = 0.0005;
     // Specification of the mesh
-    int numDiv_x = 8;
-    int numDiv_y = 8;
+    int numDiv_x = 16;
+    int numDiv_y = 16;
     int numDiv_z = 1;
     int N_x = numDiv_x + 1;
     int N_y = numDiv_y + 1;
@@ -578,7 +578,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         double K_Fiber = K_SPRINGS / num_Fibers;
         int numCableElems_Per_Fiber = 10;
         double rho = 1000;
-        double Fiber_Diameter = initSpace0 * 2;
+        double Fiber_Diameter = initSpace0 * 4;
         double Fiber_Length = bzDim;
 
         double Area = 3.1415 * std::pow(Fiber_Diameter, 2) / 4;
@@ -673,11 +673,14 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         //            mphysicalSystem.Add(NodeDir);
         //        }
 
-        if (i % (numDiv_x + 1) == 0 || i % (numDiv_x) == 0 || i < (numDiv_x + 1) ||
+        if ((i +1)% (numDiv_x + 1) == 0 || i % (numDiv_x+1) == 0 || i < (numDiv_x + 1) ||
             i >= (TotalNumNodes - numDiv_x - 1)) {
             auto NodePos = std::make_shared<ChLinkPointFrameGeneral>(ChVector<>(0, 0, 1));
             NodePos->Initialize(node, ground);
             mphysicalSystem.Add(NodePos);
+            printf("general constraint node %d is set at %f, %f, %f\n", i, node->GetPos().x, node->GetPos().y,
+                      node->GetPos().z);
+
         }
 
         //        if (abs(loc_x) < bxDim / 4 && abs(loc_y) < byDim / 4) {
@@ -696,13 +699,14 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     }
     printf("GET.FORCES INITIAL=%f\n", mforce.Length());
 
+
     if (Constraint_nodes_Shell.size() == Constraint_nodes_fibers.size()) {
         for (int iNode = 0; iNode < Constraint_nodes_fibers.size(); iNode++) {
             auto constr = std::make_shared<ChLinkPointPoint>();
             constr->Initialize(Constraint_nodes_fibers[iNode], Constraint_nodes_Shell[iNode]);
             mphysicalSystem.Add(constr);
         }
-    } else {
+    } else if (addCable){
         std::cout << "Error! Constraints are not applied correctly\n" << std::endl;
         std::cin.get();
     }
@@ -710,7 +714,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // Create an orthotropic material.
     // All layers for all elements share the same material.
     double rho = 1000;
-    double E = 1e8;
+    double E = 1e6;
     double nu = 0.3;
     auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
     // Create the elements
@@ -1208,6 +1212,16 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             }
             output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
         }
+
+        output << "\nVECTORS Position float\n";
+
+                    for (int j = 0; j < nodeList.size(); j++) {
+                        auto node = std::dynamic_pointer_cast<ChNodeFEAxyz>(my_mesh->GetNode(nodeList[j]));
+                    	ChVector<double> pos = node->GetPos();
+                        output << pos.x << " " << pos.y << " " << pos.z<< "\n";
+
+                }
+
         output << "\nVECTORS E_Princ_Dir1 float\n";
         for (unsigned int i = 0; i < nodeList.size(); i++) {
             double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;

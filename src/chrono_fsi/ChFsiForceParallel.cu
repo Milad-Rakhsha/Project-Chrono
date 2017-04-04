@@ -977,9 +977,10 @@ __device__ void BCE_Vel_Acc(int i_idx,
   if (Original_idx >= updatePortion.x && Original_idx < updatePortion.y) {
 
     myAcc = mR3(0.0);
+    V_prescribed=mR3(0.0);
+    if (paramsD.Apply_BC_U)
     V_prescribed = user_BC_U(sortedPosRad[i_idx]);
-//    printf ("Set the vel of Original_idx=%d to %f,%f,%f\n", Original_idx, V_prescribed.x,V_prescribed.y,V_prescribed.z);
-    // Or not maybe Rigid bodies
+
   } else if (Original_idx >= updatePortion.y && Original_idx < updatePortion.z) {
     int rigidIndex = rigidIdentifierD[Original_idx - updatePortion.y];
     V_prescribed = mR3(velMassRigid_fsiBodies_D[rigidIndex].x, velMassRigid_fsiBodies_D[rigidIndex].y,
@@ -1556,8 +1557,8 @@ __global__ void Calc_Pressure_AXB_USING_CSR(Real* csrValA,
                myIdx, csrValA[myIdx], p_old[csrColIndA[myIdx]]);
       }
     }
-    Real RHS = fminf(0.0, B_i[i_idx]);
-    //    Real RHS = B_i[i_idx];
+    //Real RHS = fminf(0.0, B_i[i_idx]);
+        Real RHS = B_i[i_idx];
 
     sortedRhoPreMu[i_idx].y = (RHS - aij_pj) / csrValA[startIdx - 1];
   }
@@ -1691,7 +1692,9 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
         }
       }
 
-      Real RHS = fminf(0.0, RHO_0 - rho_np[i_idx]);
+      //Real RHS = fminf(0.0, RHO_0 - rho_np[i_idx]);
+      Real RHS = RHO_0 - rho_np[i_idx];
+
       Real aij_pj = +sum_dij_pj - sum_djj_pj - sum_djk_pk;
       p_new = (RHS - aij_pj) / a_ii[i_idx];
       //      sortedRhoPreMu[i_idx].x = aij_pj + p_new * a_ii[i_idx] + RHO_0 - RHS;
@@ -1892,9 +1895,14 @@ __global__ void CalcForces(Real3* new_vel,  // Write
   if (sortedRhoPreMu[i_idx].w < 0)
     derivVelRhoD[i_idx] = derivVelRhoD[i_idx] + mR4(gravity) * m_0;
 
-  //  if (sortedRhoPreMu[i_idx].w == 1)
-  //    printf("Total force on FlexMArker %d= %f,%f,%f\n", i_idx, derivVelRhoD[i_idx].x, derivVelRhoD[i_idx].y,
-  //           derivVelRhoD[i_idx].z);
+
+//  if (sortedRhoPreMu[i_idx].w == 1)
+  //   printf("Total force on RigidMarker %d= %f,%f,%f\n", i_idx, derivVelRhoD[i_idx].x, derivVelRhoD[i_idx].y,
+    //        derivVelRhoD[i_idx].z);
+
+//  if (sortedRhoPreMu[i_idx].w == 2)
+  //   printf("Total force on FlexMArker %d= %f,%f,%f\n", i_idx, derivVelRhoD[i_idx].x, derivVelRhoD[i_idx].y,
+    //        derivVelRhoD[i_idx].z);
 
   new_vel[i_idx] = Veli + dT * mR3(derivVelRhoD[i_idx]) / m_0;
 }

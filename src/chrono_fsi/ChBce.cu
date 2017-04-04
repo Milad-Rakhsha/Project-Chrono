@@ -168,8 +168,10 @@ __global__ void Calc_Flex_FSI_ForcesD(Real3* FlexSPH_MeshPos_LRF_D,
     Real NA = N_cable.x;
     Real NB = N_cable.y;
 
+
     int nA = CableElementsNodes[FlexIndex].x;
     int nB = CableElementsNodes[FlexIndex].y;
+    //printf("idx=%d, N.A= %f, N.B=%f to nodes nA=%d, nB=%d\n",index,NA,NB,nA,nB);
 
     atomicAdd(&(Flex_FSI_ForcesD[nA].x), NA * (double)derivVelRhoD[FlexMarkerIndex].x);
     atomicAdd(&(Flex_FSI_ForcesD[nA].y), NA * (double)derivVelRhoD[FlexMarkerIndex].y);
