@@ -25,6 +25,7 @@ demo_FSI_KitchenSink_Implicit
 
 SET(FSI_PARALLEL_MKL_DEMOS	
 demo_AC_model
+demo_indentation
 demo_FSI_MultuPhysics
 testMKL
 )

@@ -36,6 +36,7 @@
 #include "chrono/utils/ChUtilsInputOutput.h"
 #include "chrono/solver/ChSolverMINRES.h"
 #include "chrono_mkl/ChSolverMKL.h"
+#include "chrono/motion_functions/ChFunction.h"
 
 // Chrono general utils
 
@@ -53,10 +54,13 @@
 #include <thrust/host_vector.h>
 
 // Chrono fea includes
-#include "chrono_fea/ChElementCableANCF.h"
-#include "chrono_fea/ChBuilderBeam.h"
+
 #include "chrono/physics/ChLoadContainer.h"
 #include "chrono/physics/ChLoaderUV.h"
+#include "chrono/physics/ChBodyEasy.h"
+
+#include "chrono_fea/ChElementCableANCF.h"
+#include "chrono_fea/ChBuilderBeam.h"
 #include "chrono_fea/ChElementShellANCF.h"
 #include "chrono_fea/ChLinkDirFrame.h"
 
@@ -65,12 +69,14 @@
 #include "chrono_fea/ChLinkPointPoint.h"
 #include "chrono_fea/ChNodeFEAxyzD.h"
 #include "chrono_fea/ChMesh.h"
+#include "chrono_fea/ChContactSurfaceMesh.h"
 
 // FSI Interface Includes
-#include "demos/fsi/demo_AC_model.h"  //SetupParamsH()
+#include "demos/fsi/demo_indentation.h"  //SetupParamsH()
 
 #define haveFluid 1
-#define addPressure
+//#define addPressure
+#define addIndentor
 #define NormalSP  // Defines whether spring and dampers will always remain normal to the surface
 
 // Chrono namespaces
@@ -86,11 +92,11 @@ std::ofstream simParams;
 //----------------------------
 // output directories and settings
 //----------------------------
-const std::string h_file = "/home/milad/CHRONO/Project-Chrono-Milad-IISPH/src/demos/fsi/demo_AC_model.h";
-const std::string cpp_file = "/home/milad/CHRONO/Project-Chrono-Milad-IISPH/src/demos/fsi/demo_AC_model.cpp";
+const std::string h_file = "/home/milad/CHRONO/Project-Chrono-Milad-IISPH/src/demos/fsi/demo_indentation.cpp.h";
+const std::string cpp_file = "/home/milad/CHRONO/Project-Chrono-Milad-IISPH/src/demos/fsi/demo_indentation.cpp";
 
 const std::string out_dir = "FSI_OUTPUT";  //"../FSI_OUTPUT";
-const std::string data_folder = out_dir + "/AC_model/";
+const std::string data_folder = out_dir + "/Indentation_test/";
 std::string MESH_CONNECTIVITY = data_folder + "Flex_MESH.vtk";
 
 std::vector<std::vector<int>> NodeNeighborElementMesh;
@@ -101,25 +107,33 @@ int out_fps = 200;
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
-Real bxDim = 0.032;
-Real byDim = 0.032;
+Real bxDim = 0.01;
+Real byDim = 0.01;
 Real bzDim = 0.006;
 Real p0 = 0;
-double p_max = 20;
-double t_ramp = 0.2;
 
-Real fxDim = bxDim;
-Real fyDim = byDim;
-Real fzDim = bzDim;
+Real fxDim = 0.01;
+Real fyDim = 0.01;
+Real fzDim = 0.004;
+
+// For displacement driven method
+double Indentor_R = 0.0032;
+double Indentaiton_rate = -20.0 * 1e-6;
+double x0 = bzDim;
+
+// For force-driven method
+double t_ramp = 0.2;
+double p_max = 20;
 
 double init_def = 0;
-double K_SPRINGS = 200;//1000;
+double K_SPRINGS = 200;  // 1000;
 double C_DAMPERS = 0.;
 double L0_t = 0.005;
 bool addSprings = false;
-
 bool addCable = true;
+bool refresh_FlexBodiesInsideFluid = true;
 
+int numCableNodes = 0;
 void writeMesh(std::shared_ptr<ChMesh> my_mesh,
                std::string SaveAs,
                std::vector<std::vector<int>>& NodeNeighborElement,
@@ -131,6 +145,7 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 std::vector<std::vector<int>>& NodeNeighborElement);
 void saveInputFile(std::string inputFile, std::string outAddress);
 double applyRampPressure(double t, double t_ramp, double p_max);
+void impose_motion(std::shared_ptr<ChLinkLockLock> my_link);
 void applySpringForce(std::shared_ptr<fea::ChMesh>& my_mesh,
                       double K_tot,
                       std::vector<ChVector<double>>& x0,
@@ -149,132 +164,6 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
                           double mTime);
 
 void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, chrono::fsi::SimParams* paramsH);
-class MyLoadSpringDamper : public ChLoadCustomMultiple {
-  public:
-    MyLoadSpringDamper(std::vector<std::shared_ptr<ChLoadable>>& mloadables,
-                       std::shared_ptr<ChBody> AttachBodyInput,
-                       double init_sp_def)
-        : ChLoadCustomMultiple(mloadables),
-          AttachBody(AttachBodyInput),
-          K_sp(mloadables.size(), 1e4),
-          C_dp(mloadables.size(), 1e2),
-          LocalBodyAtt(mloadables.size(), AttachBody->GetPos()) {
-        assert(std::dynamic_pointer_cast<ChNodeFEAxyzD>(mloadables[0]));
-        loadables.push_back(AttachBody);
-        load_Q.Reset(this->LoadGet_ndof_w());
-        for (size_t i = 0; i < mloadables.size(); i++) {
-            auto Node = std::static_pointer_cast<ChNodeFEAxyzD>(mloadables[i]);
-            l0.push_back((Node->GetPos() - AttachBody->GetPos()).Length());
-        }
-        init_spring_def = init_sp_def;
-    }
-
-    std::shared_ptr<ChBody> AttachBody;    // Body to attach springs and dampers
-    std::vector<double> K_sp;              // Stiffness of springs
-    std::vector<double> C_dp;              // Damping coefficient of dampers
-    std::vector<double> l0;                // Initial, undeformed spring-damper length
-    std::vector<ChVector<>> LocalBodyAtt;  // Local Body Attachment
-    double init_spring_def;
-
-    virtual void ComputeQ(ChState* state_x,      ///< state position to evaluate Q
-                          ChStateDelta* state_w  ///< state speed to evaluate Q
-                          ) {
-        ChVector<> Node_Pos;
-        ChVector<> Node_Vel;
-        ChVector<> Node_Grad;
-
-        ChVector<> dij;   // Vector describing current spring-damper relative location
-        ChVector<> ddij;  // Vector describing current spring-damper relative velocity
-
-        ChVector<> NodeAttachment;
-        if (state_x && state_w) {
-            // GetLog() << " We are reaching this" << loadables.size();
-            for (int iii = 0; iii < loadables.size() - 1; iii++) {
-                Node_Pos = state_x->ClipVector(iii * 6, 0);
-                Node_Grad = state_x->ClipVector(iii * 6 + 3, 0);
-                Node_Vel = state_w->ClipVector(iii * 6, 0);
-
-                ChVector<> BodyAttachWorld = AttachBody->Point_Body2World(LocalBodyAtt[iii]);
-                dij = Node_Pos - BodyAttachWorld;  // Current relative vector between attachment points
-                double c_length = dij.Length();    // l
-                ddij = Node_Vel - AttachBody->PointSpeedLocalToParent(LocalBodyAtt[iii]);  // Time derivative of dij
-                double dc_length = 1 / c_length * (dij.x * ddij.x + dij.y * ddij.y + dij.z * ddij.z);  // ldot
-                double for_spdp = K_sp[iii] * (c_length - l0[iii] - init_spring_def) +
-                                  C_dp[iii] * dc_length;  // Absolute value of spring-damper force
-
-#ifdef NormalSP
-
-                ChVector<> UnitNormal = Node_Grad.GetNormalized();
-                this->load_Q(iii * 6 + 0) = -for_spdp * UnitNormal.x;
-                this->load_Q(iii * 6 + 1) = -for_spdp * UnitNormal.y;
-                this->load_Q(iii * 6 + 2) = -for_spdp * UnitNormal.z;
-
-                ChVectorDynamic<> Qi(6);  // Vector of generalized forces from spring and damper
-                ChVectorDynamic<> Fi(6);  // Vector of applied forces and torques (6 components)
-                double detJi = 0;         // Determinant of transformation (Not used)
-
-                Fi(0) = for_spdp * UnitNormal.x;
-                Fi(1) = for_spdp * UnitNormal.y;
-                Fi(2) = for_spdp * UnitNormal.z;
-                Fi(3) = 0.0;
-                Fi(4) = 0.0;
-                Fi(5) = 0.0;
-#else
-
-                this->load_Q(iii * 6 + 0) = -for_spdp * dij.GetNormalized().x;
-                this->load_Q(iii * 6 + 1) = -for_spdp * dij.GetNormalized().y;
-                this->load_Q(iii * 6 + 2) = -for_spdp * dij.GetNormalized().z;
-
-                ChVectorDynamic<> Qi(6);  // Vector of generalized forces from spring and damper
-                ChVectorDynamic<> Fi(6);  // Vector of applied forces and torques (6 components)
-                double detJi = 0;         // Determinant of transformation (Not used)
-
-                Fi(0) = for_spdp * dij.GetNormalized().x;
-                Fi(1) = for_spdp * dij.GetNormalized().y;
-                Fi(2) = for_spdp * dij.GetNormalized().z;
-                Fi(3) = 0.0;
-                Fi(4) = 0.0;
-                Fi(5) = 0.0;
-#endif
-                ChState stateBody_x(7, NULL);
-                ChStateDelta stateBody_w(6, NULL);
-
-                stateBody_x(0) = (*state_x)((loadables.size() - 1) * 6);
-                stateBody_x(1) = (*state_x)((loadables.size() - 1) * 6 + 1);
-                stateBody_x(2) = (*state_x)((loadables.size() - 1) * 6 + 2);
-                stateBody_x(3) = (*state_x)((loadables.size() - 1) * 6 + 3);
-                stateBody_x(4) = (*state_x)((loadables.size() - 1) * 6 + 4);
-                stateBody_x(5) = (*state_x)((loadables.size() - 1) * 6 + 5);
-                stateBody_x(6) = (*state_x)((loadables.size() - 1) * 6 + 6);
-
-                stateBody_w(0) = (*state_w)((loadables.size() - 1) * 6);
-                stateBody_w(1) = (*state_w)((loadables.size() - 1) * 6 + 1);
-                stateBody_w(2) = (*state_w)((loadables.size() - 1) * 6 + 2);
-                stateBody_w(3) = (*state_w)((loadables.size() - 1) * 6 + 3);
-                stateBody_w(4) = (*state_w)((loadables.size() - 1) * 6 + 4);
-                stateBody_w(5) = (*state_w)((loadables.size() - 1) * 6 + 5);
-
-                // Apply generalized force to rigid body (opposite sign)
-                AttachBody->ComputeNF(BodyAttachWorld.x, BodyAttachWorld.y, BodyAttachWorld.z, Qi, detJi, Fi,
-                                      &stateBody_x, &stateBody_w);
-                // Apply forces to body (If body fixed, we should set those to zero not Qi(coordinate))
-                if (!AttachBody->GetBodyFixed()) {
-                    this->load_Q((loadables.size() - 1) * 6) = -for_spdp * dij.GetNormalized().x;
-                    this->load_Q((loadables.size() - 1) * 6 + 1) = -for_spdp * dij.GetNormalized().y;
-                    this->load_Q((loadables.size() - 1) * 6 + 2) = -for_spdp * dij.GetNormalized().z;
-                    this->load_Q((loadables.size() - 1) * 6 + 3) = 0.0;
-                    this->load_Q((loadables.size() - 1) * 6 + 4) = 0.0;
-                    this->load_Q((loadables.size() - 1) * 6 + 5) = 0.0;
-                }
-            }
-        } else {
-            // explicit integrators might call ComputeQ(0,0), null pointers mean
-            // that we assume current state, without passing state_x for efficiency
-        }
-    }
-    // Remember to set this as stiff, to enable the jacobians
-    virtual bool IsStiff() { return false; }
-};
 
 // =============================================================================
 
@@ -327,11 +216,19 @@ int main(int argc, char* argv[]) {
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
     utils::GridSampler<> sampler(initSpace0);
 
-    chrono::fsi::Real3 boxCenter = chrono::fsi::mR3(-bxDim / 2 + fxDim / 2, 0 * initSpace0, fzDim / 2 + 2 * initSpace0);
+    chrono::fsi::Real3 boxCenter = chrono::fsi::mR3(-bxDim / 2 + fxDim / 2, 0 * initSpace0, fzDim / 2 + 1 * initSpace0);
 
     chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
-    utils::Generator::PointVector points = sampler.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter),
-                                                             fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim));
+
+    std::string removal_points;
+    if (argc > 1)
+        removal_points = "null";
+    else
+        removal_points = "BCE_Flex0.csv";
+
+    utils::Generator::PointVector points =
+        sampler.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter),
+                          fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim), removal_points);
     int numPart = points.size();
     for (int i = 0; i < numPart; i++) {
         myFsiSystem.GetDataManager()->AddSphMarker(
@@ -419,6 +316,16 @@ int main(int argc, char* argv[]) {
     int TotalNumNodes = my_fsi_mesh->GetNnodes();
 
     SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, my_fsi_mesh, NodeNeighborElementMesh, paramsH, 0, mTime);
+
+    //
+    //    const std::string rmInitials = (std::string("rm ./BCE_Flex0.csv"));
+    //    if (argc > 1)
+    //        system(rmInitials.c_str());
+
+    const std::string copyInitials =
+        (std::string("cp ") + data_folder + std::string("/BCE_Flex0.csv") + std::string(" ./ "));
+    system(copyInitials.c_str());
+
     std::vector<ChVector<double>> x0;  // displacement of the nodes
     Real time = 0;
     Real Global_max_dT = paramsH->dT_Max;
@@ -452,8 +359,12 @@ int main(int argc, char* argv[]) {
         time += paramsH->dT;
         SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, my_fsi_mesh, NodeNeighborElementMesh, paramsH, next_frame,
                              time);
+        auto mBody = mphysicalSystem.Get_bodylist()->at(1);
+        ChVector<> body_pos = mBody->GetPos();
+        // printf("------------------Indentor Pos_z (mm)= %f --------------\n",
+        //	body_pos.z*1000);
 
-        if (time > 1)
+        if (time > 100)
             break;
     }
 
@@ -476,6 +387,9 @@ int main(int argc, char* argv[]) {
 //------------------------------------------------------------------
 void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, chrono::fsi::SimParams* paramsH) {
     mphysicalSystem.Set_G_acc(ChVector<>(0, 0, 0));
+
+    Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
+
     std::shared_ptr<chrono::ChMaterialSurface> mat_g(new chrono::ChMaterialSurface);
     // Set common material Properties
     mat_g->SetFriction(0.8);
@@ -492,11 +406,10 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     ground->SetMaterialSurface(mat_g);
 
     ground->GetCollisionModel()->ClearModel();
-    Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
 
     // Bottom wall
-    //    ChVector<> sizeBottom(bxDim / 2 + 3 * initSpace0, byDim / 2 + 3 * initSpace0, 2 * initSpace0);
-    ChVector<> sizeBottom(bxDim / 2, byDim / 2, 3 * initSpace0);
+    ChVector<> sizeBottom(bxDim / 2 + 3 * initSpace0, byDim / 2 + 3 * initSpace0, 2 * initSpace0);
+    //    ChVector<> sizeBottom(bxDim / 2, byDim / 2, 3 * initSpace0);
     ChVector<> posBottom(0, 0, -2 * initSpace0);
     ChVector<> posTop(0, 0, bzDim + 10 * initSpace0);
 
@@ -515,32 +428,61 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     //    chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xn, chrono::QUNIT, true);
     //    chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yp, chrono::QUNIT, true);
     //    chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yn, chrono::QUNIT, true);
-    mphysicalSystem.AddBody(ground);
+    mphysicalSystem.Add(ground);
+
+    // auto Indentor = std::make_shared<ChBody>();
+    // Indentor->SetBodyFixed(false);
+    // Indentor->SetMaterialSurface(mysurfmaterial);
+
+    collision::ChCollisionModel::SetDefaultSuggestedMargin(1.5);  // max inside penetration - if not enough stiffness in
+                                                                  // material: troubles
+
+    mphysicalSystem.SetContactForceModel(ChSystemDEM::Hooke);
+    auto mysurfmaterial = std::make_shared<ChMaterialSurfaceDEM>();
+
+    mysurfmaterial->SetKn(2e6);
+    mysurfmaterial->SetKt(0);
+    mysurfmaterial->SetGn(5.0);
+    mysurfmaterial->SetGt(0);
+
+    x0 = fzDim + 2 * initSpace0 + Indentor_R;
+
+    auto Indentor = std::make_shared<ChBodyEasySphere>(0.0032, 7400, false);
+    Indentor->SetPos(ChVector<>(0.0, 0.0, x0));
+    Indentor->SetMaterialSurface(mysurfmaterial);
+    mphysicalSystem.Add(Indentor);
+
+    auto MarkerGround = std::make_shared<ChMarker>();
+    auto MarkerIndentor = std::make_shared<ChMarker>();
+    ground->AddMarker(MarkerGround);
+    Indentor->AddMarker(MarkerIndentor);
+
+    auto my_link = std::make_shared<ChLinkLockLock>();
+    my_link->Initialize(MarkerIndentor, MarkerGround);
+    mphysicalSystem.AddLink(my_link);
+
+    impose_motion(my_link);
 
 #if haveFluid
 
     /*================== Walls =================*/
-
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posBottom, chrono::QUNIT, sizeBottom);
-    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT, sizeBottom);
+    //    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT,
+    //    sizeBottom);
 
-    //    chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xp, chrono::QUNIT,
-    //    size_YZ);
-    //
-    //    chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xn, chrono::QUNIT,
-    //    size_YZ);
-    //
-    //    chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yp, chrono::QUNIT,
-    //    size_XZ);
-    //
-    //    chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT,
-    //    size_XZ);
+    chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xp, chrono::QUNIT, size_YZ);
+
+    chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xn, chrono::QUNIT, size_YZ);
+
+    chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yp, chrono::QUNIT, size_XZ);
+
+    chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT, size_XZ);
 
     /*================== Flexible-Body =================*/
 
     GetLog() << "-----------------------------------------------------------\n";
     GetLog() << "-----------------------------------------------------------\n";
-    GetLog() << "     ANCF Shell Elements demo with implicit integration \n";
+    GetLog() << "     Multi-Physics model of articular cartilage    \n";
     GetLog() << "-----------------------------------------------------------\n";
 
     // Create a mesh, that is a container for groups of elements and their referenced nodes.
@@ -556,15 +498,15 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     double plate_lenght_y = byDim + 0 * initSpace0;
     double plate_lenght_z = 0.0005;
     // Specification of the mesh
-    int numDiv_x = 16;
-    int numDiv_y = 16;
+    int numDiv_x = 5;
+    int numDiv_y = 5;
     int numDiv_z = 1;
     int N_x = numDiv_x + 1;
     int N_y = numDiv_y + 1;
     int N_z = numDiv_z + 1;
     // Number of elements in the z direction is considered as 1
     int TotalNumElements = numDiv_x * numDiv_y;
-    int TotalNumNodes = (numDiv_x + 1) * (numDiv_y + 1);
+    int TotalNumNodes_onSurface = (numDiv_x + 1) * (numDiv_y + 1);
     // For uniform mesh
     double dx = plate_lenght_x / numDiv_x;
     double dy = plate_lenght_y / numDiv_y;
@@ -574,15 +516,15 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     std::vector<std::shared_ptr<ChNodeFEAxyzD>> Constraint_nodes_fibers;
 
     if (addCable) {
-        int num_Fibers = TotalNumNodes;
+        int num_Fibers = TotalNumNodes_onSurface;
         double K_Fiber = K_SPRINGS / num_Fibers;
-        int numCableElems_Per_Fiber = 10;
+        int numCableElems_Per_Fiber = 12;
         double rho = 1000;
-        double Fiber_Diameter = initSpace0 * 1;
+        double Fiber_Diameter = initSpace0 * 2;
         double Fiber_Length = bzDim;
 
         double Area = 3.1415 * std::pow(Fiber_Diameter, 2) / 4;
-        double E = 1e1;
+        double E = 1e6;
         double nu = 0.3;
         auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
         /*================== Cable Elements =================*/
@@ -596,30 +538,30 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
             ChBuilderBeamANCF builder;
             double loc_x = (Fiber % (numDiv_x + 1)) * dx - bxDim / 2 - 0 * initSpace0;
             double loc_y = (Fiber / (numDiv_x + 1)) % (numDiv_y + 1) * dy - byDim / 2 - 0 * initSpace0;
-            double loc_z = (Fiber) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + bzDim + 3 * initSpace0;
+            double loc_z = (Fiber) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + fzDim + 4 * initSpace0;
 
-            // Now, simply use BuildBeam to create a beam from a point to another:
-            builder.BuildBeam_FSI(
-                my_mesh,                  // the mesh where to put the created nodes and elements
-                msection_cable,           // the ChBeamSectionCable to use for the ChElementBeamANCF elements
-                numCableElems_Per_Fiber,  // the number of ChElementBeamANCF to create
-                ChVector<>(loc_x, loc_y, initSpace0),  // the 'A' point in space (beginning of beam)
-                ChVector<>(loc_x, loc_y, loc_z),       // the 'B' point in space (end of beam) _1D_elementsNodes_mesh,
-                _1D_elementsNodes_mesh, NodeNeighborElementMesh);
+            if (std::abs(loc_x) < bxDim / 2 && std::abs(loc_y) < byDim / 2 || 1) {
+                // Now, simply use BuildBeam to create a beam from a point to another:
+                builder.BuildBeam_FSI(
+                    my_mesh,                      // the mesh where to put the created nodes and elements
+                    msection_cable,               // the ChBeamSectionCable to use for the ChElementBeamANCF elements
+                    numCableElems_Per_Fiber,      // the number of ChElementBeamANCF to create
+                    ChVector<>(loc_x, loc_y, 0),  // the 'A' point in space (beginning of beam)
+                    ChVector<>(loc_x, loc_y, loc_z),  // the 'B' point in space (end of beam) _1D_elementsNodes_mesh,
+                    _1D_elementsNodes_mesh, NodeNeighborElementMesh);
 
-            auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(builder.GetLastBeamNodes().back());
-            Constraint_nodes_fibers.push_back(Node);
+                auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(builder.GetLastBeamNodes().back());
+                Constraint_nodes_fibers.push_back(Node);
+                printf("Constraint node %d (%f, %f, %f)\n", Node->GetPos().x, Node->GetPos().y, Node->GetPos().z);
 
-            printf("Constraint node %f, %f, %f\n", builder.GetLastBeamNodes().back()->GetPos().x,
-                   builder.GetLastBeamNodes().back()->GetPos().y, builder.GetLastBeamNodes().back()->GetPos().z);
+                //        // After having used BuildBeam(), you can retrieve the nodes used for the beam,
+                //        // For example say you want to fix both pos and dir of A end and apply a force to the B end:
+                //        builder.GetLastBeamNodes().back()->SetFixed(true);
 
-            //        // After having used BuildBeam(), you can retrieve the nodes used for the beam,
-            //        // For example say you want to fix both pos and dir of A end and apply a force to the B end:
-            //        builder.GetLastBeamNodes().back()->SetFixed(true);
-
-            //        auto constraint_hinge = std::make_shared<ChLinkPointFrame>();
-            //        constraint_hinge->Initialize(builder.GetLastBeamNodes().back(), mtruss);
-            //        mphysicalSystem.Add(constraint_hinge);
+                //        auto constraint_hinge = std::make_shared<ChLinkPointFrame>();
+                //        constraint_hinge->Initialize(builder.GetLastBeamNodes().back(), mtruss);
+                //        mphysicalSystem.Add(constraint_hinge);
+            }
         }
 
         for (int i = 0; i < my_mesh->GetNnodes(); i++) {
@@ -631,19 +573,21 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
             }
         }
     }
+    printf("after adding fibers to chrono::fea, _1D_elementsNodes_mesh.size()=%d\n", _1D_elementsNodes_mesh.size());
 
     int currentNodesize = NodeNeighborElementMesh.size();
     int currentElemsize = _1D_elementsNodes_mesh.size();
+    numCableNodes = currentNodesize;
 
     printf("currentElemsize is %d\n", currentElemsize);
     _2D_elementsNodes_mesh.resize(TotalNumElements);
-    NodeNeighborElementMesh.resize(currentNodesize + TotalNumNodes);
+    NodeNeighborElementMesh.resize(currentNodesize + TotalNumNodes_onSurface);
     // Create and add the nodes
-    for (int i = 0; i < TotalNumNodes; i++) {
+    for (int i = 0; i < TotalNumNodes_onSurface; i++) {
         // Node location
         double loc_x = (i % (numDiv_x + 1)) * dx - bxDim / 2 - 0 * initSpace0;
         double loc_y = (i / (numDiv_x + 1)) % (numDiv_y + 1) * dy - byDim / 2 - 0 * initSpace0;
-        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + bzDim + 3 * initSpace0;
+        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + fzDim + 4 * initSpace0;
 
         // Node direction
         double dir_x = 0;
@@ -653,7 +597,9 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         // Create the node
         auto node = std::make_shared<ChNodeFEAxyzD>(ChVector<>(loc_x, loc_y, loc_z), ChVector<>(dir_x, dir_y, dir_z));
 
-        Constraint_nodes_Shell.push_back(node);
+        if (std::abs(loc_x) < bxDim / 2 && std::abs(loc_y) < byDim / 2 || 1) {
+            Constraint_nodes_Shell.push_back(node);
+        }
 
         node->SetMass(0);
 
@@ -665,23 +611,44 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         //            node->SetFixed(true);
         //        }
 
-        //        if (i % (numDiv_x + 1) == 0 || i % (numDiv_x) == 0 || i < (numDiv_x + 1) ||
-        //            i >= (TotalNumNodes - numDiv_x - 1)) {
-        //            auto NodeDir = std::make_shared<ChLinkDirFrame>();
-        //            NodeDir->Initialize(node, ground);
-        //            NodeDir->SetDirectionInAbsoluteCoords(node->D);
-        //            mphysicalSystem.Add(NodeDir);
-        //        }
-
-        if ((i +1)% (numDiv_x + 1) == 0 || i % (numDiv_x+1) == 0 || i < (numDiv_x + 1) ||
-            i >= (TotalNumNodes - numDiv_x - 1)) {
+        if ((i + 1) % (numDiv_x + 1) == 0 || i % (numDiv_x + 1) == 0 || i < (numDiv_x + 1) ||
+            i >= (TotalNumNodes_onSurface - numDiv_x - 1)) {
             auto NodePos = std::make_shared<ChLinkPointFrameGeneral>(ChVector<>(0, 0, 1));
             NodePos->Initialize(node, ground);
             mphysicalSystem.Add(NodePos);
             printf("general constraint node %d is set at %f, %f, %f\n", i, node->GetPos().x, node->GetPos().y,
-                      node->GetPos().z);
-
+                   node->GetPos().z);
         }
+
+/*if ((i + 1) % (numDiv_x + 1) == 0 || i % (numDiv_x + 1) == 0
+        || i < (numDiv_x + 1) || i >= (TotalNumNodes_onSurface - numDiv_x - 1)) {
+    auto NodePos = std::make_shared<ChLinkPointFrame>();
+    NodePos->Initialize(node, ground);
+    mphysicalSystem.Add(NodePos);
+    printf("general constraint node %d is set at %f, %f, %f\n", i,
+            node->GetPos().x, node->GetPos().y, node->GetPos().z);
+
+}*/
+
+#ifndef addPressure
+#ifdef addIndentor
+
+        ChVector<> nodePos = node->GetPos();
+        if (pow(std::abs(nodePos.x), 2) + pow(std::abs(nodePos.y), 2) < pow(Indentor_R / 2, 2)) {
+            printf("indentation is applied to node %d pos=(%f, %f, %f)\n", i, nodePos.x, nodePos.y, nodePos.z);
+            auto NodePos = std::make_shared<ChLinkPointFrame>();
+            auto NodeDir = std::make_shared<ChLinkDirFrame>();
+
+            NodePos->Initialize(node, Indentor);
+            mphysicalSystem.Add(NodePos);
+
+            NodeDir->Initialize(node, Indentor);
+            NodeDir->SetDirectionInAbsoluteCoords(node->D);
+            mphysicalSystem.Add(NodeDir);
+        }
+
+#endif
+#endif
 
         //        if (abs(loc_x) < bxDim / 4 && abs(loc_y) < byDim / 4) {
         //            node->SetForce(ChVector<>(0, 0, 1));
@@ -692,13 +659,12 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     }
 
     ChVector<> mforce;
-    for (int iNode = 0; iNode < TotalNumNodes; iNode++) {
+    for (int iNode = 0; iNode < TotalNumNodes_onSurface; iNode++) {
         auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(iNode));
         //            Node->SetForce(ChVector<>(0, 0, 0.1));
         mforce += Node->GetForce();
     }
     printf("GET.FORCES INITIAL=%f\n", mforce.Length());
-
 
     if (Constraint_nodes_Shell.size() == Constraint_nodes_fibers.size()) {
         for (int iNode = 0; iNode < Constraint_nodes_fibers.size(); iNode++) {
@@ -706,7 +672,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
             constr->Initialize(Constraint_nodes_fibers[iNode], Constraint_nodes_Shell[iNode]);
             mphysicalSystem.Add(constr);
         }
-    } else if (addCable){
+    } else if (addCable) {
         std::cout << "Error! Constraints are not applied correctly\n" << std::endl;
         std::cin.get();
     }
@@ -753,47 +719,15 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         my_mesh->AddElement(element);
     }
 
+    // auto mcontactsurf = std::make_shared<ChContactSurfaceMesh>();
+    // my_mesh->AddContactSurface(mcontactsurf);
+    // mcontactsurf->AddFacesFromBoundary(0.001); // do this after my_mesh->AddContactSurface
+    // mcontactsurf->SetMaterialSurface(mysurfmaterial); // use the DEM penalty contacts
+
     double NODE_AVE_AREA = dx * dy;
     double Tottal_stiff = 0;
     double Tottal_damp = 0;
 
-    auto Springsloadcontainer = std::make_shared<ChLoadContainer>();
-
-    if (addSprings) {
-        // Select on which nodes we are going to apply a load
-        std::vector<std::shared_ptr<ChLoadable>> NodeList;
-        for (int iNode = 0; iNode < my_mesh->GetNnodes(); iNode++) {
-            auto NodeLoad = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(iNode));
-            NodeList.push_back(NodeLoad);
-        }
-        auto OneLoadSpringDamper = std::make_shared<MyLoadSpringDamper>(NodeList, ground, init_def);
-        for (int iNode = 0; iNode < my_mesh->GetNnodes(); iNode++) {
-            auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(iNode));
-            ChVector<> AttachBodyGlobal = Node->GetPos() - L0_t * Node->GetD();  // Locate first the
-            // attachment point in the body in global coordiantes
-            // Stiffness of the Elastic Foundation
-            double K_S = K_SPRINGS / TotalNumNodes;  // Stiffness Constant
-            double C_S = C_DAMPERS / TotalNumNodes;  // Damper Constant
-            Tottal_stiff += K_S;
-            Tottal_damp += C_S;
-            // Initial length
-            OneLoadSpringDamper->C_dp[iNode] = C_S;
-            OneLoadSpringDamper->K_sp[iNode] = K_S;
-            OneLoadSpringDamper->l0[iNode] = L0_t;
-
-            // Calculate the damping ratio zeta
-            double zeta, m_ele;
-            m_ele = rho * dz * NODE_AVE_AREA;
-            zeta = C_S / (2 * sqrt(K_S * m_ele));
-            //            GetLog() << "Zeta of node # " << iNode << " is set to : " << zeta << "\n";
-            OneLoadSpringDamper->LocalBodyAtt[iNode] = ground->Point_World2Body(AttachBodyGlobal);
-        }
-        Springsloadcontainer->Add(OneLoadSpringDamper);
-        GetLog() << "Total Stiffness (N/mm)= " << Tottal_stiff / 1e3 << " Total Damping = " << Tottal_damp
-                 << " Average zeta= " << Tottal_damp / (2 * sqrt(Tottal_stiff * (rho * dz * 1e-3))) << "\n";
-
-        mphysicalSystem.Add(Springsloadcontainer);
-    }
     my_mesh->SetAutomaticGravity(false);
 
 #ifdef addPressure
@@ -830,11 +764,11 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
     bool multilayer = true;
     bool removeMiddleLayer = false;
-    bool add1DElem = false;
+    bool add1DElem = true;
     bool add2DElem = true;
     chrono::fsi::utils::AddBCE_FromMesh(
         myFsiSystem.GetDataManager(), paramsH, my_mesh, FSI_Nodes, FSI_Cables, FSI_Shells, NodeNeighborElementMesh,
-        _1D_elementsNodes_mesh, _2D_elementsNodes_mesh, add1DElem, add2DElem, multilayer, removeMiddleLayer, +2);
+        _1D_elementsNodes_mesh, _2D_elementsNodes_mesh, add1DElem, add2DElem, multilayer, removeMiddleLayer, +1);
     myFsiSystem.SetCableElementsNodes(_1D_elementsNodes_mesh);
     myFsiSystem.SetShellElementsNodes(_2D_elementsNodes_mesh);
     myFsiSystem.SetFsiMesh(my_mesh);
@@ -900,21 +834,42 @@ void Calculator(fsi::ChSystemFsi& myFsiSystem,
 
     int TotalNumNodes = my_mesh->GetNnodes();
     double delta_Ave;
-    for (int iNode = 0; iNode < TotalNumNodes; iNode++) {
+    double delta_s = 0;
+    ChVector<> mforces;
+    // x0.resize(TotalNumNodes-numCableNodes);
+    for (int iNode = numCableNodes; iNode < TotalNumNodes; iNode++) {
         auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(iNode));
         if (saveInitials) {
             x0.push_back(Node->GetPos());
         }
-        ChVector<> x_i = x0[iNode];
+        ChVector<> x_i = x0[iNode - numCableNodes];
+
+        mforces += Node->GetForce();
+        if (std::abs(Node->GetPos().x) < 1e-6 && std::abs(Node->GetPos().y) < 1e-6)
+            delta_s = Node->GetPos().z - x_i.z;
+
         double delta = Vdot(Node->GetPos() - x_i, Node->GetD().GetNormalized());
         delta_Ave += delta;
     }
     delta_Ave /= TotalNumNodes;
     double AppliedPressure = applyRampPressure(time, t_ramp, p_max);
+
+#ifdef addPressure
     printf("delta(mm)=%f, applied_Pressure=%f, sigma_s=%f, sigma_f=%f\n", delta_Ave * 1000, AppliedPressure,
            K_SPRINGS * delta_Ave / bxDim / byDim, p_Ave);
     output << time << " " << delta_Ave << " " << AppliedPressure << " " << K_SPRINGS * delta_Ave / bxDim / byDim << " "
            << p_Ave << std::endl;
+#endif
+
+#ifndef addPressure
+#ifdef addIndentor
+
+    printf("delta_s(micro m)=%f, f_N(mN)=(%f,%f,%f)\n", delta_s * 1e6, mforces.x * 1e3, mforces.y * 1e3,
+           mforces.z * 1e3);
+    output << time << " " << delta_s << " " << mforces.z << std::endl;
+#endif
+#endif
+
     output.close();
 }
 
@@ -1215,12 +1170,11 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
 
         output << "\nVECTORS Position float\n";
 
-                    for (int j = 0; j < nodeList.size(); j++) {
-                        auto node = std::dynamic_pointer_cast<ChNodeFEAxyz>(my_mesh->GetNode(nodeList[j]));
-                    	ChVector<double> pos = node->GetPos();
-                        output << pos.x << " " << pos.y << " " << pos.z<< "\n";
-
-                }
+        for (int j = 0; j < nodeList.size(); j++) {
+            auto node = std::dynamic_pointer_cast<ChNodeFEAxyz>(my_mesh->GetNode(nodeList[j]));
+            ChVector<double> pos = node->GetPos();
+            output << pos.x << " " << pos.y << " " << pos.z << "\n";
+        }
 
         output << "\nVECTORS E_Princ_Dir1 float\n";
         for (unsigned int i = 0; i < nodeList.size(); i++) {
@@ -1332,4 +1286,34 @@ void saveInputFile(std::string inputFile, std::string outAddress) {
     inFile.close();
     outFile.close();
     std::cout << inputFile << "	" << outAddress << "\n";
+}
+
+void impose_motion(std::shared_ptr<ChLinkLockLock> my_link) {
+    class z_motion : public ChFunction {
+      public:
+        z_motion() {}
+
+        virtual z_motion* Clone() const override { return new z_motion(); }
+
+        virtual double Get_y(double x) const override {
+            double y;
+            y = Indentaiton_rate * x + x0;
+
+            if (Indentaiton_rate * x < -200e-6)
+                Indentaiton_rate *= -1;
+
+            if (Indentaiton_rate * x > 0)
+                Indentaiton_rate *= -1;
+
+            return (y);
+        }
+    };
+
+    // printf("\n\n\n\n\n Applying motion_Z with rate: %f\n\n", Indentaiton_rate);
+    z_motion* mymotion = new z_motion();
+    // printf("test function(1)= %f", mymotion->Get_y(1));
+
+    my_link->SetMotion_X(new ChFunction_Const(0));
+    my_link->SetMotion_Y(new ChFunction_Const(0));
+    my_link->SetMotion_Z(mymotion);
 }

@@ -44,7 +44,7 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.0005;
+    paramsH->HSML = 0.0002;
     paramsH->MULT_INITSPACE = 1.0;
     paramsH->MULT_INITSPACE_Shells = 1;
     paramsH->epsMinMarkersDis = .01;
@@ -54,18 +54,18 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->LARGE_PRES = 0;
     paramsH->deltaPress;
     paramsH->multViscosity_FSI = 1;
-    paramsH->gravity = mR3(0, 0, 0);
+    paramsH->gravity = mR3(0, 0, -0.1);
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 0.5;
+    paramsH->mu0 = 0.1;
     paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
-    paramsH->PPE_res = 0.0001;
-    paramsH->Max_Pressure = 1e5;
+    paramsH->PPE_res = 0.001;
+    paramsH->Max_Pressure = 1e7;
     paramsH->PPE_Max_Iter = 10000;
-    paramsH->PPE_Solution_type = SPARSE_MATRIX_JACOBI;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
+    paramsH->PPE_Solution_type = IterativeJacobi;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
     paramsH->PPE_relaxation = 0.3;                 // Increasing this to 0.5 causes instability
     paramsH->ClampPressure = true;                 // If the negative pressure should be clamped to zero or not
     paramsH->IncompressibilityFactor = 1;     // Increasing this causes lager compressibility, but let for larger dt
@@ -74,8 +74,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->Co_number = 1;                   // 0.2 works well for most cases
     paramsH->dT_Max = 0.01;  // This is problem dependent should set by the user based on characteristic time step
 
-    paramsH->dT = 5e-4;
-    paramsH->dT_Flex = paramsH->dT/5 ;
+    paramsH->dT = 1e-3;
+    paramsH->dT_Flex = paramsH->dT / 5;
 
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
@@ -89,8 +89,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
     paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
-    paramsH->cMin = mR3(-bxDim / 2, -byDim / 2, -bzDim - paramsH->HSML * 30) - 0.5 * paramsH->HSML;
-    paramsH->cMax = mR3(bxDim / 2, byDim / 2, bzDim + paramsH->HSML * 30) + 0.5 * paramsH->HSML;
+    paramsH->cMin = mR3(-bxDim / 2, -byDim / 2, -bzDim - paramsH->HSML * 30) - 5 * paramsH->HSML;
+    paramsH->cMax = mR3(bxDim / 2, byDim / 2, bzDim + paramsH->HSML * 30) + 10 * paramsH->HSML;
 
     //****************************************************************************************
     // printf("a1  paramsH->cMax.x, y, z %f %f %f,  binSize %f\n",
