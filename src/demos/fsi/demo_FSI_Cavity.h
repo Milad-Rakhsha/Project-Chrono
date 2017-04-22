@@ -44,8 +44,8 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.0625/2;
-    paramsH->MULT_INITSPACE = 0.8;
+    paramsH->HSML = 0.05;
+    paramsH->MULT_INITSPACE = 1;
     paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
@@ -68,15 +68,15 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->IncompressibilityFactor = 1;    // Increasing this causes lager compressibility, but let for larger dt
     paramsH->USE_CUSP = false;               // Experimentally,don't use if for now
     paramsH->Adaptive_time_stepping = false;  // This let you use large time steps when possible
-    paramsH->ClampPressure = true;                 // If the negative pressure should be clamped to zero or not
+    paramsH->ClampPressure = false;                 // If the negative pressure should be clamped to zero or not
     paramsH->Co_number = 0.8;                // 0.2 works well for most cases
-    paramsH->dT_Max = 0.01;  // This is problem dependent should set by the user based on characteristic time step
+    paramsH->dT_Max = 0.02;  // This is problem dependent should set by the user based on characteristic time step
     paramsH->Apply_BC_U = true; // You should go to custom_math.h all the way to end of file and set your function
 
     paramsH->Cs = 340;
 
 
-    paramsH->dT = 5e-5;
+    paramsH->dT = 1e-5;
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;  // I don't know what is kdT

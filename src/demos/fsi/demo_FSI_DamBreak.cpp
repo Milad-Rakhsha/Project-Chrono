@@ -68,13 +68,13 @@ const std::string out_dir = "FSI_OUTPUT";  //"../FSI_OUTPUT";
 const std::string pov_dir_fluid = out_dir + "/DamBreak/";
 const std::string pov_dir_mbd = out_dir + "/povFilesHmmwv";
 bool povray_output = true;
-int out_fps = 25;
+int out_fps = 50;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
-Real bxDim = 3.4;
-Real byDim = 0.2;
+Real bxDim = 3.0;
+Real byDim = 1.0;
 Real bzDim = 1.6;
 
 Real fxDim = 1;
@@ -570,21 +570,22 @@ void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length
 //------------------------------------------------------------------
 // Function to save the povray files of the MBD
 //------------------------------------------------------------------
-
 void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
                           ChSystemParallelDVI& mphysicalSystem,
                           chrono::fsi::SimParams* paramsH,
-                          int tStep,
+                          int next_frame,
                           double mTime) {
     static double exec_time;
     int out_steps = std::ceil((1.0 / paramsH->dT) / out_fps);
     exec_time += mphysicalSystem.GetTimerStep();
     int num_contacts = mphysicalSystem.GetNcontacts();
-
+    double frame_time = 1.0 / out_fps;
     static int out_frame = 0;
 
     // If enabled, output data for PovRay postprocessing.
-    if (povray_output && tStep % out_steps == 0) {
+    //    printf("mTime= %f\n", mTime - (next_frame)*frame_time);
+
+    if (povray_output && std::abs(mTime - (next_frame)*frame_time) < 0.0001) {
         // **** out fluid
         chrono::fsi::utils::PrintToParaViewFile(
             myFsiSystem.GetDataManager()->sphMarkersD2.posRadD, myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
@@ -602,7 +603,7 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
 #endif
 
         // **** out mbd
-        if (tStep / out_steps == 0) {
+        if (next_frame / out_steps == 0) {
             const std::string rmCmd = std::string("rm ") + pov_dir_mbd + std::string("/*.dat");
             system(rmCmd.c_str());
         }
@@ -611,11 +612,12 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
         sprintf(filename, "%s/data_%03d.dat", pov_dir_mbd.c_str(), out_frame + 1);
         utils::WriteShapesPovray(&mphysicalSystem, filename);
 
-        cout << "\n\n------------ Output frame:   " << out_frame + 1 << endl;
-        cout << "             Sim frame:      " << tStep << endl;
+        cout << "\n------------ Output frame:   " << next_frame << endl;
+        cout << "             Sim frame:      " << next_frame << endl;
         cout << "             Time:           " << mTime << endl;
         cout << "             Avg. contacts:  " << num_contacts / out_steps << endl;
         cout << "             Execution time: " << exec_time << endl << endl;
+        cout << "\n----------------------------\n" << endl;
 
         out_frame++;
     }

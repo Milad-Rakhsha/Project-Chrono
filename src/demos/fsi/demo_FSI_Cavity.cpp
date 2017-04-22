@@ -72,7 +72,7 @@ const std::string out_dir = "FSI_OUTPUT";  //"../FSI_OUTPUT";
 const std::string pov_dir_fluid = out_dir + "/Cavity";
 const std::string pov_dir_mbd = out_dir + "/povFilesHmmwv";
 bool povray_output = true;
-int out_fps = 1000;
+int out_fps = 2000;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -600,7 +600,7 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
     // If enabled, output data for PovRay postprocessing.
     //    printf("mTime= %f\n", mTime - (next_frame)*frame_time);
 
-    if (povray_output && std::abs(mTime - (next_frame)*frame_time) < 0.00001) {
+    if (povray_output && std::abs(mTime - (next_frame)*frame_time) <1e-7) {
         // **** out fluid
         chrono::fsi::utils::PrintToParaViewFile(
             myFsiSystem.GetDataManager()->sphMarkersD2.posRadD, myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,

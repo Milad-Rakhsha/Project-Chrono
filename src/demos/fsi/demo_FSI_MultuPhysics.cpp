@@ -365,14 +365,14 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     /*================== Flexible-Bodies =================*/
     auto my_mesh = std::make_shared<fea::ChMesh>();
     double rho = 1000;
-    double E = 1e5;
+    double E = 1e6;
     double nu = 0.3;
     auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
     std::vector<std::vector<int>> NodeNeighborElement;
     std::vector<std::vector<int>> _1D_elementsNodes_mesh;
     std::vector<std::vector<int>> _2D_elementsNodes_mesh;
     if (addCable) {
-        int numCableElems = 10;
+        int numCableElems = 4;
         /*================== Cable Elements =================*/
         auto msection_cable = std::make_shared<ChBeamSectionCable>();
         msection_cable->SetDiameter(initSpace0 * 2);
@@ -389,11 +389,11 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
         // Now, simply use BuildBeam to create a beam from a point to another:
         builder.BuildBeam_FSI(
-            my_mesh,                                 // the mesh where to put the created nodes and elements
-            msection_cable,                          // the ChBeamSectionCable to use for the ChElementBeamANCF elements
-            numCableElems,                           // the number of ChElementBeamANCF to create
-            ChVector<>(-bxDim / 20, 0, initSpace0),  // the 'A' point in space (beginning of beam)
-            ChVector<>(-bxDim / 20, 0, bzDim / 4),   // the 'B' point in space (end of beam) _1D_elementsNodes_mesh,
+            my_mesh,                       // the mesh where to put the created nodes and elements
+            msection_cable,                // the ChBeamSectionCable to use for the ChElementBeamANCF elements
+            numCableElems,                 // the number of ChElementBeamANCF to create
+            ChVector<>(0, 0, initSpace0),  // the 'A' point in space (beginning of beam)
+            ChVector<>(0, 0, bzDim / 4),   // the 'B' point in space (end of beam) _1D_elementsNodes_mesh,
             _1D_elementsNodes_mesh, NodeNeighborElementMesh);
 
         //        // After having used BuildBeam(), you can retrieve the nodes used for the beam,
@@ -453,7 +453,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
             // Node location
             double loc_x = (i % (numDiv_x + 1)) * dx + initSpace0;
             double loc_y = (i / (numDiv_x + 1)) % (numDiv_y + 1) * dy - byDim / 2;
-            double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz - bxDim / 8 + 2 * initSpace0;
+            double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + bxDim / 4 + 2 * initSpace0;
 
             // Node direction
             double dir_x = 0;
@@ -525,8 +525,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* FSI_Nodes = myFsiSystem.GetFsiNodesPtr();
 
     bool multilayer = true;
-    bool removeMiddleLayer = true;
-    bool add1DElem = false;
+    bool removeMiddleLayer = false;
+    bool add1DElem = true;
     bool add2DElem = true;
     chrono::fsi::utils::AddBCE_FromMesh(myFsiSystem.GetDataManager(), paramsH, my_mesh, FSI_Nodes, FSI_Cables,
                                         FSI_Shells, NodeNeighborElementMesh, _1D_elementsNodes_mesh,

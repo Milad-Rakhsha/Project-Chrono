@@ -44,8 +44,8 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.020;
-    paramsH->MULT_INITSPACE = 1.0;
+    paramsH->HSML = 0.0125;
+    paramsH->MULT_INITSPACE = 1;
     paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
@@ -57,14 +57,14 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 1.0;
+    paramsH->mu0 = 0.05;
     paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
     paramsH->PPE_res = 0.001;
     paramsH->PPE_Max_Iter = 10000;
     paramsH->PPE_Solution_type = IterativeJacobi;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
-    paramsH->PPE_relaxation = 0.5;                 // Increasing this to 0.5 causes instability
+    paramsH->PPE_relaxation = 0.4;                 // Increasing this to 0.5 causes instability
     paramsH->ClampPressure = true;                 // If the negative pressure should be clamped to zero or not
     paramsH->IncompressibilityFactor = 1;     // Increasing this causes lager compressibility, but let for larger dt
     paramsH->USE_CUSP = false;                // Experimentally,don't use if for now
@@ -72,7 +72,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->Co_number = 1;                   // 0.2 works well for most cases
     paramsH->dT_Max = 0.01;  // This is problem dependent should set by the user based on characteristic time step
 
-    paramsH->dT = 2e-3;
+    paramsH->dT = 1e-3;
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;  // I don't know what is kdT
@@ -85,8 +85,10 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
     paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
-    paramsH->cMin = mR3(-bxDim / 2, -byDim / 2, -bzDim - paramsH->HSML * 30) - 1 * paramsH->HSML;
-    paramsH->cMax = mR3(bxDim / 2, byDim / 2, bzDim + paramsH->HSML * 30) + 1 * paramsH->HSML;
+    Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
+
+    paramsH->cMin = mR3(-bxDim / 2, -byDim / 2, -bzDim / 2 - 5 * initSpace0) - 4 * initSpace0;
+    paramsH->cMax = mR3(bxDim / 2, byDim / 2, bzDim + 10 * initSpace0) + 4 * initSpace0;
 
     //****************************************************************************************
     // printf("a1  paramsH->cMax.x, y, z %f %f %f,  binSize %f\n",

@@ -57,21 +57,22 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = .001;
+    paramsH->mu0 = .05;
     paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
     paramsH->PPE_res = 0.001;
     paramsH->PPE_Max_Iter = 2000;
     paramsH->PPE_Solution_type = SPARSE_MATRIX_JACOBI;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
-    paramsH->PPE_relaxation = 0.3;                      // Increasing this to 0.5 causes instability
+    paramsH->PPE_relaxation = 0.4;                      // Increasing this to 0.5 causes instability
     paramsH->IncompressibilityFactor = 1;    // Increasing this causes lager compressibility, but let for larger dt
     paramsH->USE_CUSP = false;               // Experimentally,don't use if for now
-    paramsH->Adaptive_time_stepping = true;  // This let you use large time steps when possible
+    paramsH->Adaptive_time_stepping = false;  // This let you use large time steps when possible
+    paramsH->ClampPressure = true;            // If the negative pressure should be clamped to zero or not
     paramsH->Co_number = 0.5;                // 0.2 works well for most cases
     paramsH->dT_Max = 0.01;  // This is problem dependent should set by the user based on characteristic time step
 
-    paramsH->dT = 5e-4;
+    paramsH->dT = 1e-3;
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;  // I don't know what is kdT

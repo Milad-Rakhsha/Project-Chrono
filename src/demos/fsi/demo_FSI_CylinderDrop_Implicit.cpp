@@ -50,7 +50,7 @@
 #define haveFluid 1
 
 #define AddCylinder
-//#define AddBoundaries
+#define AddBoundaries
 
 // Chrono namespaces
 using namespace chrono;
@@ -73,20 +73,17 @@ const std::string out_dir = "FSI_OUTPUT";  //"../FSI_OUTPUT";
 const std::string pov_dir_fluid = out_dir + "/CylinderDrop/";
 const std::string pov_dir_mbd = out_dir + "/povFilesHmmwv";
 bool povray_output = true;
-int out_fps = 50;
+int out_fps = 100;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
-
-Real hdimX = 14;  // 5.5;
-Real hdimY = 0.0;
 
 Real hthick = 1;
 Real basinDepth = 2.5;
 
 Real bxDim = 1;
 Real byDim = 0.40;
-Real bzDim = 1.6;
+Real bzDim = 1.3;
 
 Real fxDim = bxDim;
 Real fyDim = byDim;
@@ -140,29 +137,28 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI& mphysicalSystem,
     ground->SetMaterialSurface(mat_g);
 
     ground->GetCollisionModel()->ClearModel();
+    Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
 
     // Bottom wall
-    ChVector<> sizeBottom(bxDim / 2 + 3 * paramsH->HSML, byDim / 2 + 3 * paramsH->HSML, 2 * paramsH->HSML);
-    ChVector<> posBottom(0, 0, -2 * paramsH->HSML);
-    ChVector<> posTop(0, 0, bzDim + 2 * paramsH->HSML);
+    ChVector<> sizeBottom(bxDim / 2 + 3 * initSpace0, byDim / 2 + 3 * initSpace0, 2 * initSpace0);
+    ChVector<> posBottom(0, 0, -2 * initSpace0);
+    ChVector<> posTop(0, 0, bzDim + 2 * initSpace0);
 
     // left and right Wall
-    ChVector<> size_YZ(2 * paramsH->HSML, byDim / 2 + 3 * paramsH->HSML, bzDim / 2);
-    ChVector<> pos_xp(bxDim / 2 + paramsH->HSML, 0.0, bzDim / 2 + 1 * paramsH->HSML);
-    ChVector<> pos_xn(-bxDim / 2 - 3 * paramsH->HSML, 0.0, bzDim / 2 + 1 * paramsH->HSML);
+    ChVector<> size_YZ(2 * initSpace0, byDim / 2 + 3 * initSpace0, bzDim / 2);
+    ChVector<> pos_xp(bxDim / 2 + initSpace0, 0.0, bzDim / 2 + 1 * initSpace0);
+    ChVector<> pos_xn(-bxDim / 2 - 3 * initSpace0, 0.0, bzDim / 2 + 1 * initSpace0);
 
     // Front and back Wall
-    ChVector<> size_XZ(bxDim / 2, 2 * paramsH->HSML, bzDim / 2);
-    ChVector<> pos_yp(0, byDim / 2 + paramsH->HSML, bzDim / 2 + 1 * paramsH->HSML);
-    ChVector<> pos_yn(0, -byDim / 2 - 3 * paramsH->HSML, bzDim / 2 + 1 * paramsH->HSML);
+    ChVector<> size_XZ(bxDim / 2, 2 * initSpace0, bzDim / 2);
+    ChVector<> pos_yp(0, byDim / 2 + initSpace0, bzDim / 2 + 1 * initSpace0);
+    ChVector<> pos_yn(0, -byDim / 2 - 3 * initSpace0, bzDim / 2 + 1 * initSpace0);
 
     chrono::utils::AddBoxGeometry(ground.get(), sizeBottom, posBottom, chrono::QUNIT, true);
-#ifdef AddBoundaries
     chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xp, chrono::QUNIT, true);
     chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xn, chrono::QUNIT, true);
     chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yp, chrono::QUNIT, true);
     chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yn, chrono::QUNIT, true);
-#endif
 
     ground->GetCollisionModel()->BuildModel();
     mphysicalSystem.AddBody(ground);
@@ -180,7 +176,7 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI& mphysicalSystem,
 #endif
     // Add floating cylinder
 
-    ChVector<> cyl_pos = ChVector<>(0, 0, fzDim + cyl_radius + 2 * paramsH->HSML);
+    ChVector<> cyl_pos = ChVector<>(0, 0, fzDim + cyl_radius + 2 * initSpace0);
     ChQuaternion<> cyl_rot = chrono::QUNIT;
 
     std::vector<std::shared_ptr<ChBody>>* FSI_Bodies = myFsiSystem.GetFsiBodiesPtr();
@@ -284,7 +280,9 @@ int main(int argc, char* argv[]) {
     struct tm* timeinfo;
 
     //(void) cudaSetDevice(0);
-
+    const std::string CUDA_VISIBLE_DEVICE = (std::string("echo $CUDA_VISIBLE_DEVICE"));
+    int GPU_NUM = system(CUDA_VISIBLE_DEVICE.c_str());
+    printf("picked up GPU %d", GPU_NUM);
     time(&rawtime);
     timeinfo = localtime(&rawtime);
 
@@ -341,7 +339,7 @@ int main(int argc, char* argv[]) {
     utils::GridSampler<> sampler(initSpace0);
 
     chrono::fsi::Real3 boxCenter =
-        chrono::fsi::mR3(0, 0 * paramsH->HSML, fzDim / 2 + 1 * paramsH->HSML);  // This is very badly hardcoded
+        chrono::fsi::mR3(0, 0 * initSpace0, fzDim / 2 + 1 * initSpace0);  // This is very badly hardcoded
     chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
     utils::Generator::PointVector points = sampler.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter),
                                                              fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim));
@@ -451,6 +449,9 @@ int main(int argc, char* argv[]) {
 #endif
         time += paramsH->dT;
         SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, next_frame, time, Cylinder);
+
+        if (time > 10.0)
+            break;
     }
 
     return 0;
