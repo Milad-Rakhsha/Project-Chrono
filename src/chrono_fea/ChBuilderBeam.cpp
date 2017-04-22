@@ -212,8 +212,14 @@ void ChBuilderBeamANCF::BuildBeam_FSI(std::shared_ptr<ChMesh> mesh,  ///< mesh t
 
         element->SetSection(sect);
 
-        _1D_elementsNodes_mesh[_1D_elementsNodes_size + i].push_back(_1D_elementsNodes_size + i);
-        _1D_elementsNodes_mesh[_1D_elementsNodes_size + i].push_back(i + _1D_elementsNodes_size + 1);
+        _1D_elementsNodes_mesh[_1D_elementsNodes_size + i].push_back(beam_nodes[i]->GetIndex() - 1);
+        _1D_elementsNodes_mesh[_1D_elementsNodes_size + i].push_back(beam_nodes[i]->GetIndex());
+
+        //        _1D_elementsNodes_mesh[_1D_elementsNodes_size + i].push_back(_1D_elementsNodes_size + i);
+        //        _1D_elementsNodes_mesh[_1D_elementsNodes_size + i].push_back(i + _1D_elementsNodes_size + 1);
+
+        printf("beam_nodes[i]->GetIndex()= %d, _1D_elementsNodes_size + i=%d", beam_nodes[i]->GetIndex(),
+               _1D_elementsNodes_size + i);
 
         NodeNeighborElement1D_mesh[_1D_elementsNodes_size + i].push_back(_1D_elementsNodes_size + i);
         NodeNeighborElement1D_mesh[i + _1D_elementsNodes_size + 1].push_back(_1D_elementsNodes_size + i);

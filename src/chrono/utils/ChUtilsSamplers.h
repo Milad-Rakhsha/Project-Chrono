@@ -102,10 +102,10 @@ class Sampler {
   public:
     typedef typename Types<T>::PointVector PointVector;
 
-    PointVector SampleBox(const ChVector<T>& center, const ChVector<T>& halfDim) {
+    PointVector SampleBox(const ChVector<T>& center, const ChVector<T>& halfDim, std::string filename = "null") {
         m_center = center;
         m_size = halfDim;
-        return Sample(BOX);
+        return Sample(BOX, filename);
     }
 
     PointVector SampleSphere(const ChVector<T>& center, T radius) {
@@ -135,7 +135,7 @@ class Sampler {
   protected:
     enum VolumeType { BOX, SPHERE, CYLINDER_X, CYLINDER_Y, CYLINDER_Z };
 
-    virtual PointVector Sample(VolumeType t) = 0;
+    virtual PointVector Sample(VolumeType t, std::string filename = "null") = 0;
 
     // Utility function to check if a point is inside the sampling volume
     bool accept(VolumeType t, const ChVector<T>& p) {
@@ -246,7 +246,7 @@ class PDSampler : public Sampler<T> {
     enum Direction2D { NONE, X_DIR, Y_DIR, Z_DIR };
 
     // This is the worker function for sampling the given domain.
-    virtual PointVector Sample(VolumeType t) {
+    virtual PointVector Sample(VolumeType t, std::string filename) {
         PointVector out_points;
 
         // Check 2D/3D. If the size in one direction (e.g. z) is less than the
@@ -438,24 +438,67 @@ class GridSampler : public Sampler<T> {
     GridSampler(const ChVector<T>& spacing) : m_spacing(spacing) {}
 
   private:
-    virtual PointVector Sample(VolumeType t) {
+    virtual PointVector Sample(VolumeType t, std::string filename = "null") {
         PointVector out_points;
+        std::vector<ChVector<double>> particles_position;
 
-        ChVector<T> bl = this->m_center - this->m_size;
+        if (filename != "null") {
+            ChVector<double> this_particle;
 
-        int nx = (int)(2 * this->m_size.x / m_spacing.x) + 1;
-        int ny = (int)(2 * this->m_size.y / m_spacing.y) + 1;
-        int nz = (int)(2 * this->m_size.z / m_spacing.z) + 1;
+            std::fstream fin(filename);
+            if (!fin.good())
+                throw ChException("ERROR opening Mesh file: " + std::string(filename) + "\n");
 
-        for (int i = 0; i < nx; i++) {
-            for (int j = 0; j < ny; j++) {
-                for (int k = 0; k < nz; k++) {
-                    ChVector<T> p = bl + ChVector<T>(i * m_spacing.x, j * m_spacing.y, k * m_spacing.z);
-                    if (this->accept(t, p))
-                        out_points.push_back(p);
+            std::string line;
+            getline(fin, line);
+
+            while (getline(fin, line)) {
+                int ntoken = 0;
+                std::string token;
+                std::istringstream ss(line);
+                while (std::getline(ss, token, ' ') && ntoken < 4) {
+                    std::istringstream stoken(token);
+                    if (ntoken == 0)
+                        stoken >> this_particle.x;
+                    if (ntoken == 1)
+                        stoken >> this_particle.y;
+                    if (ntoken == 2)
+                        stoken >> this_particle.z;
+                    particles_position.push_back(this_particle);
+                    ++ntoken;
                 }
             }
         }
+        std::cout << "Set Removal points from: " << filename << std::endl;
+        std::cout << "Searching among " << particles_position.size() << "flex points" << std::endl;
+
+        ChVector<T> bl = this->m_center - this->m_size;
+        int numremove = 0;
+        int nx = (int)(2 * this->m_size.x / m_spacing.x) + 1;
+        int ny = (int)(2 * this->m_size.y / m_spacing.y) + 1;
+        int nz = (int)(2 * this->m_size.z / m_spacing.z) + 1;
+        for (int i = 0; i < nx; i++) {
+            for (int j = 0; j < ny; j++) {
+                for (int k = 0; k < nz; k++) {
+                    bool removeThis = false;
+
+                    ChVector<T> p = bl + ChVector<T>(i * m_spacing.x, j * m_spacing.y, k * m_spacing.z);
+                    for (int remove = 0; remove < particles_position.size(); remove++) {
+                        double dist = (particles_position[remove] - p).Length();
+                        if (dist < m_spacing.Length() / 2) {
+                            removeThis = true;
+                            break;
+                        }
+                    }
+
+                    if (this->accept(t, p) && !removeThis)
+                        out_points.push_back(p);
+                    else
+                        numremove++;
+                }
+            }
+        }
+        std::cout << "removed  " << numremove << "fluid particles due to their overlap with Flex BCEs" << std::endl;
 
         return out_points;
     }
@@ -478,7 +521,7 @@ class HCPSampler : public Sampler<T> {
     HCPSampler(T spacing) : m_spacing(spacing) {}
 
   private:
-    virtual PointVector Sample(VolumeType t) {
+    virtual PointVector Sample(VolumeType t, std::string filename) {
         PointVector out_points;
 
         ChVector<T> bl = this->m_center - this->m_size;

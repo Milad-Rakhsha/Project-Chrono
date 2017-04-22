@@ -115,7 +115,9 @@ __global__ void Populate_FlexSPH_MeshPos_LRF_kernel(Real3* FlexSPH_MeshPos_LRF_D
     //           FlexSPH_MeshPos_LRF_D[index].y, FlexSPH_MeshPos_LRF_D[index].z, Cable_x, dx);
   }
   if (FlexIndex >= numFlex1D) {
-    uint4 shellNodes = ShellElementsNodes[FlexIndex];
+    uint4 shellNodes = ShellElementsNodes[FlexIndex - numFlex1D];
+    //    printf("FlexIndex=%d, ShellElementsNodes[FlexIndex]=%d,%d,%d,%d\n", FlexIndex, shellNodes.x, shellNodes.y,
+    //           shellNodes.z, shellNodes.w);
 
     Real3 pos_fsi_fea_D_nA = pos_fsi_fea_D[shellNodes.x];
     Real3 pos_fsi_fea_D_nB = pos_fsi_fea_D[shellNodes.y];
@@ -168,10 +170,9 @@ __global__ void Calc_Flex_FSI_ForcesD(Real3* FlexSPH_MeshPos_LRF_D,
     Real NA = N_cable.x;
     Real NB = N_cable.y;
 
-
     int nA = CableElementsNodes[FlexIndex].x;
     int nB = CableElementsNodes[FlexIndex].y;
-    //printf("idx=%d, N.A= %f, N.B=%f to nodes nA=%d, nB=%d\n",index,NA,NB,nA,nB);
+    // printf("idx=%d, N.A= %f, N.B=%f to nodes nA=%d, nB=%d\n",index,NA,NB,nA,nB);
 
     atomicAdd(&(Flex_FSI_ForcesD[nA].x), NA * (double)derivVelRhoD[FlexMarkerIndex].x);
     atomicAdd(&(Flex_FSI_ForcesD[nA].y), NA * (double)derivVelRhoD[FlexMarkerIndex].y);
@@ -188,10 +189,10 @@ __global__ void Calc_Flex_FSI_ForcesD(Real3* FlexSPH_MeshPos_LRF_D,
     Real NC = N_shell.z;
     Real ND = N_shell.w;
 
-    int nA = ShellElementsNodes[FlexIndex].x;
-    int nB = ShellElementsNodes[FlexIndex].y;
-    int nC = ShellElementsNodes[FlexIndex].z;
-    int nD = ShellElementsNodes[FlexIndex].w;
+    int nA = ShellElementsNodes[FlexIndex - numFlex1D].x;
+    int nB = ShellElementsNodes[FlexIndex - numFlex1D].y;
+    int nC = ShellElementsNodes[FlexIndex - numFlex1D].z;
+    int nD = ShellElementsNodes[FlexIndex - numFlex1D].w;
 
     atomicAdd(&(Flex_FSI_ForcesD[nA].x), NA * (double)derivVelRhoD[FlexMarkerIndex].x);
     atomicAdd(&(Flex_FSI_ForcesD[nA].y), NA * (double)derivVelRhoD[FlexMarkerIndex].y);
@@ -433,6 +434,7 @@ __global__ void UpdateFlexMarkersPositionVelocityAccD(Real3* posRadD,
     uint2 CableNodes = CableElementsNodes[FlexIndex];
     Real3 pos_fsi_fea_D_nA = pos_fsi_fea_D[CableNodes.x];
     Real3 pos_fsi_fea_D_nB = pos_fsi_fea_D[CableNodes.y];
+    //    printf("CableElementsNodes[%d]=%d,%d\n", FlexIndex, CableNodes.x, CableNodes.y);
 
     Real3 x_dir = pos_fsi_fea_D_nB - pos_fsi_fea_D_nA;
 
@@ -456,7 +458,7 @@ __global__ void UpdateFlexMarkersPositionVelocityAccD(Real3* posRadD,
   }
 
   if (FlexIndex >= numFlex1D) {
-    uint4 shellNodes = ShellelementsNodes[FlexIndex];
+    uint4 shellNodes = ShellelementsNodes[FlexIndex - numFlex1D];
     Real3 pos_fsi_fea_D_nA = pos_fsi_fea_D[shellNodes.x];
     Real3 pos_fsi_fea_D_nB = pos_fsi_fea_D[shellNodes.y];
     Real3 pos_fsi_fea_D_nC = pos_fsi_fea_D[shellNodes.z];
@@ -633,7 +635,8 @@ void ChBce::MakeFlexIdentifier() {
                    fsiGeneralData->FlexIdentifierD.begin() + (updatePortion.y - numObjectsH->startFlexMarkers),
                    shellNum + numObjectsH->numFlexBodies1D);
 
-      printf("From %d to %d FlexIdentifierD=%d\n", updatePortion.x, updatePortion.y, shellNum);
+      printf("From %d to %d FlexIdentifierD=%d\n", updatePortion.x, updatePortion.y,
+             shellNum + numObjectsH->numFlexBodies1D);
     }
   }
 }
@@ -673,9 +676,14 @@ void ChBce::Populate_FlexSPH_MeshPos_LRF(SphMarkerDataD* sphMarkersD, FsiMeshDat
   computeGridSize(numObjectsH->numFlex_SphMarkers, 256, nBlocks_numFlex_SphMarkers, nThreads_SphMarkers);
 
   printf(
-      "size of FlexSPH_MeshPos_LRF_D = %d and posRadD=%d, numObjectsH->numFlexBodies1D =%d, in "
+      "size of FlexSPH_MeshPos_LRF_D = %d and posRadD=%d, in "
       "ChBce::Populate_FlexSPH_MeshPos_LRF\n",
-      fsiGeneralData->FlexSPH_MeshPos_LRF_D.size(), sphMarkersD->posRadD.size(), numObjectsH->numFlexBodies1D);
+      fsiGeneralData->FlexSPH_MeshPos_LRF_D.size(), sphMarkersD->posRadD.size());
+
+  printf(
+      "size of FlexIdentifierD = %d, numObjectsH->numFlexBodies1D =%d, numObjectsH->numFlexBodies2D "
+      "=%d,in ChBce::Populate_FlexSPH_MeshPos_LRF\n",
+      fsiGeneralData->FlexIdentifierD.size(), numObjectsH->numFlexBodies1D, numObjectsH->numFlexBodies2D);
 
   printf(
       "size of CableElementsNodes = %d and ShellElementsNodes=%d, fsiMeshD->pos_fsi_fea_D =%d, in "
