@@ -218,11 +218,8 @@ void ChBuilderBeamANCF::BuildBeam_FSI(std::shared_ptr<ChMesh> mesh,  ///< mesh t
         //        _1D_elementsNodes_mesh[_1D_elementsNodes_size + i].push_back(_1D_elementsNodes_size + i);
         //        _1D_elementsNodes_mesh[_1D_elementsNodes_size + i].push_back(i + _1D_elementsNodes_size + 1);
 
-        printf("beam_nodes[i]->GetIndex()= %d, _1D_elementsNodes_size + i=%d", beam_nodes[i]->GetIndex(),
-               _1D_elementsNodes_size + i);
-
-        NodeNeighborElement1D_mesh[_1D_elementsNodes_size + i].push_back(_1D_elementsNodes_size + i);
-        NodeNeighborElement1D_mesh[i + _1D_elementsNodes_size + 1].push_back(_1D_elementsNodes_size + i);
+        NodeNeighborElement1D_mesh[beam_nodes[i]->GetIndex() - 1].push_back(_1D_elementsNodes_size + i);
+        NodeNeighborElement1D_mesh[beam_nodes[i]->GetIndex()].push_back(_1D_elementsNodes_size + i);
 
         //        printf("Adding nodes %d,%d to the cable element %i\n ", _1D_elementsNodes_size + i,
         //               _1D_elementsNodes_size + i + 1, _1D_elementsNodes_size + i);

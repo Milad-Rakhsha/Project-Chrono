@@ -14,6 +14,8 @@ namespace fsi {
 
 enum BceVersion { ADAMI = 0, mORIGINAL = 1 };
 enum PPE_SolutionType { IterativeJacobi, SPARSE_MATRIX_JACOBI };
+enum Cusp_solverType { gmres, cr, bicgstab, cg };
+
 /**
  * @brief Simulation Parameters
  * @details
@@ -99,7 +101,10 @@ struct SimParams {
   Real tweakMultRho;  /* maximum allowed density change in one time step: tweakMultRho * rho0 */
   BceVersion bceType; /* maximum allowed density change in one time step: tweakMultRho * rho0 */
 
-  Real PPE_res;       // Poisson Pressure Equation residual
+  Real PPE_res;             // Poisson Pressure Equation residual
+  Real PPE_Abs_res;         // Poisson Pressure Equation Absolute residual
+  bool Verbose_monitoring;  // Poisson Pressure Equation Absolute residual
+
   Real Max_Pressure;  // Max Pressure in the pressure solver
   int PPE_Max_Iter;   // Poisson Pressure Equation maximum number of iteration
   PPE_SolutionType PPE_Solution_type;
@@ -108,11 +113,11 @@ struct SimParams {
   Real IncompressibilityFactor;
   Real Cs;
   bool USE_CUSP;
+  Cusp_solverType Cusp_solver;
   bool Adaptive_time_stepping;
   Real Co_number;
   Real dT_Max;
   bool Apply_BC_U;
-
 };
 
 }  // end namespace fsi

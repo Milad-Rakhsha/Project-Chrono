@@ -178,7 +178,9 @@ void CreateBceGlobalMarkersFromBceLocalPos_CableANCF(ChFsiDataManager* fsiData,
   chrono::ChVector<> nAa = cable->GetNodeA()->GetPos_dtdt();
   chrono::ChVector<> nBa = cable->GetNodeB()->GetPos_dtdt();
 
-  //  printf(" posRadBCE.size()= :%d\n", posRadBCE.size());
+  int posRadSizeModified = 0;
+
+  printf(" posRadBCE.size()= :%d\n", posRadBCE.size());
   for (int i = 0; i < posRadBCE.size(); i++) {
     //    chrono::ChVector<> posGlob =
     chrono::ChVector<> pos_physical = ChFsiTypeConvert::Real3ToChVector(posRadBCE[i]);
@@ -190,6 +192,8 @@ void CreateBceGlobalMarkersFromBceLocalPos_CableANCF(ChFsiDataManager* fsiData,
     cable->ShapeFunctions(N, pos_natural.x);
     chrono::ChVector<> x_dir = (nBp - nAp);
     chrono::ChVector<> Normal;
+    //    printf(" N0 =%f, nAp.z= %f, N2=%f, nAp.z=%f\n", N(0), nAp.z, N(2), nBp.z);
+
     chrono::ChVector<> Correct_Pos =
         N(0) * nAp + N(2) * nBp + new_y_axis * pos_physical.y + new_z_axis * pos_physical.z;
 
@@ -198,20 +202,51 @@ void CreateBceGlobalMarkersFromBceLocalPos_CableANCF(ChFsiDataManager* fsiData,
         (Correct_Pos.z < paramsH->cMin.z || Correct_Pos.z > paramsH->cMax.z)) {
       continue;
     }
-    printf("fsiData->sphMarkersH.posRadH.push_back :%f,%f,%f\n", Correct_Pos.x, Correct_Pos.y, Correct_Pos.z);
+    //    printf("fsiData->sphMarkersH.posRadH.push_back :%f,%f,%f\n", Correct_Pos.x, Correct_Pos.y, Correct_Pos.z);
 
-    fsiData->sphMarkersH.posRadH.push_back(ChFsiTypeConvert::ChVectorToReal3(Correct_Pos));
-    chrono::ChVector<> Correct_Vel = N(0) * nAv + N(2) * nBv;
-    Real3 v3 = ChFsiTypeConvert::ChVectorToReal3(Correct_Vel);
-    fsiData->sphMarkersH.velMasH.push_back(v3);
-    fsiData->sphMarkersH.rhoPresMuH.push_back(mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, type));
+    bool addthis = true;
+    for (int p = 0; p < fsiData->sphMarkersH.posRadH.size() - 1; p++) {
+      if (length(fsiData->sphMarkersH.posRadH[p] - ChFsiTypeConvert::ChVectorToReal3(Correct_Pos)) < 1e-8 &&
+          fsiData->sphMarkersH.rhoPresMuH[p].w != -1) {
+        addthis = false;
+        //        printf("remove this particle %f,%f,%f because of its overlap with a particle at %f,%f,%f\n",
+        //               fsiData->sphMarkersH.posRadH[p].x, fsiData->sphMarkersH.posRadH[p].y,
+        //               fsiData->sphMarkersH.posRadH[p].z,
+        //               Correct_Pos.x, Correct_Pos.y, Correct_Pos.z);
+
+        break;
+      }
+    }
+
+    // THIS is hardcoding for now
+
+    std::vector<double> box;
+    box.resize(6);
+    box[0] = -0.0045;
+    box[1] = 0.0045;
+    box[2] = -0.0045;
+    box[3] = 0.0045;
+    box[4] = -0.005;
+    box[5] = 0.005;
+    bool insideBox = true;
+    insideBox = Correct_Pos.x > box[0] && Correct_Pos.x < box[1] && Correct_Pos.y > box[2] && Correct_Pos.y < box[3] &&
+                Correct_Pos.z > box[4] && Correct_Pos.z < box[5];
+
+    if (addthis && insideBox) {
+      fsiData->sphMarkersH.posRadH.push_back(ChFsiTypeConvert::ChVectorToReal3(Correct_Pos));
+      chrono::ChVector<> Correct_Vel = N(0) * nAv + N(2) * nBv;
+      Real3 v3 = ChFsiTypeConvert::ChVectorToReal3(Correct_Vel);
+      fsiData->sphMarkersH.velMasH.push_back(v3);
+      fsiData->sphMarkersH.rhoPresMuH.push_back(mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, type));
+      posRadSizeModified++;
+    }
   }
 
   // ------------------------
   // Modify number of objects
   // ------------------------
   int numObjects = fsiData->fsiGeneralData.referenceArray.size();
-  int numBce = posRadBCE.size();
+  int numBce = posRadSizeModified;
   fsiData->numObjects.numAllMarkers += numBce;
 
   int numRigid = fsiData->numObjects.numRigidBodies;
@@ -249,6 +284,7 @@ void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
   int type = 3;
 
   chrono::ChMatrixNM<double, 8, 1> N;
+  int posRadSizeModified = 0;
 
   Real dx = shell->GetLengthX();
   Real dy = shell->GetLengthY();
@@ -290,21 +326,38 @@ void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
     }
     //    printf("fsiData->sphMarkersH.posRadH.push_back :%f,%f,%f\n", Correct_Pos.x, Correct_Pos.y, Correct_Pos.z);
 
-    fsiData->sphMarkersH.posRadH.push_back(ChFsiTypeConvert::ChVectorToReal3(Correct_Pos));
-    chrono::ChVector<> Correct_Vel = N(0) * nAv + N(2) * nBv + N(4) * nCv + N(6) * nDv;
-    Real3 v3 = ChFsiTypeConvert::ChVectorToReal3(Correct_Vel);
-    fsiData->sphMarkersH.velMasH.push_back(v3);
-    fsiData->sphMarkersH.rhoPresMuH.push_back(mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, type));
+    // Note that the fluid markers are removed differently
+    bool addthis = true;
+    for (int p = 0; p < fsiData->sphMarkersH.posRadH.size() - 1; p++) {
+      if (length(fsiData->sphMarkersH.posRadH[p] - ChFsiTypeConvert::ChVectorToReal3(Correct_Pos)) < 1e-8 &&
+          fsiData->sphMarkersH.rhoPresMuH[p].w != -1) {
+        addthis = false;
+        //        printf("remove this particle %f,%f,%f because of its overlap with a particle at %f,%f,%f\n",
+        //               fsiData->sphMarkersH.posRadH[p].x, fsiData->sphMarkersH.posRadH[p].y,
+        //               fsiData->sphMarkersH.posRadH[p].z,
+        //               Correct_Pos.x, Correct_Pos.y, Correct_Pos.z);
+        break;
+      }
+    }
+
+    if (addthis) {
+      fsiData->sphMarkersH.posRadH.push_back(ChFsiTypeConvert::ChVectorToReal3(Correct_Pos));
+      chrono::ChVector<> Correct_Vel = N(0) * nAv + N(2) * nBv + N(4) * nCv + N(6) * nDv;
+      Real3 v3 = ChFsiTypeConvert::ChVectorToReal3(Correct_Vel);
+      fsiData->sphMarkersH.velMasH.push_back(v3);
+      fsiData->sphMarkersH.rhoPresMuH.push_back(mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, type));
+      posRadSizeModified++;
+    }
   }
   fsiData->sphMarkersH.rhoPresMuH.size();
-  printf(" CreateBceGlobalMarkersFromBceLocalPos_ShellANCF : fsiData->sphMarkersH.rhoPresMuH.size() %d. ",
-         fsiData->sphMarkersH.rhoPresMuH.size());
+  //  printf(" CreateBceGlobalMarkersFromBceLocalPos_ShellANCF : fsiData->sphMarkersH.rhoPresMuH.size() %d. ",
+  //         fsiData->sphMarkersH.rhoPresMuH.size());
 
   // ------------------------
   // Modify number of objects
   // ------------------------
   int numObjects = fsiData->fsiGeneralData.referenceArray.size();
-  int numBce = posRadBCE.size();
+  int numBce = posRadSizeModified;
   fsiData->numObjects.numAllMarkers += numBce;
 
   int numRigid = fsiData->numObjects.numRigidBodies;
@@ -570,7 +623,8 @@ void AddBCE_FromMesh(ChFsiDataManager* fsiData,
                      bool add2DElem,
                      bool multiLayer,
                      bool removeMiddleLayer,
-                     int SIDE) {
+                     int SIDE,
+                     int SIDE2D) {
   thrust::host_vector<Real3> posRadBCE;
   int numElems = my_mesh->GetNelements();
   std::vector<int> remove2D;
@@ -614,14 +668,17 @@ void AddBCE_FromMesh(ChFsiDataManager* fsiData,
 
             for (int inode = 0; inode < myNumNodes; inode++) {
               for (int jnode = 0; jnode < JNumNodes; jnode++) {
-                if (_1D_elementsNodes[i][inode] - 1 == _1D_elementsNodes[neighborElement][jnode] - 1 &&
-                    thisNode != _1D_elementsNodes[i][inode]-1 && i > neighborElement) {
+                if (_1D_elementsNodes[i][inode] == _1D_elementsNodes[neighborElement][jnode] &&
+                    thisNode != _1D_elementsNodes[i][inode] - 1) {
                   remove1D[inode] = 1;
+                  //                  printf("removing _1D_elementsNodes[%d][%d]=%d\n", i, inode,
+                  //                  _1D_elementsNodes[i][inode]);
                 }
               }
             }
           }
         }
+
         if (add1DElem) {
           CreateBCE_On_ChElementCableANCF(posRadBCE, paramsH, thisCable, remove1D, multiLayer, removeMiddleLayer, SIDE);
           CreateBceGlobalMarkersFromBceLocalPos_CableANCF(fsiData, paramsH, posRadBCE, thisCable);
@@ -644,15 +701,15 @@ void AddBCE_FromMesh(ChFsiDataManager* fsiData,
 
         for (int j = 0; j < myNumNodes; j++) {
           int thisNode = _2D_elementsNodes[i - Curr_size][j];
-                    printf("Considering elementsNodes[%d][%d]=%d\n", i-Curr_size, j, thisNode);
+          //          printf("Considering elementsNodes[%d][%d]=%d\n", i - Curr_size, j, thisNode);
 
           // Look into the elements attached to thisNode
           for (int k = 0; k < NodeNeighborElement[thisNode].size(); k++) {
             // If this neighbor element has more than one common node with the previous node this means that we must not
             // add BCEs to this edge anymore. Because that edge has already been given BCE markers
             // The kth element of this node:
-            int neighborElement = NodeNeighborElement[thisNode][k]-Curr_size;
-            printf("Considering neighbor NodeNeighborElement[%d][%d]=%d\n",thisNode, k, neighborElement);
+            int neighborElement = NodeNeighborElement[thisNode][k] - Curr_size;
+            //            printf("Considering neighbor NodeNeighborElement[%d][%d]=%d\n", thisNode, k, neighborElement);
 
             if (neighborElement >= i - Curr_size)
               continue;
@@ -665,15 +722,16 @@ void AddBCE_FromMesh(ChFsiDataManager* fsiData,
                 if (_2D_elementsNodes[i - Curr_size][inode] == _2D_elementsNodes[neighborElement][jnode] &&
                     thisNode != _2D_elementsNodes[i - Curr_size][inode] && i > neighborElement) {
                   remove2D[inode] = 1;
-                  printf("removing _2D_elementsNodes[%d][%d]=%d\n", i-Curr_size, inode, _2D_elementsNodes[i - Curr_size][inode] );
-
+                  //                  printf("removing _2D_elementsNodes[%d][%d]=%d\n", i - Curr_size, inode,
+                  //                         _2D_elementsNodes[i - Curr_size][inode]);
                 }
               }
             }
           }
         }
         if (add2DElem) {
-          CreateBCE_On_ChElementShellANCF(posRadBCE, paramsH, thisShell, remove2D, multiLayer, removeMiddleLayer, SIDE);
+          CreateBCE_On_ChElementShellANCF(posRadBCE, paramsH, thisShell, remove2D, multiLayer, removeMiddleLayer,
+                                          SIDE2D);
           CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(fsiData, paramsH, posRadBCE, thisShell);
         }
         posRadBCE.clear();

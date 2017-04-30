@@ -287,7 +287,7 @@ void ChFsiInterface::ResizeChronoNodesData() {
     printf("fsi_mesh.size in ResizeChronNodesData  %d\n", numNodes);
   }
   numNodes = fsi_mesh->GetNnodes();
-  printf("\n\n numNodes in ResizeChronNodesData  %d\n", numNodes);
+  printf("numNodes in ResizeChronNodesData  %d\n", numNodes);
   chronoFlexMeshBackup->resize(numNodes);
 }
 //------------------------------------------------------------------------------------
@@ -301,7 +301,7 @@ void ChFsiInterface::ResizeChronoFEANodesData() {
   numNodes = fsi_mesh->GetNnodes();
   printf("fsi_mesh.size in ResizeChronoFEANodesData  %d\n", numNodes);
 
-  printf("\n\n numNodes in ResizeChronoFEANodeData  %d\n", numNodes);
+  printf("numNodes in ResizeChronoFEANodeData  %d\n", numNodes);
 
   chronoFlexMeshBackup->resize(numNodes);
 }
@@ -377,7 +377,6 @@ void ChFsiInterface::ResizeChronoShellsData(std::vector<std::vector<int>> ShellE
 
   //  (*ShellelementsNodes).resize(numShells);
   //  thrust::copy(ShellelementsNodes_H.begin(), ShellelementsNodes_H.end(), (*ShellElementsNodes).begin());
-  printf("\n\n Got here\n");
 }
 
 //------------------------------------------------------------------------------------

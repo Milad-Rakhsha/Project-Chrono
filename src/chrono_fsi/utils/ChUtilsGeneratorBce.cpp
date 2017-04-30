@@ -200,7 +200,7 @@ void CreateBCE_On_ChElementCableANCF(thrust::host_vector<Real3>& posRadBCE,
 
   //  initSpaceX = dx / nFX;
 
-  Real initSpaceZ = paramsH->HSML;
+  Real initSpaceZ = initSpace0;
   int2 iBound = mI2(0, nFX);
 
   for (int i = iBound.x; i <= iBound.y; i++) {
@@ -227,16 +227,17 @@ void CreateBCE_On_ChElementCableANCF(thrust::host_vector<Real3>& posRadBCE,
         relMarkerPos = mR3(i * initSpaceX, 0, -j * initSpaceZ);
         posRadBCE.push_back(relMarkerPos);
 
-        if (!(multiLayer && removeMiddleLayer)) {
-          relMarkerPos = mR3(i * initSpaceX, j * initSpaceZ * sqrt(2) / 2, j * initSpaceZ * sqrt(2) / 2);
-          posRadBCE.push_back(relMarkerPos);
-          relMarkerPos = mR3(i * initSpaceX, -j * initSpaceZ * sqrt(2) / 2, j * initSpaceZ * sqrt(2) / 2);
-          posRadBCE.push_back(relMarkerPos);
-          relMarkerPos = mR3(i * initSpaceX, -j * initSpaceZ * sqrt(2) / 2, -j * initSpaceZ * sqrt(2) / 2);
-          posRadBCE.push_back(relMarkerPos);
-          relMarkerPos = mR3(i * initSpaceX, j * initSpaceZ * sqrt(2) / 2, -j * initSpaceZ * sqrt(2) / 2);
-          posRadBCE.push_back(relMarkerPos);
-        }
+        double CONST = sqrt(2) / 2;
+        //        if (removeMiddleLayer) {
+        //          relMarkerPos = mR3(i * initSpaceX, j * initSpaceZ * CONST, j * initSpaceZ * CONST);
+        //          posRadBCE.push_back(relMarkerPos);
+        //          relMarkerPos = mR3(i * initSpaceX, -j * initSpaceZ * CONST, j * initSpaceZ * CONST);
+        //          posRadBCE.push_back(relMarkerPos);
+        //          relMarkerPos = mR3(i * initSpaceX, -j * initSpaceZ * CONST, -j * initSpaceZ * CONST);
+        //          posRadBCE.push_back(relMarkerPos);
+        //          relMarkerPos = mR3(i * initSpaceX, j * initSpaceZ * CONST, -j * initSpaceZ * CONST);
+        //          posRadBCE.push_back(relMarkerPos);
+        //        }
       }
     }
 

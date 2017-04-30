@@ -191,16 +191,16 @@ void ChSystemFsi::FinalizeData() {
   // Arman: very important: you cannot change the order of (1-3).
   // Fix the issue later
 
-  printf("\n\n fsiInterface->ResizeChronoBodiesData()\n");
+  printf("\n\nfsiInterface->ResizeChronoBodiesData()\n");
   fsiInterface->ResizeChronoBodiesData();
   fsiInterface->ResizeChronoCablesData(CableElementsNodes, &(fsiData->fsiGeneralData.CableElementsNodesH));
   fsiInterface->ResizeChronoShellsData(ShellElementsNodes, &(fsiData->fsiGeneralData.ShellElementsNodesH));
   fsiInterface->ResizeChronoFEANodesData();
-  printf("passing %d to ResizeDataManager..\n", fsi_mesh->GetNnodes());
-  printf("\n\n fsiData->ResizeDataManager...\n");
+  //  printf("passing %d to ResizeDataManager..\n", fsi_mesh->GetNnodes());
+  printf("\nfsiData->ResizeDataManager...\n");
   fsiData->ResizeDataManager(fsi_mesh->GetNnodes());
 
-  printf("\n\n fsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem()\n");
+  printf("\n\nfsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem()\n");
   fsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem(&(fsiData->fsiBodiesD1));  //(1)
   fsiInterface->Copy_fsiNodes_ChSystem_to_FluidSystem(&(fsiData->fsiMeshD));
   std::cout << "referenceArraySize in FinalizeData " << GetDataManager()->fsiGeneralData.referenceArray.size() << "\n";

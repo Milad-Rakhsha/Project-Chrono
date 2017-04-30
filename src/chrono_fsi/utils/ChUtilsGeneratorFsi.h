@@ -147,7 +147,8 @@ void AddBCE_FromMesh(ChFsiDataManager* fsiData,
                      bool add2DElem,
                      bool multiLayer,
                      bool removeMiddleLayer,
-                     int SIDE);
+                     int SIDE,
+                     int SIDE2D = 2);
 
 }  // end namespace utils
 }  // end namespace fsi
