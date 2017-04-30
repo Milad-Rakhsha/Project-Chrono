@@ -72,11 +72,10 @@ const std::string out_dir = "FSI_OUTPUT";  //"../FSI_OUTPUT";
 const std::string pov_dir_fluid = out_dir + "/Cavity";
 const std::string pov_dir_mbd = out_dir + "/povFilesHmmwv";
 bool povray_output = true;
-int out_fps = 2000;
+int out_fps = 1000;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
-
 
 Real bxDim = 1.0;
 Real byDim = 0.1;
@@ -158,12 +157,12 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI& mphysicalSystem,
 
 #if haveFluid
 
-        chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xp, chrono::QUNIT, size_YZ);
-        chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xn, chrono::QUNIT, size_YZ);
-        chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yp, chrono::QUNIT, size_XZ);
-        chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT, size_XZ);
-    	chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posBottom, chrono::QUNIT, sizeBottom);
-        chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT, sizeBottom);
+    chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xp, chrono::QUNIT, size_YZ);
+    chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xn, chrono::QUNIT, size_YZ);
+    chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yp, chrono::QUNIT, size_XZ);
+    chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT, size_XZ);
+    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posBottom, chrono::QUNIT, sizeBottom);
+    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT, sizeBottom);
 
 #endif
 
@@ -304,11 +303,11 @@ int main(int argc, char* argv[]) {
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
     chrono::utils::GridSampler<> sampler(initSpace0);
 
-        chrono::fsi::Real3 boxCenter =
-            chrono::fsi::mR3(0, 0 * initSpace0, fzDim / 2 + 1 * initSpace0);  // This is very badly hardcoded
-        chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
-        chrono::utils::Generator::PointVector points = sampler.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter),
-                                                                 fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim));
+    chrono::fsi::Real3 boxCenter =
+        chrono::fsi::mR3(0, 0 * initSpace0, fzDim / 2 + 1 * initSpace0);  // This is very badly hardcoded
+    chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
+    chrono::utils::Generator::PointVector points = sampler.SampleBox(
+        fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter), fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim));
 
     int numPart = points.size();
     for (int i = 0; i < numPart; i++) {
@@ -430,8 +429,8 @@ int main(int argc, char* argv[]) {
         output.close();
         time += paramsH->dT;
         SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, next_frame, time);
-        if (time>0.5)
-    break;
+        if (time > 0.5)
+            break;
     }
 
     return 0;
@@ -600,7 +599,7 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
     // If enabled, output data for PovRay postprocessing.
     //    printf("mTime= %f\n", mTime - (next_frame)*frame_time);
 
-    if (povray_output && std::abs(mTime - (next_frame)*frame_time) <1e-7) {
+    if (povray_output && std::abs(mTime - (next_frame)*frame_time) < 1e-7) {
         // **** out fluid
         chrono::fsi::utils::PrintToParaViewFile(
             myFsiSystem.GetDataManager()->sphMarkersD2.posRadD, myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,

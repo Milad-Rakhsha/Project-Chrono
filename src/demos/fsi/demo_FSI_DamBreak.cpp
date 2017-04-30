@@ -68,7 +68,7 @@ const std::string out_dir = "FSI_OUTPUT";  //"../FSI_OUTPUT";
 const std::string pov_dir_fluid = out_dir + "/DamBreak/";
 const std::string pov_dir_mbd = out_dir + "/povFilesHmmwv";
 bool povray_output = true;
-int out_fps = 50;
+int out_fps = 100;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -384,7 +384,7 @@ int main(int argc, char* argv[]) {
     printf("Single Precision\n");
 #endif
     int stepEnd = int(paramsH->tFinal / paramsH->dT);
-    stepEnd = 1000000;
+    stepEnd = 50;
     std::vector<std::vector<double>> vCoor;
     std::vector<std::vector<int>> faces;
     std::string RigidConectivity = pov_dir_fluid + "RigidConectivity.vtk";

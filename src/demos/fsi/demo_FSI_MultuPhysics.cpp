@@ -389,11 +389,11 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
         // Now, simply use BuildBeam to create a beam from a point to another:
         builder.BuildBeam_FSI(
-            my_mesh,                       // the mesh where to put the created nodes and elements
-            msection_cable,                // the ChBeamSectionCable to use for the ChElementBeamANCF elements
-            numCableElems,                 // the number of ChElementBeamANCF to create
-            ChVector<>(0, 0, initSpace0),  // the 'A' point in space (beginning of beam)
-            ChVector<>(0, 0, bzDim / 4),   // the 'B' point in space (end of beam) _1D_elementsNodes_mesh,
+            my_mesh,                           // the mesh where to put the created nodes and elements
+            msection_cable,                    // the ChBeamSectionCable to use for the ChElementBeamANCF elements
+            numCableElems,                     // the number of ChElementBeamANCF to create
+            ChVector<>(0, 0, initSpace0),      // the 'A' point in space (beginning of beam)
+            ChVector<>(0, 0, 9 * initSpace0),  // the 'B' point in space (end of beam) _1D_elementsNodes_mesh,
             _1D_elementsNodes_mesh, NodeNeighborElementMesh);
 
         //        // After having used BuildBeam(), you can retrieve the nodes used for the beam,

@@ -102,23 +102,23 @@ std::string MESH_CONNECTIVITY = data_folder + "Flex_MESH.vtk";
 std::vector<std::vector<int>> NodeNeighborElementMesh;
 
 bool povray_output = true;
-int out_fps = 200;
+int out_fps = 100;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 Real bxDim = 0.01;
 Real byDim = 0.01;
-Real bzDim = 0.006;
+Real bzDim = 0.0045;
 Real p0 = 0;
 
 Real fxDim = 0.01;
 Real fyDim = 0.01;
-Real fzDim = 0.004;
+Real fzDim = 0.0035;
 
 // For displacement driven method
 double Indentor_R = 0.0032;
-double Indentaiton_rate = -20.0 * 1e-6;
+double Indentaiton_rate = -10.0 * 1e-6;
 double x0 = bzDim;
 
 // For force-driven method
@@ -164,7 +164,20 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
                           double mTime);
 
 void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, chrono::fsi::SimParams* paramsH);
-
+void calcSomeParams(const int numDiv_x,
+                    const int numDiv_y,
+                    const int numDiv_z,
+                    const double plate_lenght_x,
+                    const double plate_lenght_y,
+                    const double plate_lenght_z,
+                    int& N_x,
+                    int& N_y,
+                    int& N_z,
+                    int& TotalNumElements,
+                    int& TotalNumNodes_onSurface,
+                    double& dx,
+                    double& dy,
+                    double& dz);
 // =============================================================================
 
 #ifdef addPressure
@@ -220,35 +233,86 @@ int main(int argc, char* argv[]) {
 
     chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
 
-    std::string removal_points;
-    if (argc > 1)
-        removal_points = "null";
-    else
-        removal_points = "BCE_Flex0.csv";
-
-    utils::Generator::PointVector points =
-        sampler.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter),
-                          fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim), removal_points);
+    utils::Generator::PointVector points = sampler.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter),
+                                                             fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim));
     int numPart = points.size();
+
+    // This section is important to remove the fluid particles that overlap the BCE particles.
+    // In order to use this future, two things needs to be done;
+    // 1- run the simulation as usual, e.g. ./bin/demo_indentation, which will create the BCE_Flex0.csv
+    // This could be the actual simulation if there is no overlap between the fluid and BCE markers, if there is:
+    // 2- run the actual simulation with a command line argument such as ./bin/demo_indentation 2, which will go over
+    // the BCE_Flex0.csv file and use those information to remove overlap of fluid and BCE markers
+
+    std::cout << "Initial fluid size:" << points.size() << std::endl;
+    std::vector<fsi::Real3> particles_position;
+    if (argc > 1) {
+        fsi::Real3 this_particle;
+
+        std::fstream fin("BCE_Flex0.csv");
+        if (!fin.good())
+            throw ChException("ERROR opening Mesh file: BCE_Flex0.csv \n");
+
+        std::string line;
+        getline(fin, line);
+
+        while (getline(fin, line)) {
+            int ntoken = 0;
+            std::string token;
+            std::istringstream ss(line);
+            while (std::getline(ss, token, ' ') && ntoken < 4) {
+                std::istringstream stoken(token);
+                if (ntoken == 0)
+                    stoken >> this_particle.x;
+                if (ntoken == 1)
+                    stoken >> this_particle.y;
+                if (ntoken == 2)
+                    stoken >> this_particle.z;
+                ++ntoken;
+            }
+            particles_position.push_back(this_particle);
+        }
+    }
+    std::cout << "Set Removal points from: BCE_Flex0.csv" << std::endl;
+    std::cout << "Searching among " << particles_position.size() << "flex points" << std::endl;
+
+    int numremove = 0;
     for (int i = 0; i < numPart; i++) {
-        myFsiSystem.GetDataManager()->AddSphMarker(
-            chrono::fsi::mR3(points[i].x, points[i].y, points[i].z), chrono::fsi::mR3(0),
-            chrono::fsi::mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, -1));
+        bool removeThis = false;
+        fsi::Real3 p = fsi::mR3(points[i].x, points[i].y, points[i].z);
+        for (int remove = 0; remove < particles_position.size(); remove++) {
+            double dist = length(particles_position[remove] - p);
+            if (dist < initSpace0 * 0.95) {
+                removeThis = true;
+                break;
+            }
+        }
+        if (!removeThis) {
+            myFsiSystem.GetDataManager()->AddSphMarker(
+                p, chrono::fsi::mR3(0.0), chrono::fsi::mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, -1));
+        } else
+            numremove++;
     }
 
-    int numPhases = myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.size();  // Arman TODO: either rely on
+    std::cout << "Removed " << numremove << " Fluid particles from the simulation" << std::endl;
+    std::cout << "Final fluid size:" << myFsiSystem.GetDataManager()->sphMarkersH.rhoPresMuH.size() << std::endl;
+    particles_position.clear();
 
+    // This is important because later on we
+    int numFluidPart = myFsiSystem.GetDataManager()->sphMarkersH.posRadH.size();
+
+    int numPhases = myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.size();  // Arman TODO: either rely on
     if (numPhases != 0) {
         std::cout << "Error! numPhases is wrong, thrown from main\n" << std::endl;
         std::cin.get();
         return -1;
     } else {
         myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(
-            mI4(0, numPart, -1, -1));  // map fluid -1, Arman : this will later be
-                                       // removed, relying on finalize function and
-                                       // automatic sorting
+            mI4(0, numFluidPart, -1, -1));  // map fluid -1, Arman : this will later be
+                                            // removed, relying on finalize function and
+                                            // automatic sorting
         myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(
-            mI4(numPart, numPart, 0, 0));  // Arman : delete later
+            mI4(numFluidPart, numFluidPart, 0, 0));  // Arman : delete later
     }
 #endif
 
@@ -316,16 +380,9 @@ int main(int argc, char* argv[]) {
     int TotalNumNodes = my_fsi_mesh->GetNnodes();
 
     SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, my_fsi_mesh, NodeNeighborElementMesh, paramsH, 0, mTime);
-
-    //
-    //    const std::string rmInitials = (std::string("rm ./BCE_Flex0.csv"));
-    //    if (argc > 1)
-    //        system(rmInitials.c_str());
-
     const std::string copyInitials =
         (std::string("cp ") + data_folder + std::string("/BCE_Flex0.csv") + std::string(" ./ "));
     system(copyInitials.c_str());
-
     std::vector<ChVector<double>> x0;  // displacement of the nodes
     Real time = 0;
     Real Global_max_dT = paramsH->dT_Max;
@@ -492,6 +549,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     std::vector<std::vector<int>> NodeNeighborElement;
     std::vector<std::vector<int>> _1D_elementsNodes_mesh;
     std::vector<std::vector<int>> _2D_elementsNodes_mesh;
+    int N_x, N_y, N_z, TotalNumElements, TotalNumNodes_onSurface;
+    double dx, dy, dz;
 
     // Geometry of the surface
     double plate_lenght_x = bxDim + 0 * initSpace0;
@@ -501,16 +560,9 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     int numDiv_x = 5;
     int numDiv_y = 5;
     int numDiv_z = 1;
-    int N_x = numDiv_x + 1;
-    int N_y = numDiv_y + 1;
-    int N_z = numDiv_z + 1;
-    // Number of elements in the z direction is considered as 1
-    int TotalNumElements = numDiv_x * numDiv_y;
-    int TotalNumNodes_onSurface = (numDiv_x + 1) * (numDiv_y + 1);
-    // For uniform mesh
-    double dx = plate_lenght_x / numDiv_x;
-    double dy = plate_lenght_y / numDiv_y;
-    double dz = plate_lenght_z / numDiv_z;
+
+    calcSomeParams(numDiv_x, numDiv_y, numDiv_z, plate_lenght_x, plate_lenght_y, plate_lenght_z, N_x, N_y, N_z,
+                   TotalNumElements, TotalNumNodes_onSurface, dx, dy, dz);
 
     std::vector<std::shared_ptr<ChNodeFEAxyzD>> Constraint_nodes_Shell;
     std::vector<std::shared_ptr<ChNodeFEAxyzD>> Constraint_nodes_fibers;
@@ -518,13 +570,13 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     if (addCable) {
         int num_Fibers = TotalNumNodes_onSurface;
         double K_Fiber = K_SPRINGS / num_Fibers;
-        int numCableElems_Per_Fiber = 12;
+        int numCableElems_Per_Fiber = 8;
         double rho = 1000;
         double Fiber_Diameter = initSpace0 * 2;
         double Fiber_Length = bzDim;
 
         double Area = 3.1415 * std::pow(Fiber_Diameter, 2) / 4;
-        double E = 1e6;
+        double E = 2e7;
         double nu = 0.3;
         auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
         /*================== Cable Elements =================*/
@@ -538,7 +590,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
             ChBuilderBeamANCF builder;
             double loc_x = (Fiber % (numDiv_x + 1)) * dx - bxDim / 2 - 0 * initSpace0;
             double loc_y = (Fiber / (numDiv_x + 1)) % (numDiv_y + 1) * dy - byDim / 2 - 0 * initSpace0;
-            double loc_z = (Fiber) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + fzDim + 4 * initSpace0;
+            double loc_z = fzDim + 2 * initSpace0;
 
             if (std::abs(loc_x) < bxDim / 2 && std::abs(loc_y) < byDim / 2 || 1) {
                 // Now, simply use BuildBeam to create a beam from a point to another:
@@ -579,6 +631,13 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     int currentElemsize = _1D_elementsNodes_mesh.size();
     numCableNodes = currentNodesize;
 
+    numDiv_x = 10;
+    numDiv_y = 10;
+    numDiv_z = 1;
+
+    calcSomeParams(numDiv_x, numDiv_y, numDiv_z, plate_lenght_x, plate_lenght_y, plate_lenght_z, N_x, N_y, N_z,
+                   TotalNumElements, TotalNumNodes_onSurface, dx, dy, dz);
+
     printf("currentElemsize is %d\n", currentElemsize);
     _2D_elementsNodes_mesh.resize(TotalNumElements);
     NodeNeighborElementMesh.resize(currentNodesize + TotalNumNodes_onSurface);
@@ -587,7 +646,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         // Node location
         double loc_x = (i % (numDiv_x + 1)) * dx - bxDim / 2 - 0 * initSpace0;
         double loc_y = (i / (numDiv_x + 1)) % (numDiv_y + 1) * dy - byDim / 2 - 0 * initSpace0;
-        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + fzDim + 4 * initSpace0;
+        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + fzDim + 2 * initSpace0;
 
         // Node direction
         double dir_x = 0;
@@ -598,7 +657,12 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         auto node = std::make_shared<ChNodeFEAxyzD>(ChVector<>(loc_x, loc_y, loc_z), ChVector<>(dir_x, dir_y, dir_z));
 
         if (std::abs(loc_x) < bxDim / 2 && std::abs(loc_y) < byDim / 2 || 1) {
-            Constraint_nodes_Shell.push_back(node);
+            // look into the the fibers' nodes that need to be constraint;
+            // if this node is very close! to one of those nodes constraint it
+            for (int fibernodes = 0; fibernodes < Constraint_nodes_fibers.size(); fibernodes++) {
+                if ((node->GetPos() - Constraint_nodes_fibers[fibernodes]->GetPos()).Length() < 1e-6)
+                    Constraint_nodes_Shell.push_back(node);
+            }
         }
 
         node->SetMass(0);
@@ -768,7 +832,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     bool add2DElem = true;
     chrono::fsi::utils::AddBCE_FromMesh(
         myFsiSystem.GetDataManager(), paramsH, my_mesh, FSI_Nodes, FSI_Cables, FSI_Shells, NodeNeighborElementMesh,
-        _1D_elementsNodes_mesh, _2D_elementsNodes_mesh, add1DElem, add2DElem, multilayer, removeMiddleLayer, +1);
+        _1D_elementsNodes_mesh, _2D_elementsNodes_mesh, add1DElem, add2DElem, multilayer, removeMiddleLayer, +1, +2);
     myFsiSystem.SetCableElementsNodes(_1D_elementsNodes_mesh);
     myFsiSystem.SetShellElementsNodes(_2D_elementsNodes_mesh);
     myFsiSystem.SetFsiMesh(my_mesh);
@@ -1286,6 +1350,32 @@ void saveInputFile(std::string inputFile, std::string outAddress) {
     inFile.close();
     outFile.close();
     std::cout << inputFile << "	" << outAddress << "\n";
+}
+
+void calcSomeParams(const int numDiv_x,
+                    const int numDiv_y,
+                    const int numDiv_z,
+                    const double plate_lenght_x,
+                    const double plate_lenght_y,
+                    const double plate_lenght_z,
+                    int& N_x,
+                    int& N_y,
+                    int& N_z,
+                    int& TotalNumElements,
+                    int& TotalNumNodes_onSurface,
+                    double& dx,
+                    double& dy,
+                    double& dz) {
+    N_x = numDiv_x + 1;
+    N_y = numDiv_y + 1;
+    N_z = numDiv_z + 1;
+    // Number of elements in the z direction is considered as 1
+    TotalNumElements = numDiv_x * numDiv_y;
+    TotalNumNodes_onSurface = (numDiv_x + 1) * (numDiv_y + 1);
+    // For uniform mesh
+    dx = plate_lenght_x / numDiv_x;
+    dy = plate_lenght_y / numDiv_y;
+    dz = plate_lenght_z / numDiv_z;
 }
 
 void impose_motion(std::shared_ptr<ChLinkLockLock> my_link) {
