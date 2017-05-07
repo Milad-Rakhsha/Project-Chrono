@@ -19,6 +19,11 @@ endif()
 
 message(STATUS "==== Chrono FSI module ====")
 
+
+
+SET(SAP_INC_DIR "" CACHE PATH "Where is the SAPLibrary directory?")
+INCLUDE_DIRECTORIES(${SAP_INC_DIR})
+
 mark_as_advanced(CLEAR CUDA_TOOLKIT_ROOT_DIR)
 mark_as_advanced(CLEAR CUDA_USE_STATIC_CUDA_RUNTIME )
 mark_as_advanced(CLEAR USE_FSI_DOUBLE)
@@ -48,9 +53,14 @@ ENDIF()
 
 set(CH_FSI_INCLUDES 
     "${CUDA_TOOLKIT_ROOT_DIR}/include"
+    "${SAP_INC_DIR}"
 )
 
 set(CH_FSI_INCLUDES "${CH_FSI_INCLUDES}" PARENT_SCOPE)
+
+
+
+
 
 # ----------------------------------------------------------------------------
 # Generate and install configuration file

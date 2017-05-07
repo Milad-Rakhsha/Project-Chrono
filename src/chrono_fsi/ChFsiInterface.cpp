@@ -150,15 +150,19 @@ void ChFsiInterface::Add_Flex_Forces_To_ChSystem() {
   int numNodes_ChSystem = 0;
 
   int numNodes = fsiNodesPtr->size();
-
+  chrono::ChVector<> total_force(0, 0, 0);
   for (int i = 0; i < numNodes; i++) {
     chrono::ChVector<> mforce = ChFsiTypeConvert::Real3ToChVector((*Flex_FSI_ForcesD)[i]);
     // if (mforce.Length() != 0.0)
     //      printf("Added the force of %f,%f,%f to the flex nodes %d\n", mforce.x, mforce.y, mforce.z, i);
     auto node = std::dynamic_pointer_cast<fea::ChNodeFEAxyzD>(fsi_mesh->GetNode(i));
     //    ChVector<> OldForce = node->GetForce();
-    node->SetForce(mforce);
+    //    node->SetForce(mforce);
+    //    if (std::abs(node->GetPos().z) > 0.0039)
+    total_force += mforce;
   }
+
+  printf("Total Force from the fluid to the solid = (%f,%f,%f)\n", total_force.x, total_force.y, total_force.z);
 }
 
 //------------------------------------------------------------------------------------

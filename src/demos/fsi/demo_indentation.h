@@ -58,20 +58,25 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 0.6;
+    paramsH->mu0 = 0.1;
     paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
-    paramsH->USE_CUSP = true;                           // Experimentally,don't use if for now
+    // If CUSP and jacobi solver used at the same time, abs tolerance of the jacobi is 0.01, and it serves as a
+    // warm-start to CUSP solver. In this case PPE_res and PPE_Abs_res are the relative and absolute tolerance criteria
+    // of the cusp solver. If you want only the iterative solver, turn off cusp and set PPE_res as the
+    // convergence tolerance.
+    paramsH->USE_CUSP = false;
+    paramsH->USE_iterative_solver = true;
     paramsH->Cusp_solver = bicgstab;                    // gmres, cr, bicgstab, cg
     paramsH->Verbose_monitoring = false;                // If you want cusp to print out the iterations-residual
     paramsH->PPE_Solution_type = SPARSE_MATRIX_JACOBI;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
-    paramsH->PPE_res = 0;          // This is the relative res, is used in the iterative solver and  cusp solvers
-    paramsH->PPE_Abs_res = 1e-10;  // This is the absolute error used when cusp solvers are used
+    paramsH->PPE_res = 0.00001;    // This is the relative res, is used in the iterative solver and  cusp solvers
+    paramsH->PPE_Abs_res = 1e-14;  // This is the absolute error used when cusp solvers are used
     paramsH->PPE_Max_Iter = 2000;  // This is the max number of iteration for cusp solvers
 
     paramsH->Max_Pressure = 1e20;
-    paramsH->PPE_relaxation = 0.4;         // Increasing this to 0.5 causes instability, only used in iterative solvers
+    paramsH->PPE_relaxation = 0.3;         // Increasing this to 0.5 causes instability, only used in iterative solvers
     paramsH->IncompressibilityFactor = 1;  // Increasing this causes lager compressibility, but let for larger dt
     paramsH->ClampPressure = true;         // If the negative pressure should be clamped to zero or not
     paramsH->Adaptive_time_stepping = false;  // This let you use large time steps when possible
@@ -94,8 +99,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
     paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
-    paramsH->cMin = mR3(-bxDim / 2, -byDim / 2, -bzDim) - 5 * paramsH->HSML;
-    paramsH->cMax = mR3(bxDim / 2, byDim / 2, bzDim) + 5 * paramsH->HSML;
+    paramsH->cMin = mR3(-bxDim, -byDim, -bzDim - 20 * paramsH->HSML);
+    paramsH->cMax = mR3(bxDim, byDim, bzDim + 20 * paramsH->HSML);
 
     //****************************************************************************************
     // printf("a1  paramsH->cMax.x, y, z %f %f %f,  binSize %f\n",

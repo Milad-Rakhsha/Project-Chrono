@@ -158,6 +158,8 @@ void CreateBceGlobalMarkersFromBceLocalPos_CableANCF(ChFsiDataManager* fsiData,
   double dx = (cable->GetNodeB()->GetX0() - cable->GetNodeA()->GetX0()).Length();
 
   chrono::ChVector<> Element_Axis = (cable->GetNodeB()->GetX0() - cable->GetNodeA()->GetX0()).GetNormalized();
+  printf(" Element_Axis= %f, %f, %f\n", Element_Axis.x, Element_Axis.y, Element_Axis.z);
+
   chrono::ChVector<> Old_axis = ChVector<>(1, 0, 0);
   chrono::ChQuaternion<double> Rotation = (Q_from_Vect_to_Vect(Old_axis, Element_Axis));
   Rotation.Normalize();
@@ -185,17 +187,22 @@ void CreateBceGlobalMarkersFromBceLocalPos_CableANCF(ChFsiDataManager* fsiData,
     //    chrono::ChVector<> posGlob =
     chrono::ChVector<> pos_physical = ChFsiTypeConvert::Real3ToChVector(posRadBCE[i]);
     chrono::ChVector<> pos_natural = pos_physical * physic_to_natural;
-    //    printf(" physic_to_natural is = (%f,%f,%f)\n", physic_to_natural.x, physic_to_natural.y, physic_to_natural.z);
-    //    printf(" pos_physical is = (%f,%f,%f)\n", pos_physical.x, pos_physical.y, pos_physical.z);
-    //    printf(" pos_natural is = (%f,%f,%f)\n", pos_natural.x, pos_natural.y, pos_natural.z);
 
-    cable->ShapeFunctions(N, pos_natural.x);
+    //    cable->ShapeFunctions(N, pos_natural.x);
+
+    Real2 Nnew = Cables_ShapeFunctions(pos_natural.x);
+
     chrono::ChVector<> x_dir = (nBp - nAp);
     chrono::ChVector<> Normal;
     //    printf(" N0 =%f, nAp.z= %f, N2=%f, nAp.z=%f\n", N(0), nAp.z, N(2), nBp.z);
 
     chrono::ChVector<> Correct_Pos =
-        N(0) * nAp + N(2) * nBp + new_y_axis * pos_physical.y + new_z_axis * pos_physical.z;
+        Nnew.x * nAp + Nnew.y * nBp + new_y_axis * pos_physical.y + new_z_axis * pos_physical.z;
+
+    printf(" physic_to_natural is = (%f,%f,%f)\n", physic_to_natural.x, physic_to_natural.y, physic_to_natural.z);
+    printf(" pos_physical is = (%f,%f,%f)\n", pos_physical.x, pos_physical.y, pos_physical.z);
+    printf(" pos_natural is = (%f,%f,%f)\n ", pos_natural.x, pos_natural.y, pos_natural.z);
+    printf(" Correct_Pos is = (%f,%f,%f)\n\n\n ", Correct_Pos.x, Correct_Pos.y, Correct_Pos.z);
 
     if ((Correct_Pos.x < paramsH->cMin.x || Correct_Pos.x > paramsH->cMax.x) ||
         (Correct_Pos.y < paramsH->cMin.y || Correct_Pos.y > paramsH->cMax.y) ||
@@ -220,21 +227,22 @@ void CreateBceGlobalMarkersFromBceLocalPos_CableANCF(ChFsiDataManager* fsiData,
 
     // THIS is hardcoding for now
 
-    std::vector<double> box;
-    box.resize(6);
-    box[0] = -0.0045;
-    box[1] = 0.0045;
-    box[2] = -0.0045;
-    box[3] = 0.0045;
-    box[4] = -0.005;
-    box[5] = 0.005;
-    bool insideBox = true;
-    insideBox = Correct_Pos.x > box[0] && Correct_Pos.x < box[1] && Correct_Pos.y > box[2] && Correct_Pos.y < box[3] &&
-                Correct_Pos.z > box[4] && Correct_Pos.z < box[5];
+    //    std::vector<double> box;
+    //    box.resize(6);
+    //    box[0] = -0.0045;
+    //    box[1] = 0.0045;
+    //    box[2] = -0.0045;
+    //    box[3] = 0.0045;
+    //    box[4] = -0.005;
+    //    box[5] = 0.005;
+    //    bool insideBox = true;
+    //    insideBox = Correct_Pos.x > box[0] && Correct_Pos.x < box[1] && Correct_Pos.y > box[2] && Correct_Pos.y <
+    //    box[3] &&
+    //                Correct_Pos.z > box[4] && Correct_Pos.z < box[5];
 
-    if (addthis && insideBox) {
+    if (addthis) {
       fsiData->sphMarkersH.posRadH.push_back(ChFsiTypeConvert::ChVectorToReal3(Correct_Pos));
-      chrono::ChVector<> Correct_Vel = N(0) * nAv + N(2) * nBv;
+      chrono::ChVector<> Correct_Vel = N(0) * nAv + N(2) * nBv + ChVector<double>(1e-20);
       Real3 v3 = ChFsiTypeConvert::ChVectorToReal3(Correct_Vel);
       fsiData->sphMarkersH.velMasH.push_back(v3);
       fsiData->sphMarkersH.rhoPresMuH.push_back(mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, type));

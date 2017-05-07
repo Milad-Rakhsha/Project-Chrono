@@ -72,7 +72,7 @@ const std::string out_dir = "FSI_OUTPUT";  //"../FSI_OUTPUT";
 const std::string pov_dir_fluid = out_dir + "/Compressibility";
 const std::string pov_dir_mbd = out_dir + "/povFilesHmmwv";
 bool povray_output = true;
-int out_fps = 100;
+int out_fps = 50;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -140,7 +140,7 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI& mphysicalSystem,
     ChVector<> sizeBottom(bxDim / 2 + 3 * initSpace0, byDim / 2 + 3 * initSpace0, 2 * initSpace0);
     //    ChVector<> sizeBottom(bxDim / 2, byDim / 2, 3 * initSpace0);
     ChVector<> posBottom(0, 0, -2 * initSpace0);
-    ChVector<> posTop(0, 0, bzDim + 10 * initSpace0);
+    ChVector<> posTop(0, 0, bzDim + 2 * initSpace0);
 
     // left and right Wall
     ChVector<> size_YZ(2 * initSpace0, byDim / 2 + 3 * initSpace0, bzDim / 2);
@@ -163,8 +163,7 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI& mphysicalSystem,
 #if haveFluid
 
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posBottom, chrono::QUNIT, sizeBottom);
-    //    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT,
-    //    sizeBottom);
+    // chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT, sizeBottom);
 
     chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xp, chrono::QUNIT, size_YZ);
 
@@ -387,7 +386,7 @@ int main(int argc, char* argv[]) {
     printf("Single Precision\n");
 #endif
     int stepEnd = int(paramsH->tFinal / paramsH->dT);
-    stepEnd = 50000;
+    stepEnd = 5000000;
     std::vector<std::vector<double>> vCoor;
     std::vector<std::vector<int>> faces;
     std::string RigidConectivity = pov_dir_fluid + "RigidConectivity.vtk";
@@ -399,7 +398,10 @@ int main(int argc, char* argv[]) {
     std::shared_ptr<ChBody> Cylinder;
 #endif
 
-    SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, 1, 0);
+    cout << " \n\n\n myFsiSystem.GetDataManager()->SphMarkerDataH.posRadH: "
+         << myFsiSystem.GetDataManager()->sphMarkersH.rhoPresMuH[1].w << endl;
+
+    SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, 0, 0);
     const std::string rmCmd = (std::string("rm ") + pov_dir_fluid + std::string("/*"));
     system(rmCmd.c_str());
     saveInputFile(h_file, pov_dir_fluid + "/hfile.h");
@@ -439,6 +441,7 @@ int main(int argc, char* argv[]) {
         output << time << " " << Rho / numFluidMarkers << " " << paramsH->markerMass * KE / numFluidMarkers << endl;
         output.close();
         time += paramsH->dT;
+
         SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, next_frame, time);
     }
 
@@ -610,6 +613,7 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
 
     if (povray_output && std::abs(mTime - (next_frame)*frame_time) < 0.0001) {
         // **** out fluid
+
         chrono::fsi::utils::PrintToParaViewFile(
             myFsiSystem.GetDataManager()->sphMarkersD2.posRadD, myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
             myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
@@ -635,13 +639,10 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
         char filename[100];
         sprintf(filename, "%s/data_%03d.dat", pov_dir_mbd.c_str(), out_frame + 1);
         chrono::utils::WriteShapesPovray(&mphysicalSystem, filename);
-
-        cout << "\n------------ Output frame:   " << next_frame << endl;
-        cout << "             Sim frame:      " << next_frame << endl;
+        cout << "-------------------------------------\n" << endl;
+        cout << "             Output frame:   " << next_frame << endl;
         cout << "             Time:           " << mTime << endl;
-        cout << "             Avg. contacts:  " << num_contacts / out_steps << endl;
-        cout << "             Execution time: " << exec_time << endl << endl;
-        cout << "\n----------------------------\n" << endl;
+        cout << "-------------------------------------\n" << endl;
 
         out_frame++;
     }

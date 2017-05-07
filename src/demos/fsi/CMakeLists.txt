@@ -28,6 +28,8 @@ demo_AC_model
 demo_indentation
 demo_FSI_MultuPhysics
 testMKL
+test_FSI_ValidationBeam
+
 )
 
 # List all FSI demos use vehicle

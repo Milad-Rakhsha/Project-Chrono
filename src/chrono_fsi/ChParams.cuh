@@ -14,7 +14,7 @@ namespace fsi {
 
 enum BceVersion { ADAMI = 0, mORIGINAL = 1 };
 enum PPE_SolutionType { IterativeJacobi, SPARSE_MATRIX_JACOBI };
-enum Cusp_solverType { gmres, cr, bicgstab, cg };
+enum Cusp_solverType { gmres, cr, bicgstab, bicgstab_m, cg, sap };
 
 /**
  * @brief Simulation Parameters
@@ -47,6 +47,9 @@ struct SimParams {
     up huge pressures and will make the simulation unstable. */
   Real3 deltaPress; /* Change in Pressure. This is needed for periodic BC. The change in pressure of a particle when it
    moves from end boundary to beginning.  */
+  Real V_in;        /* Inlet Velocity. This is needed for inlet BC.  */
+  Real x_in;
+
   int nPeriod;      /* Only used in snake channel simulation. Tells you how long the channel will be. */
   Real3 gravity;    /* Gravity. Applied to fluid, rigid and flexible. */
   Real3 bodyForce3; /* Constant force applied to the fluid. Flexible and rigid bodies are not affected by this force
@@ -113,6 +116,7 @@ struct SimParams {
   Real IncompressibilityFactor;
   Real Cs;
   bool USE_CUSP;
+  bool USE_iterative_solver;
   Cusp_solverType Cusp_solver;
   bool Adaptive_time_stepping;
   Real Co_number;

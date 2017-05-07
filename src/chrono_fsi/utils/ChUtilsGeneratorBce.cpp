@@ -210,11 +210,11 @@ void CreateBCE_On_ChElementCableANCF(thrust::host_vector<Real3>& posRadBCE,
       continue;
 
     Real3 relMarkerPos;
-    if (multiLayer && removeMiddleLayer) {
-      // skip the middle layer for this specific case
-      paramsH->MULT_INITSPACE_Shells = 0.5;
-      initSpaceZ = paramsH->HSML * paramsH->MULT_INITSPACE_Shells;
-    }
+    //    if (multiLayer && removeMiddleLayer) {
+    //      // skip the middle layer for this specific case
+    //      paramsH->MULT_INITSPACE_Shells = 0.5;
+    //      initSpaceZ = paramsH->HSML * paramsH->MULT_INITSPACE_Shells;
+    //    }
 
     if (multiLayer) {
       for (int j = 1; j <= SIDE; j++) {

@@ -106,6 +106,44 @@ __global__ void ApplyPeriodicBoundaryXKernel(Real3* posRadD, Real4* rhoPresMuD) 
 }
 
 // -----------------------------------------------------------------------------
+/// Kernel to apply periodic BC along x
+
+__global__ void ApplyInletBoundaryXKernel(Real3* posRadD, Real3* VelMassD, Real4* rhoPresMuD) {
+  uint index = blockIdx.x * blockDim.x + threadIdx.x;
+  if (index >= numObjectsD.numAllMarkers) {
+    return;
+  }
+  Real4 rhoPresMu = rhoPresMuD[index];
+  if (fabs(rhoPresMu.w) < .1) {
+    return;
+  }  // no need to do anything if it is a boundary particle
+  Real3 posRad = posRadD[index];
+  if (posRad.x > paramsD.cMax.x) {
+    posRad.x -= (paramsD.cMax.x - paramsD.cMin.x);
+    posRadD[index] = posRad;
+    if (rhoPresMu.w < -.1) {
+      rhoPresMu.y = rhoPresMu.y + paramsD.deltaPress.x;
+      rhoPresMuD[index] = rhoPresMu;
+    }
+    return;
+  }
+  if (posRad.x < paramsD.cMin.x) {
+    posRad.x += (paramsD.cMax.x - paramsD.cMin.x);
+    posRadD[index] = posRad;
+    VelMassD[index] = mR3(paramsD.V_in, 0, 0);
+
+    if (rhoPresMu.w < -.1) {
+      rhoPresMu.y = rhoPresMu.y - paramsD.deltaPress.x;
+      rhoPresMuD[index] = rhoPresMu;
+    }
+    return;
+  }
+
+  if (posRad.x < paramsD.x_in)
+    VelMassD[index] = mR3(paramsD.V_in, 0, 0);
+}
+
+// -----------------------------------------------------------------------------
 /// Kernel to apply periodic BC along y
 
 __global__ void ApplyPeriodicBoundaryYKernel(Real3* posRadD, Real4* rhoPresMuD) {
@@ -292,14 +330,13 @@ __global__ void Update_Fluid_State(Real3* new_vel,  // input: sorted velocities,
                                    Real3* posRad,   // input: sorted positions
                                    Real3* velMas,
                                    Real4* rhoPreMu,
-                                   int4 NON_updatePortion,
+                                   int4 updatePortion,
                                    const uint numAllMarkers,
                                    double dT,
                                    volatile bool* isErrorD) {
   uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-  //	if (i_idx >= numAllMarkers || rhoPreMu[i_idx].w == 0)
-  if (i_idx >= NON_updatePortion.x)
+  if (i_idx > updatePortion.y)
     return;
 
   //  sortedPosRad[i_idx] = new_Pos[i_idx];
@@ -415,7 +452,8 @@ void ChFluidDynamics::IntegrateIISPH(SphMarkerDataD* sphMarkersD2,
                                      FsiMeshDataD* fsiMeshD) {
   forceSystem->ForceIISPH(sphMarkersD2, fsiBodiesD1, fsiMeshD);
   this->UpdateFluid_Implicit(sphMarkersD2);
-  this->ApplyBoundarySPH_Markers(sphMarkersD2);
+  // this->ApplyBoundarySPH_Markers(sphMarkersD2);
+  this->ApplyModifiedBoundarySPH_Markers(sphMarkersD2);
 }
 // -----------------------------------------------------------------------------
 
@@ -456,9 +494,9 @@ void ChFluidDynamics::UpdateFluid_Implicit(SphMarkerDataD* sphMarkersD) {
   computeGridSize(numObjectsH->numAllMarkers, 256, numBlocks, numThreads);
   std::cout << "dT in UpdateFluid_Implicit: " << paramsH->dT << "\n";
 
-  int4 NON_updatePortion =
-      mI4(fsiData->fsiGeneralData.referenceArray[1].x, fsiData->fsiGeneralData.referenceArray[1].y, 0, 0);
-  std::cout << "Skipping the markers >: " << fsiData->fsiGeneralData.referenceArray[1].x << " in position update\n";
+  int4 updatePortion =
+      mI4(fsiData->fsiGeneralData.referenceArray[0].x, fsiData->fsiGeneralData.referenceArray[0].y, 0, 0);
+  std::cout << "Skipping the markers > " << fsiData->fsiGeneralData.referenceArray[0].y << " in position update\n";
 
   bool *isErrorH, *isErrorD;
   isErrorH = (bool*)malloc(sizeof(bool));
@@ -467,7 +505,7 @@ void ChFluidDynamics::UpdateFluid_Implicit(SphMarkerDataD* sphMarkersD) {
   cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
   Update_Fluid_State<<<numBlocks, numThreads>>>(
       mR3CAST(fsiData->fsiGeneralData.vel_XSPH_D), mR3CAST(sphMarkersD->posRadD), mR3CAST(sphMarkersD->velMasD),
-      mR4CAST(sphMarkersD->rhoPresMuD), NON_updatePortion, numObjectsH->numAllMarkers, paramsH->dT, isErrorD);
+      mR4CAST(sphMarkersD->rhoPresMuD), updatePortion, numObjectsH->numAllMarkers, paramsH->dT, isErrorD);
   cudaThreadSynchronize();
   cudaCheckError();
 
@@ -513,6 +551,32 @@ void ChFluidDynamics::ApplyBoundarySPH_Markers(SphMarkerDataD* sphMarkersD) {
   //    cudaCheckError();
 }
 
+// -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+
+/**
+ * @brief ApplyBoundarySPH_Markers
+ * @details
+ * 		See SDKCollisionSystem.cuh for more info
+ */
+void ChFluidDynamics::ApplyModifiedBoundarySPH_Markers(SphMarkerDataD* sphMarkersD) {
+  uint nBlock_NumSpheres, nThreads_SphMarkers;
+  computeGridSize(numObjectsH->numAllMarkers, 256, nBlock_NumSpheres, nThreads_SphMarkers);
+  ApplyInletBoundaryXKernel<<<nBlock_NumSpheres, nThreads_SphMarkers>>>(
+      mR3CAST(sphMarkersD->posRadD), mR3CAST(sphMarkersD->velMasD), mR4CAST(sphMarkersD->rhoPresMuD));
+  cudaThreadSynchronize();
+  cudaCheckError();
+  // these are useful anyway for out of bound particles
+  ApplyPeriodicBoundaryYKernel<<<nBlock_NumSpheres, nThreads_SphMarkers>>>(mR3CAST(sphMarkersD->posRadD),
+                                                                           mR4CAST(sphMarkersD->rhoPresMuD));
+  cudaThreadSynchronize();
+  cudaCheckError();
+  ApplyPeriodicBoundaryZKernel<<<nBlock_NumSpheres, nThreads_SphMarkers>>>(mR3CAST(sphMarkersD->posRadD),
+                                                                           mR4CAST(sphMarkersD->rhoPresMuD));
+  cudaThreadSynchronize();
+  cudaCheckError();
+}
 // -----------------------------------------------------------------------------
 
 void ChFluidDynamics::DensityReinitialization() {

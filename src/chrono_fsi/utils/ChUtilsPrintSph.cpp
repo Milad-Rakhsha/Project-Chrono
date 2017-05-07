@@ -127,13 +127,15 @@ void PrintToParaViewFile(const thrust::device_vector<Real3>& posRadD,
   std::stringstream ssFluidParticles;
   ssFluidParticles << "x,y,z,vx,vy,vz,U,rpx,rpy,rpz,rpw\n";
   ssFluidParticles.precision(4);
+
   for (int i = referenceArray[0].x; i < referenceArray[0].y; i++) {
     Real3 pos = posRadH[i];
     Real3 vel = velMasH[i];
     Real4 rP = rhoPresMuH[i];
     Real velMag = length(vel);
-    ssFluidParticles << pos.x << ", " << pos.y << ", " << pos.z << ", " << (double)vel.x << ", " << (double)vel.y << ", " << (double)vel.z
-                     << ", " << (double)velMag << ", " << rP.x << ", " << (double)rP.y << ", " << rP.z << ", " << rP.w << std::endl;
+    ssFluidParticles << pos.x << ", " << pos.y << ", " << pos.z << ", " << (double)vel.x << ", " << (double)vel.y
+                     << ", " << (double)vel.z << ", " << (double)velMag << ", " << rP.x << ", " << (double)rP.y << ", "
+                     << rP.z << ", " << rP.w << std::endl;
   }
   fileNameFluidParticles << ssFluidParticles.str();
   fileNameFluidParticles.close();

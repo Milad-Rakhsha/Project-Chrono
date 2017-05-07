@@ -103,6 +103,7 @@ class CH_FSI_API ChFluidDynamics : public ChFsiGeneral {
   ///
   /// The function applies periodic boundary to the markers.
   virtual void ApplyBoundarySPH_Markers(SphMarkerDataD* sphMarkersD);
+  virtual void ApplyModifiedBoundarySPH_Markers(SphMarkerDataD* sphMarkersD);
 };
 
 }  // end namespace fsi

@@ -48,7 +48,6 @@ __global__ void Populate_RigidSPH_MeshPos_LRF_kernel(Real3* rigidSPH_MeshPos_LRF
                                                      Real3* posRigidD,
                                                      Real4* qD) {
   uint index = blockIdx.x * blockDim.x + threadIdx.x;
-  int numRigid_SphMarkers = numObjectsD.numRigid_SphMarkers;
   if (index >= numObjectsD.numRigid_SphMarkers) {
     return;
   }
@@ -76,7 +75,7 @@ __global__ void Populate_FlexSPH_MeshPos_LRF_kernel(Real3* FlexSPH_MeshPos_LRF_D
   if (index >= numObjectsD.numFlex_SphMarkers) {
     return;
   }
-  int numFlexSphMarkers = numObjectsD.numFlex_SphMarkers;
+  //  int numFlexSphMarkers = numObjectsD.numFlex_SphMarkers;
 
   int FlexIndex = FlexIdentifierD[index];
   uint FlexMarkerIndex = index + numObjectsD.startFlexMarkers;  // updatePortion = [start, end]
@@ -160,7 +159,7 @@ __global__ void Calc_Flex_FSI_ForcesD(Real3* FlexSPH_MeshPos_LRF_D,
   if (index >= numObjectsD.numFlex_SphMarkers) {
     return;
   }
-  int numFlexSphMarkers = numObjectsD.numFlex_SphMarkers;
+  //  int numFlexSphMarkers = numObjectsD.numFlex_SphMarkers;
 
   int FlexIndex = FlexIdentifierD[index];
   uint FlexMarkerIndex = index + numObjectsD.startFlexMarkers;  // updatePortion = [start, end]
@@ -422,7 +421,7 @@ __global__ void UpdateFlexMarkersPositionVelocityAccD(Real3* posRadD,
   if (index >= numObjectsD.numFlex_SphMarkers) {
     return;
   }
-  int numFlexSphMarkers = numObjectsD.numFlex_SphMarkers;
+  //  int numFlexSphMarkers = numObjectsD.numFlex_SphMarkers;
 
   int FlexIndex = FlexIdentifierD[index];
   //  printf(" %d FlexIndex= %d\n", index, FlexIndex);
