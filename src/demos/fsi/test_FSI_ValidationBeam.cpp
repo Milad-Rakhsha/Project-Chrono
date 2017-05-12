@@ -103,9 +103,9 @@ int out_fps = 100;
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
-Real bxDim = 8;
-Real byDim = 0.4;
-Real bzDim = 0.8;
+Real bxDim = 3;
+Real byDim = 0.3;
+Real bzDim = 3;
 
 Real fxDim = bxDim;
 Real fyDim = byDim;
@@ -269,7 +269,7 @@ int main(int argc, char* argv[]) {
         }
         if (!removeThis) {
             myFsiSystem.GetDataManager()->AddSphMarker(
-                p, chrono::fsi::mR3(1e-20), chrono::fsi::mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, -1));
+                p, chrono::fsi::mR3(0.1, 0, 0), chrono::fsi::mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, -1));
         } else
             numremove++;
     }
@@ -496,7 +496,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         double Fiber_Length = bzDim;
 
         double Area = 3.1415 * std::pow(Fiber_Diameter, 2) / 4;
-        double E = 1e9;
+        double E = 1e5;
         double nu = 0.3;
         auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
         /*================== Cable Elements =================*/
@@ -506,8 +506,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         msection_cable->SetBeamRaleyghDamping(0.02);
         // Create material.
         ChBuilderBeamANCF builder;
-        double x_pos = -fxDim / 2 + initSpace0 * 50;
-        double L = 0.4;
+        double x_pos = -fxDim / 2 + initSpace0 * 30;
+        double L = 1.6;
         builder.BuildBeam_FSI(
             my_mesh,                       // the mesh where to put the created nodes and elements
             msection_cable,                // the ChBeamSectionCable to use for the ChElementBeamANCF elements

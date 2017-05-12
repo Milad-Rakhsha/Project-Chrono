@@ -50,7 +50,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->epsMinMarkersDis = .01;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
-    paramsH->BASEPRES = 1e-8;
+    paramsH->BASEPRES = 2e3;
     paramsH->LARGE_PRES = 0.0;
     paramsH->deltaPress;
     paramsH->multViscosity_FSI = 1;
@@ -66,13 +66,13 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     // warm-start to CUSP solver. In this case PPE_res and PPE_Abs_res are the relative and absolute tolerance criteria
     // of the cusp solver. If you want only the iterative solver, turn off cusp and set PPE_res as the
     // convergence tolerance.
-    paramsH->USE_CUSP = false;
-    paramsH->USE_iterative_solver = true;
+    paramsH->USE_CUSP = true;
+    paramsH->USE_iterative_solver = false;
     paramsH->Cusp_solver = bicgstab;                    // gmres, cr, bicgstab, cg
     paramsH->Verbose_monitoring = false;                // If you want cusp to print out the iterations-residual
     paramsH->PPE_Solution_type = SPARSE_MATRIX_JACOBI;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
-    paramsH->PPE_res = 0.00001;    // This is the relative res, is used in the iterative solver and  cusp solvers
-    paramsH->PPE_Abs_res = 1e-14;  // This is the absolute error used when cusp solvers are used
+    paramsH->PPE_res = 0.0;        // This is the relative res, is used in the iterative solver and  cusp solvers
+    paramsH->PPE_Abs_res = 1e-10;  // This is the absolute error used when cusp solvers are used
     paramsH->PPE_Max_Iter = 2000;  // This is the max number of iteration for cusp solvers
 
     paramsH->Max_Pressure = 1e20;
@@ -84,7 +84,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->dT_Max = 0.01;       // This is problem dependent should set by the user based on characteristic time step
     paramsH->Apply_BC_U = false;  // You should go to custom_math.h all the way to end of file and set your function
 
-    paramsH->dT = 1e-3;
+    paramsH->dT = 2e-5;
     paramsH->dT_Flex = paramsH->dT / 2;
 
     paramsH->tFinal = 2;
@@ -99,8 +99,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
     paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
-    paramsH->cMin = mR3(-bxDim, -byDim, -bzDim - 20 * paramsH->HSML);
-    paramsH->cMax = mR3(bxDim, byDim, bzDim + 20 * paramsH->HSML);
+    paramsH->cMin = mR3(-bxDim, -byDim, -bzDim) - 1.35 * paramsH->HSML;
+    paramsH->cMax = mR3(bxDim, byDim, 2 * bzDim) + 3.25 * paramsH->HSML;
 
     //****************************************************************************************
     // printf("a1  paramsH->cMax.x, y, z %f %f %f,  binSize %f\n",
@@ -114,9 +114,9 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->binSize0 = (binSize3.x > binSize3.y) ? binSize3.x : binSize3.y;
     //	paramsH->binSize0 = (paramsH->binSize0 > binSize3.z) ? paramsH->binSize0
     //: binSize3.z;
-    paramsH->binSize0 = binSize3.x;  // for effect of distance. Periodic BC in x
-                                     // direction. we do not care about
-                                     // paramsH->cMax y and z.
+    // paramsH->binSize0 = binSize3.x;  // for effect of distance. Periodic BC in x
+    // direction. we do not care about
+    // paramsH->cMax y and z.
     paramsH->boxDims = paramsH->cMax - paramsH->cMin;
     //****************************************************************************************
     //	paramsH->cMinInit = mR3(-1.7, -1.55, -0.5); // 3D channel

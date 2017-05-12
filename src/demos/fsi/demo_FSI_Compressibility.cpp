@@ -72,7 +72,7 @@ const std::string out_dir = "FSI_OUTPUT";  //"../FSI_OUTPUT";
 const std::string pov_dir_fluid = out_dir + "/Compressibility";
 const std::string pov_dir_mbd = out_dir + "/povFilesHmmwv";
 bool povray_output = true;
-int out_fps = 50;
+int out_fps = 25;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -443,6 +443,9 @@ int main(int argc, char* argv[]) {
         time += paramsH->dT;
 
         SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, next_frame, time);
+
+        if (time > paramsH->tFinal)
+            break;
     }
 
     return 0;

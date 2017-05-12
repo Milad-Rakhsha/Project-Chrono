@@ -1543,12 +1543,8 @@ __host__ __device__ inline Real4 Shells_ShapeFunctions(Real x, Real y) {
 
 __host__ __device__ inline Real3 user_BC_U(Real3 Pos) {
   Real3 vel = make_Real3(0.0, 0.0, 0.0);
-  // User define fucntion for U goes here
-  //  if (Pos.z >= 1.025 && Pos.x <= 0.5 && Pos.x >= -0.5) {
-  //    vel = make_Real3(1, 0, 0);
-  //  }
-
-  if (Pos.x <= -1.4) {
+  //   User define fucntion for U goes here
+  if (Pos.z >= 1.025 && Pos.x <= 0.5 && Pos.x >= -0.5) {
     vel = make_Real3(1, 0, 0);
   }
 

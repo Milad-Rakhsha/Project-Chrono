@@ -44,7 +44,7 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.05;
+    paramsH->HSML = 0.025;
     paramsH->MULT_INITSPACE = 1.0;
     paramsH->MULT_INITSPACE_Shells = 1.0;
     paramsH->epsMinMarkersDis = .01;
@@ -52,9 +52,9 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
     paramsH->BASEPRES = 1e-8;
     paramsH->LARGE_PRES = 0.0;
-    paramsH->deltaPress;
+    paramsH->deltaPress = mR3(50.0, 0, 0);
     paramsH->V_in = 0.1;
-    paramsH->x_in = -3.6;
+    paramsH->x_in = -1.4;
 
     paramsH->multViscosity_FSI = 1;
     paramsH->gravity = mR3(0.0, 0, 0.0);

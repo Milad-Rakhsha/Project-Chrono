@@ -256,7 +256,7 @@ void ChCollisionSystemFsi::reorderDataAndFindCellStart() {
   thrust::fill(markersProximityD->cellEndD.begin(), markersProximityD->cellEndD.end(), 0);
 
   uint numThreads, numBlocks;
-  computeGridSize(numObjectsH->numAllMarkers, 256, numBlocks, numThreads);  //?$ 256 is blockSize
+  computeGridSize(numObjectsH->numAllMarkers, 128, numBlocks, numThreads);  //?$ 256 is blockSize
 
   uint smemSize = sizeof(uint) * (numThreads + 1);
   reorderDataAndFindCellStartD<<<numBlocks, numThreads, smemSize>>>(

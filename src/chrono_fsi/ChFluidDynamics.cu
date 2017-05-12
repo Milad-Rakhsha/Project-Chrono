@@ -452,8 +452,8 @@ void ChFluidDynamics::IntegrateIISPH(SphMarkerDataD* sphMarkersD2,
                                      FsiMeshDataD* fsiMeshD) {
   forceSystem->ForceIISPH(sphMarkersD2, fsiBodiesD1, fsiMeshD);
   this->UpdateFluid_Implicit(sphMarkersD2);
-  // this->ApplyBoundarySPH_Markers(sphMarkersD2);
-  this->ApplyModifiedBoundarySPH_Markers(sphMarkersD2);
+  this->ApplyBoundarySPH_Markers(sphMarkersD2);
+  //  this->ApplyModifiedBoundarySPH_Markers(sphMarkersD2);
 }
 // -----------------------------------------------------------------------------
 

@@ -629,6 +629,7 @@ void ChFsiForceParallel::ForceSPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDat
 
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void calcRho_kernel(Real3* sortedPosRad,  // input: sorted positionsmin(
+                               Real4* sortedRhoPreMu,
                                Real* nonNormalRho,
                                uint* cellStart,
                                uint* cellEnd,
@@ -673,6 +674,9 @@ __global__ void calcRho_kernel(Real3* sortedPosRad,  // input: sorted positionsm
 
   // Adding neighbor contribution is done!
   nonNormalRho[i_idx] = sum_mW;
+  sortedRhoPreMu[i_idx].x = sum_mW;
+  if (sum_mW > 2 * RHO_0 || sum_mW < 0)
+    printf("something is wrong in density calculations\n");
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -740,8 +744,8 @@ __global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted 
   if (sortedRhoPreMu[i_idx].x > RHO_0)
     IncompressibilityFactor = 1;
 
-  sortedRhoPreMu[i_idx].x = (sum_mW / sum_mW_over_Rho - RHO_0) * IncompressibilityFactor + RHO_0;
-  //  sortedRhoPreMu[i_idx].x = (sum_mW - RHO_0) * IncompressibilityFactor + RHO_0;
+  //  sortedRhoPreMu[i_idx].x = (sum_mW / sum_mW_over_Rho - RHO_0) * IncompressibilityFactor + RHO_0;
+  sortedRhoPreMu[i_idx].x = (sum_mW - RHO_0) * IncompressibilityFactor + RHO_0;
 
   if (sortedRhoPreMu[i_idx].x < EPSILON) {
     printf("My density is %f, index= %d\n", sortedRhoPreMu[i_idx].x, i_idx);
@@ -1464,7 +1468,7 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
   csrColIndA[csrStartIdx - 1] = i_idx;
   GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
 
-  if (sortedRhoPreMu[i_idx].x < 0.80 * RHO_0) {
+  if (sortedRhoPreMu[i_idx].x < 0.995 * RHO_0) {
     csrValA[csrStartIdx - 1] = a_ii[i_idx];
     for (int myIdx = csrStartIdx; myIdx < csrEndIdx; myIdx++) {
       csrValA[myIdx] = 0.0;
@@ -1473,7 +1477,7 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
   }
 
   Real RHS = B_i[i_idx];
-  B_i[i_idx] = fminf(0.0, RHS);
+  B_i[i_idx] = RHS;  // fminf(0.0, RHS);
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -1820,6 +1824,8 @@ __global__ void CalcForces(Real3* new_vel,  // Write
   Real rho_i = sortedRhoPreMu[i_idx].x;
   Real3 F_i_np = mR3(0);
   Real3 F_i_p = mR3(0);
+  if (sortedRhoPreMu[i_idx].x > 2 * paramsD.rho0 || sortedRhoPreMu[i_idx].x < 0)
+    printf("something is wrong in density calculations-0\n");
   // get address in grid
   int3 gridPos = calcGridPos(posi);
   for (int z = -1; z <= 1; z++) {
@@ -1870,10 +1876,60 @@ __global__ void CalcForces(Real3* new_vel,  // Write
 
   new_vel[i_idx] = Veli + dT * mR3(derivVelRhoD[i_idx]) / m_0;
 }
+
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void UpdateDensity(Real3* new_vel,       // Write
+                              Real3* sortedPosRad,  // Read
+                              Real4* sortedRhoPreMu,
+                              uint* cellStart,
+                              uint* cellEnd,
+                              uint numAllMarkers,
+                              Real dT,
+                              volatile bool* isErrorD) {
+  uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i_idx >= numAllMarkers)
+    return;
+
+  Real rho_plus = 0;
+  Real3 Vel_i = new_vel[i_idx];
+  Real3 posi = sortedPosRad[i_idx];
+  if (sortedRhoPreMu[i_idx].x > 2 * paramsD.rho0 || sortedRhoPreMu[i_idx].x < 0)
+    printf("something is wrong in density calculations-1\n");
+  Real m_0 = paramsD.markerMass;
+  int3 gridPos = calcGridPos(posi);
+
+  for (int z = -1; z <= 1; z++) {
+    for (int y = -1; y <= 1; y++) {
+      for (int x = -1; x <= 1; x++) {
+        int3 neighbourPos = gridPos + mI3(x, y, z);
+        uint gridHash = calcGridHash(neighbourPos);
+        // get start of bucket for this cell
+        uint startIndex = cellStart[gridHash];
+        uint endIndex = cellEnd[gridHash];
+        for (uint j = startIndex; j < endIndex; j++) {
+          Real3 posj = sortedPosRad[j];
+          Real3 dist3 = Distance(posi, posj);
+          Real d = length(dist3);
+          if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML || i_idx == j ||
+              (sortedRhoPreMu[i_idx].w > 0 && sortedRhoPreMu[j].w > 0))
+            continue;
+          Real3 Vel_j = new_vel[j];
+          Real3 grad_i_wij = GradW(dist3);
+          rho_plus += m_0 * dot((Vel_i - Vel_j), grad_i_wij);
+        }
+      }
+    }
+  }
+
+  sortedRhoPreMu[i_idx].x += rho_plus * dT;
+  if (sortedRhoPreMu[i_idx].x > 2 * paramsD.rho0 || sortedRhoPreMu[i_idx].x < 0)
+    printf("something is wrong in density calculations\n");
+}
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void FinalizePressure(Real3* sortedPosRad,  // Read
                                  Real4* sortedRhoPreMu,
                                  Real* p_old,
+                                 Real3* F_p,  // Write
                                  uint* cellStart,
                                  uint* cellEnd,
                                  uint numAllMarkers,
@@ -1882,8 +1938,10 @@ __global__ void FinalizePressure(Real3* sortedPosRad,  // Read
   uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (i_idx >= numAllMarkers)
     return;
-
+  //  Real m_0 = paramsD.markerMass;
   //  Real3 posi = sortedPosRad[i_idx];
+  //  Real Rho_i = sortedRhoPreMu[i_idx].x;
+  //  Real3 my_F_p = mR3(0);
   //  Real p_i = sortedRhoPreMu[i_idx].y;
   //  Real sum_pW = 0;
   //  Real sum_W = 0;
@@ -1894,7 +1952,7 @@ __global__ void FinalizePressure(Real3* sortedPosRad,  // Read
   // sortedRhoPreMu[i_idx].y = 0;
 
   //  if (p_shift < 0)
-  sortedRhoPreMu[i_idx].y = p_old[i_idx];  //- p_shift;
+  sortedRhoPreMu[i_idx].y = p_old[i_idx] + paramsD.BASEPRES;  //- p_shift;
 
   //  if (p_old[i_idx] < 0)
   //    sortedRhoPreMu[i_idx].y = (p_old[i_idx] > 0) ? p_old[i_idx] : 0.0;
@@ -1919,13 +1977,15 @@ __global__ void FinalizePressure(Real3* sortedPosRad,  // Read
   //          Real d = length(dist3);
   //          if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML || i_idx == j)
   //            continue;
+  //          Real3 grad_i_wij = GradW(dist3);
   //          Real p_j = p_old[j];
-  //          sum_pW += p_j * W3(d);
-  //          sum_W += W3(d);
+  //          Real Rho_j = sortedRhoPreMu[j].x;
+  //          my_F_p += -m_0 * m_0 * ((p_old[i_idx] / (Rho_i * Rho_i)) + (p_old[j] / (Rho_j * Rho_j))) * grad_i_wij;
   //        }
   //      }
   //    }
   //  }
+  //  F_p[i_idx] = my_F_p;
 
   //  if (abs(sum_W) < EPSILON) {
   //    sortedRhoPreMu[i_idx].y = 0;
@@ -1933,7 +1993,6 @@ __global__ void FinalizePressure(Real3* sortedPosRad,  // Read
   //    sortedRhoPreMu[i_idx].y = sum_pW / sum_W;
   //  }
 }
-
 //--------------------------------------------------------------------------------------------------------------------------------
 
 void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassRigid_fsiBodies_D,
@@ -1962,16 +2021,18 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
   *isErrorH = false;
   cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
 
-  calcRho_kernel<<<numBlocks, numThreads>>>(mR3CAST(sortedSphMarkersD->posRadD), R1CAST(nonNormRho),
-                                            U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD),
-                                            numAllMarkers, paramsH->rho0, paramsH->markerMass, isErrorD);
+  calcRho_kernel<<<numBlocks, numThreads>>>(mR3CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
+                                            R1CAST(nonNormRho), U1CAST(markersProximityD->cellStartD),
+                                            U1CAST(markersProximityD->cellEndD), numAllMarkers, paramsH->rho0,
+                                            paramsH->markerMass, isErrorD);
 
   cudaThreadSynchronize();
   cudaCheckError();
   cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
   if (*isErrorH == true) {
-    throw std::runtime_error("Error! program crashed after F_i_np__AND__d_ii_kernel!\n");
+    throw std::runtime_error("Error! program crashed after calcRho_kernel!\n");
   }
+  /*
   thrust::device_vector<Real> dxi_over_Vi(numAllMarkers);
   thrust::fill(dxi_over_Vi.begin(), dxi_over_Vi.end(), 0);
 
@@ -2005,6 +2066,7 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
 
     std::cout << "time step is set to min(dt_Co,dT_Max)= " << paramsH->dT << "\n";
   }
+  */
   thrust::device_vector<Real3> d_ii(numAllMarkers);
   thrust::device_vector<Real3> V_np(numAllMarkers);
   thrust::fill(d_ii.begin(), d_ii.end(), mR3(0));
@@ -2050,7 +2112,6 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
   thrust::fill(V_new.begin(), V_new.end(), mR3(0));
   thrust::device_vector<Real> a_ij;
   thrust::device_vector<Real> B_i(numAllMarkers);
-  thrust::device_vector<Real> a_ij3;
   thrust::device_vector<uint> csrColIndA;
   thrust::device_vector<uint> row_indices;
   thrust::device_vector<unsigned long int> GlobalcsrColIndA;
@@ -2069,7 +2130,6 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
   if (mySolutionType == SPARSE_MATRIX_JACOBI) {
     thrust::fill(a_ij.begin(), a_ij.end(), 0);
     thrust::fill(B_i.begin(), B_i.end(), 0);
-    thrust::fill(a_ij3.begin(), a_ij3.end(), 0);
     thrust::fill(summGradW.begin(), summGradW.end(), mR3(0));
     thrust::fill(numContacts.begin(), numContacts.end(), 0);
     //------------------------------------------------------------------------
@@ -2082,20 +2142,6 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
     thrust::fill(Residuals.begin(), Residuals.end(), 1);
     thrust::device_vector<Real> rho_p(numAllMarkers);
     thrust::fill(rho_p.begin(), rho_p.end(), 0);
-
-    //    *isErrorH = false;
-    //    cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
-    //    Calc_summGradW<<<numBlocks, numThreads>>>(
-    //        mR3CAST(summGradW), mR3CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
-    //        U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers,
-    //        paramsH->markerMass,
-    //        paramsH->dT, isErrorD);
-    //    cudaThreadSynchronize();
-    //    cudaCheckError();
-    //    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
-    //    if (*isErrorH == true) {
-    //      throw std::runtime_error("Error! program crashed after Calc_summGradW!\n");
-    //    }
 
     *isErrorH = false;
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
@@ -2169,6 +2215,10 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
   thrust::fill(rho_p.begin(), rho_p.end(), 0);
   double LinearSystemClock = clock();
   bool turnItOff = false;
+
+  cusp::array1d<double, cusp::device_memory> b = B_i;
+  cusp::monitor<double> monitor(b, paramsH->PPE_Max_Iter, paramsH->PPE_res, paramsH->PPE_Abs_res,
+                                paramsH->Verbose_monitoring);
   if (paramsH->USE_CUSP) {
     cusp::csr_matrix<unsigned long int, double, cusp::device_memory> AMatrix(numAllMarkers, numAllMarkers, NNZ);
     AMatrix.row_offsets = numContacts;
@@ -2178,7 +2228,6 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
     cusp::array1d<double, cusp::device_memory> x = p_old;
     //    cusp::array1d<double, cusp::device_memory> x(numAllMarkers, 1000.);
 
-    cusp::array1d<double, cusp::device_memory> b = B_i;
     // set stopping criteria:
 
     //    cusp::identity_operator<double, cusp::device_memory> M(AMatrix.num_rows, AMatrix.num_rows);
@@ -2188,10 +2237,7 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
     //    cusp::precond::aggregation::smoothed_aggregation<int, double, cusp::device_memory> M(AMatrix);
     //    cusp::precond::diagonal<double, cusp::device_memory> M(AMatrix);
 
-    int restart = 100;
-
-    cusp::monitor<double> monitor(b, paramsH->PPE_Max_Iter, paramsH->PPE_res, paramsH->PPE_Abs_res,
-                                  paramsH->Verbose_monitoring);
+    int restart = 200;
 
     if (paramsH->Cusp_solver == gmres)
       cusp::krylov::gmres(AMatrix, x, b, restart, monitor);
@@ -2221,61 +2267,6 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
       thrust::copy(x.begin(), x.end(), p_old.begin());
     }
 
-    ////============================================================================================================================================
-    //    if (paramsH->Cusp_solver == sap) {
-    //      sap::Options opts;
-    //      opts.relTol = paramsH->PPE_res;
-    //      opts.maxNumIterations = paramsH->PPE_Max_Iter;
-    //      opts.safeFactorization = true;
-    //
-    //      // The default is SaP-C
-    //      // To use SaP-B, uncomment this line
-    //      //// opts.useBCR = true;
-    //      // To use SaP-D, uncomment this line
-    //      opts.precondType = sap::Block;
-    //
-    //      // To use different Krylov solvers, do something like the following line. (The following line specifies
-    //      CG)
-    //      //    opts.solverType = sap::BiCGStab_C;
-    //
-    //      // Use 1 for sapB arbitrary value for sapC and SapD;
-    //      // The value `1` indicates that we are using one SaP partition s.t. we directly solve the linear system.
-    //      // Otherwise, we are preconditioning the system using SaP.
-    //      sap::Solver<cusp::array1d<double, cusp::device_memory>, double> sap_solver(3, opts);
-    //
-    //      // For other solving options, refer to `examples/test_bcr/driver_test_bcr.cu` in SaP library.
-    //
-    //      sap::SpmvCusp<cusp::csr_matrix<unsigned long int, double, cusp::device_memory>> my_spmv_functor(AMatrix);
-    //
-    //      try {
-    //        sap_solver.setup(AMatrix);
-    //        cudaCheckError();
-    //
-    //      } catch (const std::bad_alloc&) {
-    //        std::cerr << "N = " << AMatrix.num_rows << std::endl;
-    //      } catch (const sap::system_error& se) {
-    //        std::cerr << se.reason() << std::endl;
-    //      }
-    //      sap_solver.solve(my_spmv_functor, b, x);
-    //      cudaCheckError();
-    //      cudaThreadSynchronize();
-    //      *isErrorH = false;
-    //      cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
-    //    }
-
-    if (monitor.converged()) {
-      std::cout << "Solver converged to " << monitor.tolerance() << " tolerance";
-      std::cout << " after " << monitor.iteration_count() << " iterations";
-      std::cout << " (" << monitor.residual_norm() << " final residual)" << std::endl;
-    } else {
-      std::cout << "Failed to converge after " << monitor.iteration_limit() << " iterations";
-      std::cout << " to " << monitor.tolerance() << " tolerance ";
-      std::cout << " (" << monitor.residual_norm() << " final residual)" << std::endl;
-      paramsH->USE_iterative_solver = true;
-      paramsH->PPE_res = 1e-3;
-      turnItOff = true;
-    }
-
     /*std::string outnameA = "_A_" + std::to_string(numAllMarkers);
     std::string outnamex = "_x_" + std::to_string(numAllMarkers);
     std::string outnameb = "_b_" + std::to_string(numAllMarkers);
@@ -2284,7 +2275,7 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
     cusp::io::write_matrix_market_file(b, outnameb);*/
   }
 
-  while ((MaxRes > RES || Iteration < 3) && paramsH->USE_iterative_solver) {
+  while ((MaxRes > paramsH->PPE_res || Iteration < 3) && paramsH->USE_iterative_solver) {
     *isErrorH = false;
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
     Initialize_Variables<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(p_old),
@@ -2398,19 +2389,19 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
       break;
     }
   }
-  if (turnItOff)
-    paramsH->USE_iterative_solver = false;
 
-  thrust::device_vector<Real>::iterator iter = thrust::min_element(p_old.begin(), p_old.end());
-  unsigned int position = iter - p_old.begin();
-  Real shift_p = *iter;
+  //  thrust::device_vector<Real>::iterator iter = thrust::min_element(p_old.begin(), p_old.end());
+  //  unsigned int position = iter - p_old.begin();
+  //  Real shift_p = *iter;
+  Real shift_p = 0;
 
-  if (paramsH->ClampPressure) {
-    printf("Shifting pressure values by %f\n", -shift_p);
+  // This must be run if cusp solver is used
+  if (paramsH->ClampPressure || paramsH->USE_CUSP) {
+    //    printf("Shifting pressure values by %f\n", -shift_p);
     *isErrorH = false;
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
     FinalizePressure<<<numBlocks, numThreads>>>(
-        mR3CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(p_old),
+        mR3CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(p_old), mR3CAST(F_p),
         U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers, shift_p, isErrorD);
     cudaThreadSynchronize();
     cudaCheckError();
@@ -2419,22 +2410,31 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
       throw std::runtime_error("Error! program crashed after PrepPressure!\n");
     }
   }
-
   double durationLinearSystem = (clock() - LinearSystemClock) / (double)CLOCKS_PER_SEC;
   double durationtotal_step_time = (clock() - total_step_timeClock) / (double)CLOCKS_PER_SEC;
 
   printf("---------------IISPH CLOCK-------------------\n");
   printf(" Total: %f \n FormAXB: %f\n Linear System: %f \n", durationtotal_step_time, durationFormAXB,
          durationLinearSystem);
-  printf(" Iter (Jacobi+SOR)# = %d, to Res= %f \n", Iteration, MaxRes);
-  printf("----------------------------------------------\n");
+  if (paramsH->USE_iterative_solver)
+    printf(" Iter (Jacobi+SOR)# = %d, to Res= %f \n", Iteration, MaxRes);
+  if (paramsH->USE_CUSP)
+    if (monitor.converged()) {
+      std::cout << " Solver converged to " << monitor.tolerance() << " tolerance";
+      std::cout << " after " << monitor.iteration_count() << " iterations";
+      std::cout << " (" << monitor.residual_norm() << " final residual)" << std::endl;
+    } else {
+      std::cout << "Failed to converge after " << monitor.iteration_limit() << " iterations";
+      std::cout << " to " << monitor.tolerance() << " tolerance ";
+      std::cout << " (" << monitor.residual_norm() << " final residual)" << std::endl;
+    }
 
   //------------------------------------------------------------------------
   //------------------------------------------------------------------------
   cudaFree(isErrorD);
   free(isErrorH);
   nonNormRho.clear();
-  dxi_over_Vi.clear();
+  // dxi_over_Vi.clear();
   p_old.clear();
   d_ii.clear();
   V_np.clear();
@@ -2446,7 +2446,6 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
   a_ii.clear();
   a_ij.clear();
   B_i.clear();
-  a_ij3.clear();
   dij_pj.clear();
   summGradW.clear();
   csrColIndA.clear();
@@ -2471,7 +2470,7 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
 
   int numAllMarkers = numObjectsH->numBoundaryMarkers + numObjectsH->numFluidMarkers;
   uint numThreads, numBlocks;
-  computeGridSize(numAllMarkers, 128, numBlocks, numThreads);
+  computeGridSize(numAllMarkers, 256, numBlocks, numThreads);
   bool *isErrorH, *isErrorD;
 
   isErrorH = (bool*)malloc(sizeof(bool));
@@ -2480,7 +2479,8 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
   cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
   //------------------------------------------------------------------------
   // thread per particle
-  std::cout << "dT in ForceSPH after calcPressure: " << paramsH->dT << "\n";
+  //  std::cout << "dT in ForceSPH after calcPressure: " << paramsH->dT << "\n";
+  double CalcForcesClock = clock();
 
   thrust::fill(derivVelRhoD_Sorted_D.begin(), derivVelRhoD_Sorted_D.end(), mR4(0));
   thrust::fill(vel_XSPH_Sorted_D.begin(), vel_XSPH_Sorted_D.end(), mR3(0));
@@ -2498,6 +2498,21 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
     throw std::runtime_error("Error! program crashed in CalcForces!\n");
   }
 
+  UpdateDensity<<<numBlocks, numThreads>>>(
+      mR3CAST(vel_XSPH_Sorted_D), mR3CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
+      U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers, paramsH->dT, isErrorD);
+  cudaThreadSynchronize();
+  cudaCheckError();
+
+  cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+  if (*isErrorH == true) {
+    throw std::runtime_error("Error! program crashed in CalcForces!\n");
+  }
+
+  double calcforce = (clock() - CalcForcesClock) / (double)CLOCKS_PER_SEC;
+  printf(" Force Computation: %f \n", calcforce);
+  double UpdateClock = clock();
+
   CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vel_XSPH_D, vel_XSPH_Sorted_D,
                                       markersProximityD->gridMarkerIndexD);
   CopySortedToOriginal_NonInvasive_R3(sphMarkersD->posRadD, sortedSphMarkersD->posRadD,
@@ -2508,6 +2523,9 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
                                       markersProximityD->gridMarkerIndexD);
   CopySortedToOriginal_NonInvasive_R4(fsiGeneralData->derivVelRhoD, derivVelRhoD_Sorted_D,
                                       markersProximityD->gridMarkerIndexD);
+  printf(" Update information: %f \n", (clock() - UpdateClock) / (double)CLOCKS_PER_SEC);
+  printf("----------------------------------------------\n");
+
   //
 }
 

@@ -76,8 +76,8 @@
 #include "demos/fsi/demo_indentation.h"  //SetupParamsH()
 
 #define haveFluid 1
-#define addPressure
-//#define addIndentor
+//#define addPressure
+#define addIndentor
 #define NormalSP  // Defines whether spring and dampers will always remain normal to the surface
 
 // Chrono namespaces
@@ -103,7 +103,7 @@ std::string MESH_CONNECTIVITY = data_folder + "Flex_MESH.vtk";
 std::vector<std::vector<int>> NodeNeighborElementMesh;
 
 bool povray_output = true;
-int out_fps = 100;
+int out_fps = 1000;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -119,7 +119,7 @@ Real fzDim = 0.0035;
 
 // For displacement driven method
 double Indentor_R = 0.0032;
-double Indentaiton_rate = -50.0 * 1e-6;
+double Indentaiton_rate = -500.0 * 1e-6;
 double x0 = bzDim;
 
 // For force-driven method
@@ -135,6 +135,9 @@ bool addCable = false;
 bool refresh_FlexBodiesInsideFluid = true;
 
 int numCableNodes = 0;
+
+std::vector<std::shared_ptr<ChLinkPointFrame>> rigidLinks;
+
 void writeMesh(std::shared_ptr<ChMesh> my_mesh,
                std::string SaveAs,
                std::vector<std::vector<int>>& NodeNeighborElement,
@@ -389,15 +392,19 @@ int main(int argc, char* argv[]) {
     Real Global_max_dT = paramsH->dT_Max;
     for (int tStep = 0; tStep < stepEnd + 1; tStep++) {
         ChVector<> ground_Force(0);
-        auto mBody = (std::shared_ptr<ChBody>)mphysicalSystem.Get_bodylist()->at(0);
-        std::vector<std::shared_ptr<ChForce>> body_forces = mBody->GetForceList();
-        chrono::ChForce::ForceType mode = ChForce::FORCE;
-        for (int i = 0; i < body_forces.size(); i++) {
-            if (body_forces[i]->GetMode() == mode)
-                ground_Force += body_forces[i]->GetForce() * 1000;
-        }
+        ChVector<> ground_Xforce(0);
 
-        printf("Force to the ground is %f,%f,%f \n", ground_Force.x, ground_Force.y, ground_Force.z);
+        //        auto mBody = (std::shared_ptr<ChBody>)mphysicalSystem.Get_bodylist()->at(0);
+        //        ground_Xforce = mBody->Get_Xforce() * 1000;
+        //        std::vector<std::shared_ptr<ChForce>> body_forces = mBody->GetForceList();
+        //        chrono::ChForce::ForceType mode = ChForce::FORCE;
+        //        for (int i = 0; i < body_forces.size(); i++) {
+        //            if (body_forces[i]->GetMode() == mode)
+        //                ground_Force += body_forces[i]->GetForce() * 1000;
+        //        }
+        //
+        //        printf("Force to the ground is %f,%f,%f \n", ground_Force.x, ground_Force.y, ground_Force.z);
+        //        printf("ground_Xforce is %f,%f,%f \n", ground_Xforce.x, ground_Xforce.y, ground_Xforce.z);
 
         printf("step : %d, time= : %f (s) \n", tStep, time);
         double frame_time = 1.0 / out_fps;
@@ -584,7 +591,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         double Fiber_Length = bzDim;
 
         double Area = 3.1415 * std::pow(Fiber_Diameter, 2) / 4;
-        double E = 6e5;
+        double E = 50e6;
         double nu = 0.3;
         auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
         /*================== Cable Elements =================*/
@@ -683,24 +690,24 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         //            node->SetFixed(true);
         //        }
 
+        //        if ((i + 1) % (numDiv_x + 1) == 0 || i % (numDiv_x + 1) == 0 || i < (numDiv_x + 1) ||
+        //            i >= (TotalNumNodes_onSurface - numDiv_x - 1)) {
+        //            auto NodePos = std::make_shared<ChLinkPointFrameGeneral>(ChVector<>(0, 0, 1));
+        //            NodePos->Initialize(node, ground);
+        //            mphysicalSystem.Add(NodePos);
+        //            printf("general constraint node %d is set at %f, %f, %f\n", i, node->GetPos().x, node->GetPos().y,
+        //                   node->GetPos().z);
+        //        }
+
         if ((i + 1) % (numDiv_x + 1) == 0 || i % (numDiv_x + 1) == 0 || i < (numDiv_x + 1) ||
             i >= (TotalNumNodes_onSurface - numDiv_x - 1)) {
-            auto NodePos = std::make_shared<ChLinkPointFrameGeneral>(ChVector<>(0, 0, 1));
+            auto NodePos = std::make_shared<ChLinkPointFrame>();
             NodePos->Initialize(node, ground);
+            rigidLinks.push_back(NodePos);
             mphysicalSystem.Add(NodePos);
-            printf("general constraint node %d is set at %f, %f, %f\n", i, node->GetPos().x, node->GetPos().y,
+            printf("position constraint node %d is set at %f, %f, %f\n", i, node->GetPos().x, node->GetPos().y,
                    node->GetPos().z);
         }
-
-/*if ((i + 1) % (numDiv_x + 1) == 0 || i % (numDiv_x + 1) == 0
-        || i < (numDiv_x + 1) || i >= (TotalNumNodes_onSurface - numDiv_x - 1)) {
-    auto NodePos = std::make_shared<ChLinkPointFrame>();
-    NodePos->Initialize(node, ground);
-    mphysicalSystem.Add(NodePos);
-    printf("general constraint node %d is set at %f, %f, %f\n", i,
-            node->GetPos().x, node->GetPos().y, node->GetPos().z);
-
-}*/
 
 #ifndef addPressure
 #ifdef addIndentor
@@ -751,10 +758,15 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
     // Create an orthotropic material.
     // All layers for all elements share the same material.
+
     double rho = 1000;
-    double E = 1e5;
+    double E = 1.0e5;
     double nu = 0.3;
     auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
+
+    //    ChVector<> G(8.0769231e6, 8.0769231e6, 8.0769231e6);
+    //    auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu, G);
+
     // Create the elements
     for (int i = 0; i < TotalNumElements; i++) {
         // Adjacent nodes
@@ -789,6 +801,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         element->SetGravityOn(false);  // turn internal gravitational force calculation off
         // Add element to mesh
         my_mesh->AddElement(element);
+        printf("mat->Get_E(); %f\n ", element->GetLayer(0).GetMaterial()->Get_E());
     }
 
     // auto mcontactsurf = std::make_shared<ChContactSurfaceMesh>();
@@ -924,7 +937,7 @@ void Calculator(fsi::ChSystemFsi& myFsiSystem,
 
         // Only add the forces exerted to nodes at the surface
         if (std::abs(Node->GetPos().z) > fzDim)
-            mforces += Node->GetForce();
+            mforces += Node->GetForce() * 1000;
 
         if (std::abs(Node->GetPos().x) < 1e-6 && std::abs(Node->GetPos().y) < 1e-6)
             delta_s = Node->GetPos().z - x_i.z;
@@ -946,9 +959,18 @@ void Calculator(fsi::ChSystemFsi& myFsiSystem,
 #ifndef addPressure
 #ifdef addIndentor
 
-    printf("delta_s(micro m)=%f, ave_compression%= %f, f_N(mN)=(%f,%f,%f)\n", delta_s * 1e6, (Rho_ave - 1000) / 10,
-           mforces.x * 1e3, mforces.y * 1e3, mforces.z * 1e3);
-    output << time << " " << delta_s << " " << mforces.z << " " << Rho_ave << std::endl;
+    ChVector<> indentor_force(0);
+
+    for (int i = 0; i < rigidLinks.size(); i++) {
+        auto frame = rigidLinks[i]->GetLinkAbsoluteCoords();
+        indentor_force += rigidLinks[i]->Get_react_force() * 1000;
+    }
+
+    printf("delta_s(micro m)=%f, ave_compression%= %f, fN_fluid(mN)=(%f,%f,%f), fN_Indentor=(%f,%f,%f)\n",
+           delta_s * 1e6, (Rho_ave - 1000) / 10, mforces.x, mforces.y, mforces.z, indentor_force.x, indentor_force.y,
+           indentor_force.z);
+    output << time << " " << delta_s << " " << mforces.z / 1000 << " " << indentor_force.z / 1000 << " " << Rho_ave
+           << std::endl;
 #endif
 #endif
 
@@ -1298,15 +1320,20 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
         }
 
+        MyResult.clear();
+
         output << "\nVECTORS sigma12_theta float\n";
+
         for (unsigned int i = 0; i < nodeList.size(); i++) {
             double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
             double myarea = 0;
             double dx, dy;
             for (int j = 0; j < NodeNeighborElement[nodeList[i]].size(); j++) {
                 int myelemInx = NodeNeighborElement[nodeList[i]][j];
+                ChVector<> test;
                 MyResult = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))
                                ->GetPrincipalStresses();
+
                 dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
                 dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
                 myarea += dx * dy / NodeNeighborElement[nodeList[i]].size();
@@ -1316,6 +1343,7 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             }
             output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
         }
+
         output << "\nVECTORS S_Princ_Dir1 float\n";
         for (unsigned int i = 0; i < nodeList.size(); i++) {
             double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;

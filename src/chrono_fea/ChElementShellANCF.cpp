@@ -2173,7 +2173,7 @@ ChMaterialShellANCF::ChMaterialShellANCF(double rho,  // material density
                                          double E,    // Young's modulus
                                          double nu    // Poisson ratio
                                          )
-    : m_rho(rho) {
+    : m_rho(rho), m_E(E), m_nu(nu) {
     double G = 0.5 * E / (1 + nu);
     Calc_E_eps(ChVector<>(E), ChVector<>(nu), ChVector<>(G));
 }
