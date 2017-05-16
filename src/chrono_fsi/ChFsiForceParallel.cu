@@ -1009,8 +1009,8 @@ __device__ void BCE_Vel_Acc(int i_idx,
     int FlexIndex = FlexIdentifierD[Original_idx - updatePortion.z];
 
     if (FlexIndex < numFlex1D) {
-      int nA = CableElementsNodes[FlexIndex].x;
-      int nB = CableElementsNodes[FlexIndex].y;
+      int nA = CableElementsNodes[FlexIndex].y;
+      int nB = CableElementsNodes[FlexIndex].x;
 
       Real3 pos_fsi_fea_D_nA = pos_fsi_fea_D[nA];
       Real3 pos_fsi_fea_D_nB = pos_fsi_fea_D[nB];
@@ -1468,7 +1468,7 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
   csrColIndA[csrStartIdx - 1] = i_idx;
   GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
 
-  if (sortedRhoPreMu[i_idx].x < 0.995 * RHO_0) {
+  if (sortedRhoPreMu[i_idx].x < 0.999 * RHO_0) {
     csrValA[csrStartIdx - 1] = a_ii[i_idx];
     for (int myIdx = csrStartIdx; myIdx < csrEndIdx; myIdx++) {
       csrValA[myIdx] = 0.0;
@@ -1952,7 +1952,7 @@ __global__ void FinalizePressure(Real3* sortedPosRad,  // Read
   // sortedRhoPreMu[i_idx].y = 0;
 
   //  if (p_shift < 0)
-  sortedRhoPreMu[i_idx].y = p_old[i_idx] + paramsD.BASEPRES;  //- p_shift;
+  sortedRhoPreMu[i_idx].y = p_old[i_idx] + ((paramsD.ClampPressure) ? paramsD.BASEPRES : 0.0);  //- p_shift;
 
   //  if (p_old[i_idx] < 0)
   //    sortedRhoPreMu[i_idx].y = (p_old[i_idx] > 0) ? p_old[i_idx] : 0.0;
@@ -2225,7 +2225,7 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
     AMatrix.column_indices = csrColIndA;
     AMatrix.values = csrValA;
 
-    cusp::array1d<double, cusp::device_memory> x = p_old;
+    cusp::array1d<double, cusp::device_memory> x(numAllMarkers, paramsH->BASEPRES);
     //    cusp::array1d<double, cusp::device_memory> x(numAllMarkers, 1000.);
 
     // set stopping criteria:

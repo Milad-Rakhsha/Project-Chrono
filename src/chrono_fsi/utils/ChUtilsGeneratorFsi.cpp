@@ -197,7 +197,7 @@ void CreateBceGlobalMarkersFromBceLocalPos_CableANCF(ChFsiDataManager* fsiData,
     //    printf(" N0 =%f, nAp.z= %f, N2=%f, nAp.z=%f\n", N(0), nAp.z, N(2), nBp.z);
 
     chrono::ChVector<> Correct_Pos =
-        Nnew.x * nAp + Nnew.y * nBp + new_y_axis * pos_physical.y + new_z_axis * pos_physical.z;
+        Nnew.x * nBp + Nnew.y * nAp + new_y_axis * pos_physical.y + new_z_axis * pos_physical.z;
 
     printf(" physic_to_natural is = (%f,%f,%f)\n", physic_to_natural.x, physic_to_natural.y, physic_to_natural.z);
     printf(" pos_physical is = (%f,%f,%f)\n", pos_physical.x, pos_physical.y, pos_physical.z);

@@ -50,7 +50,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->epsMinMarkersDis = .01;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
-    paramsH->BASEPRES = 2e3;
+    paramsH->BASEPRES = 0e3;
     paramsH->LARGE_PRES = 0.0;
     paramsH->deltaPress;
     paramsH->multViscosity_FSI = 1;
@@ -58,7 +58,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 0.1;
+    paramsH->mu0 = 0.05;
     paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
@@ -78,13 +78,13 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->Max_Pressure = 1e20;
     paramsH->PPE_relaxation = 0.3;         // Increasing this to 0.5 causes instability, only used in iterative solvers
     paramsH->IncompressibilityFactor = 1;  // Increasing this causes lager compressibility, but let for larger dt
-    paramsH->ClampPressure = true;         // If the negative pressure should be clamped to zero or not
+    paramsH->ClampPressure = false;        // If the negative pressure should be clamped to zero or not
     paramsH->Adaptive_time_stepping = false;  // This let you use large time steps when possible
     paramsH->Co_number = 0.8;                 // 0.2 works well for most cases
     paramsH->dT_Max = 0.01;       // This is problem dependent should set by the user based on characteristic time step
     paramsH->Apply_BC_U = false;  // You should go to custom_math.h all the way to end of file and set your function
 
-    paramsH->dT = 2e-5;
+    paramsH->dT = 1e-4;
     paramsH->dT_Flex = paramsH->dT / 2;
 
     paramsH->tFinal = 2;

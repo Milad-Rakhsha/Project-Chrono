@@ -131,7 +131,7 @@ double K_SPRINGS = 200;  // 1000;
 double C_DAMPERS = 0.;
 double L0_t = 0.005;
 bool addSprings = false;
-bool addCable = false;
+bool addCable = true;
 bool refresh_FlexBodiesInsideFluid = true;
 
 int numCableNodes = 0;
@@ -194,6 +194,8 @@ int main(int argc, char* argv[]) {
 
     time(&rawtime);
     timeinfo = localtime(&rawtime);
+    std::cout << "Starting device 1 on" << std::endl;
+    cudaSetDevice(1);
 
     if (ChFileutils::MakeDirectory(out_dir.c_str()) < 0) {
         cout << "Error creating directory " << out_dir << endl;
@@ -374,10 +376,10 @@ int main(int argc, char* argv[]) {
     auto mystepper = std::static_pointer_cast<ChTimestepperHHT>(mphysicalSystem.GetTimestepper());
     mystepper->SetAlpha(-0.2);
     mystepper->SetMaxiters(1000);
-    mystepper->SetAbsTolerances(1e-5);
+    mystepper->SetAbsTolerances(1e-12);
     mystepper->SetMode(ChTimestepperHHT::POSITION);
     mystepper->SetScaling(true);
-    mystepper->SetVerbose(false);
+    mystepper->SetVerbose(true);
 
     int stepEnd = int(paramsH->tFinal / paramsH->dT);
     stepEnd = 1000000;
@@ -579,6 +581,11 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     calcSomeParams(numDiv_x, numDiv_y, numDiv_z, plate_lenght_x, plate_lenght_y, plate_lenght_z, N_x, N_y, N_z,
                    TotalNumElements, TotalNumNodes_onSurface, dx, dy, dz);
 
+    std::ofstream Nodal_Constraint;
+    Nodal_Constraint.open(data_folder + "Nodal_Constraint.csv");
+    std::string delim = ",";
+    Nodal_Constraint << "idx,type,x,y,z\n";
+    Nodal_Constraint.precision(4);
     std::vector<std::shared_ptr<ChNodeFEAxyzD>> Constraint_nodes_Shell;
     std::vector<std::shared_ptr<ChNodeFEAxyzD>> Constraint_nodes_fibers;
 
@@ -591,7 +598,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         double Fiber_Length = bzDim;
 
         double Area = 3.1415 * std::pow(Fiber_Diameter, 2) / 4;
-        double E = 50e6;
+        double E = 50e7;
         double nu = 0.3;
         auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
         /*================== Cable Elements =================*/
@@ -600,6 +607,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         msection_cable->SetYoungModulus(E);
         msection_cable->SetBeamRaleyghDamping(0.05);
         // Create material.
+        //        type: 0:Fixed node- 1:Position Constrain- 2:Position+Dir Constraint
+        //        std::ofstream fileName_1D_Fixed_nodes;
 
         for (int Fiber = 0; Fiber < num_Fibers; Fiber++) {
             ChBuilderBeamANCF builder;
@@ -607,7 +616,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
             double loc_y = (Fiber / (numDiv_x + 1)) % (numDiv_y + 1) * dy - byDim / 2 - 0 * initSpace0;
             double loc_z = fzDim + 2 * initSpace0;
 
-            if (std::abs(loc_x) < bxDim / 2 && std::abs(loc_y) < byDim / 2 || 1) {
+            if (std::abs(loc_x) < bxDim / 2 && std::abs(loc_y) < byDim / 2) {
                 // Now, simply use BuildBeam to create a beam from a point to another:
                 builder.BuildBeam_FSI(
                     my_mesh,                      // the mesh where to put the created nodes and elements
@@ -619,7 +628,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
                 auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(builder.GetLastBeamNodes().back());
                 Constraint_nodes_fibers.push_back(Node);
-                printf("Constraint node %d (%f, %f, %f)\n", Node->GetPos().x, Node->GetPos().y, Node->GetPos().z);
+                Nodal_Constraint << Node->GetIndex() << delim << 2 << delim << Node->GetPos().x << delim
+                                 << Node->GetPos().y << delim << Node->GetPos().z << std::endl;
 
                 //        // After having used BuildBeam(), you can retrieve the nodes used for the beam,
                 //        // For example say you want to fix both pos and dir of A end and apply a force to the B end:
@@ -633,10 +643,10 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
         for (int i = 0; i < my_mesh->GetNnodes(); i++) {
             auto node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(i));
-            if (node->GetPos().z <= initSpace0) {
+            if (node->GetPos().z <= initSpace0 + 1e-6) {
                 node->SetFixed(true);
-                printf("nodes %d is set to be fixed %f, %f, %f\n", i, node->GetPos().x, node->GetPos().y,
-                       node->GetPos().z);
+                Nodal_Constraint << node->GetIndex() << delim << 0 << delim << node->GetPos().x << delim
+                                 << node->GetPos().y << delim << node->GetPos().z << std::endl;
             }
         }
     }
@@ -646,8 +656,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     int currentElemsize = _1D_elementsNodes_mesh.size();
     numCableNodes = currentNodesize;
 
-    numDiv_x = 10;
-    numDiv_y = 10;
+    numDiv_x = 20;
+    numDiv_y = 20;
     numDiv_z = 1;
 
     calcSomeParams(numDiv_x, numDiv_y, numDiv_z, plate_lenght_x, plate_lenght_y, plate_lenght_z, N_x, N_y, N_z,
@@ -671,7 +681,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         // Create the node
         auto node = std::make_shared<ChNodeFEAxyzD>(ChVector<>(loc_x, loc_y, loc_z), ChVector<>(dir_x, dir_y, dir_z));
 
-        if (std::abs(loc_x) < bxDim / 2 && std::abs(loc_y) < byDim / 2 || 1) {
+        if (std::abs(loc_x) < bxDim / 2 && std::abs(loc_y) < byDim / 2) {
             // look into the the fibers' nodes that need to be constraint;
             // if this node is very close! to one of those nodes constraint it
             for (int fibernodes = 0; fibernodes < Constraint_nodes_fibers.size(); fibernodes++) {
@@ -707,13 +717,15 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
             mphysicalSystem.Add(NodePos);
             printf("position constraint node %d is set at %f, %f, %f\n", i, node->GetPos().x, node->GetPos().y,
                    node->GetPos().z);
+            Nodal_Constraint << node->GetIndex() << delim << 1 << delim << node->GetPos().x << delim << node->GetPos().y
+                             << delim << node->GetPos().z << std::endl;
         }
 
 #ifndef addPressure
 #ifdef addIndentor
 
         ChVector<> nodePos = node->GetPos();
-        if (pow(std::abs(nodePos.x), 2) + pow(std::abs(nodePos.y), 2) < pow(Indentor_R / 2, 2)) {
+        if (pow(std::abs(nodePos.x), 2) + pow(std::abs(nodePos.y), 2) < pow(Indentor_R / 2, 2) + 1e-6) {
             printf("indentation is applied to node %d pos=(%f, %f, %f)\n", i, nodePos.x, nodePos.y, nodePos.z);
             auto NodePos = std::make_shared<ChLinkPointFrame>();
             auto NodeDir = std::make_shared<ChLinkDirFrame>();
@@ -724,6 +736,9 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
             NodeDir->Initialize(node, Indentor);
             NodeDir->SetDirectionInAbsoluteCoords(node->D);
             mphysicalSystem.Add(NodeDir);
+
+            Nodal_Constraint << node->GetIndex() << delim << 2 << delim << node->GetPos().x << delim << node->GetPos().y
+                             << delim << node->GetPos().z << std::endl;
         }
 
 #endif
@@ -750,6 +765,10 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
             auto constr = std::make_shared<ChLinkPointPoint>();
             constr->Initialize(Constraint_nodes_fibers[iNode], Constraint_nodes_Shell[iNode]);
             mphysicalSystem.Add(constr);
+            Nodal_Constraint << Constraint_nodes_Shell[iNode]->GetIndex() << delim << 1 << delim
+                             << Constraint_nodes_Shell[iNode]->GetPos().x << delim
+                             << Constraint_nodes_Shell[iNode]->GetPos().y << delim
+                             << Constraint_nodes_Shell[iNode]->GetPos().z << std::endl;
         }
     } else if (addCable) {
         std::cout << "Error! Constraints are not applied correctly\n" << std::endl;
@@ -760,7 +779,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // All layers for all elements share the same material.
 
     double rho = 1000;
-    double E = 1.0e5;
+    double E = 1.0e7;
     double nu = 0.3;
     auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
 
@@ -840,7 +859,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     }
     mphysicalSystem.Add(Pressureloadcontainer);
 #endif
-
+    Nodal_Constraint.close();
     // Add the mesh to the system
 
     std::vector<std::shared_ptr<chrono::fea::ChElementCableANCF>>* FSI_Cables = myFsiSystem.GetFsiCablesPtr();
@@ -849,7 +868,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
     bool multilayer = true;
     bool removeMiddleLayer = false;
-    bool add1DElem = true;
+    bool add1DElem = false;
     bool add2DElem = true;
     chrono::fsi::utils::AddBCE_FromMesh(
         myFsiSystem.GetDataManager(), paramsH, my_mesh, FSI_Nodes, FSI_Cables, FSI_Shells, NodeNeighborElementMesh,
@@ -936,8 +955,8 @@ void Calculator(fsi::ChSystemFsi& myFsiSystem,
         ChVector<> x_i = x0[iNode - numCableNodes];
 
         // Only add the forces exerted to nodes at the surface
-        if (std::abs(Node->GetPos().z) > fzDim)
-            mforces += Node->GetForce() * 1000;
+        //        if (std::abs(Node->GetPos().z) > fzDim)
+        mforces += Node->GetForce() * 1000;
 
         if (std::abs(Node->GetPos().x) < 1e-6 && std::abs(Node->GetPos().y) < 1e-6)
             delta_s = Node->GetPos().z - x_i.z;
@@ -963,7 +982,7 @@ void Calculator(fsi::ChSystemFsi& myFsiSystem,
 
     for (int i = 0; i < rigidLinks.size(); i++) {
         auto frame = rigidLinks[i]->GetLinkAbsoluteCoords();
-        indentor_force += rigidLinks[i]->Get_react_force() * 1000;
+        indentor_force += rigidLinks[i]->Get_react_force() * 1000 >> frame;
     }
 
     printf("delta_s(micro m)=%f, ave_compression%= %f, fN_fluid(mN)=(%f,%f,%f), fN_Indentor=(%f,%f,%f)\n",
