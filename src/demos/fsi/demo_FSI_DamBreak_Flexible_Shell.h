@@ -44,7 +44,7 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.05;
+    paramsH->HSML = 0.025;
     paramsH->MULT_INITSPACE = 1.0;
     paramsH->MULT_INITSPACE_Shells = 1.0;
     paramsH->epsMinMarkersDis = .01;
@@ -58,28 +58,25 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 1;
+    paramsH->mu0 = 0.05;
     paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
-    paramsH->USE_CUSP = true;                           // Experimentally,don't use if for now
-    paramsH->Cusp_solver = bicgstab;                    // gmres, cr, bicgstab, cg
-    paramsH->Verbose_monitoring = false;                // If you want cusp to print out the iterations-residual
+    paramsH->PPE_res = 1e-10;
+    paramsH->Max_Pressure = 1e5;
+    paramsH->PPE_Max_Iter = 10000;
     paramsH->PPE_Solution_type = SPARSE_MATRIX_JACOBI;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
-    paramsH->PPE_res = 0;          // This is the relative res, is used in the iterative solver and  cusp solvers
-    paramsH->PPE_Abs_res = 1e-10;  // This is the absolute error used when cusp solvers are used
-    paramsH->PPE_Max_Iter = 2000;  // This is the max number of iteration for cusp solvers
-
-    paramsH->Max_Pressure = 1e20;
-    paramsH->PPE_relaxation = 0.4;         // Increasing this to 0.5 causes instability, only used in iterative solvers
-    paramsH->IncompressibilityFactor = 1;  // Increasing this causes lager compressibility, but let for larger dt
-    paramsH->ClampPressure = true;         // If the negative pressure should be clamped to zero or not
+    paramsH->PPE_relaxation = 0.3;                      // Increasing this to 0.5 causes instability
+    paramsH->ClampPressure = true;                      // If the negative pressure should be clamped to zero or not
+    paramsH->IncompressibilityFactor = 1;     // Increasing this causes lager compressibility, but let for larger dt
+    paramsH->USE_CUSP = true;                 // Experimentally,don't use if for now
     paramsH->Adaptive_time_stepping = false;  // This let you use large time steps when possible
-    paramsH->Co_number = 0.8;                 // 0.2 works well for most cases
-    paramsH->dT_Max = 0.01;       // This is problem dependent should set by the user based on characteristic time step
-    paramsH->Apply_BC_U = false;  // You should go to custom_math.h all the way to end of file and set your function
+    paramsH->Co_number = 1;                   // 0.2 works well for most cases
+    paramsH->dT_Max = 0.01;  // This is problem dependent should set by the user based on characteristic time step
 
-    paramsH->dT = 1e-2;
+    paramsH->dT = 5e-3;
+    paramsH->dT_Flex = paramsH->dT / 5;
+
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;  // I don't know what is kdT

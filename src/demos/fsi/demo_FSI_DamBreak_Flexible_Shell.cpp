@@ -89,7 +89,7 @@ typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 Real bxDim = 3;
-Real byDim = 0.4;
+Real byDim = 0.2;
 Real bzDim = 2;
 
 Real fxDim = 1;
@@ -235,7 +235,7 @@ int main(int argc, char* argv[]) {
                                                              // handle stiffness matrices
     chrono::ChSolverMINRES* msolver = (chrono::ChSolverMINRES*)mphysicalSystem.GetSolverSpeed();
     msolver->SetDiagonalPreconditioning(true);
-    mphysicalSystem.SetMaxItersSolverSpeed(100);
+    mphysicalSystem.SetMaxItersSolverSpeed(10000);
     mphysicalSystem.SetTolForce(1e-10);
 
     // Set up integrator
@@ -365,11 +365,11 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     auto my_mesh = std::make_shared<fea::ChMesh>();
     int numFlexBody = 1;
     // Geometry of the plate
-    double plate_lenght_x = bzDim / 4;
+    double plate_lenght_x = initSpace0 * 16;
     double plate_lenght_y = byDim;
     double plate_lenght_z = 0.02;
     // Specification of the mesh
-    int numDiv_x = 4;
+    int numDiv_x = 8;
     int numDiv_y = 4;
     int numDiv_z = 1;
     int N_x = numDiv_x + 1;
@@ -391,7 +391,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         // Node location
         double loc_x = (i % (numDiv_x + 1)) * dx + initSpace0;
         double loc_y = (i / (numDiv_x + 1)) % (numDiv_y + 1) * dy - byDim / 2;
-        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + bxDim / 8 + 2 * initSpace0;
+        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + bxDim / 8 + 3 * initSpace0;
 
         // Node direction
         double dir_x = 0;
@@ -416,8 +416,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
     // Create an orthotropic material.
     // All layers for all elements share the same material.
-    double rho = 500;
-    double E = 1e7;
+    double rho = 5000;
+    double E = 2e6;
     double nu = 0.3;
     //    ChVector<> E(1e5, 1e5, 1e5);
     //    ChVector<> nu(0.3, 0.3, 0.3);
@@ -429,10 +429,10 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         int node1 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + 1;
         int node2 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + 1 + N_x;
         int node3 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + N_x;
-        elementsNodes_mesh[i].push_back(node0 + 1);
-        elementsNodes_mesh[i].push_back(node1 + 1);
-        elementsNodes_mesh[i].push_back(node2 + 1);
-        elementsNodes_mesh[i].push_back(node3 + 1);
+        elementsNodes_mesh[i].push_back(node0);
+        elementsNodes_mesh[i].push_back(node1);
+        elementsNodes_mesh[i].push_back(node2);
+        elementsNodes_mesh[i].push_back(node3);
         NodeNeighborElement_mesh[node0].push_back(i);
         NodeNeighborElement_mesh[node1].push_back(i);
         NodeNeighborElement_mesh[node2].push_back(i);
@@ -463,16 +463,20 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
     // Add the mesh to the system
     mphysicalSystem.Add(my_mesh);
-
+    std::vector<std::shared_ptr<chrono::fea::ChElementCableANCF>>* FSI_Cables = myFsiSystem.GetFsiCablesPtr();
     std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* FSI_Shells = myFsiSystem.GetFsiShellsPtr();
     std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* FSI_Nodes = myFsiSystem.GetFsiNodesPtr();
 
     bool multilayer = true;
     bool removeMiddleLayer = false;
+    bool add1DElem = false;
+    bool add2DElem = true;
+    // TODO: Implement default parameters for AddBCE_FromMesh
+    std::vector<std::vector<int>> _1D_elementsNodes_mesh;
+    chrono::fsi::utils::AddBCE_FromMesh(myFsiSystem.GetDataManager(), paramsH, my_mesh, FSI_Nodes, FSI_Cables,
+                                        FSI_Shells, NodeNeighborElement_mesh, _1D_elementsNodes_mesh,
+                                        elementsNodes_mesh, add1DElem, add2DElem, multilayer, removeMiddleLayer, 0, 0);
 
-    chrono::fsi::utils::AddBCE_ShellFromMesh(myFsiSystem.GetDataManager(), paramsH, FSI_Shells, FSI_Nodes, my_mesh,
-                                             elementsNodes_mesh, NodeNeighborElement_mesh, multilayer,
-                                             removeMiddleLayer, 0);
     myFsiSystem.SetShellElementsNodes(elementsNodes_mesh);
     myFsiSystem.SetFsiMesh(my_mesh);
 

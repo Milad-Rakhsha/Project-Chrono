@@ -127,14 +127,14 @@ void ChSystemFsi::DoStepDynamics_FSI() {
   mTime += paramsH->dT;
 
   // TODO
-  DoStepChronoSystem(1.0 * paramsH->dT, mTime);
+  DoStepChronoSystem(0.5 * paramsH->dT, mTime);
   //
   fsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem(&(fsiData->fsiBodiesD1));
   bceWorker->UpdateRigidMarkersPositionVelocity(&(fsiData->sphMarkersD1), &(fsiData->fsiBodiesD1));
 
   // Density re-initialization
   int tStep = mTime / paramsH->dT;
-  if ((tStep % 10 == 0) && (paramsH->densityReinit != 0)) {
+  if ((tStep % 1 == 0) && (paramsH->densityReinit != 0)) {
     fluidDynamics->DensityReinitialization();
   }
 }
@@ -149,6 +149,7 @@ void ChSystemFsi::DoStepDynamics_FSI_Implicit() {
   bceWorker->Flex_Forces(&(fsiData->sphMarkersD2), &(fsiData->fsiMeshD));
   printf("DataTransfer...(Nodal force from device to host)\n");
 
+  //  if (paramsH->dT <= paramsH->dT_Flex)
   fsiInterface->Add_Rigid_ForceTorques_To_ChSystem();
   // Note that because of applying forces to the nodal coordinates using SetForce() no other external forces can be
   // applied, or if any thing has been applied will be rewritten by Add_Flex_Forces_To_ChSystem();

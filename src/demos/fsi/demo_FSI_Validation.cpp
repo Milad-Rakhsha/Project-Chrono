@@ -86,9 +86,9 @@ int out_fps = 100;
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
-Real bxDim = 0.4;
-Real byDim = 0.04;
-Real bzDim = 0.2;
+Real bxDim = 0.6;
+Real byDim = 0.1;
+Real bzDim = 0.22;
 
 Real fxDim = 0.1;
 Real fyDim = byDim;
@@ -115,13 +115,13 @@ void SetArgumentsForMbdFromInput(int argc,
 
 void InitializeMbdPhysicalSystem(ChSystemDEM& mphysicalSystem, ChVector<> gravity, int argc, char* argv[]);
 
-void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
-                          ChSystemDEM& mphysicalSystem,
-                          std::shared_ptr<fea::ChMesh> my_mesh,
-                          std::vector<std::vector<int>> NodeNeighborElementMesh,
-                          chrono::fsi::SimParams* paramsH,
-                          int next_frame,
-                          double mTime);
+void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
+                       ChSystemDEM& mphysicalSystem,
+                       std::shared_ptr<fea::ChMesh> my_mesh,
+                       std::vector<std::vector<int>> NodeNeighborElementMesh,
+                       chrono::fsi::SimParams* paramsH,
+                       int next_frame,
+                       double mTime);
 
 void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, chrono::fsi::SimParams* paramsH);
 
@@ -133,7 +133,7 @@ int main(int argc, char* argv[]) {
 
     time(&rawtime);
     timeinfo = localtime(&rawtime);
-
+    cudaSetDevice(1);
     if (ChFileutils::MakeDirectory(out_dir.c_str()) < 0) {
         cout << "Error creating directory " << out_dir << endl;
         return 1;
@@ -247,7 +247,7 @@ int main(int argc, char* argv[]) {
                                                              // handle stiffness matrices
     chrono::ChSolverMINRES* msolver = (chrono::ChSolverMINRES*)mphysicalSystem.GetSolverSpeed();
     msolver->SetDiagonalPreconditioning(true);
-    mphysicalSystem.SetMaxItersSolverSpeed(1000);
+    mphysicalSystem.SetMaxItersSolverSpeed(100000);
     mphysicalSystem.SetTolForce(1e-10);
 
     // Set up integrator
@@ -258,12 +258,10 @@ int main(int argc, char* argv[]) {
     mystepper->SetAbsTolerances(1e-5);
     mystepper->SetMode(ChTimestepperHHT::POSITION);
     mystepper->SetScaling(true);
+    // mphysicalSystem.SetIntegrationType(chrono::ChSystem::INT_EULER_IMPLICIT_LINEARIZED);
+    SaveParaViewFiles(myFsiSystem, mphysicalSystem, my_mesh, NodeNeighborElementMesh, paramsH, 0, mTime);
 
-    int stepEnd = int(paramsH->tFinal / paramsH->dT);
-    stepEnd = 1000000;
-
-    SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, my_mesh, NodeNeighborElementMesh, paramsH, 0, mTime);
-
+    int stepEnd = 1000000;
     Real time = 0;
     Real Global_max_dT = paramsH->dT_Max;
     for (int tStep = 0; tStep < stepEnd + 1; tStep++) {
@@ -285,7 +283,7 @@ int main(int argc, char* argv[]) {
         myFsiSystem.DoStepDynamics_ChronoRK2();
 #endif
         time += paramsH->dT;
-        SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, my_mesh, NodeNeighborElementMesh, paramsH, next_frame, time);
+        SaveParaViewFiles(myFsiSystem, mphysicalSystem, my_mesh, NodeNeighborElementMesh, paramsH, next_frame, time);
     }
 
     return 0;
@@ -337,9 +335,9 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     ChVector<> pos_xn(-bxDim / 2 - 3 * initSpace0, 0.0, bzDim / 2 + 1 * initSpace0);
 
     // Front and back Wall
-    ChVector<> size_XZ(bxDim / 2, 2 * initSpace0, bzDim / 2);
-    ChVector<> pos_yp(0, byDim / 2 + initSpace0, bzDim / 2 + 1 * initSpace0);
-    ChVector<> pos_yn(0, -byDim / 2 - 3 * initSpace0, bzDim / 2 + 1 * initSpace0);
+    ChVector<> size_XZ(bxDim / 2, 3 * initSpace0, bzDim / 2);
+    ChVector<> pos_yp(0, byDim / 2, bzDim / 2 + 1 * initSpace0);
+    ChVector<> pos_yn(0, -byDim / 2 - 4 * initSpace0, bzDim / 2 + 1 * initSpace0);
 
     chrono::utils::AddBoxGeometry(ground.get(), sizeBottom, posBottom, chrono::QUNIT, true);
     chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xp, chrono::QUNIT, true);
@@ -348,8 +346,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yn, chrono::QUNIT, true);
 
     // left and right Wall
-    ChVector<> size_DamWall(2 * initSpace0, byDim / 2 + 0 * initSpace0, (bzDim - 0.08) / 2);
-    ChVector<> pos_DamWall(-bxDim / 2 + 1 * fxDim + 1 * initSpace0, 0.0, bzDim / 2 + 2 * initSpace0 + 0.04);
+    ChVector<> size_DamWall(2 * initSpace0, byDim / 2 + 0 * initSpace0, (bzDim - 0.08) / 2 - 1 * initSpace0);
+    ChVector<> pos_DamWall(-bxDim / 2 + 1 * fxDim + 1 * initSpace0, 0.0, bzDim / 2 + 1 * initSpace0 + 0.04);
     chrono::utils::AddBoxGeometry(ground.get(), size_DamWall, pos_DamWall, chrono::QUNIT, true);
 
     mphysicalSystem.AddBody(ground);
@@ -387,8 +385,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     double plate_lenght_y = byDim;
     double plate_lenght_z = 0.005;
     // Specification of the mesh
-    int numDiv_x = 16;
-    int numDiv_y = 8;
+    int numDiv_x = 8;   // vertical
+    int numDiv_y = 10;  // depthwise
     int numDiv_z = 1;
     int N_x = numDiv_x + 1;
     int N_y = numDiv_y + 1;
@@ -409,7 +407,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         // Node location
         double loc_x = (i % (numDiv_x + 1)) * dx + initSpace0;
         double loc_y = (i / (numDiv_x + 1)) % (numDiv_y + 1) * dy - byDim / 2;
-        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz - (bxDim / 2 - fxDim) + 1 * initSpace0;
+        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz - (bxDim / 2 - fxDim) + 2 * initSpace0;
 
         // Node direction
         double dir_x = 0;
@@ -435,7 +433,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // Create an orthotropic material.
     // All layers for all elements share the same material.
     double rho = 1000;
-    double E = 10e6;
+    double E = 5e6;
     double nu = 0.4;
     //    ChVector<> E(1e5, 1e5, 1e5);
     //    ChVector<> nu(0.3, 0.3, 0.3);
@@ -448,10 +446,10 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         int node1 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + 1;
         int node2 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + 1 + N_x;
         int node3 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + N_x;
-        elementsNodes_mesh[i].push_back(node0 + 1);
-        elementsNodes_mesh[i].push_back(node1 + 1);
-        elementsNodes_mesh[i].push_back(node2 + 1);
-        elementsNodes_mesh[i].push_back(node3 + 1);
+        elementsNodes_mesh[i].push_back(node0);
+        elementsNodes_mesh[i].push_back(node1);
+        elementsNodes_mesh[i].push_back(node2);
+        elementsNodes_mesh[i].push_back(node3);
         NodeNeighborElement_mesh[node0].push_back(i);
         NodeNeighborElement_mesh[node1].push_back(i);
         NodeNeighborElement_mesh[node2].push_back(i);
@@ -466,6 +464,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
         // Set element dimensions
         element->SetDimensions(dx, dy);
+        // element->SetMooneyRivlin(true);// Turn on/off Mooney Rivlin (Linear Isotropic by default)
+        // element->SetMRCoefficients(496423,52124.37);  // Set two coefficients for Mooney-Rivlin
 
         // Add a single layers with a fiber angle of 0 degrees.
         element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, mat);
@@ -481,21 +481,27 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         cout << "Adding element" << i << "  with center:  " << center.x << " " << center.y << " " << center.z << endl;
     }
 
-    // Add the mesh to the system
-    mphysicalSystem.Add(my_mesh);
-
+    std::vector<std::shared_ptr<chrono::fea::ChElementCableANCF>>* FSI_Cables = myFsiSystem.GetFsiCablesPtr();
     std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* FSI_Shells = myFsiSystem.GetFsiShellsPtr();
     std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* FSI_Nodes = myFsiSystem.GetFsiNodesPtr();
 
-    bool multilayer = false;
+    bool multilayer = true;
     bool removeMiddleLayer = false;
+    bool add1DElem = false;
+    bool add2DElem = true;
 
-    chrono::fsi::utils::AddBCE_ShellFromMesh(myFsiSystem.GetDataManager(), paramsH, FSI_Shells, FSI_Nodes, my_mesh,
-                                             elementsNodes_mesh, NodeNeighborElement_mesh, multilayer,
-                                             removeMiddleLayer, 0);
+    // TODO: Implement default parameters for AddBCE_FromMesh
+    std::vector<std::vector<int>> _1D_elementsNodes_mesh;
+    chrono::fsi::utils::AddBCE_FromMesh(myFsiSystem.GetDataManager(), paramsH, my_mesh, FSI_Nodes, FSI_Cables,
+                                        FSI_Shells, NodeNeighborElement_mesh, _1D_elementsNodes_mesh,
+                                        elementsNodes_mesh, add1DElem, add2DElem, multilayer, removeMiddleLayer, 0, 0);
+
     // This is very important: You have to give the FsiSystem the connectivity of the nodes
+    myFsiSystem.SetCableElementsNodes(_1D_elementsNodes_mesh);
     myFsiSystem.SetShellElementsNodes(elementsNodes_mesh);
-
+    // Add the mesh to the system
+    mphysicalSystem.Add(my_mesh);
+    myFsiSystem.SetFsiMesh(my_mesh);
     //    chrono::fsi::utils::AddBCE_ShellANCF(myFsiSystem.GetDataManager(), paramsH, FSI_Shells, my_mesh, multilayer,
     //                                         removeMiddleLayer, 0);
 
@@ -506,13 +512,13 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 //------------------------------------------------------------------
 // Function to save the povray files of the MBD
 //------------------------------------------------------------------
-void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
-                          ChSystemDEM& mphysicalSystem,
-                          std::shared_ptr<fea::ChMesh> my_mesh,
-                          std::vector<std::vector<int>> NodeNeighborElementMesh,
-                          chrono::fsi::SimParams* paramsH,
-                          int next_frame,
-                          double mTime) {
+void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
+                       ChSystemDEM& mphysicalSystem,
+                       std::shared_ptr<fea::ChMesh> my_mesh,
+                       std::vector<std::vector<int>> NodeNeighborElementMesh,
+                       chrono::fsi::SimParams* paramsH,
+                       int next_frame,
+                       double mTime) {
     static double exec_time;
     int out_steps = std::ceil((1.0 / paramsH->dT) / out_fps);
     exec_time += mphysicalSystem.GetTimerStep();
@@ -761,69 +767,6 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
     }
 
     output.close();
-}
-void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]) {
-    std::ofstream output;
-    output.open(SaveAsBuffer, std::ios::app);
-    output << "# vtk DataFile Version 1.0\nUnstructured Grid Example\nASCII\n\n" << std::endl;
-    output << "DATASET UNSTRUCTURED_GRID\nPOINTS " << 2 * res << " float\n";
-
-    ChVector<> center = Body->GetPos();
-    ChMatrix33<> Rotation = Body->GetRot();
-    ChVector<double> vertex;
-    for (int i = 0; i < res; i++) {
-        ChVector<double> thisNode;
-        thisNode.x = radius * cos(2 * i * 3.1415 / res);
-        thisNode.y = -1 * length / 2;
-        thisNode.z = radius * sin(2 * i * 3.1415 / res);
-        vertex = Rotation * thisNode + center;  // rotate/scale, if needed
-        output << vertex.x << " " << vertex.y << " " << vertex.z << "\n";
-    }
-
-    for (int i = 0; i < res; i++) {
-        ChVector<double> thisNode;
-        thisNode.x = radius * cos(2 * i * 3.1415 / res);
-        thisNode.y = +1 * length / 2;
-        thisNode.z = radius * sin(2 * i * 3.1415 / res);
-        vertex = Rotation * thisNode + center;  // rotate/scale, if needed
-        output << vertex.x << " " << vertex.y << " " << vertex.z << "\n";
-    }
-
-    output << "\n\nCELLS " << (unsigned int)res + res << "\t" << (unsigned int)5 * (res + res) << "\n";
-
-    for (int i = 0; i < res - 1; i++) {
-        output << "4 " << i << " " << i + 1 << " " << i + res + 1 << " " << i + res << "\n";
-    }
-    output << "4 " << res - 1 << " " << 0 << " " << res << " " << 2 * res - 1 << "\n";
-
-    for (int i = 0; i < res / 4; i++) {
-        output << "4 " << i << " " << i + 1 << " " << +res / 2 - i - 1 << " " << +res / 2 - i << "\n";
-    }
-
-    for (int i = 0; i < res / 4; i++) {
-        output << "4 " << i + res << " " << i + 1 + res << " " << +res / 2 - i - 1 + res << " " << +res / 2 - i + res
-               << "\n";
-    }
-
-    output << "4 " << +res / 2 << " " << 1 + res / 2 << " " << +res - 1 << " " << 0 << "\n";
-
-    for (int i = 1; i < res / 4; i++) {
-        output << "4 " << i + res / 2 << " " << i + 1 + res / 2 << " " << +res / 2 - i - 1 + res / 2 << " "
-               << +res / 2 - i + res / 2 << "\n";
-    }
-
-    output << "4 " << 3 * res / 2 << " " << 1 + 3 * res / 2 << " " << +2 * res - 1 << " " << +res << "\n";
-
-    for (int i = 1; i < res / 4; i++) {
-        output << "4 " << i + 3 * res / 2 << " " << i + 1 + 3 * res / 2 << " " << +2 * res - i - 1 << " "
-               << +2 * res - i << "\n";
-    }
-
-    output << "\nCELL_TYPES " << res + res << "\n";
-
-    for (int iele = 0; iele < (res + res); iele++) {
-        output << "9\n";
-    }
 }
 
 //------------------------------------------------------------------

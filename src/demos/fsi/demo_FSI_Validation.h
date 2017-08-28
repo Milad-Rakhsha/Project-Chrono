@@ -58,8 +58,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 0.05;
-    paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
+    paramsH->mu0 = 0.01;
+    paramsH->v_Max = 1;
     paramsH->EPS_XSPH = .5f;
 
     paramsH->USE_CUSP = true;                           // Experimentally,don't use if for now
@@ -79,7 +79,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->dT_Max = 0.01;       // This is problem dependent should set by the user based on characteristic time step
     paramsH->Apply_BC_U = false;  // You should go to custom_math.h all the way to end of file and set your function
 
-    paramsH->dT = 1e-3;
+    paramsH->dT = 5e-4;
+    paramsH->dT_Flex = paramsH->dT / 10;
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;  // I don't know what is kdT

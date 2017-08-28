@@ -185,19 +185,6 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI& mphysicalSystem,
     chrono::fsi::utils::CreateCylinderFSI(myFsiSystem.GetDataManager(), mphysicalSystem, FSI_Bodies, paramsH, mat_g,
                                           paramsH->rho0, cyl_pos, cyl_rot, cyl_radius, cyl_length);
 #endif
-
-//	  	  // Add floating box
-//	  	  // ---------------------
-//	  	  ChVector<> box_pos = ChVector<>(0, 0, 1);
-//	  	  ChVector<> box_size = ChVector<>(0.3, 0.3, 0.3);
-//	  	  ChQuaternion<> box_rot = chrono::QUNIT;
-//
-//	  	  std::vector<std::shared_ptr<ChBody>> *FSI_Bodies =
-//	  	      myFsiSystem.GetFsiBodiesPtr();
-//	  	  chrono::fsi::utils::CreateBoxFSI(
-//	  	      myFsiSystem.GetDataManager(), mphysicalSystem, FSI_Bodies, paramsH, mat_g,
-//	  	      paramsH->rho0, box_pos, box_rot, box_size);
-
 #endif
 
     // version 0, create one cylinder // note: rigid body initialization should
@@ -229,32 +216,6 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelDVI& mphysicalSystem,
     body->GetCollisionModel()->ClearModel();
     utils::AddSphereGeometry(body.get(), sphereRad);
     body->GetCollisionModel()->BuildModel();
-    //    // *** keep this: how to calculate the velocity of a marker lying on a
-    //    rigid body
-    //    //
-    //    ChVector<> pointRel = ChVector<>(0, 0, 1);
-    //    ChVector<> pointPar = pointRel + body->GetPos();
-    //    // method 1
-    //    ChVector<> l_point = body->Point_World2Body(pointPar);
-    //    ChVector<> velvel1 = body->RelPoint_AbsSpeed(l_point);
-    //    printf("\n\n\n\n\n\n\n\n\n ***********   velocity1  %f %f %f
-    //    \n\n\n\n\n\n\n ", velvel1.x, velvel1.y,
-    //    velvel1.z);
-    //
-    //    // method 2
-    //    ChVector<> posLoc = ChTransform<>::TransformParentToLocal(pointPar,
-    //    body->GetPos(), body->GetRot());
-    //    ChVector<> velvel2 = body->PointSpeedLocalToParent(posLoc);
-    //    printf("\n\n\n\n\n\n\n\n\n ***********   velocity 2 %f %f %f
-    //    \n\n\n\n\n\n\n ", velvel2.x, velvel2.y,
-    //    velvel2.z);
-    //
-    //    // method 3
-    //    ChVector<> velvel3 = body->GetPos_dt() + body->GetWvel_par() % pointRel;
-    //    printf("\n\n\n\n\n\n\n\n\n ***********   velocity3  %f %f %f
-    //    \n\n\n\n\n\n\n ", velvel3.x, velvel3.y,
-    //    velvel3.z);
-    //    //
 
     int numRigidObjects = mphysicalSystem.Get_bodylist()->size();
     mphysicalSystem.AddBody(body);
@@ -285,17 +246,7 @@ int main(int argc, char* argv[]) {
     printf("picked up GPU %d", GPU_NUM);
     time(&rawtime);
     timeinfo = localtime(&rawtime);
-
-    //****************************************************************************************
-    // Arman take care of this block.
-    // Set path to ChronoVehicle data files
-    //  vehicle::SetDataPath(CHRONO_VEHICLE_DATA_DIR);
-    //  vehicle::SetDataPath("/home/arman/Repos/GitBeta/chrono/src/demos/data/");
-    //  SetChronoDataPath(CHRONO_DATA_DIR);
-
-    // --------------------------
-    // Create output directories.
-    // --------------------------
+    cudaSetDevice(1);
 
     if (ChFileutils::MakeDirectory(out_dir.c_str()) < 0) {
         cout << "Error creating directory " << out_dir << endl;

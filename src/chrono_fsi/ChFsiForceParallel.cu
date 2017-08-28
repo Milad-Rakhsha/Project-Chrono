@@ -676,7 +676,7 @@ __global__ void calcRho_kernel(Real3* sortedPosRad,  // input: sorted positionsm
   nonNormalRho[i_idx] = sum_mW;
   sortedRhoPreMu[i_idx].x = sum_mW;
   if (sum_mW > 2 * RHO_0 || sum_mW < 0)
-    printf("something is wrong in density calculations\n");
+    printf("(calcRho_kernel)too large/small density marker %d, type=%d\n", i_idx, sortedRhoPreMu[i_idx].w);
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -1825,7 +1825,7 @@ __global__ void CalcForces(Real3* new_vel,  // Write
   Real3 F_i_np = mR3(0);
   Real3 F_i_p = mR3(0);
   if (sortedRhoPreMu[i_idx].x > 2 * paramsD.rho0 || sortedRhoPreMu[i_idx].x < 0)
-    printf("something is wrong in density calculations-0\n");
+    printf("too large/small density marker %d, type=%d\n", i_idx, sortedRhoPreMu[i_idx].w);
   // get address in grid
   int3 gridPos = calcGridPos(posi);
   for (int z = -1; z <= 1; z++) {
@@ -1894,7 +1894,7 @@ __global__ void UpdateDensity(Real3* new_vel,       // Write
   Real3 Vel_i = new_vel[i_idx];
   Real3 posi = sortedPosRad[i_idx];
   if (sortedRhoPreMu[i_idx].x > 2 * paramsD.rho0 || sortedRhoPreMu[i_idx].x < 0)
-    printf("something is wrong in density calculations-1\n");
+    printf("(UpdateDensity-0)too large/small density marker %d, type=%f\n", i_idx, sortedRhoPreMu[i_idx].w);
   Real m_0 = paramsD.markerMass;
   int3 gridPos = calcGridPos(posi);
 
@@ -1922,8 +1922,8 @@ __global__ void UpdateDensity(Real3* new_vel,       // Write
   }
 
   sortedRhoPreMu[i_idx].x += rho_plus * dT;
-  if (sortedRhoPreMu[i_idx].x > 2 * paramsD.rho0 || sortedRhoPreMu[i_idx].x < 0)
-    printf("something is wrong in density calculations\n");
+  if (sortedRhoPreMu[i_idx].x > 4 * paramsD.rho0 || sortedRhoPreMu[i_idx].x < 0)
+    printf("(UpdateDensity-1)too large/small density marker %d, type=%f\n", i_idx, sortedRhoPreMu[i_idx].w);
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void FinalizePressure(Real3* sortedPosRad,  // Read
