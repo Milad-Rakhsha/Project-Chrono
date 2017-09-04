@@ -1,0 +1,55 @@
+{
+  "RootFolder":     "Milad_AC-GaitCycle/",
+
+  "Solution Control":
+  {
+    "Time Step":              0.0001,
+    "Write Interval Step":    0.005,
+    "OMP Threads":            4
+  },
+
+  "ANCF Shell":
+  {
+    "Alpha Damp":   0.05,
+    "Thickness":    0.001
+  },
+
+  "Elastic Foundation":
+  {
+    "Stiffness":  70e8,
+    "Damping":    70e3,
+    "Initial Springs displacement":  0.0,
+    "Internal Pressure Femur":    -2e5,
+    "Internal Pressure Tibia":       0.0,
+    "Springs_L0":  0.01,
+    "Dampers_L0":  0.01,
+    "Project Normal": true
+  },
+
+  "Material Properties":
+  {
+    "Density":    1000.0,
+    "Elastisity": 40e7,
+    "poisson":    0.3
+  },
+
+  "Contact Properties":
+  {
+    "Contact Model":      "Hooke",
+    "Contact thickness":    0.1,
+    "Kn":                   2e5,
+    "Kt":                   0.0,
+    "Gn":                   5.0,
+    "Gt":                   0.0
+  },
+
+  "HHT Control":
+  {
+    "Alpha":          -0.2,
+    "Maxiters":         20,
+    "AbsTolerance":             1e-5,
+    "AbsTolerance Constraints": 1,
+    "MaxItersSuccessHHT":   3
+  }
+
+}

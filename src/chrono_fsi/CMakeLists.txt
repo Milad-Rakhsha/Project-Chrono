@@ -19,8 +19,13 @@ endif()
 
 message(STATUS "==== Chrono FSI module ====")
 
+
+
+SET(SAP_INC_DIR "" CACHE PATH "Where is the SAPLibrary directory?")
+INCLUDE_DIRECTORIES(${SAP_INC_DIR})
+
 mark_as_advanced(CLEAR CUDA_TOOLKIT_ROOT_DIR)
-mark_as_advanced(CLEAR CUDA_USE_STATIC_CUDA_RUNTIME)
+mark_as_advanced(CLEAR CUDA_USE_STATIC_CUDA_RUNTIME )
 mark_as_advanced(CLEAR USE_FSI_DOUBLE)
 
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
@@ -59,9 +64,14 @@ ENDIF()
 
 set(CH_FSI_INCLUDES
     "${CUDA_TOOLKIT_ROOT_DIR}/include"
+    "${SAP_INC_DIR}"
 )
 
 set(CH_FSI_INCLUDES "${CH_FSI_INCLUDES}" PARENT_SCOPE)
+
+
+
+
 
 # ----------------------------------------------------------------------------
 # Generate and install configuration file
@@ -142,6 +152,12 @@ if(ENABLE_MODULE_PARALLEL)
   set(CXX_FLAGS ${CH_PARALLEL_CXX_FLAGS})
   include_directories(${CH_PARALLEL_INCLUDES})
   list(APPEND LIBRARIES ChronoEngine_parallel)
+endif()
+
+if(ENABLE_MODULE_FEA)
+	set(CXX_FLAGS ${CH_FEA_CXX_FLAGS})
+	include_directories(${CH_FEA_INCLUDES})
+	list(APPEND LIBRARIES ChronoEngine_fea)
 endif()
 
 if(ENABLE_MODULE_VEHICLE)

@@ -56,30 +56,32 @@ void SetupParamsH(SimParams* paramsH,
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
     paramsH->BASEPRES = 0;
     paramsH->LARGE_PRES = 0;
-    paramsH->deltaPress;
+    paramsH->deltaPress = mR3(0, 0, 0);
     paramsH->multViscosity_FSI = 1;
-    paramsH->gravity = mR3(0, 0, -9.81);
+    paramsH->gravity = mR3(0, 0, -9.8);
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = .001;
-    paramsH->v_Max = 1;
+    paramsH->mu0 = .1;
+    paramsH->v_Max = 2;
     paramsH->EPS_XSPH = .5f;
-    paramsH->dT = 1e-3;
-    paramsH->tFinal = 2;
+
+    paramsH->dT = 2e-3;
+    //    paramsH->dT = 1e-3;
+    paramsH->tFinal = 10;
     paramsH->timePause = 0;
     paramsH->kdT = 5;
     paramsH->gammaBB = 0.5;
     paramsH->binSize0;
     paramsH->rigidRadius;
     paramsH->densityReinit = 0;
-    paramsH->enableTweak = 1;
+    paramsH->enableTweak = 0;
     paramsH->enableAggressiveTweak = 0;
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
     paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
-    paramsH->cMin = mR3(-hdimX, -hdimY, -basinDepth - hthick);
-    paramsH->cMax = mR3(hdimX, hdimY, basinDepth);
+    paramsH->cMin = mR3(-hdimX * 2, -hdimY, -basinDepth - hthick);
+    paramsH->cMax = mR3(hdimX * 2, hdimY, basinDepth * 1.2);
     //****************************************************************************************
     int3 side0 = mI3(floor((paramsH->cMax.x - paramsH->cMin.x) / (2 * paramsH->HSML)),
                      floor((paramsH->cMax.y - paramsH->cMin.y) / (2 * paramsH->HSML)),

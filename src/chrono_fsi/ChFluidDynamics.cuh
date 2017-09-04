@@ -65,6 +65,8 @@ class CH_FSI_API ChFluidDynamics : public ChFsiGeneral {
                               FsiBodiesDataD* fsiBodiesD1,
                               Real dT);
 
+    virtual void IntegrateIISPH(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD, FsiMeshDataD* fsiMeshD);
+
     /// Function to Shepard Filtering.
     /// It calculates the densities directly, not based on the derivative of
     /// the density. This function is used in addition to the density update
@@ -89,10 +91,12 @@ class CH_FSI_API ChFluidDynamics : public ChFsiGeneral {
     /// In an explicit formulation, the update Fluid function relies on explicit Euler
     /// Integration argorithm.
     virtual void UpdateFluid(SphMarkerDataD* sphMarkersD, Real dT);
+    virtual void UpdateFluid_Implicit(SphMarkerDataD* sphMarkersD);
 
     /// Apply boundary to SPH markers (fluid and BCE).
     /// The function applies periodic boundary to the markers.
     virtual void ApplyBoundarySPH_Markers(SphMarkerDataD* sphMarkersD);
+    virtual void ApplyModifiedBoundarySPH_Markers(SphMarkerDataD* sphMarkersD);
 };
 
 /// @} fsi_physics

@@ -59,6 +59,8 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
     /// This is a basic force computation relying on WCSPH approach.
     virtual void ForceSPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD);
 
+    virtual void ForceIISPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD, FsiMeshDataD* fsiMeshD);
+
     /// Synchronize the copy of the data (parameters and number of objects)
     /// between device (GPU) and host (CPU).
     /// This function needs to be called once the host data are modified.
@@ -108,6 +110,13 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
     /// sorted xsph velocities to the original. The latter is needed later for position update.
     void CollideWrapper();
 
+    void calcPressureIISPH(thrust::device_vector<Real4> velMassRigid_fsiBodies_D,
+                           thrust::device_vector<Real3> accRigid_fsiBodies_D,
+                           thrust::device_vector<Real3> pos_fsi_fea_D,
+                           thrust::device_vector<Real3> vel_fsi_fea__D,
+                           thrust::device_vector<Real3> acc_fsi_fea_D,
+                           thrust::device_vector<Real> Color);
+
     ChCollisionSystemFsi* fsiCollisionSystem;  ///< collision system; takes care of  constructing neighbors list
     ChBce* bceWorker;                          ///< pointer to Boundary Condition Enforcing markers class.
 
@@ -122,8 +131,8 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
     SimParams* paramsH;            ///< pointer to simulation parameters
     NumberOfObjects* numObjectsH;  ///< pointer to number of objects, fluid and boundary markers
 
-    thrust::device_vector<Real3> vel_XSPH_Sorted_D;  ///< sorted xsph velocity data
-
+    thrust::device_vector<Real3> vel_XSPH_Sorted_D;      ///< sorted xsph velocity data
+    thrust::device_vector<Real4> derivVelRhoD_Sorted_D;  ///< sorted derivVelRhoD
     /// Function to calculate the force terms for SPH markers.
     /// This function calculates the derivatives of the density and velocity in a WCSPH fashion.
     void collide(

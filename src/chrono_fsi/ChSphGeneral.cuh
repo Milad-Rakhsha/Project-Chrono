@@ -30,14 +30,12 @@ __constant__ SimParams paramsD;
 __constant__ NumberOfObjects numObjectsD;
 //--------------------------------------------------------------------------------------------------------------------------------
 // 3D SPH kernel function, W3_SplineA
-__device__ inline Real
-W3_Spline(Real d) { // d is positive. h is the sph particle radius (i.e. h in
-                    // the document) d is the distance of 2 particles
+__device__ inline Real W3_Spline(Real d) {  // d is positive. h is the sph particle radius (i.e. h in
+                                            // the document) d is the distance of 2 particles
   Real h = paramsD.HSML;
   Real q = fabs(d) / h;
   if (q < 1) {
-    return (0.25f / (PI * h * h * h) *
-            (pow(2 - q, Real(3)) - 4 * pow(1 - q, Real(3))));
+    return (0.25f / (PI * h * h * h) * (pow(2 - q, Real(3)) - 4 * pow(1 - q, Real(3))));
   }
   if (q < 2) {
     return (0.25f / (PI * h * h * h) * pow(2 - q, Real(3)));
@@ -47,13 +45,13 @@ W3_Spline(Real d) { // d is positive. h is the sph particle radius (i.e. h in
 ////--------------------------------------------------------------------------------------------------------------------------------
 ////2D SPH kernel function, W2_SplineA
 //__device__ inline Real W2_Spline(Real d) { // d is positive. h is the sph
-//particle radius (i.e. h in the document) d
+// particle radius (i.e. h in the document) d
 // is the distance of 2 particles
 //	Real h = paramsD.HSML;
 //	Real q = fabs(d) / h;
 //	if (q < 1) {
 //		return (5 / (14 * PI * h * h) * (pow(2 - q, Real(3)) - 4 * pow(1 -
-//q, Real(3))));
+// q, Real(3))));
 //	}
 //	if (q < 2) {
 //		return (5 / (14 * PI * h * h) * pow(2 - q, Real(3)));
@@ -63,24 +61,24 @@ W3_Spline(Real d) { // d is positive. h is the sph particle radius (i.e. h in
 ////--------------------------------------------------------------------------------------------------------------------------------
 ////3D SPH kernel function, W3_QuadraticA
 //__device__ inline Real W3_Quadratic(Real d, Real h) { // d is positive. h is
-//the sph particle radius (i.e. h in the
+// the sph particle radius (i.e. h in the
 // document) d is the distance of 2 particles
 //	Real q = fabs(d) / h;
 //	if (q < 2) {
 //		return (1.25f / (PI * h * h * h) * .75f * (pow(.5f * q, Real(2)) -
-//q + 1));
+// q + 1));
 //	}
 //	return 0;
 //}
 ////--------------------------------------------------------------------------------------------------------------------------------
 ////2D SPH kernel function, W2_QuadraticA
 //__device__ inline Real W2_Quadratic(Real d, Real h) { // d is positive. h is
-//the sph particle radius (i.e. h in the
+// the sph particle radius (i.e. h in the
 // document) d is the distance of 2 particles
 //	Real q = fabs(d) / h;
 //	if (q < 2) {
 //		return (2.0f / (PI * h * h) * .75f * (pow(.5f * q, Real(2)) - q +
-//1));
+// 1));
 //	}
 //	return 0;
 //}
@@ -90,21 +88,19 @@ W3_Spline(Real d) { // d is positive. h is the sph particle radius (i.e. h in
 // dW * dist3 gives the gradiant of W3_Quadratic, where dist3 is the distance
 // vector of the two particles, (dist3)a =
 // pos_a - pos_b
-__device__ inline Real3
-GradW_Spline(Real3 d) { // d is positive. r is the sph particle radius (i.e. h
-                        // in the document) d is the distance of 2 particles
+__device__ inline Real3 GradW_Spline(Real3 d) {  // d is positive. r is the sph particle radius (i.e. h
+                                                 // in the document) d is the distance of 2 particles
   Real h = paramsD.HSML;
   Real q = length(d) / h;
   bool less1 = (q < 1);
   bool less2 = (q < 2);
-  return (less1 * (3 * q - 4) + less2 * (!less1) * (-q + 4.0f - 4.0f / q)) *
-         .75f * (INVPI)*pow(h, Real(-5)) * d;
+  return (less1 * (3 * q - 4) + less2 * (!less1) * (-q + 4.0f - 4.0f / q)) * .75f * (INVPI)*pow(h, Real(-5)) * d;
   //	if (q < 1) {
   //		return .75f * (INVPI) *pow(h, Real(-5))* (3 * q - 4) * d;
   //	}
   //	if (q < 2) {
   //		return .75f * (INVPI) *pow(h, Real(-5))* (-q + 4.0f - 4.0f / q) *
-  //d;
+  // d;
   //	}
   //	return mR3(0);
 }
@@ -112,15 +108,15 @@ GradW_Spline(Real3 d) { // d is positive. r is the sph particle radius (i.e. h
 ////Gradient of the kernel function
 //// d: magnitude of the distance of the two particles
 //// dW * dist3 gives the gradiant of W3_Quadratic, where dist3 is the distance
-///vector of the two particles, (dist3)a =
+/// vector of the two particles, (dist3)a =
 /// pos_a - pos_b
 //__device__ inline Real3 GradW_Quadratic(Real3 d, Real h) { // d is positive. r
-//is the sph particle radius (i.e. h in
+// is the sph particle radius (i.e. h in
 // the document) d is the distance of 2 particles
 //	Real q = length(d) / h;
 //	if (q < 2) {
 //		return 1.25f / (PI * pow(h, Real(5))) * .75f * (.5f - 1.0f / q) *
-//d;
+// d;
 //	}
 //	return mR3(0);
 //}
@@ -136,7 +132,7 @@ __device__ inline Real Eos(Real rho, Real type) {
   // Real gama = 1;
   // if (type < -.1) {
   //	return 1 * (100000 * (pow(rho / paramsD.rho0, gama) - 1) +
-  //paramsD.BASEPRES);
+  // paramsD.BASEPRES);
   //	//return 100 * rho;
   //}
   //////else {
@@ -146,11 +142,10 @@ __device__ inline Real Eos(Real rho, Real type) {
   //******************************
   Real gama = 7;
   Real B = 100 * paramsD.rho0 * paramsD.v_Max * paramsD.v_Max /
-           gama; // 200;//314e6; //c^2 * paramsD.rho0 / gama where c = 1484 m/s
-                 // for water
-  return B * (pow(rho / paramsD.rho0, gama) - 1) +
-         paramsD.BASEPRES; // 1 * (B * (pow(rho / paramsD.rho0, gama) - 1) +
-                           // paramsD.BASEPRES);
+           gama;  // 200;//314e6; //c^2 * paramsD.rho0 / gama where c = 1484 m/s
+                  // for water
+  return B * (pow(rho / paramsD.rho0, gama) - 1) + paramsD.BASEPRES;  // 1 * (B * (pow(rho / paramsD.rho0, gama) - 1) +
+                                                                      // paramsD.BASEPRES);
   //	if (type < +.1f) {
   //		return B * (pow(rho / paramsD.rho0, gama) - 1) + paramsD.BASEPRES;
   //// 1 * (B * (pow(rho / paramsD.rho0,
@@ -162,15 +157,14 @@ __device__ inline Real Eos(Real rho, Real type) {
 __device__ inline Real InvEos(Real pw) {
   Real gama = 7;
   Real B = 100 * paramsD.rho0 * paramsD.v_Max * paramsD.v_Max /
-           gama; // 200;//314e6; //c^2 * paramsD.rho0 / gama where c = 1484 m/s
-                 // for water
+           gama;  // 200;//314e6; //c^2 * paramsD.rho0 / gama where c = 1484 m/s
+                  // for water
   Real powerComp = (pw - paramsD.BASEPRES) / B + 1.0;
-  Real rho = (powerComp > 0)
-                 ? paramsD.rho0 * pow(powerComp, 1.0 / gama)
-                 : -paramsD.rho0 * pow(fabs(powerComp),
-                                       1.0 / gama); // did this since CUDA is
-                                                    // stupid and freaks out by
-                                                    // negative^(1/gama)
+  Real rho = (powerComp > 0) ? paramsD.rho0 * pow(powerComp, 1.0 / gama)
+                             : -paramsD.rho0 * pow(fabs(powerComp),
+                                                   1.0 / gama);  // did this since CUDA is
+                                                                 // stupid and freaks out by
+                                                                 // negative^(1/gama)
   return rho;
 }
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -178,14 +172,13 @@ __device__ inline Real InvEos(Real pw) {
 __device__ inline Real FerrariCi(Real rho) {
   int gama = 7;
   Real B = 100 * paramsD.rho0 * paramsD.v_Max * paramsD.v_Max /
-           gama; // 200;//314e6; //c^2 * paramsD.rho0 / gama where c = 1484 m/s
-                 // for water
-  return sqrt(gama * B / paramsD.rho0) *
-         pow(rho / paramsD.rho0, 0.5 * (gama - 1));
+           gama;  // 200;//314e6; //c^2 * paramsD.rho0 / gama where c = 1484 m/s
+                  // for water
+  return sqrt(gama * B / paramsD.rho0) * pow(rho / paramsD.rho0, 0.5 * (gama - 1));
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 
-__device__ inline Real3 Modify_Local_PosB(Real3 &b, Real3 a) {
+__device__ inline Real3 Modify_Local_PosB(Real3& b, Real3 a) {
   Real3 dist3 = a - b;
   b.x += ((dist3.x > 0.5f * paramsD.boxDims.x) ? paramsD.boxDims.x : 0);
   b.x -= ((dist3.x < -0.5f * paramsD.boxDims.x) ? paramsD.boxDims.x : 0);
@@ -220,42 +213,37 @@ __device__ inline Real3 Modify_Local_PosB(Real3 &b, Real3 a) {
 __device__ inline Real3 Distance(Real3 a, Real3 b) {
   //	Real3 dist3 = a - b;
   //	dist3.x -= ((dist3.x > 0.5f * paramsD.boxDims.x) ? paramsD.boxDims.x :
-  //0);
+  // 0);
   //	dist3.x += ((dist3.x < -0.5f * paramsD.boxDims.x) ? paramsD.boxDims.x :
-  //0);
+  // 0);
   //
   //	dist3.y -= ((dist3.y > 0.5f * paramsD.boxDims.y) ? paramsD.boxDims.y :
-  //0);
+  // 0);
   //	dist3.y += ((dist3.y < -0.5f * paramsD.boxDims.y) ? paramsD.boxDims.y :
-  //0);
+  // 0);
   //
   //	dist3.z -= ((dist3.z > 0.5f * paramsD.boxDims.z) ? paramsD.boxDims.z :
-  //0);
+  // 0);
   //	dist3.z += ((dist3.z < -0.5f * paramsD.boxDims.z) ? paramsD.boxDims.z :
-  //0);
+  // 0);
   return Modify_Local_PosB(b, a);
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
 // first comp of q is rotation, last 3 components are axis of rot
 
-__device__ inline void RotationMatirixFromQuaternion(Real3 &AD1, Real3 &AD2,
-                                                     Real3 &AD3,
-                                                     const Real4 &q) {
-  AD1 = 2 * mR3(0.5f - q.z * q.z - q.w * q.w, q.y * q.z - q.x * q.w,
-                q.y * q.w + q.x * q.z);
-  AD2 = 2 * mR3(q.y * q.z + q.x * q.w, 0.5f - q.y * q.y - q.w * q.w,
-                q.z * q.w - q.x * q.y);
-  AD3 = 2 * mR3(q.y * q.w - q.x * q.z, q.z * q.w + q.x * q.y,
-                0.5f - q.y * q.y - q.z * q.z);
+__device__ inline void RotationMatirixFromQuaternion(Real3& AD1, Real3& AD2, Real3& AD3, const Real4& q) {
+  AD1 = 2 * mR3(0.5f - q.z * q.z - q.w * q.w, q.y * q.z - q.x * q.w, q.y * q.w + q.x * q.z);
+  AD2 = 2 * mR3(q.y * q.z + q.x * q.w, 0.5f - q.y * q.y - q.w * q.w, q.z * q.w - q.x * q.y);
+  AD3 = 2 * mR3(q.y * q.w - q.x * q.z, q.z * q.w + q.x * q.y, 0.5f - q.y * q.y - q.z * q.z);
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 
-__device__ inline Real3
-InverseRotate_By_RotationMatrix_DeviceHost(const Real3 &A1, const Real3 &A2,
-                                           const Real3 &A3, const Real3 &r3) {
-  return mR3(A1.x * r3.x + A2.x * r3.y + A3.x * r3.z,
-             A1.y * r3.x + A2.y * r3.y + A3.y * r3.z,
+__device__ inline Real3 InverseRotate_By_RotationMatrix_DeviceHost(const Real3& A1,
+                                                                   const Real3& A2,
+                                                                   const Real3& A3,
+                                                                   const Real3& r3) {
+  return mR3(A1.x * r3.x + A2.x * r3.y + A3.x * r3.z, A1.y * r3.x + A2.y * r3.y + A3.y * r3.z,
              A1.z * r3.x + A2.z * r3.y + A3.z * r3.z);
 }
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -286,11 +274,10 @@ __device__ inline uint calcGridHash(int3 gridPos) {
   gridPos.y += ((gridPos.y < 0) ? paramsD.gridSize.y : 0);
   gridPos.z += ((gridPos.z < 0) ? paramsD.gridSize.z : 0);
 
-  return gridPos.z * paramsD.gridSize.y * paramsD.gridSize.x +
-         gridPos.y * paramsD.gridSize.x + gridPos.x;
+  return gridPos.z * paramsD.gridSize.y * paramsD.gridSize.x + gridPos.y * paramsD.gridSize.x + gridPos.x;
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 
-} // end namespace fsi
-} // end namespace chrono
+}  // end namespace fsi
+}  // end namespace chrono
 #endif

@@ -12,8 +12,8 @@
 // Author: Arman Pazouki, Milad Rakhsha
 // =============================================================================
 //
-// Base class for processing boundary condition enforcing (bce) marker forces
-// in an FSI system.
+// Base class for processing boundary condition enforcing (bce) markers forces
+// in fsi system.//
 //
 // =============================================================================
 
@@ -23,6 +23,7 @@
 #include "chrono_fsi/ChApiFsi.h"
 #include "chrono_fsi/ChFsiDataManager.cuh"  //for FsiGeneralData
 #include "chrono_fsi/ChFsiGeneral.cuh"
+#include "chrono_fsi/custom_math.h"
 
 namespace chrono {
 namespace fsi {
@@ -56,9 +57,11 @@ class CH_FSI_API ChBce : public ChFsiGeneral {
 
     /// Updates the position and velocity of the markers on the rigid bodies based on the state of the body
     virtual void UpdateRigidMarkersPositionVelocity(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD);
+    virtual void UpdateFlexMarkersPositionVelocity(SphMarkerDataD* sphMarkersD, FsiMeshDataD* fsiMeshD);
 
     /// Calculates the forces from the fluid dynamics system to the fsi system on rigid bodies
     virtual void Rigid_Forces_Torques(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD);
+    virtual void Flex_Forces(SphMarkerDataD* sphMarkersD, FsiMeshDataD* fsiMeshD);
 
     void ModifyBceVelocity(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD);
 
@@ -67,9 +70,10 @@ class CH_FSI_API ChBce : public ChFsiGeneral {
     /// condition the position and orientation of the body is enough to update the position of all the markers attached
     /// to it.
     virtual void Populate_RigidSPH_MeshPos_LRF(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD);
+    virtual void Populate_FlexSPH_MeshPos_LRF(SphMarkerDataD* sphMarkersD, FsiMeshDataD* fsiMeshD);
 
     /// Finalizes the construction of the ChBce at the intial configuration of the system.
-    virtual void Finalize(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD);
+    virtual void Finalize(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD, FsiMeshDataD* fsiMeshD);
 
   private:
     FsiGeneralData* fsiGeneralData;     ///< General information of the simulation, e.g, ordering of the phases.
@@ -114,6 +118,7 @@ class CH_FSI_API ChBce : public ChFsiGeneral {
     /// At the initial configuration of the system, identifies the index of the rigid body to which a BCE marker is
     /// attached.
     void MakeRigidIdentifier();
+    void MakeFlexIdentifier();
 };
 
 /// @} fsi_physics

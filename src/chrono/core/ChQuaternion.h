@@ -27,6 +27,7 @@ enum class AngleSet {
     CARDANO,
     HPB,
     RXYZ,
+    RZXY,
     RODRIGUEZ,
     QUATERNION,
 };

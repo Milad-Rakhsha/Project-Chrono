@@ -51,7 +51,10 @@ class ChApiFea ChMaterialShellANCF {
 
     /// Return the material density.
     double Get_rho() const { return m_rho; }
-
+    /// Return the material density.
+    double Get_E() const { return m_E; }
+    /// Return the material density.
+    double Get_nu() const { return m_nu; }
     /// Return the matrix of elastic coefficients.
     const ChMatrixNM<double, 6, 6>& Get_E_eps() const { return m_E_eps; }
 
@@ -59,7 +62,9 @@ class ChApiFea ChMaterialShellANCF {
     /// Calculate the matrix of elastic coefficients.
     void Calc_E_eps(const ChVector<>& E, const ChVector<>& nu, const ChVector<>& G);
 
-    double m_rho;                      ///< density
+    double m_rho;  ///< density
+    double m_E;
+    double m_nu;
     ChMatrixNM<double, 6, 6> m_E_eps;  ///< matrix of elastic coefficients
 };
 
@@ -205,8 +210,60 @@ class ChApiFea ChElementShellANCF : public ChElementShell, public ChLoadableUV, 
     /// NOTE! to avoid wasting zero and repeated elements, here
     /// it stores only the four values in a 1 row, 8 columns matrix!
     void ShapeFunctionsDerivativeZ(ChMatrix<>& Nz, double x, double y, double z);
+    // Interface to ChElementShell base class
+    // --------------------------------------
+    // Interface to ChElementBase base class
+    // -------------------------------------
+    std::vector<ChVector<> > GetPrincipalStresses();
+    std::vector<ChVector<> > GetPrincipalStrains();
+
+    ChVector<> GetStresses();
     /// Return a vector with three strain components
     ChVector<> EvaluateSectionStrains();
+    virtual void EvaluateSectionDisplacement(const double u,
+                                             const double v,
+                                             const ChMatrix<>& displ,
+                                             ChVector<>& u_displ,
+                                             ChVector<>& u_rotaz) override;
+
+    virtual void EvaluateSectionFrame(const double u,
+                                      const double v,
+                                      const ChMatrix<>& displ,
+                                      ChVector<>& point,
+                                      ChQuaternion<>& rot) override;
+
+    virtual void EvaluateSectionPoint(const double u,
+                                      const double v,
+                                      const ChMatrix<>& displ,
+                                      ChVector<>& point) override;
+
+    void EvaluateVonMisesStrain(double& strainvec) { strainvec = std::abs(strainXplot) + std::abs(strainYplot); };
+    void EvaluateVonMisesStress(double& stressvec) { stressvec = 1 * (std::abs(strainXplot) + std::abs(strainYplot)); };
+    double EvaluateStrainX() { return strainXplot; };
+    double EvaluateStrainY() { return strainYplot; };
+
+    void EvaluateDeflection(double& defVec);
+
+    // Interface to ChElementShell base class
+    // Interface to ChElementShell base class
+    // -------------------------------------
+
+    // Fill the D vector (column matrix) with the current field values at the
+    // nodes of the element, with proper ordering.
+    // If the D vector has not the size of this->GetNdofs(), it will be resized.
+    //  {x_a y_a z_a Dx_a Dx_a Dx_a x_b y_b z_b Dx_b Dy_b Dz_b}
+    virtual void GetStateBlock(ChMatrixDynamic<>& mD) override;
+
+    // Set H as a linear combination of M, K, and R.
+    //   H = Mfactor * [M] + Kfactor * [K] + Rfactor * [R],
+    // where [M] is the mass matrix, [K] is the stiffness matrix, and [R] is the damping matrix.
+    virtual void ComputeKRMmatricesGlobal(ChMatrix<>& H,
+                                          double Kfactor,
+                                          double Rfactor = 0,
+                                          double Mfactor = 0) override;
+
+    // Set M as the global mass matrix.
+    virtual void ComputeMmatrixGlobal(ChMatrix<>& M) override;
 
   private:
     std::vector<std::shared_ptr<ChNodeFEAxyzD> > m_nodes;  ///< element nodes
@@ -231,30 +288,14 @@ class ChApiFea ChElementShellANCF : public ChElementShell, public ChLoadableUV, 
     ChMatrixNM<double, 8, 24> m_strainANS_D;               ///< ANS strain derivatives
     std::vector<ChMatrixNM<double, 5, 1> > m_alphaEAS;     ///< EAS parameters (5 per layer)
     std::vector<ChMatrixNM<double, 5, 5> > m_KalphaEAS;    ///< EAS Jacobians (a 5x5 matrix per layer)
-
+    double strainXplot;
+    double strainYplot;
     static const double m_toleranceEAS;   ///< tolerance for nonlinear EAS solver (on residual)
     static const int m_maxIterationsEAS;  ///< maximum number of nonlinear EAS iterations
 
   public:
     // Interface to ChElementBase base class
     // -------------------------------------
-
-    // Fill the D vector (column matrix) with the current field values at the
-    // nodes of the element, with proper ordering.
-    // If the D vector has not the size of this->GetNdofs(), it will be resized.
-    //  {x_a y_a z_a Dx_a Dx_a Dx_a x_b y_b z_b Dx_b Dy_b Dz_b}
-    virtual void GetStateBlock(ChMatrixDynamic<>& mD) override;
-
-    // Set H as a linear combination of M, K, and R.
-    //   H = Mfactor * [M] + Kfactor * [K] + Rfactor * [R],
-    // where [M] is the mass matrix, [K] is the stiffness matrix, and [R] is the damping matrix.
-    virtual void ComputeKRMmatricesGlobal(ChMatrix<>& H,
-                                          double Kfactor,
-                                          double Rfactor = 0,
-                                          double Mfactor = 0) override;
-
-    // Set M as the global mass matrix.
-    virtual void ComputeMmatrixGlobal(ChMatrix<>& M) override;
 
     /// Add contribution of element inertia to total nodal masses
     virtual void ComputeNodalMass() override;
@@ -271,26 +312,6 @@ class ChApiFea ChElementShellANCF : public ChElementShell, public ChLoadableUV, 
 
     /// Update the state of this element.
     virtual void Update() override;
-
-    // Interface to ChElementShell base class
-    // --------------------------------------
-
-    virtual void EvaluateSectionDisplacement(const double u,
-                                             const double v,
-                                             const ChMatrix<>& displ,
-                                             ChVector<>& u_displ,
-                                             ChVector<>& u_rotaz) override;
-
-    virtual void EvaluateSectionFrame(const double u,
-                                      const double v,
-                                      const ChMatrix<>& displ,
-                                      ChVector<>& point,
-                                      ChQuaternion<>& rot) override;
-
-    virtual void EvaluateSectionPoint(const double u,
-                                      const double v,
-                                      const ChMatrix<>& displ,
-                                      ChVector<>& point) override;
 
     // Internal computations
     // ---------------------

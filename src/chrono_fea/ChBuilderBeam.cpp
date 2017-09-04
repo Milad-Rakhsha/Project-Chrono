@@ -171,5 +171,66 @@ void ChBuilderBeamANCF::BuildBeam(std::shared_ptr<ChMesh> mesh,              ///
     }
 }
 
+/////////////////////////////////////////////////////////
+//
+// ChBuilderBeamANCF_modified
+
+void ChBuilderBeamANCF::BuildBeam_FSI(std::shared_ptr<ChMesh> mesh,  ///< mesh to store the resulting elements
+                                      std::shared_ptr<ChBeamSectionCable> sect,  ///< section material for beam elements
+                                      const int N,                               ///< number of elements in the segment
+                                      const ChVector<> A,                        ///< starting point
+                                      const ChVector<> B,                        ///< ending point
+                                      std::vector<std::vector<int>>& _1D_elementsNodes_mesh,
+                                      std::vector<std::vector<int>>& NodeNeighborElement1D_mesh) {
+    beam_elems.clear();
+    beam_nodes.clear();
+    int _1D_elementsNodes_size = _1D_elementsNodes_mesh.size();
+    int NodeNeighborElement1D_size = NodeNeighborElement1D_mesh.size();
+
+    _1D_elementsNodes_mesh.resize(N + _1D_elementsNodes_size);
+    NodeNeighborElement1D_mesh.resize(N + 1 + NodeNeighborElement1D_size);
+    ChVector<> bdir = (B - A);
+    bdir.Normalize();
+
+    auto nodeA = std::make_shared<ChNodeFEAxyzD>(A, bdir);
+    mesh->AddNode(nodeA);
+    beam_nodes.push_back(nodeA);
+
+    for (int i = 0; i < N; i++) {
+        double eta = (double)(i + 1) / (double)N;
+        ChVector<> pos = A + (B - A) * eta;
+
+        auto nodeB = std::make_shared<ChNodeFEAxyzD>(pos, bdir);
+        mesh->AddNode(nodeB);
+        beam_nodes.push_back(nodeB);
+
+        auto element = std::make_shared<ChElementCableANCF>();
+        mesh->AddElement(element);
+        beam_elems.push_back(element);
+
+        element->SetNodes(beam_nodes[i], beam_nodes[i + 1]);
+
+        element->SetSection(sect);
+
+        _1D_elementsNodes_mesh[_1D_elementsNodes_size + i].push_back(beam_nodes[i]->GetIndex() - 1);
+        _1D_elementsNodes_mesh[_1D_elementsNodes_size + i].push_back(beam_nodes[i]->GetIndex());
+
+        //        _1D_elementsNodes_mesh[_1D_elementsNodes_size + i].push_back(_1D_elementsNodes_size + i);
+        //        _1D_elementsNodes_mesh[_1D_elementsNodes_size + i].push_back(i + _1D_elementsNodes_size + 1);
+
+        NodeNeighborElement1D_mesh[beam_nodes[i]->GetIndex() - 1].push_back(_1D_elementsNodes_size + i);
+        NodeNeighborElement1D_mesh[beam_nodes[i]->GetIndex()].push_back(_1D_elementsNodes_size + i);
+
+        //        printf("Adding nodes %d,%d to the cable element %i\n ", _1D_elementsNodes_size + i,
+        //               _1D_elementsNodes_size + i + 1, _1D_elementsNodes_size + i);
+        //        printf("Adding element %d to the nodes %d,%d\n ", _1D_elementsNodes_size + i, _1D_elementsNodes_size +
+        //        i,
+        //               _1D_elementsNodes_size + i + 1);
+
+        //        printf("Added cable element %d with nBp=(%f,%f,%f) from ChBuilderBeamd\n", i, pos.x, pos.y, pos.z);
+
+        //        printf("Added cable element %d with nBp=(%f,%f,%f) from ChBuilderBeamd\n", i, pos.x, pos.y, pos.z);
+    }
+}
 }  // end namespace fea
 }  // end namespace chrono

@@ -34,7 +34,7 @@ namespace fsi {
  * @param paramsH: struct defined in MyStructs.cuh
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
-    paramsH->sizeScale = 1; 
+    paramsH->sizeScale = 1;
     paramsH->HSML = 0.1;
     paramsH->MULT_INITSPACE = 1.0;
     paramsH->epsMinMarkersDis = .001;
@@ -44,30 +44,49 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->LARGE_PRES = 1000;
     paramsH->deltaPress;
     paramsH->multViscosity_FSI = 1;
-    paramsH->gravity = mR3(0, 0, -1);
+    paramsH->gravity = mR3(0, 0, 0.);
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
     paramsH->mu0 = .001;
-    paramsH->v_Max = 2;  
+    paramsH->kappa = 0.0;
+
+    paramsH->v_Max = 2;
     paramsH->EPS_XSPH = .5f;
 
-    paramsH->dT = 2e-4;
+    paramsH->USE_CUSP = true;                         ///< IISPH parameter: whether or not use cusp as the linear solver
+    paramsH->Cusp_solver = bicgstab;                  ///< IISPH parameter: gmres, cr, bicgstab, cg
+    paramsH->Verbose_monitoring = false;              ///< IISPH parameter: cusp linear solver setting
+    paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
+    paramsH->PPE_res = 0;          ///< relative res, is used in the iterative solver and cusp solvers
+    paramsH->PPE_Abs_res = 1e-10;  ///< absolute error, applied when cusp solvers are used
+    paramsH->PPE_Max_Iter = 2000;  ///< max number of iteration for cusp solvers
+
+    paramsH->Max_Pressure = 1e20;
+    paramsH->PPE_relaxation = 0.4;         ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
+    paramsH->IncompressibilityFactor = 1;  // Increasing this causes lager compressibility, but let for larger dt
+    paramsH->ClampPressure = true;         // If the negative pressure should be clamped to zero or not
+    paramsH->Adaptive_time_stepping = false;  // This let you use large time steps when possible
+    paramsH->Co_number = 0.8;                 // 0.2 works well for most cases
+    paramsH->dT_Max = 0.01;       // This is problem dependent should set by the user based on characteristic time step
+    paramsH->Apply_BC_U = false;  // You should go to custom_math.h all the way to end of file and set your function
+
+    paramsH->dT = 5e-3;
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
-    paramsH->kdT = 5; 
+    paramsH->kdT = 5;
     paramsH->gammaBB = 0.5;
-    paramsH->binSize0;   
+    paramsH->binSize0;
     paramsH->rigidRadius;
     paramsH->densityReinit = 1;
-    
+
     paramsH->enableTweak = 0;
     paramsH->enableAggressiveTweak = 0;
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .00;
     paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
-    paramsH->cMin = mR3(-bxDim, -byDim, -bzDim) - mR3(paramsH->HSML * 1);
-    paramsH->cMax = mR3(bxDim, byDim, 1.2 * bzDim) + mR3(paramsH->HSML * 1);
+    paramsH->cMin = mR3(-bxDim, -byDim, -bzDim) - 4 * mR3(paramsH->HSML);
+    paramsH->cMax = mR3(bxDim, byDim, 1.2 * bzDim) + 4 * mR3(paramsH->HSML);
 
     //****************************************************************************************
     int3 side0 = mI3(floor((paramsH->cMax.x - paramsH->cMin.x) / (2 * paramsH->HSML)),
@@ -77,8 +96,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
                          (paramsH->cMax.z - paramsH->cMin.z) / side0.z);
     paramsH->binSize0 = (binSize3.x > binSize3.y) ? binSize3.x : binSize3.y;
     paramsH->binSize0 = binSize3.x;  // for effect of distance. Periodic BC in x
-                       
-                        
+
     paramsH->boxDims = paramsH->cMax - paramsH->cMin;
     //****************************************************************************************
     //*** initialize straight channel
@@ -86,8 +104,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->straightChannelBoundaryMax = paramsH->cMax;  // SmR3(3, 2, 3) * paramsH->sizeScale;
     //************************** modify pressure ***************************
     paramsH->deltaPress = mR3(0);  // Wrong: 0.9 * paramsH->boxDims *
-                      
-                                   // boundary shape should play a roll
+
+    // boundary shape should play a roll
 
     // modify bin size stuff
     //****************************** bin size adjustement and contact detection *****************************

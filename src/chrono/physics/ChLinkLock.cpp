@@ -56,7 +56,7 @@ ChLinkLock::ChLinkLock()
     if (mask)
         delete mask;
     // create instead the LF-mask (the extended version, for lock-formulation)
-    mask = new ChLinkMaskLF();  
+    mask = new ChLinkMaskLF();
 
     // default type: spherical link
     // Sets the mask, all the matrices, and number of DOC and DOF
@@ -322,11 +322,24 @@ void ChLinkLock::UpdateTime(double time) {
             deltaC_dtdt.rot = AngleDTDT_to_QuatDTDT(angleset, vangles_dtdt, deltaC.rot);
             break;
         }
+        case AngleSet::RZXY: {
+            Vector vangles, vangles_dt, vangles_dtdt;
+            vangles.x() = motion_ang->Get_y(time);
+            vangles.y() = motion_ang2->Get_y(time);
+            vangles.z() = motion_ang3->Get_y(time);
+            vangles_dt.x() = motion_ang->Get_y_dx(time);
+            vangles_dt.y() = motion_ang2->Get_y_dx(time);
+            vangles_dt.z() = motion_ang3->Get_y_dx(time);
+            vangles_dtdt.x() = motion_ang->Get_y_dxdx(time);
+            vangles_dtdt.y() = motion_ang2->Get_y_dxdx(time);
+            vangles_dtdt.z() = motion_ang3->Get_y_dxdx(time);
+            deltaC.rot = Angle_to_Quat(angleset, vangles);
+            break;
+        }
         default:
             break;
     }
 }
-
 /////////   2-   UPDATE RELATIVE MARKER COORDINATES
 /////////
 

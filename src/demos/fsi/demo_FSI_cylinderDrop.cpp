@@ -71,7 +71,7 @@ const std::string pov_dir_fluid = out_dir + "/povFilesFluid";
 const std::string pov_dir_mbd = out_dir + "/povFilesHmmwv";
 bool povray_output = true;
 // Frequency of the save output
-int out_fps = 30;
+int out_fps = 50;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -266,7 +266,7 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelNSC& mphysicalSystem,
     // ---------------------
     double cyl_length = 3.5;
     double cyl_radius = .55;
-    ChVector<> cyl_pos = ChVector<>(0, 0, 0);
+    ChVector<> cyl_pos = ChVector<>(0, 0, 1);
     ChQuaternion<> cyl_rot = Q_from_AngAxis(CH_C_PI / 3, VECT_Z);
 
     std::vector<std::shared_ptr<ChBody>>* FSI_Bodies = myFsiSystem.GetFsiBodiesPtr();
@@ -319,10 +319,11 @@ void SavePovFilesMBD(fsi::ChSystemFsi& myFsiSystem,
     // If enabled, output data for PovRay postprocessing.
     if (povray_output && tStep % out_steps == 0) {
         // **** out fluid
-        fsi::utils::PrintToFile(myFsiSystem.GetDataManager()->sphMarkersD1.posRadD,
-                                myFsiSystem.GetDataManager()->sphMarkersD1.velMasD,
-                                myFsiSystem.GetDataManager()->sphMarkersD1.rhoPresMuD,
-                                myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray, pov_dir_fluid);
+        fsi::utils::PrintToFile(myFsiSystem.GetDataManager()->sphMarkersD2.posRadD,
+                                myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
+                                myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
+                                myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
+                                thrust::host_vector<int4>(), pov_dir_fluid, true);
 
         // **** out mbd
         if (tStep / out_steps == 0) {
@@ -367,6 +368,8 @@ int main(int argc, char* argv[]) {
     time(&rawtime);
     timeinfo = localtime(&rawtime);
 
+    const std::string rmCmd = (std::string("rm ") + pov_dir_fluid + std::string("/*"));
+    system(rmCmd.c_str());
     // --------------------------
     // Create output directories.
     // --------------------------
@@ -410,15 +413,16 @@ int main(int argc, char* argv[]) {
 #if haveFluid
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
     utils::GridSampler<> sampler(initSpace0);
-    fsi::Real3 boxCenter = fsi::mR3(0, 0, paramsH->cMin.z + 0.5 * basinDepth);
+    fsi::Real3 boxCenter = fsi::mR3(0, 0, -1.2);
     boxCenter.z += 2 * paramsH->HSML;
-    fsi::Real3 boxHalfDim = fsi::mR3(1.8, .9 * hdimY, 0.5 * basinDepth);
+    fsi::Real3 boxHalfDim = fsi::mR3(1.8, .9 * hdimY, 0.4 * basinDepth);
     utils::Generator::PointVector points = sampler.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter),
                                                              fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim));
     int numPart = points.size();
     for (int i = 0; i < numPart; i++) {
-        myFsiSystem.GetDataManager()->AddSphMarker(fsi::mR3(points[i].x(), points[i].y(), points[i].z()), fsi::mR3(0),
-                                                   fsi::mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, -1));
+        myFsiSystem.GetDataManager()->AddSphMarker(fsi::mR3(points[i].x(), points[i].y(), points[i].z()),
+                                                   fsi::mR3(1e-10),
+                                                   fsi::mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, -1.0));
     }
 
     int numPhases = myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.size();

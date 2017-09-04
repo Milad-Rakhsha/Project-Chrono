@@ -13,6 +13,8 @@ namespace chrono {
 namespace fsi {
 
 enum BceVersion { ADAMI = 0, mORIGINAL = 1 };
+enum PPE_SolutionType { MATRIX_FREE, FORM_SPARSE_MATRIX };
+enum Cusp_solverType { gmres, cr, bicgstab, bicgstab_m, cg, sap };
 
 /**
  * @brief Simulation Parameters
@@ -21,8 +23,8 @@ enum BceVersion { ADAMI = 0, mORIGINAL = 1 };
  */
 struct SimParams {
     int3 gridSize;       /* dx, dy, dz distances between particle centers. */
-    Real3 worldOrigin;   /* Origin of the system. */
-    Real3 cellSize;      /* Size of cells for collision detection*/
+    Real3 worldOrigin;   /* */
+    Real3 cellSize;      /* */
     uint numBodies;      /* */
     Real3 boxDims;       /* Dimensions of the domain. How big is the box that the domain is in. */
     Real sizeScale;      /* Useless (Don't change it !) */
@@ -30,6 +32,8 @@ struct SimParams {
     Real MULT_INITSPACE; /* Multiplier to hsml to determine the initial separation of the fluid particles and the fixed
      separation for the boundary particles. This means that the separation will always be a
      multiple of hsml. Default value = 1.0. */
+    Real MULT_INITSPACE_Cables;
+    Real MULT_INITSPACE_Shells;
     Real epsMinMarkersDis;   // epsilon mult for minimum distance between markers (d_min = eps * HSML)
     int NUM_BOUNDARY_LAYERS; /*  Number of particles layers that will be used in the boundary. Default value = 3. */
     Real toleranceZone; /* Helps determine the particles that are in the domain but are outside the boundaries, so they
@@ -44,13 +48,17 @@ struct SimParams {
     Real3
         deltaPress; /* Change in Pressure. This is needed for periodic BC. The change in pressure of a particle when it
    moves from end boundary to beginning.  */
-    int nPeriod;    /* Only used in snake channel simulation. Tells you how long the channel will be. */
-    Real3 gravity;  /* Gravity. Applied to fluid, rigid and flexible. */
+    Real V_in;      /* Inlet Velocity. This is needed for inlet BC.  */
+    Real x_in;
+
+    int nPeriod;      /* Only used in snake channel simulation. Tells you how long the channel will be. */
+    Real3 gravity;    /* Gravity. Applied to fluid, rigid and flexible. */
     Real3 bodyForce3; /* Constant force applied to the fluid. Flexible and rigid bodies are not affected by this force
      directly, but instead they are affected indirectly through the fluid. */
     Real rho0;        /* Density */
     Real markerMass;  /* marker mass */
     Real mu0;         /* Viscosity */
+    Real kappa;       /* surface tension parameter */
     Real v_Max; /* Max velocity of fluid used in equation of state. Run simulation once to be able to determine it. */
     Real EPS_XSPH;          /* Method to modify particle velocity. */
     Real multViscosity_FSI; /* Multiplier that helps determine the viscosity for boundary particles. For example, if the
@@ -60,6 +68,8 @@ struct SimParams {
     Real dT; /*  Time step. Depending on the model this will vary and the only way to determine what time step to use is
      to run simulations multiple time and find which one is the largest dT that produces a stable simulation.
      */
+    Real dT_Flex;
+
     Real tFinal;    /* Total simulation time. */
     Real timePause; /* Time that we let pass before applying body forces. This is done to allow the particles to
      stabilize
@@ -93,10 +103,29 @@ struct SimParams {
     int enableAggressiveTweak;
     /* */               // 0: no aggressive tweak; 1: with aggressive tweak (if 1, enableTweak should be 1 too)
     Real tweakMultV;    /* maximum allowed velocity: tweakMultV * HSML / dT;  NOTE: HSML and dT must be defined. So this
-                           line
-                           comes after them */
+        line
+        comes after them */
     Real tweakMultRho;  /* maximum allowed density change in one time step: tweakMultRho * rho0 */
     BceVersion bceType; /* maximum allowed density change in one time step: tweakMultRho * rho0 */
+
+    Real PPE_res;             // Poisson Pressure Equation residual
+    Real PPE_Abs_res;         // Poisson Pressure Equation Absolute residual
+    bool Verbose_monitoring;  // Poisson Pressure Equation Absolute residual
+
+    Real Max_Pressure;  // Max Pressure in the pressure solver
+    int PPE_Max_Iter;   // Poisson Pressure Equation maximum number of iteration
+    PPE_SolutionType PPE_Solution_type;
+    Real PPE_relaxation;
+    bool ClampPressure;
+    Real IncompressibilityFactor;
+    Real Cs;
+    bool USE_CUSP;
+    bool USE_iterative_solver;
+    Cusp_solverType Cusp_solver;
+    bool Adaptive_time_stepping;
+    Real Co_number;
+    Real dT_Max;
+    bool Apply_BC_U;
 };
 
 }  // end namespace fsi

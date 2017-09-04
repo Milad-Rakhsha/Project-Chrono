@@ -264,12 +264,10 @@ double MixtureIngredient::calcMinSeparation() {
 
 // Constructor: create a generator for the specified system.
 Generator::Generator(ChSystem* system)
-    : m_system(system), m_mixDist(0, 1), m_crtBodyId(0), m_totalNumBodies(0), m_totalMass(0), m_totalVolume(0) {
-}
+    : m_system(system), m_mixDist(0, 1), m_crtBodyId(0), m_totalNumBodies(0), m_totalMass(0), m_totalVolume(0) {}
 
 // Destructor
-Generator::~Generator() {
-}
+Generator::~Generator() {}
 
 // Add a new ingredient to the current mixture by specifying its type
 // and the ratio in the final mixture. A smart pointer to the new

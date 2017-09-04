@@ -26,6 +26,8 @@
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/tuple.h>
 
+#include "chrono_fea/ChElementShellANCF.h"
+
 namespace chrono {
 namespace fsi {
 
@@ -55,9 +57,27 @@ typedef thrust::zip_iterator<iterTupleRigidD> zipIterRigidD;
 typedef thrust::tuple<r3IterH, r4IterH, r3IterH, r4IterH, r3IterH, r3IterH> iterTupleRigidH;
 typedef thrust::zip_iterator<iterTupleRigidH> zipIterRigidH;
 
+//// typedef device iterators for shorthand Flex operations
+// typedef thrust::
+//    tuple<r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH>
+//        iterTupleFlexH;
+// typedef thrust::zip_iterator<iterTupleFlexH> zipIterFlexH;
+
+//// typedef device iterators for shorthand Flex operations
+// typedef thrust::
+//    tuple<r3IterD, r3IterD, r3IterD, r3IterD, r3IterD, r3IterD, r3IterD, r3IterD, r3IterD, r3IterD, r3IterD, r3IterD>
+//        iterTupleFlexD;
+// typedef thrust::zip_iterator<iterTupleFlexD> zipIterFlexD;
+
 // typedef device iterators for shorthand chrono bodies operations
 typedef thrust::tuple<r3IterH, r3IterH, r3IterH, r4IterH, r3IterH, r3IterH> iterTupleChronoBodiesH;
 typedef thrust::zip_iterator<iterTupleChronoBodiesH> zipIterChronoBodiesH;
+
+//// typedef device iterators for shorthand chrono bodies operations
+// typedef thrust::
+//    tuple<r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH, r3IterH>
+//        iterTupleChronoShellsH;
+// typedef thrust::zip_iterator<iterTupleChronoShellsH> zipIterChronoShellsH;
 
 /**
  * @brief Number of fluid markers, solid bodies, solid markers, boundary markers
@@ -68,7 +88,9 @@ typedef thrust::zip_iterator<iterTupleChronoBodiesH> zipIterChronoBodiesH;
  */
 struct NumberOfObjects {
     int numRigidBodies;       ///< Number of rigid bodies
-    int numFlexBodies;        ///< Number of Flexible bodies*/
+    int numFlexNodes;         ///< Number of Nodes in a flexible mesh, Each FE is made up of nodes
+    int numFlexBodies1D;      ///< Number of 1D-Flexible bodies, Each FE is one body
+    int numFlexBodies2D;      ///< Number of 2D-Flexible bodies, Each FE is one body
     int numFluidMarkers;      ///< Number of fluid SPH markers*/
     int numBoundaryMarkers;   ///< Number of boundary SPH markers*/
     int startRigidMarkers;    ///< Index of the first SPH marker that covers the first rigid body.
@@ -148,6 +170,85 @@ class FsiBodiesDataD {
   private:
 };
 
+class FsiMeshDataH {
+  public:
+    thrust::host_vector<Real3> pos_fsi_fea_H;
+    thrust::host_vector<Real3> vel_fsi_fea_H;
+    thrust::host_vector<Real3> acc_fsi_fea_H;
+
+    //  zipIterFlexH iterator();
+    // resize
+    void resize(int s);
+    int size() { return pos_fsi_fea_H.size(); };
+
+  private:
+};
+
+class FsiMeshDataD {
+  public:
+    thrust::device_vector<Real3> pos_fsi_fea_D;
+    thrust::device_vector<Real3> vel_fsi_fea_D;
+    thrust::device_vector<Real3> acc_fsi_fea_D;
+
+    //  zipIterFlexD iterator();
+    void CopyFromH(const FsiMeshDataH& other);
+    FsiMeshDataD& operator=(const FsiMeshDataD& other);
+    // resize
+    void resize(int s);
+
+  private:
+};
+
+class FsiShellsDataH {
+  public:
+    thrust::host_vector<Real3> posFlex_fsiBodies_nA_H;
+    thrust::host_vector<Real3> posFlex_fsiBodies_nB_H;
+    thrust::host_vector<Real3> posFlex_fsiBodies_nC_H;
+    thrust::host_vector<Real3> posFlex_fsiBodies_nD_H;
+
+    thrust::host_vector<Real3> velFlex_fsiBodies_nA_H;
+    thrust::host_vector<Real3> velFlex_fsiBodies_nB_H;
+    thrust::host_vector<Real3> velFlex_fsiBodies_nC_H;
+    thrust::host_vector<Real3> velFlex_fsiBodies_nD_H;
+
+    thrust::host_vector<Real3> accFlex_fsiBodies_nA_H;
+    thrust::host_vector<Real3> accFlex_fsiBodies_nB_H;
+    thrust::host_vector<Real3> accFlex_fsiBodies_nC_H;
+    thrust::host_vector<Real3> accFlex_fsiBodies_nD_H;
+
+    //  zipIterFlexH iterator();
+    // resize
+    void resize(int s);
+
+  private:
+};
+
+class FsiShellsDataD {
+  public:
+    thrust::device_vector<Real3> posFlex_fsiBodies_nA_D;
+    thrust::device_vector<Real3> posFlex_fsiBodies_nB_D;
+    thrust::device_vector<Real3> posFlex_fsiBodies_nC_D;
+    thrust::device_vector<Real3> posFlex_fsiBodies_nD_D;
+
+    thrust::device_vector<Real3> velFlex_fsiBodies_nA_D;
+    thrust::device_vector<Real3> velFlex_fsiBodies_nB_D;
+    thrust::device_vector<Real3> velFlex_fsiBodies_nC_D;
+    thrust::device_vector<Real3> velFlex_fsiBodies_nD_D;
+
+    thrust::device_vector<Real3> accFlex_fsiBodies_nA_D;
+    thrust::device_vector<Real3> accFlex_fsiBodies_nB_D;
+    thrust::device_vector<Real3> accFlex_fsiBodies_nC_D;
+    thrust::device_vector<Real3> accFlex_fsiBodies_nD_D;
+
+    //  zipIterFlexD iterator();
+    void CopyFromH(const FsiShellsDataH& other);
+    FsiShellsDataD& operator=(const FsiShellsDataD& other);
+    // resize
+    void resize(int s);
+
+  private:
+};
+
 /// Class for storing the neighbor search informations on the device
 class ProximityDataD {
   public:
@@ -183,6 +284,47 @@ class ChronoBodiesDataH {
   private:
 };
 
+class ChronoShellsDataH {
+  public:
+    ChronoShellsDataH() {}
+    ChronoShellsDataH(int s);
+
+    //  zipIterChronoShellsH iterator();
+
+    thrust::host_vector<Real3> posFlex_ChSystemH_nA_H;
+    thrust::host_vector<Real3> posFlex_ChSystemH_nB_H;
+    thrust::host_vector<Real3> posFlex_ChSystemH_nC_H;
+    thrust::host_vector<Real3> posFlex_ChSystemH_nD_H;
+
+    thrust::host_vector<Real3> velFlex_ChSystemH_nA_H;
+    thrust::host_vector<Real3> velFlex_ChSystemH_nB_H;
+    thrust::host_vector<Real3> velFlex_ChSystemH_nC_H;
+    thrust::host_vector<Real3> velFlex_ChSystemH_nD_H;
+
+    thrust::host_vector<Real3> accFlex_ChSystemH_nA_H;
+    thrust::host_vector<Real3> accFlex_ChSystemH_nB_H;
+    thrust::host_vector<Real3> accFlex_ChSystemH_nC_H;
+    thrust::host_vector<Real3> accFlex_ChSystemH_nD_H;
+
+    // resize
+    void resize(int s);
+
+  private:
+};
+class ChronoMeshDataH {
+  public:
+    ChronoMeshDataH() {}
+    ChronoMeshDataH(int s);
+
+    thrust::host_vector<Real3> posFlex_ChSystemH_H;
+    thrust::host_vector<Real3> velFlex_ChSystemH_H;
+    thrust::host_vector<Real3> accFlex_ChSystemH_H;
+
+    // resize
+    void resize(int s);
+
+  private:
+};
 /// Class to hold information of the fluid system that needs to be passed to Chrono
 class FsiGeneralData {
   public:
@@ -191,6 +333,8 @@ class FsiGeneralData {
     // ----------------
     // fluidfsiBodeisIndex
     thrust::host_vector<::int4> referenceArray;  ///< Holds information of each phase in the array of sph markers
+    thrust::host_vector<::int4>
+        referenceArray_FEA;  ///< Holds information of each phase in the array of sph markers for Flexible elements
     // ----------------
     //  device
     // ----------------
@@ -200,12 +344,21 @@ class FsiGeneralData {
 
     // BCE
     thrust::device_vector<Real3> rigidSPH_MeshPos_LRF_D;  ///< Position of a marker attached to a rigid body in a local
-                                                          ///refrence frame of the body
-    thrust::device_vector<uint> rigidIdentifierD;         ///< Identifies which rigid body a marker belongs to
+    thrust::device_vector<Real3> FlexSPH_MeshPos_LRF_D;
+
+    thrust::device_vector<uint> rigidIdentifierD;  ///< Identifies which rigid body a marker belongs to
+    thrust::device_vector<uint> FlexIdentifierD;
 
     // fsi bodies
     thrust::device_vector<Real3> rigid_FSI_ForcesD;   ///< Vector of the surface-integrated forces to rigid bodies
     thrust::device_vector<Real3> rigid_FSI_TorquesD;  ///< Vector of the surface-integrated torques to rigid bodies
+    thrust::device_vector<Real3> Flex_FSI_ForcesD;
+
+    thrust::host_vector<int2> CableElementsNodesH;
+    thrust::device_vector<int2> CableElementsNodes;
+
+    thrust::host_vector<int4> ShellElementsNodesH;
+    thrust::device_vector<int4> ShellElementsNodes;
 
   private:
 };
@@ -217,7 +370,7 @@ class CH_FSI_API ChFsiDataManager {
     ~ChFsiDataManager();
 
     void AddSphMarker(Real3 pos, Real3 vel, Real4 rhoPresMu);
-    void ResizeDataManager();
+    void ResizeDataManager(int numNodes);
 
     NumberOfObjects numObjects;
 
@@ -229,6 +382,8 @@ class CH_FSI_API ChFsiDataManager {
     FsiBodiesDataD fsiBodiesD1;  ///< Information of rigid bodies at state 1 on device
     FsiBodiesDataD fsiBodiesD2;  ///< Information of rigid bodies at state 2 on device
     FsiBodiesDataH fsiBodiesH;   ///< Information of rigid bodies at state 1 on host
+    FsiMeshDataD fsiMeshD;
+    FsiMeshDataH fsiMeshH;
 
     FsiGeneralData fsiGeneralData;
 

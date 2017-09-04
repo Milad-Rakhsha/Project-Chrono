@@ -1,0 +1,315 @@
+#!/bin/bash
+
+NFrame=242
+rm deflection*
+###################################################################################################
+###################################################################################################
+# rm E_Princ_Dir1*
+# # The following lines go through all the nodal value of a certain field for certain node at different time frames.
+# # It gets the value of that node and stores it in a file that is specified for that node.
+# for j in `seq 1 613`;
+# do
+# for i in `seq 1 241`;
+# do grep -R -A 615 "VECTORS E_Princ_Dir1" femur.$i.vtk| tail -n +2 | head -n $j | tail -n +$j >> E_Princ_Dir1.$j
+# done
+# done
+
+# # We need to create the average field using the headers that we had before
+# grep -R -A 615 "VECTORS E_Princ_Dir1" femur.1.vtk| sed  "s/E_Princ_Dir1/E_Princ_Dir1Mean/g" |head -n 1 >> E_Princ_Dir1Mean
+# for j in `seq 1 613`; do
+# first=$(awk '{ sum += $1 } END { if (NR > 0) print sum / NR }' E_Princ_Dir1.$j)
+# second=$(awk '{ sum += $2 } END { if (NR > 0) print sum / NR }' E_Princ_Dir1.$j)
+# third=$(awk '{ sum += $3 } END { if (NR > 0) print sum / NR }' E_Princ_Dir1.$j)
+# echo $first $second $third >>E_Princ_Dir1Mean
+# done
+
+# for i in `seq 1 241`; do 
+# cat E_Princ_Dir1Mean >> femur.$i.vtk;
+# done
+
+###################################################################################################
+###################################################################################################
+# rm E_Princ_Dir2*
+# # The following lines go through all the nodal value of a certain field for certain node at different time frames.
+# # It gets the value of that node and stores it in a file that is specified for that node.
+# for j in `seq 1 613`;
+# do
+# for i in `seq 1 241`;
+# do grep -R -A 615 "VECTORS E_Princ_Dir2" femur.$i.vtk| tail -n +2 | head -n $j | tail -n +$j >> E_Princ_Dir2.$j
+# done
+# done
+
+# # We need to create the average field using the headers that we had before
+# grep -R -A 615 "VECTORS E_Princ_Dir2" femur.1.vtk| sed  "s/E_Princ_Dir2/E_Princ_Dir2Mean/g" |head -n 1 >> E_Princ_Dir2Mean
+# for j in `seq 1 613`; do
+# first=$(awk '{ sum += $1 } END { if (NR > 0) print sum / NR }' E_Princ_Dir2.$j)
+# second=$(awk '{ sum += $2 } END { if (NR > 0) print sum / NR }' E_Princ_Dir2.$j)
+# third=$(awk '{ sum += $3 } END { if (NR > 0) print sum / NR }' E_Princ_Dir2.$j)
+# echo $first $second $third >>E_Princ_Dir2Mean
+# done
+
+# for i in `seq 1 241`; do 
+# cat E_Princ_Dir2Mean >> femur.$i.vtk;
+# done
+###################################################################################################
+rm ep12_ratio*
+
+## Do the averaging...
+# The following lines go through all the nodal value of a certain field for certain node at different time frames.
+# It gets the value of that node and stores it in a file that is specified for that node. 987 -> numNodes, 241 -> numFrames
+for j in `seq 1 987`;
+do
+for i in `seq 1 241`;
+do grep -R -A 989 "VECTORS ep12_ratio" femur.$i.vtk| tail -n +2 | head -n $j | tail -n +$j >> ep12_ratio.$j;
+done
+done
+
+for j in `seq 1 987`;
+do
+for i in `seq 1 241`;
+do grep -R -A 989 "VECTORS WAve_T_dir" femur.$i.vtk| tail -n +2 | head -n $j | tail -n +$j >> WAve_T_dir.$j; 
+done
+done
+
+
+for j in `seq 1 987`;
+do
+for i in `seq 1 241`;
+do grep -R -A 989 "VECTORS WAve_dir" femur.$i.vtk| tail -n +2 | head -n $j | tail -n +$j >> WAve_dir.$j;
+done
+done
+
+
+# We need to create the average field using the headers that we had before
+# T indicate that extra condition ep<0 -> ep=0 is imposed 
+echo " "> TimeAve_WAve
+echo " "> TimeAve_WAveT
+
+grep -R -A 989 "VECTORS ep12_ratio" femur.1.vtk| sed  "s/ep12_ratio/TimeAve_WAve/g" |head -n 1 >> TimeAve_WAve
+grep -R -A 989 "VECTORS ep12_ratio" femur.1.vtk| sed  "s/ep12_ratio/TimeAve_WAveT/g" |head -n 1 >> TimeAve_WAveT
+
+for j in `seq 1 989`; do
+
+awk {'print $3'} ep12_ratio.$j > test
+paste WAve_dir.$j WAve_T_dir.$j  test> PosWAve
+awk '{ print  $1, $2, $3, $4, $5, $6}' PosWAve > MyOutput
+
+first=$(awk '{ sum += $1 } END { if (NR > 0) print sum / NR }' MyOutput)
+second=$(awk '{ sum += $2 } END { if (NR > 0) print sum / NR }' MyOutput)
+third=$(awk '{ sum += $3 } END { if (NR > 0) print sum / NR }' MyOutput)
+echo $first $second $third >>TimeAve_WAve
+fourth=$(awk '{ sum += $4 } END { if (NR > 0) print sum / NR }' MyOutput)
+fifth=$(awk '{ sum += $5 } END { if (NR > 0) print sum / NR }' MyOutput)
+sixth=$(awk '{ sum += $6 } END { if (NR > 0) print sum / NR }' MyOutput)
+echo $fourth $fifth $sixth >>TimeAve_WAveT
+done
+
+for i in `seq 1 241`; do 
+cat TimeAve_WAveT >> femur.$i.vtk;
+cat TimeAve_WAve >> femur.$i.vtk;
+done
+
+# if you want to do the averaging differntly you can use something like this
+# $7 here is a scalar field (max/min ratio) which can be used for wighted averaging
+# awk '{ print  $1*$7, $2*$7, $3*$7, $4*$7, $5*$7, $6*$7}' PosWAve > MyOutput
+
+for j in `seq 1 987`;
+do
+for i in `seq 1 241`;
+do grep -R -A 989 "VECTORS E_Princ_Dir1" femur.$i.vtk| tail -n +2 | head -n $j | tail -n +$j >> E_Princ_Dir1.$j; 
+done
+done
+
+
+for j in `seq 1 987`;
+do
+for i in `seq 1 241`;
+do grep -R -A 989 "VECTORS E_Princ_Dir2" femur.$i.vtk| tail -n +2 | head -n $j | tail -n +$j >> E_Princ_Dir2.$j;
+done
+done
+
+
+echo " "> TimeAve_E_Princ_Dir1
+echo " "> TimeAve_E_Princ_Dir2
+
+grep -R -A 989 "VECTORS ep12_ratio" femur.1.vtk| sed  "s/ep12_ratio/TimeAve_E_Princ_Dir1/g" |head -n 1 >> TimeAve_E_Princ_Dir1
+grep -R -A 989 "VECTORS ep12_ratio" femur.1.vtk| sed  "s/ep12_ratio/TimeAve_E_Princ_Dir2/g" |head -n 1 >> TimeAve_E_Princ_Dir2
+
+for j in `seq 1 989`; do
+
+awk {'print $1, $2'} ep12_ratio.$j > test
+paste E_Princ_Dir1.$j E_Princ_Dir2.$j  test> E_Princ
+awk '{ print  $1*$7, $2*$7, $3*$7, $4*$8, $5*$8, $6*$8}' E_Princ > E_Princ_MyOutput
+
+first=$(awk '{ sum += $1 } END { if (NR > 0) print sum / NR }' E_Princ_MyOutput)
+second=$(awk '{ sum += $2 } END { if (NR > 0) print sum / NR }' E_Princ_MyOutput)
+third=$(awk '{ sum += $3 } END { if (NR > 0) print sum / NR }' E_Princ_MyOutput)
+echo $first $second $third >>TimeAve_E_Princ_Dir1
+fourth=$(awk '{ sum += $4 } END { if (NR > 0) print sum / NR }' E_Princ_MyOutput)
+fifth=$(awk '{ sum += $5 } END { if (NR > 0) print sum / NR }' E_Princ_MyOutput)
+sixth=$(awk '{ sum += $6 } END { if (NR > 0) print sum / NR }' E_Princ_MyOutput)
+echo $fourth $fifth $sixth >>TimeAve_E_Princ_Dir2
+done
+
+for i in `seq 1 241`; do 
+cat TimeAve_E_Princ_Dir1 >> femur.$i.vtk;
+cat TimeAve_E_Princ_Dir2 >> femur.$i.vtk;
+cp femur.$i.vtk tempfemur.$i.vtk;
+done
+
+rm tempfemur*
+for i in `seq 1 241`; do 
+cp femur.$i.vtk tempfemur.$i.vtk; cat ../../region >> tempfemur.$i.vtk;
+done
+# Finding average of values over different regions
+# point_Region is region of each point
+grep -R -A 989 "SCALARS Region" tempfemur.1.vtk| tail -n 988 > point_Region
+grep -R -A 988 "VECTORS TimeAve_E_Princ_Dir1 float" tempfemur.1.vtk| tail -n 988 > TimeAve_E_Princ_Dir1
+
+
+# i is the line number
+rm Region_*
+rm RegionTimeAve_E_Princ_Dir1_*
+for i in `seq 1 987`; do
+Value=$(head -$i  TimeAve_E_Princ_Dir1| tail -n -1);
+first=$(head -$i  TimeAve_E_Princ_Dir1| tail -n -1|awk {'print $1'});
+second=$(head -$i  TimeAve_E_Princ_Dir1| tail -n -1|awk {'print $2'});
+third=$(head -$i  TimeAve_E_Princ_Dir1| tail -n -1|awk {'print $3'});
+Region=$(head -$i point_Region| tail -n -1| sed 's/ //g');
+echo $first $second $third $(CalcOct "atan($first/$third)") >> RegionTimeAve_E_Princ_Dir1_$Region
+done
+
+
+# if we want to project the vectors to xz plan we can ignore the y component
+# x would be vertical and z would be horizontal in the veiew we are interested in for fumer 
+rm Regional_TimeAve_E_Princ_Dir1
+for i in `seq 1 36`; do
+first=$(awk '{ sum += $1 } END { if (NR > 0) print sum / NR }' RegionTimeAve_E_Princ_Dir1_$i)
+second=$(awk '{ sum += $2 } END { if (NR > 0) print sum / NR }' RegionTimeAve_E_Princ_Dir1_$i)
+third=$(awk '{ sum += $3 } END { if (NR > 0) print sum / NR }' RegionTimeAve_E_Princ_Dir1_$i)
+forth=$(awk '{ sum += $4 } END { if (NR > 0) print sum / NR }' RegionTimeAve_E_Princ_Dir1_$i)
+echo $i $(CalcOct "atan($first/$third)*180/pi") $(CalcOct "$forth*180/pi") >> Regional_TimeAve_E_Princ_Dir1
+done
+
+
+
+
+
+
+
+
+
+
+
+
+####################################TIBIA PLATUA#########################################
+
+## Do the averaging...
+# The following lines go through all the nodal value of a certain field for certain node at different time frames.
+# It gets the value of that node and stores it in a file that is specified for that node. 1136 -> numNodes, 241 -> numFrames
+for j in `seq 1 1136`;
+do
+for i in `seq 1 241`;
+do grep -R -A 1138 "VECTORS ep12_ratio" tibia.$i.vtk| tail -n +2 | head -n $j | tail -n +$j >> tibia_ep12_ratio.$j;
+done
+done
+
+for j in `seq 1 1136`;
+do
+for i in `seq 1 241`;
+do grep -R -A 1138 "VECTORS WAve_T_dir" tibia.$i.vtk| tail -n +2 | head -n $j | tail -n +$j >> tibia_WAve_T_dir.$j; 
+done
+done
+
+
+for j in `seq 1 1136`;
+do
+for i in `seq 1 241`;
+do grep -R -A 1138 "VECTORS WAve_dir" tibia.$i.vtk| tail -n +2 | head -n $j | tail -n +$j >> tibia_WAve_dir.$j;
+done
+done
+
+# We need to create the average field using the headers that we had before
+# T indicate that extra condition ep<0 -> ep=0 is imposed 
+echo " "> tibiaTimeAve_WAve
+echo " "> tibiaTimeAve_WAveT
+
+grep -R -A 1138 "VECTORS ep12_ratio" tibia.1.vtk| sed  "s/ep12_ratio/TimeAve_WAve/g" |head -n 1 >> tibia_TimeAve_WAve
+grep -R -A 1138 "VECTORS ep12_ratio" tibia.1.vtk| sed  "s/ep12_ratio/TimeAve_WAveT/g" |head -n 1 >> tibia_TimeAve_WAveT
+
+for j in `seq 1 1138`; do
+
+awk {'print $3'} tibia_ep12_ratio.$j > tibiatest
+paste tibia_WAve_dir.$j tibia_WAve_T_dir.$j  tibiatest> tibiaPosWAve
+awk '{ print  $1, $2, $3, $4, $5, $6}' tibiaPosWAve > tibiaMyOutput
+
+first=$(awk '{ sum += $1 } END { if (NR > 0) print sum / NR }' tibiaMyOutput)
+second=$(awk '{ sum += $2 } END { if (NR > 0) print sum / NR }' tibiaMyOutput)
+third=$(awk '{ sum += $3 } END { if (NR > 0) print sum / NR }' tibiaMyOutput)
+echo $first $second $third >>tibia_TimeAve_WAve
+fourth=$(awk '{ sum += $4 } END { if (NR > 0) print sum / NR }' tibiaMyOutput)
+fifth=$(awk '{ sum += $5 } END { if (NR > 0) print sum / NR }' tibiaMyOutput)
+sixth=$(awk '{ sum += $6 } END { if (NR > 0) print sum / NR }' tibiaMyOutput)
+echo $fourth $fifth $sixth >>tibia_TimeAve_WAveT
+done
+
+for i in `seq 1 241`; do 
+cat tibia_TimeAve_WAveT >> tibia.$i.vtk;
+cat tibia_TimeAve_WAve >> tibia.$i.vtk;
+done
+
+# if you want to do the averaging differntly you can use something like this
+# $7 here is a scalar field (max/min ratio) which can be used for wighted averaging
+# awk '{ print  $1*$7, $2*$7, $3*$7, $4*$7, $5*$7, $6*$7}' PosWAve > MyOutput
+
+
+for j in `seq 1 1136`;
+do
+for i in `seq 1 241`;
+do grep -R -A 989 "VECTORS E_Princ_Dir1" tibia.$i.vtk| tail -n +2 | head -n $j | tail -n +$j >> E_Princ_Dir1_tibia.$j; 
+done
+done
+
+
+for j in `seq 1 1136`;
+do
+for i in `seq 1 241`;
+do grep -R -A 989 "VECTORS E_Princ_Dir2" tibia.$i.vtk| tail -n +2 | head -n $j | tail -n +$j >> E_Princ_Dir2_tibia.$j;
+done
+done
+
+
+echo " "> TimeAve_E_Princ_Dir1_tibia
+echo " "> TimeAve_E_Princ_Dir2_tibia
+
+grep -R -A 989 "VECTORS ep12_ratio" femur.1.vtk| sed  "s/ep12_ratio/TimeAve_E_Princ_Dir1/g" |head -n 1 >> TimeAve_E_Princ_Dir1_tibia
+grep -R -A 989 "VECTORS ep12_ratio" femur.1.vtk| sed  "s/ep12_ratio/TimeAve_E_Princ_Dir2/g" |head -n 1 >> TimeAve_E_Princ_Dir2_tibia
+
+for j in `seq 1 1138`; do
+
+awk {'print $1, $2'} ep12_ratio.$j > test
+paste TimeAve_E_Princ_Dir1_tibia.$j TimeAve_E_Princ_Dir2_tibia.$j  test> E_Princ_tibia
+awk '{ print  $1*$7, $2*$7, $3*$7, $4*$8, $5*$8, $6*$8}' E_Princ_tibia > E_Princ_tibia_MyOutput
+
+first=$(awk '{ sum += $1 } END { if (NR > 0) print sum / NR }' E_Princ_tibia_MyOutput)
+second=$(awk '{ sum += $2 } END { if (NR > 0) print sum / NR }' E_Princ_tibia_MyOutput)
+third=$(awk '{ sum += $3 } END { if (NR > 0) print sum / NR }' E_Princ_tibia_MyOutput)
+echo $first $second $third >>TimeAve_E_Princ_Dir1_tibia
+fourth=$(awk '{ sum += $4 } END { if (NR > 0) print sum / NR }' E_Princ_tibia_MyOutput)
+fifth=$(awk '{ sum += $5 } END { if (NR > 0) print sum / NR }' E_Princ_tibia_MyOutput)
+sixth=$(awk '{ sum += $6 } END { if (NR > 0) print sum / NR }' E_Princ_tibia_MyOutput)
+echo $fourth $fifth $sixth >>TimeAve_E_Princ_Dir2_tibia
+done
+
+for i in `seq 1 241`; do 
+cat TimeAve_E_Princ_Dir1_tibia >> tibia.$i.vtk;
+cat TimeAve_E_Princ_Dir2_tibia >> tibia.$i.vtk;
+done
+
+
+
+
+
+
+
+

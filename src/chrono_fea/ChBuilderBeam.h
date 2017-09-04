@@ -27,8 +27,8 @@ namespace fea {
 /// elements.
 class ChApiFea ChBuilderBeam {
   protected:
-    std::vector<std::shared_ptr<ChElementBeamEuler> > beam_elems;
-    std::vector<std::shared_ptr<ChNodeFEAxyzrot> > beam_nodes;
+    std::vector<std::shared_ptr<ChElementBeamEuler>> beam_elems;
+    std::vector<std::shared_ptr<ChNodeFEAxyzrot>> beam_nodes;
 
   public:
     /// Helper function.
@@ -70,12 +70,12 @@ class ChApiFea ChBuilderBeam {
     /// Access the list of elements used by the last built beam.
     /// It can be useful for changing properties afterwards.
     /// This list is reset all times a 'Build...' function is called.
-    std::vector<std::shared_ptr<ChElementBeamEuler> >& GetLastBeamElements() { return beam_elems; }
+    std::vector<std::shared_ptr<ChElementBeamEuler>>& GetLastBeamElements() { return beam_elems; }
 
     /// Access the list of nodes used by the last built beam.
     /// It can be useful for adding constraints or changing properties afterwards.
     /// This list is reset all times a 'Build...' function is called.
-    std::vector<std::shared_ptr<ChNodeFEAxyzrot> >& GetLastBeamNodes() { return beam_nodes; }
+    std::vector<std::shared_ptr<ChNodeFEAxyzrot>>& GetLastBeamNodes() { return beam_nodes; }
 };
 
 /// Class for an helper object that provides easy functions to create
@@ -84,8 +84,8 @@ class ChApiFea ChBuilderBeam {
 
 class ChApiFea ChBuilderBeamANCF {
   protected:
-    std::vector<std::shared_ptr<ChElementCableANCF> > beam_elems;
-    std::vector<std::shared_ptr<ChNodeFEAxyzD> > beam_nodes;
+    std::vector<std::shared_ptr<ChElementCableANCF>> beam_elems;
+    std::vector<std::shared_ptr<ChNodeFEAxyzD>> beam_nodes;
 
   public:
     /// Helper function.
@@ -98,16 +98,23 @@ class ChApiFea ChBuilderBeamANCF {
                    const ChVector<> A,                        ///< starting point
                    const ChVector<> B                         ///< ending point
                    );
+    void BuildBeam_FSI(std::shared_ptr<ChMesh> mesh,              ///< mesh to store the resulting elements
+                       std::shared_ptr<ChBeamSectionCable> sect,  ///< section material for beam elements
+                       const int N,                               ///< number of elements in the segment
+                       const ChVector<> A,                        ///< starting point
+                       const ChVector<> B,                        ///< ending point
+                       std::vector<std::vector<int>>& _1D_elementsNodes_mesh,
+                       std::vector<std::vector<int>>& NodeNeighborElement1D_mesh);
 
     /// Access the list of elements used by the last built beam.
     /// It can be useful for changing properties afterwards.
     /// This list is reset all times a 'Build...' function is called.
-    std::vector<std::shared_ptr<ChElementCableANCF> >& GetLastBeamElements() { return beam_elems; }
+    std::vector<std::shared_ptr<ChElementCableANCF>>& GetLastBeamElements() { return beam_elems; }
 
     /// Access the list of nodes used by the last built beam.
     /// It can be useful for adding constraints or changing properties afterwards.
     /// This list is reset all times a 'Build...' function is called.
-    std::vector<std::shared_ptr<ChNodeFEAxyzD> >& GetLastBeamNodes() { return beam_nodes; }
+    std::vector<std::shared_ptr<ChNodeFEAxyzD>>& GetLastBeamNodes() { return beam_nodes; }
 };
 
 }  // end namespace fea

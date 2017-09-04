@@ -36,6 +36,7 @@ SET(FEA_DEMOS_IRR_MKL
     demo_FEA_shells
     demo_FEA_ContactANCF
     demo_FEA_Brick9
+    Milad_AC-GaitCycle
 )
 
 # List all FEA demos that use Irrlicht, Matlab, and MKL

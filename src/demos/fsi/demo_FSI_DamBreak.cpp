@@ -70,8 +70,8 @@ typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 // Dimension of the domain
-Real bxDim = 5;
-Real byDim = 0.5;
+Real bxDim = 4;
+Real byDim = 0.1;
 Real bzDim = 2.5;
 
 // Dimension of the fluid domain
@@ -153,7 +153,7 @@ int main(int argc, char* argv[]) {
     printSimulationParameters(paramsH);
 #if haveFluid
 
-    // ********************** Create Fluid region *************************
+    // ******************************* Create Fluid region ****************************************
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
     utils::GridSampler<> sampler(initSpace0);
     // Use a chrono sampler to create a bucket of fluid
@@ -181,8 +181,7 @@ int main(int argc, char* argv[]) {
         myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(mI4(numPart, numPart, 0, 0));
     }
 #endif
-
-    // ********************** Create Rigid ******************************
+    // ******************************* Create Rigid ****************************************
     ChVector<> gravity = ChVector<>(paramsH->gravity.x, paramsH->gravity.y, paramsH->gravity.z);
     // This needs to be called after fluid initialization because we are using
     // "numObjects.numBoundaryMarkers" inside it
@@ -207,8 +206,7 @@ int main(int argc, char* argv[]) {
 
     cout << " -- ChSystem size : " << mphysicalSystem.Get_bodylist()->size() << endl;
 
-    // ******************* System Initialize********************************
-    // myFsiSystem.InitializeChronoGraphics(CameraLocation, CameraLookAt);
+    // ******************************* System Initialize ***********************************
 
     double mTime = 0;
 
@@ -235,7 +233,7 @@ int main(int argc, char* argv[]) {
     for (int tStep = 0; tStep < stepEnd + 1; tStep++) {
         printf("step : %d, time= : %f (s) \n", tStep, time);
         double frame_time = 1.0 / out_fps;
-        myFsiSystem.DoStepDynamics_FSI();
+        myFsiSystem.DoStepDynamics_FSI_Implicit();
         time += paramsH->dT;
 
         if (std::abs(time - (double)next_frame * frame_time) < 1e-5 && save_output) {
@@ -327,10 +325,10 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
     int out_steps = std::ceil((1.0 / paramsH->dT) / out_fps);
     exec_time += mphysicalSystem.GetTimerStep();
     static int out_frame = 0;
-    chrono::fsi::utils::PrintToFile(myFsiSystem.GetDataManager()->sphMarkersD2.posRadD,
-                                    myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
-                                    myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
-                                    myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray, demo_dir, true);
+    chrono::fsi::utils::PrintToFile(
+        myFsiSystem.GetDataManager()->sphMarkersD2.posRadD, myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
+        myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
+        myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray, thrust::host_vector<int4>(), demo_dir, true);
     cout << "\n------------ Output frame:   " << next_frame << endl;
     cout << "             Execution time: " << exec_time << endl;
     out_frame++;

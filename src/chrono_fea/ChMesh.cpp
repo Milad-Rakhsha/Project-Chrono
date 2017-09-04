@@ -55,6 +55,8 @@ void ChMesh::SetupInitial() {
     n_dofs_w = 0;
 
     for (unsigned int i = 0; i < vnodes.size(); i++) {
+        vnodes[i]->SetIndex(i);
+
         if (!vnodes[i]->GetFixed()) {
             //    - count the degrees of freedom
             n_dofs += vnodes[i]->Get_ndof_x();

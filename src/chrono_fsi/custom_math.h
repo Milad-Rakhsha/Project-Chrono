@@ -1546,6 +1546,32 @@ __host__ __device__ inline Real3 cross(Real3 a, Real3 b) {
     return make_Real3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
 }
 
+__host__ __device__ inline Real2 Cables_ShapeFunctions(Real xi) {
+    //	Real NA = 1 - 3 * pow(xi, 2) + 2 * pow(xi, 3);
+    //	Real NB = 3 * pow(xi, 2) - 2 * pow(xi, 3);
+
+    Real NA = 1 - xi;
+    Real NB = xi;
+
+    return make_Real2(NA, NB);
+}
+__host__ __device__ inline Real4 Shells_ShapeFunctions(Real x, Real y) {
+    Real NA = 0.25 * (1.0 - x) * (1.0 - y);
+    Real NB = 0.25 * (1.0 + x) * (1.0 - y);
+    Real NC = 0.25 * (1.0 + x) * (1.0 + y);
+    Real ND = 0.25 * (1.0 - x) * (1.0 + y);
+    return make_Real4(NA, NB, NC, ND);
+}
+
+__host__ __device__ inline Real3 user_BC_U(Real3 Pos) {
+    Real3 vel = make_Real3(0.0, 0.0, 0.0);
+    //   User define fucntion for U goes here
+    if (Pos.z >= 1.025 && Pos.x <= 0.5 && Pos.x >= -0.5) {
+        vel = make_Real3(1, 0, 0);
+    }
+
+    return vel;
+}
 /// @} fsi_math
 
 }  // end namespace fsi
