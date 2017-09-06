@@ -10,9 +10,10 @@ SET(FSI_DEMOS
 # List all FSI demos that use chrono-parallel
 SET(FSI_PARALLEL_DEMOS
 # add fluid demos here
-demo_FSI_cylinderDrop
-demo_FSI_DamBreak
-demo_FSI_CylinderDrop_Implicit
+#demo_FSI_cylinderDrop
+#demo_FSI_DamBreak
+#demo_FSI_CylinderDrop_Implicit
+test_linearSolver
 )
 
 SET(FSI_FEA_DEMOS
@@ -35,6 +36,8 @@ SET(LIBRARIES
     ChronoEngine
     ChronoEngine_fsi
 )
+
+INCLUDE_DIRECTORIES(${CH_FSI_INCLUDES})
 
 IF(ENABLE_MODULE_PARALLEL)
 	INCLUDE_DIRECTORIES(${CH_PARALLEL_INCLUDES})

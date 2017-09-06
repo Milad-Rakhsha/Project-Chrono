@@ -24,25 +24,25 @@
 #include <thrust/extrema.h>
 
 //==========================================================================================================================================
-#include <cusp/csr_matrix.h>
-#include <cusp/print.h>
-#include <cusp/io/matrix_market.h>
-#include <cusp/monitor.h>
-
-#include <cusp/krylov/cg.h>
-#include <cusp/krylov/bicgstab.h>
-#include <cusp/krylov/bicgstab_m.h>
-#include <cusp/krylov/gmres.h>
-#include <cusp/krylov/cg_m.h>
-#include <cusp/krylov/cr.h>
-#include <cusp/krylov/bicg.h>
-
-#include <cusp/precond/aggregation/smoothed_aggregation.h>
-#include <cusp/precond/diagonal.h>
-#include <cusp/precond/ainv.h>
-
-#include <cusp/relaxation/jacobi.h>
-#include <cusp/multiply.h>
+//#include <cusp/csr_matrix.h>
+//#include <cusp/print.h>
+//#include <cusp/io/matrix_market.h>
+//#include <cusp/monitor.h>
+//
+//#include <cusp/krylov/cg.h>
+//#include <cusp/krylov/bicgstab.h>
+//#include <cusp/krylov/bicgstab_m.h>
+//#include <cusp/krylov/gmres.h>
+//#include <cusp/krylov/cg_m.h>
+//#include <cusp/krylov/cr.h>
+//#include <cusp/krylov/bicg.h>
+//
+//#include <cusp/precond/aggregation/smoothed_aggregation.h>
+//#include <cusp/precond/diagonal.h>
+//#include <cusp/precond/ainv.h>
+//
+//#include <cusp/relaxation/jacobi.h>
+//#include <cusp/multiply.h>
 
 //#include <sap/common.h>
 //#include <sap/spmv.h>
@@ -2230,65 +2230,75 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
     thrust::device_vector<Real> rho_p(numAllMarkers);
     thrust::fill(rho_p.begin(), rho_p.end(), 0);
     double LinearSystemClock = clock();
+    ChFsiLinearSolver myLS(paramsH->PPE_res, paramsH->PPE_Abs_res, paramsH->PPE_Max_Iter, (solverType)bicgstab);
+    double* valA = R1CAST(csrValA);
+    //    printf("valA[%d]=%f", 3, valA[3]);
+    myLS.PCG(numAllMarkers, NNZ, R1CAST(csrValA), I1CAST(numContacts), I1CAST(csrColIndA), R1CAST(p_old), R1CAST(B_i));
 
-    cusp::array1d<double, cusp::device_memory> b = B_i;
-    cusp::monitor<double> monitor(b, paramsH->PPE_Max_Iter, paramsH->PPE_res, paramsH->PPE_Abs_res,
-                                  paramsH->Verbose_monitoring);
-    if (paramsH->USE_CUSP) {
-        cusp::csr_matrix<unsigned long int, double, cusp::device_memory> AMatrix(numAllMarkers, numAllMarkers, NNZ);
-        AMatrix.row_offsets = numContacts;
-        AMatrix.column_indices = csrColIndA;
-        AMatrix.values = csrValA;
+    //    myLS.PCG(numAllMarkers, NNZ, thrust::raw_pointer_cast(csrValA.data()),
+    //    thrust::raw_pointer_cast(numContacts.data()),
+    //             thrust::raw_pointer_cast(csrColIndA.data()), thrust::raw_pointer_cast(p_old.data(),
+    //             thrust::raw_pointer_cast(B_i.data()));
 
-        cusp::array1d<double, cusp::device_memory> x(numAllMarkers, paramsH->BASEPRES);
-        //    cusp::array1d<double, cusp::device_memory> x(numAllMarkers, 1000.);
-
-        // set stopping criteria:
-
-        //    cusp::identity_operator<double, cusp::device_memory> M(AMatrix.num_rows, AMatrix.num_rows);
-        //    cusp::precond::scaled_bridson_ainv<double, cusp::device_memory> M(AMatrix, .1);
-        //    cusp::precond::bridson_ainv<double, cusp::device_memory> M(AMatrix, 0, -1, true, 2);
-        //    cusp::precond::scaled_bridson_ainv<double, cusp::device_memory> M(AMatrix, 0, 10);
-        //    cusp::precond::aggregation::smoothed_aggregation<int, double, cusp::device_memory> M(AMatrix);
-        //    cusp::precond::diagonal<double, cusp::device_memory> M(AMatrix);
-
-        int restart = 200;
-
-        if (paramsH->Cusp_solver == gmres)
-            cusp::krylov::gmres(AMatrix, x, b, restart, monitor);
-
-        if (paramsH->Cusp_solver == bicgstab)
-            cusp::krylov::bicgstab(AMatrix, x, b, monitor);
-
-        if (paramsH->Cusp_solver == cr)
-            cusp::krylov::cr(AMatrix, x, b, monitor);
-
-        if (paramsH->Cusp_solver == cg)
-            cusp::krylov::cg(AMatrix, x, b, monitor);
-
-        if (paramsH->Cusp_solver == bicgstab_m) {
-            size_t N_s = 4;
-            cusp::array1d<float, cusp::device_memory> x_i(AMatrix.num_rows * N_s, 0);
-            // set sigma values
-            cusp::array1d<float, cusp::device_memory> sigma(N_s);
-            sigma[0] = 0.1;
-            sigma[1] = 0.2;
-            sigma[2] = 0.3;
-            sigma[3] = 0.4;
-            cusp::krylov::bicgstab_m(AMatrix, x_i, b, sigma, monitor);
-            thrust::copy(x_i.begin(), x_i.end(), p_old.begin());
-        }
-        if (paramsH->Cusp_solver != bicgstab_m) {
-            thrust::copy(x.begin(), x.end(), p_old.begin());
-        }
-
-        /*std::string outnameA = "_A_" + std::to_string(numAllMarkers);
-        std::string outnamex = "_x_" + std::to_string(numAllMarkers);
-        std::string outnameb = "_b_" + std::to_string(numAllMarkers);
-        cusp::io::write_matrix_market_file(AMatrix, outnameA);
-        cusp::io::write_matrix_market_file(x, outnamex);
-        cusp::io::write_matrix_market_file(b, outnameb);*/
-    }
+    //    cusp::array1d<double, cusp::device_memory> b = B_i;
+    //    cusp::monitor<double> monitor(b, paramsH->PPE_Max_Iter, paramsH->PPE_res, paramsH->PPE_Abs_res,
+    //                                  paramsH->Verbose_monitoring);
+    //    if (paramsH->USE_CUSP) {
+    //        cusp::csr_matrix<unsigned long int, double, cusp::device_memory> AMatrix(numAllMarkers, numAllMarkers,
+    //        NNZ);
+    //        AMatrix.row_offsets = numContacts;
+    //        AMatrix.column_indices = csrColIndA;
+    //        AMatrix.values = csrValA;
+    //
+    //        cusp::array1d<double, cusp::device_memory> x(numAllMarkers, paramsH->BASEPRES);
+    //        //    cusp::array1d<double, cusp::device_memory> x(numAllMarkers, 1000.);
+    //
+    //        // set stopping criteria:
+    //
+    //        //    cusp::identity_operator<double, cusp::device_memory> M(AMatrix.num_rows, AMatrix.num_rows);
+    //        //    cusp::precond::scaled_bridson_ainv<double, cusp::device_memory> M(AMatrix, .1);
+    //        //    cusp::precond::bridson_ainv<double, cusp::device_memory> M(AMatrix, 0, -1, true, 2);
+    //        //    cusp::precond::scaled_bridson_ainv<double, cusp::device_memory> M(AMatrix, 0, 10);
+    //        //    cusp::precond::aggregation::smoothed_aggregation<int, double, cusp::device_memory> M(AMatrix);
+    //        //    cusp::precond::diagonal<double, cusp::device_memory> M(AMatrix);
+    //
+    //        int restart = 200;
+    //
+    //        if (paramsH->Cusp_solver == gmres)
+    //            cusp::krylov::gmres(AMatrix, x, b, restart, monitor);
+    //
+    //        if (paramsH->Cusp_solver == bicgstab)
+    //            cusp::krylov::bicgstab(AMatrix, x, b, monitor);
+    //
+    //        if (paramsH->Cusp_solver == cr)
+    //            cusp::krylov::cr(AMatrix, x, b, monitor);
+    //
+    //        if (paramsH->Cusp_solver == cg)
+    //            cusp::krylov::cg(AMatrix, x, b, monitor);
+    //
+    //        if (paramsH->Cusp_solver == bicgstab_m) {
+    //            size_t N_s = 4;
+    //            cusp::array1d<float, cusp::device_memory> x_i(AMatrix.num_rows * N_s, 0);
+    //            // set sigma values
+    //            cusp::array1d<float, cusp::device_memory> sigma(N_s);
+    //            sigma[0] = 0.1;
+    //            sigma[1] = 0.2;
+    //            sigma[2] = 0.3;
+    //            sigma[3] = 0.4;
+    //            cusp::krylov::bicgstab_m(AMatrix, x_i, b, sigma, monitor);
+    //            thrust::copy(x_i.begin(), x_i.end(), p_old.begin());
+    //        }
+    //        if (paramsH->Cusp_solver != bicgstab_m) {
+    //            thrust::copy(x.begin(), x.end(), p_old.begin());
+    //        }
+    //
+    //        /*std::string outnameA = "_A_" + std::to_string(numAllMarkers);
+    //        std::string outnamex = "_x_" + std::to_string(numAllMarkers);
+    //        std::string outnameb = "_b_" + std::to_string(numAllMarkers);
+    //        cusp::io::write_matrix_market_file(AMatrix, outnameA);
+    //        cusp::io::write_matrix_market_file(x, outnamex);
+    //        cusp::io::write_matrix_market_file(b, outnameb);*/
+    //    }
 
     while ((MaxRes > paramsH->PPE_res || Iteration < 3) && paramsH->USE_iterative_solver) {
         *isErrorH = false;
@@ -2432,16 +2442,16 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
            durationLinearSystem);
     if (paramsH->USE_iterative_solver)
         printf(" Iter (Jacobi+SOR)# = %d, to Res= %f \n", Iteration, MaxRes);
-    if (paramsH->USE_CUSP)
-        if (monitor.converged()) {
-            std::cout << " Solver converged to " << monitor.tolerance() << " tolerance";
-            std::cout << " after " << monitor.iteration_count() << " iterations";
-            std::cout << " (" << monitor.residual_norm() << " final residual)" << std::endl;
-        } else {
-            std::cout << "Failed to converge after " << monitor.iteration_limit() << " iterations";
-            std::cout << " to " << monitor.tolerance() << " tolerance ";
-            std::cout << " (" << monitor.residual_norm() << " final residual)" << std::endl;
-        }
+    //    if (paramsH->USE_CUSP)
+    //        if (monitor.converged()) {
+    //            std::cout << " Solver converged to " << monitor.tolerance() << " tolerance";
+    //            std::cout << " after " << monitor.iteration_count() << " iterations";
+    //            std::cout << " (" << monitor.residual_norm() << " final residual)" << std::endl;
+    //        } else {
+    //            std::cout << "Failed to converge after " << monitor.iteration_limit() << " iterations";
+    //            std::cout << " to " << monitor.tolerance() << " tolerance ";
+    //            std::cout << " (" << monitor.residual_norm() << " final residual)" << std::endl;
+    //        }
 
     //------------------------------------------------------------------------
     //------------------------------------------------------------------------

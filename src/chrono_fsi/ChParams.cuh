@@ -8,13 +8,13 @@
 #ifndef CHPARAMS_CUH_
 #define CHPARAMS_CUH_
 #include "chrono_fsi/custom_math.h"
+#include "chrono_fsi/ChFsiLinearSolver.h"
 
 namespace chrono {
 namespace fsi {
 
 enum BceVersion { ADAMI = 0, mORIGINAL = 1 };
 enum PPE_SolutionType { MATRIX_FREE, FORM_SPARSE_MATRIX };
-enum Cusp_solverType { gmres, cr, bicgstab, bicgstab_m, cg, sap };
 
 /**
  * @brief Simulation Parameters
@@ -121,7 +121,7 @@ struct SimParams {
     Real Cs;
     bool USE_CUSP;
     bool USE_iterative_solver;
-    Cusp_solverType Cusp_solver;
+    solverType Cusp_solver;
     bool Adaptive_time_stepping;
     Real Co_number;
     Real dT_Max;

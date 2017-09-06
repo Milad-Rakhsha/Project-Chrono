@@ -24,6 +24,7 @@
 #include "chrono_fsi/ChCollisionSystemFsi.cuh"
 #include "chrono_fsi/ChFsiDataManager.cuh"
 #include "chrono_fsi/ChFsiGeneral.cuh"
+#include "chrono_fsi/ChFsiLinearSolver.h"
 
 namespace chrono {
 namespace fsi {

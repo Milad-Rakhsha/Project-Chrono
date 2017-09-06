@@ -48,7 +48,7 @@ SELECT_NVCC_ARCH_FLAGS(NVCC_FLAGS_EXTRA)
 LIST(APPEND CUDA_NVCC_FLAGS ${NVCC_FLAGS_EXTRA})
 
 message(STATUS "  CUDA toolkit includes:    ${CUDA_TOOLKIT_ROOT_DIR}/include")
-message(STATUS "  CUDA SDK includes:        ${CUDA_SDK_ROOT_DIR}/common/inc")
+message(STATUS "  CUDA SDK includes:        ${CUDA_SDK_ROOT_DIR}/samples/common/inc")
 message(STATUS "  CUDA compile flags:       ${CUDA_NVCC_FLAGS}")
 
 option(CUDA_PROPAGATE_HOST_FLAGS "set host flags off" FALSE)
@@ -59,13 +59,23 @@ ENDIF()
 
 # ----------------------------------------------------------------------------
 # Collect additional include directories necessary for the FSI module.
-# Make some variables cisible from parent directory
+# Make some variables visible from parent directory
 # ----------------------------------------------------------------------------
 
 set(CH_FSI_INCLUDES
     "${CUDA_TOOLKIT_ROOT_DIR}/include"
+    "${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc"
     "${SAP_INC_DIR}"
 )
+# cuSparse library
+INCLUDE_DIRECTORIES("${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc")
+list(APPEND LIBRARIES "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libcusparse.so")
+list(APPEND LIBRARIES "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libcublas.so")
+list(APPEND LIBRARIES "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libculibos.a")
+list(APPEND LIBRARIES "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libcublas_static.a")
+list(APPEND LIBRARIES "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libcusparse_static.a")
+list(APPEND LIBRARIES "${CUDA_TOOLKIT_ROOT_DIR}/lib64/")
+LINK_DIRECTORIES("${CUDA_TOOLKIT_ROOT_DIR}/lib64/")
 
 set(CH_FSI_INCLUDES "${CH_FSI_INCLUDES}" PARENT_SCOPE)
 
@@ -96,6 +106,7 @@ SET(ChronoEngine_FSI_SOURCES
     ChFsiDataManager.cu
     ChFsiForceParallel.cu
     ChFsiGeneral.cu
+    ChFsiLinearSolver.cpp
     ChFsiInterface.cpp
     ChSystemFsi.cpp
     ChFsiTypeConvert.cpp
@@ -110,6 +121,7 @@ SET(ChronoEngine_FSI_HEADERS
     ChFsiDataManager.cuh
     ChFsiForceParallel.cuh
     ChFsiGeneral.cuh
+    ChFsiLinearSolver.h
     ChFsiInterface.h
     ChSystemFsi.h
     ChSphGeneral.cuh
@@ -146,7 +158,9 @@ source_group(utils FILES
 #-----------------------------------------------------------------------------
 
 set(CXX_FLAGS ${CH_CXX_FLAGS})
-set(LIBRARIES "ChronoEngine")
+
+list(APPEND LIBRARIES "ChronoEngine")
+#set(LIBRARIES "ChronoEngine")
 
 if(ENABLE_MODULE_PARALLEL)
   set(CXX_FLAGS ${CH_PARALLEL_CXX_FLAGS})
@@ -177,7 +191,10 @@ SET_TARGET_PROPERTIES(ChronoEngine_fsi PROPERTIES
                       LINK_FLAGS "${CH_LINKERFLAG_SHARED}"
                       COMPILE_DEFINITIONS "CH_API_COMPILE_FSI")
 
+
+
 TARGET_LINK_LIBRARIES(ChronoEngine_fsi ${LIBRARIES})
+message(STATUS "  FSI Libraries:    ${LIBRARIES}")
 
 INSTALL(TARGETS ChronoEngine_fsi
         RUNTIME DESTINATION bin

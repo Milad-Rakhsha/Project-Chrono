@@ -49,8 +49,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 0.05;     ///< viscosity
-    paramsH->kappa = 0.001;  ///<surface tension parameter
+    paramsH->mu0 = 0.05;   ///< viscosity
+    paramsH->kappa = 0.0;  ///<surface tension parameter
     paramsH->v_Max = 1;
     paramsH->EPS_XSPH = .5f;
 
@@ -58,9 +58,9 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->Cusp_solver = bicgstab;                  ///< IISPH parameter: gmres, cr, bicgstab, cg
     paramsH->Verbose_monitoring = false;              ///< IISPH parameter: cusp linear solver setting
     paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
-    paramsH->PPE_res = 0;           ///< relative res, is used in the iterative solver and cusp solvers
-    paramsH->PPE_Abs_res = 1e-10;   ///< absolute error, applied when cusp solvers are used
-    paramsH->PPE_Max_Iter = 10000;  ///< max number of iteration for cusp solvers
+    paramsH->PPE_res = 1e-6;        ///< relative res, is used in the iterative solver and cusp solvers
+    paramsH->PPE_Abs_res = 1e-5;    ///< absolute error, applied when cusp solvers are used
+    paramsH->PPE_Max_Iter = 5;      ///< max number of iteration for cusp solvers
     paramsH->PPE_relaxation = 0.3;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
     paramsH->dT = 5e-3;
     paramsH->dT_Flex = 1e-3;
