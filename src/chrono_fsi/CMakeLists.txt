@@ -6,32 +6,49 @@
 
 option(ENABLE_MODULE_FSI "Enable the Chrono FSI module" OFF)
 
-# Return now if this module is not enabled
-#
-# TODO: REMOVE CHRONO_VEHICLE & CHRONO_PARALLEL AS REQUIREMENTS!!!!!
-#
-if(NOT ENABLE_MODULE_FSI OR NOT ENABLE_MODULE_PARALLEL)
-  mark_as_advanced(FORCE CUDA_TOOLKIT_ROOT_DIR)
-  mark_as_advanced(FORCE CUDA_USE_STATIC_CUDA_RUNTIME)
-  mark_as_advanced(FORCE USE_FSI_DOUBLE)
+IF(NOT ENABLE_MODULE_FSI)
   return()
-endif()
+ENDIF()
 
-message(STATUS "==== Chrono FSI module ====")
-
-
-
-SET(SAP_INC_DIR "" CACHE PATH "Where is the SAPLibrary directory?")
-INCLUDE_DIRECTORIES(${SAP_INC_DIR})
-
-mark_as_advanced(CLEAR CUDA_TOOLKIT_ROOT_DIR)
-mark_as_advanced(CLEAR CUDA_USE_STATIC_CUDA_RUNTIME )
-mark_as_advanced(CLEAR USE_FSI_DOUBLE)
 
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
 
 find_package(CUDA)
+SET (ENABLE_MODULE_FEA TRUE)
 
+message(STATUS "==== Chrono FSI module ====")
+mark_as_advanced(CLEAR CUDA_USE_STATIC_CUDA_RUNTIME)
+mark_as_advanced(CLEAR USE_FSI_DOUBLE)
+mark_as_advanced(CLEAR CUDA_TOOLKIT_ROOT_DIR)
+
+
+  SET(CUDA_SEPARABLE_COMPILATION ON)
+
+  IF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+  ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+      IF(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 4.9)
+        SET(CUDA_SEPARABLE_COMPILATION OFF)
+        SET(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std c++11")
+        SET(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -Xcompiler -std=c++11")
+      ENDIF()
+    ENDIF()
+    SET(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; --compiler-options -fPIC)
+  ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    SET(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; --compiler-options -fPIC)
+  ENDIF()
+
+  #SET(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -gencode=arch=compute_30,code=sm_30)
+
+  INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/FindCudaArch.cmake)
+  SELECT_NVCC_ARCH_FLAGS(NVCC_FLAGS_EXTRA)
+  LIST(APPEND CUDA_NVCC_FLAGS ${NVCC_FLAGS_EXTRA})
+
+
+
+
+
+#[[
 #SET(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++11")
 #SET(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} --device-c")
 
@@ -46,9 +63,9 @@ ENDIF()
 INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/FindCudaArch.cmake)
 SELECT_NVCC_ARCH_FLAGS(NVCC_FLAGS_EXTRA)
 LIST(APPEND CUDA_NVCC_FLAGS ${NVCC_FLAGS_EXTRA})
+]]
 
 message(STATUS "  CUDA toolkit includes:    ${CUDA_TOOLKIT_ROOT_DIR}/include")
-message(STATUS "  CUDA SDK includes:        ${CUDA_SDK_ROOT_DIR}/samples/common/inc")
 message(STATUS "  CUDA compile flags:       ${CUDA_NVCC_FLAGS}")
 
 option(CUDA_PROPAGATE_HOST_FLAGS "set host flags off" FALSE)
@@ -64,18 +81,12 @@ ENDIF()
 
 set(CH_FSI_INCLUDES
     "${CUDA_TOOLKIT_ROOT_DIR}/include"
-    "${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc"
-    "${SAP_INC_DIR}"
 )
 # cuSparse library
-INCLUDE_DIRECTORIES("${CUDA_TOOLKIT_ROOT_DIR}/samples/common/inc")
-list(APPEND LIBRARIES "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libcusparse.so")
-list(APPEND LIBRARIES "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libcublas.so")
-list(APPEND LIBRARIES "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libculibos.a")
-list(APPEND LIBRARIES "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libcublas_static.a")
-list(APPEND LIBRARIES "${CUDA_TOOLKIT_ROOT_DIR}/lib64/libcusparse_static.a")
-list(APPEND LIBRARIES "${CUDA_TOOLKIT_ROOT_DIR}/lib64/")
-LINK_DIRECTORIES("${CUDA_TOOLKIT_ROOT_DIR}/lib64/")
+list(APPEND LIBRARIES ${CUDA_cusparse_LIBRARY})
+list(APPEND LIBRARIES ${CUDA_cublas_LIBRARY})
+message( STATUS "CUDA_cusparse_LIBRARY: ${CUDA_cusparse_LIBRARY}")
+message( STATUS "CUDA_cusparse_LIBRARY: ${CUDA_cublas_LIBRARY}")
 
 set(CH_FSI_INCLUDES "${CH_FSI_INCLUDES}" PARENT_SCOPE)
 

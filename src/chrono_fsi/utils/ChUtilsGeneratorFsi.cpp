@@ -23,7 +23,6 @@
 #include "chrono_fsi/ChFsiTypeConvert.h"
 #include "chrono_fsi/custom_math.h"
 #include "chrono_fsi/utils/ChUtilsGeneratorFsi.h"
-#include "chrono_parallel/physics/ChSystemParallel.h"
 
 #include "chrono_fea/ChElementCableANCF.h"
 #include "chrono_fea/ChElementShellANCF.h"
@@ -393,7 +392,6 @@ void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
     printf("numObjects : %d\n ", numObjects);
     printf("numObjects.startFlexMarkers  : %d\n ", fsiData->numObjects.startFlexMarkers);
 }
-
 // =============================================================================
 void CreateBceGlobalMarkersFromBceLocalPosBoundary(ChFsiDataManager* fsiData,
                                                    SimParams* paramsH,
@@ -754,7 +752,7 @@ void CreateSphereFSI(ChFsiDataManager* fsiData,
     //	ChVector<> pos = ChVector<>(-9.5, .20, 3);
     //	Real radius = 0.3;
 
-    auto body = std::make_shared<ChBody>(std::make_shared<collision::ChCollisionModelParallel>());
+    auto body = std::make_shared<ChBody>();
     body->SetBodyFixed(false);
     body->SetCollide(true);
     body->SetMaterialSurface(mat_prop);
@@ -784,7 +782,7 @@ void CreateCylinderFSI(ChFsiDataManager* fsiData,
                        ChQuaternion<> rot,
                        Real radius,
                        Real length) {
-    auto body = std::make_shared<ChBody>(std::make_shared<collision::ChCollisionModelParallel>());
+    auto body = std::make_shared<ChBody>();
     body->SetBodyFixed(false);
     body->SetCollide(true);
     body->SetMaterialSurface(mat_prop);
@@ -815,7 +813,7 @@ void CreateBoxFSI(ChFsiDataManager* fsiData,
                   ChVector<> pos,
                   ChQuaternion<> rot,
                   const ChVector<>& hsize) {
-    auto body = std::make_shared<ChBody>(std::make_shared<collision::ChCollisionModelParallel>());
+    auto body = std::make_shared<ChBody>();
     body->SetBodyFixed(false);
     body->SetCollide(true);
     body->SetMaterialSurface(mat_prop);

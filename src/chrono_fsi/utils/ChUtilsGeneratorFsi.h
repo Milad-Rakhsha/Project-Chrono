@@ -64,36 +64,44 @@ CH_FSI_API void AddBoxBce(ChFsiDataManager* fsiData,
                           std::shared_ptr<chrono::ChBody> body,
                           chrono::ChVector<> relPos,
                           chrono::ChQuaternion<> relRot,
-                          const chrono::ChVector<> &size,
-			  int plane=12);
+                          const chrono::ChVector<>& size,
+                          int plane = 12);
 
-
-CH_FSI_API void AddBCE_FromFile(ChFsiDataManager *fsiData, SimParams *paramsH,
+CH_FSI_API void AddBCE_FromFile(ChFsiDataManager* fsiData,
+                                SimParams* paramsH,
                                 std::shared_ptr<chrono::ChBody> body,
                                 std::string dataPath);
 
-CH_FSI_API void
-CreateSphereFSI(ChFsiDataManager *fsiData, chrono::ChSystem &mphysicalSystem,
-                std::vector<std::shared_ptr<chrono::ChBody>> *fsiBodeisPtr,
-                SimParams *paramsH,
-                std::shared_ptr<chrono::ChMaterialSurfaceNSC> mat_prop,
-                Real density, chrono::ChVector<> pos, Real radius);
+CH_FSI_API void CreateSphereFSI(ChFsiDataManager* fsiData,
+                                chrono::ChSystem& mphysicalSystem,
+                                std::vector<std::shared_ptr<chrono::ChBody>>* fsiBodeisPtr,
+                                SimParams* paramsH,
+                                std::shared_ptr<chrono::ChMaterialSurfaceNSC> mat_prop,
+                                Real density,
+                                chrono::ChVector<> pos,
+                                Real radius);
 
-CH_FSI_API void
-CreateCylinderFSI(ChFsiDataManager *fsiData, chrono::ChSystem &mphysicalSystem,
-                  std::vector<std::shared_ptr<chrono::ChBody>> *fsiBodeisPtr,
-                  SimParams *paramsH,
-                  std::shared_ptr<chrono::ChMaterialSurfaceNSC> mat_prop,
-                  Real density, chrono::ChVector<> pos,
-                  chrono::ChQuaternion<> rot, Real radius, Real length);
+CH_FSI_API void CreateCylinderFSI(ChFsiDataManager* fsiData,
+                                  chrono::ChSystem& mphysicalSystem,
+                                  std::vector<std::shared_ptr<chrono::ChBody>>* fsiBodeisPtr,
+                                  SimParams* paramsH,
+                                  std::shared_ptr<chrono::ChMaterialSurfaceNSC> mat_prop,
+                                  Real density,
+                                  chrono::ChVector<> pos,
+                                  chrono::ChQuaternion<> rot,
+                                  Real radius,
+                                  Real length);
 
-CH_FSI_API void
-CreateBoxFSI(ChFsiDataManager *fsiData, chrono::ChSystem &mphysicalSystem,
-             std::vector<std::shared_ptr<chrono::ChBody>> *fsiBodeisPtr,
-             SimParams *paramsH,
-             std::shared_ptr<chrono::ChMaterialSurfaceNSC> mat_prop, Real density,
-             chrono::ChVector<> pos, chrono::ChQuaternion<> rot,
-             const chrono::ChVector<> &hsize);
+CH_FSI_API void CreateBoxFSI(ChFsiDataManager* fsiData,
+                             chrono::ChSystem& mphysicalSystem,
+                             std::vector<std::shared_ptr<chrono::ChBody>>* fsiBodeisPtr,
+                             SimParams* paramsH,
+                             std::shared_ptr<chrono::ChMaterialSurfaceNSC> mat_prop,
+                             Real density,
+                             chrono::ChVector<> pos,
+                             chrono::ChQuaternion<> rot,
+                             const chrono::ChVector<>& hsize);
+
 void AddBCE_ShellANCF(ChFsiDataManager* fsiData,
                       SimParams* paramsH,
                       std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* fsiShellsPtr,
@@ -128,8 +136,9 @@ void AddBCE_FromMesh(ChFsiDataManager* fsiData,
                      bool removeMiddleLayer,
                      int SIDE,
                      int SIDE2D = 2);
-} // end namespace utils
-} // end namespace fsi
-} // end namespace chrono
+
+}  // end namespace utils
+}  // end namespace fsi
+}  // end namespace chrono
 
 #endif
