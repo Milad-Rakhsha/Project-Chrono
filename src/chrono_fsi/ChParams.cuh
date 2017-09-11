@@ -108,20 +108,21 @@ struct SimParams {
     Real tweakMultRho;  /* maximum allowed density change in one time step: tweakMultRho * rho0 */
     BceVersion bceType; /* maximum allowed density change in one time step: tweakMultRho * rho0 */
 
-    Real PPE_res;             // Poisson Pressure Equation residual
-    Real PPE_Abs_res;         // Poisson Pressure Equation Absolute residual
-    bool Verbose_monitoring;  // Poisson Pressure Equation Absolute residual
+    bool USE_LinearSolver;
+    bool USE_Iterative_solver;
+    solverType LinearSolver;
+    Real LinearSolver_Abs_Tol;  // Poisson Pressure Equation residual
+    Real LinearSolver_Rel_Tol;  // Poisson Pressure Equation Absolute residual
+    int LinearSolver_Max_Iter;  // Linear Solver maximum number of iteration
+    bool Verbose_monitoring;    // Poisson Pressure Equation Absolute residual
 
     Real Max_Pressure;  // Max Pressure in the pressure solver
-    int PPE_Max_Iter;   // Poisson Pressure Equation maximum number of iteration
     PPE_SolutionType PPE_Solution_type;
     Real PPE_relaxation;
     bool ClampPressure;
     Real IncompressibilityFactor;
     Real Cs;
-    bool USE_CUSP;
-    bool USE_iterative_solver;
-    solverType Cusp_solver;
+
     bool Adaptive_time_stepping;
     Real Co_number;
     Real dT_Max;

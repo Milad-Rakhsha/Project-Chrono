@@ -24,10 +24,10 @@
 #include <thrust/extrema.h>
 
 //==========================================================================================================================================
-//#include <cusp/csr_matrix.h>
-//#include <cusp/print.h>
-//#include <cusp/io/matrix_market.h>
-//#include <cusp/monitor.h>
+#include <cusp/csr_matrix.h>
+#include <cusp/print.h>
+#include <cusp/io/matrix_market.h>
+#include <cusp/monitor.h>
 //
 //#include <cusp/krylov/cg.h>
 //#include <cusp/krylov/bicgstab.h>
@@ -1088,7 +1088,7 @@ __device__ void BCE_Vel_Acc(int i_idx,
     }
 }
 ////--------------------------------------------------------------------------------------------------------------------------------
-__global__ void CalcNumber_Contacts(unsigned long int* numContacts,
+__global__ void CalcNumber_Contacts(uint* numContacts,
                                     Real3* sortedPosRad,
                                     Real4* sortedRhoPreMu,
                                     uint* cellStart,
@@ -1176,7 +1176,7 @@ __global__ void CalcNumber_Contacts(unsigned long int* numContacts,
         }
     }
 
-    numContacts[i_idx] = counter + 5;
+    numContacts[i_idx] = counter + 7;
 }
 
 ////--------------------------------------------------------------------------------------------------------------------------------
@@ -1228,7 +1228,7 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
                                Real* csrValA,
                                uint* csrColIndA,
                                unsigned long int* GlobalcsrColIndA,
-                               unsigned long int* numContacts,
+                               uint* numContacts,
                                ///> The above 4 vectors are used for CSR form.
                                Real* a_ii,  // write
                                Real* B_i,
@@ -1352,7 +1352,7 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
                                   Real* csrValA,
                                   uint* csrColIndA,
                                   unsigned long int* GlobalcsrColIndA,
-                                  unsigned long int* numContacts,
+                                  uint* numContacts,
                                   ///> The above 4 vectors are used for CSR form.
                                   Real* B_i,
                                   Real3* d_ii,   // Read
@@ -1498,7 +1498,7 @@ __global__ void FormAXB(Real* csrValA,
                         uint* csrColIndA,
                         unsigned long int* GlobalcsrColIndA,
 
-                        unsigned long int* numContacts,
+                        uint* numContacts,
                         ///> The above 4 vectors are used for CSR form.
                         Real* a_ij,   // write
                         Real* B_i,    // write
@@ -1563,7 +1563,7 @@ __global__ void FormAXB(Real* csrValA,
 __global__ void Calc_Pressure_AXB_USING_CSR(Real* csrValA,
                                             Real* a_ii,
                                             uint* csrColIndA,
-                                            unsigned long int* numContacts,
+                                            uint* numContacts,
                                             Real4* sortedRhoPreMu,
                                             Real* nonNormalRho,
                                             Real3* sortedVelMas,
@@ -2130,10 +2130,9 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
     thrust::device_vector<Real> a_ij;
     thrust::device_vector<Real> B_i(numAllMarkers);
     thrust::device_vector<uint> csrColIndA;
-    thrust::device_vector<uint> row_indices;
+    thrust::device_vector<uint> numContacts(numAllMarkers);
     thrust::device_vector<unsigned long int> GlobalcsrColIndA;
     thrust::device_vector<Real> csrValA;
-    thrust::device_vector<unsigned long int> numContacts(numAllMarkers);
 
     double durationFormAXB;
 
@@ -2163,7 +2162,7 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
         *isErrorH = false;
         cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
         CalcNumber_Contacts<<<numBlocks, numThreads>>>(
-            LU1CAST(numContacts), mR3CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
+            U1CAST(numContacts), mR3CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
             U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
 
         cudaThreadSynchronize();
@@ -2193,7 +2192,7 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
                   << " " << updatePortion.w << "\n ";
 
         FormAXB<<<numBlocks, numThreads>>>(
-            R1CAST(csrValA), U1CAST(csrColIndA), LU1CAST(GlobalcsrColIndA), LU1CAST(numContacts), R1CAST(a_ij),
+            R1CAST(csrValA), U1CAST(csrColIndA), LU1CAST(GlobalcsrColIndA), U1CAST(numContacts), R1CAST(a_ij),
             R1CAST(B_i), mR3CAST(d_ii), R1CAST(a_ii), mR3CAST(summGradW), mR3CAST(sortedSphMarkersD->posRadD),
             mR3CAST(sortedSphMarkersD->velMasD), mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(V_new), R1CAST(p_old),
             R1CAST(rho_np),
@@ -2229,11 +2228,19 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
     thrust::fill(F_p.begin(), F_p.end(), mR3(0));
     thrust::device_vector<Real> rho_p(numAllMarkers);
     thrust::fill(rho_p.begin(), rho_p.end(), 0);
+
+    //    int AcolIdxSize = NNZ, ArowIdxSize = numAllMarkers + 1;
+    //    double* aVal = 0;
+    //    int *aRowInd, *aColInd;
+    //    double* rhs = 0;
+    //    rhs = (double*)malloc(numAllMarkers * sizeof(double));
+    //    checkCudaErrors(cudaMemcpy(ArowIdx, aRowInd, (size_t)(ArowIdxSize * sizeof(int)), cudaMemcpyHostToDevice));
+    //    checkCudaErrors(cudaMemcpy(AcolIdx, aColInd, (size_t)(AcolIdxSize * sizeof(int)), cudaMemcpyHostToDevice));
+    //    checkCudaErrors(cudaMemcpy(A, aVal, (size_t)(NNZ * sizeof(double)), cudaMemcpyHostToDevice));
+    //    checkCudaErrors(cudaMemcpy(b, rhs, (size_t)(SIZE * sizeof(double)), cudaMemcpyHostToDevice));
+    //    checkCudaErrors(cudaMemcpy(x, rhs, (size_t)(SIZE * sizeof(double)), cudaMemcpyHostToDevice));
+
     double LinearSystemClock = clock();
-    ChFsiLinearSolver myLS(paramsH->PPE_res, paramsH->PPE_Abs_res, paramsH->PPE_Max_Iter, (solverType)bicgstab);
-    double* valA = R1CAST(csrValA);
-    //    printf("valA[%d]=%f", 3, valA[3]);
-    myLS.PCG(numAllMarkers, NNZ, R1CAST(csrValA), I1CAST(numContacts), I1CAST(csrColIndA), R1CAST(p_old), R1CAST(B_i));
 
     //    myLS.PCG(numAllMarkers, NNZ, thrust::raw_pointer_cast(csrValA.data()),
     //    thrust::raw_pointer_cast(numContacts.data()),
@@ -2243,64 +2250,146 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
     //    cusp::array1d<double, cusp::device_memory> b = B_i;
     //    cusp::monitor<double> monitor(b, paramsH->PPE_Max_Iter, paramsH->PPE_res, paramsH->PPE_Abs_res,
     //                                  paramsH->Verbose_monitoring);
-    //    if (paramsH->USE_CUSP) {
-    //        cusp::csr_matrix<unsigned long int, double, cusp::device_memory> AMatrix(numAllMarkers, numAllMarkers,
-    //        NNZ);
+
+    //    if (paramsH->USE_LinearSolver) {
+    //        cusp::csr_matrix<uint, double, cusp::device_memory> AMatrix(numAllMarkers, numAllMarkers, NNZ);
     //        AMatrix.row_offsets = numContacts;
     //        AMatrix.column_indices = csrColIndA;
     //        AMatrix.values = csrValA;
     //
-    //        cusp::array1d<double, cusp::device_memory> x(numAllMarkers, paramsH->BASEPRES);
-    //        //    cusp::array1d<double, cusp::device_memory> x(numAllMarkers, 1000.);
-    //
-    //        // set stopping criteria:
-    //
-    //        //    cusp::identity_operator<double, cusp::device_memory> M(AMatrix.num_rows, AMatrix.num_rows);
-    //        //    cusp::precond::scaled_bridson_ainv<double, cusp::device_memory> M(AMatrix, .1);
-    //        //    cusp::precond::bridson_ainv<double, cusp::device_memory> M(AMatrix, 0, -1, true, 2);
-    //        //    cusp::precond::scaled_bridson_ainv<double, cusp::device_memory> M(AMatrix, 0, 10);
-    //        //    cusp::precond::aggregation::smoothed_aggregation<int, double, cusp::device_memory> M(AMatrix);
-    //        //    cusp::precond::diagonal<double, cusp::device_memory> M(AMatrix);
-    //
-    //        int restart = 200;
-    //
-    //        if (paramsH->Cusp_solver == gmres)
-    //            cusp::krylov::gmres(AMatrix, x, b, restart, monitor);
-    //
-    //        if (paramsH->Cusp_solver == bicgstab)
-    //            cusp::krylov::bicgstab(AMatrix, x, b, monitor);
-    //
-    //        if (paramsH->Cusp_solver == cr)
-    //            cusp::krylov::cr(AMatrix, x, b, monitor);
-    //
-    //        if (paramsH->Cusp_solver == cg)
-    //            cusp::krylov::cg(AMatrix, x, b, monitor);
-    //
-    //        if (paramsH->Cusp_solver == bicgstab_m) {
-    //            size_t N_s = 4;
-    //            cusp::array1d<float, cusp::device_memory> x_i(AMatrix.num_rows * N_s, 0);
-    //            // set sigma values
-    //            cusp::array1d<float, cusp::device_memory> sigma(N_s);
-    //            sigma[0] = 0.1;
-    //            sigma[1] = 0.2;
-    //            sigma[2] = 0.3;
-    //            sigma[3] = 0.4;
-    //            cusp::krylov::bicgstab_m(AMatrix, x_i, b, sigma, monitor);
-    //            thrust::copy(x_i.begin(), x_i.end(), p_old.begin());
-    //        }
-    //        if (paramsH->Cusp_solver != bicgstab_m) {
-    //            thrust::copy(x.begin(), x.end(), p_old.begin());
-    //        }
-    //
-    //        /*std::string outnameA = "_A_" + std::to_string(numAllMarkers);
+    //        cusp::array1d<double, cusp::device_memory> x = p_old;
+    //        cusp::array1d<double, cusp::device_memory> b = B_i;
+    //        std::string outnameA = "_A_" + std::to_string(numAllMarkers);
     //        std::string outnamex = "_x_" + std::to_string(numAllMarkers);
     //        std::string outnameb = "_b_" + std::to_string(numAllMarkers);
     //        cusp::io::write_matrix_market_file(AMatrix, outnameA);
     //        cusp::io::write_matrix_market_file(x, outnamex);
-    //        cusp::io::write_matrix_market_file(b, outnameb);*/
+    //        cusp::io::write_matrix_market_file(b, outnameb);
     //    }
 
-    while ((MaxRes > paramsH->PPE_res || Iteration < 3) && paramsH->USE_iterative_solver) {
+    ChFsiLinearSolver myLS(paramsH->LinearSolver, paramsH->LinearSolver_Rel_Tol, paramsH->LinearSolver_Abs_Tol,
+                           paramsH->LinearSolver_Max_Iter, paramsH->Verbose_monitoring);
+    if (paramsH->USE_LinearSolver) {
+        if (paramsH->PPE_Solution_type != FORM_SPARSE_MATRIX) {
+            printf(
+                "You should paramsH->PPE_Solution_type == FORM_SPARSE_MATRIX in order to use the chrono_fsi linear "
+                "solvers\n");
+            exit(0);
+        }
+        //        for (int i = 0; i < 30; i++) {
+        //            std::cout << "A_t[" << numContacts[i] << ", " << csrColIndA[i] << "]= " << csrValA[i] << ", ";
+        //        }
+        //        std::cout << "numContacts[0]=" << numContacts[0] << ", csrColIndA[0]= " << csrColIndA[0]
+        //                  << ",csrValA[0]=" << csrValA[0] << "NNZ= " << NNZ
+        //                  << ", numContacts[numAllMarkers]= " << numContacts[numAllMarkers]
+        //                  << ", csrColIndA.size()=" << csrColIndA.size() << ", csrValA.size()=" << csrValA.size();
+        //
+        //        printf("\n");
+
+        //        double *Ad, *xd, *bd;
+        //        uint *rowAd, *colAd;
+        //        cudaMalloc((void**)&Ad, sizeof(double) * NNZ);
+        //        cudaMalloc((void**)&xd, sizeof(double) * numAllMarkers);
+        //        cudaMalloc((void**)&bd, sizeof(double) * numAllMarkers);
+        //        cudaMalloc((void**)&colAd, sizeof(uint) * NNZ);
+        //        cudaMalloc((void**)&rowAd, sizeof(uint) * (numAllMarkers + 1));
+        //        int test = 800012;
+        //        printf("data transfer test %d...\n", test);
+
+        //        double* Ah = (double*)malloc(NNZ * sizeof(double));
+        //        int* colAh = (int*)malloc(NNZ * sizeof(int));
+        //        int* rowAh = (int*)malloc((numAllMarkers + 1) * sizeof(int));
+        //        double* xh = (double*)malloc(numAllMarkers * sizeof(double));
+        //        double* bh = (double*)malloc(numAllMarkers * sizeof(double));
+        //        for (int i = 0; i < numAllMarkers; i++) {
+        //            xh[i] = p_old[i];
+        //            bh[i] = B_i[i];
+        //            rowAh[i] = numContacts[i];
+        //        }
+        //
+        //        rowAh[numAllMarkers] = numContacts[numAllMarkers];
+        //
+        //        for (int i = 0; i < NNZ; i++) {
+        //            Ah[i] = csrValA[i];
+        //            colAh[i] = csrColIndA[i];
+        //        }
+
+        //        cudaMemcpy(Ad, Ah, (size_t)(NNZ * sizeof(double)), cudaMemcpyHostToDevice);
+        //        cudaMemcpy(colAd, colAh, (size_t)(NNZ * sizeof(int)), cudaMemcpyHostToDevice);
+        //        cudaMemcpy(rowAd, rowAh, (size_t)((numAllMarkers + 1) * sizeof(int)), cudaMemcpyHostToDevice);
+        //        cudaMemcpy(xd, xh, (size_t)(numAllMarkers * sizeof(double)), cudaMemcpyHostToDevice);
+        //        cudaMemcpy(bd, bh, (size_t)(numAllMarkers * sizeof(double)), cudaMemcpyHostToDevice);
+
+        //        thrust::copy(B_i.begin(), B_i.end(), bd);
+        //        thrust::copy(p_old.begin(), p_old.end(), xd);
+        //        thrust::copy(numContacts.begin(), numContacts.end(), rowAd);
+        //        thrust::copy(csrColIndA.begin(), csrColIndA.end(), colAd);
+        //        thrust::copy(csrValA.begin(), csrValA.end(), Ad);
+
+        //        myLS.PCG(numAllMarkers, NNZ, Ad, rowAd, colAd, xd, bd);
+        myLS.Solve(numAllMarkers, NNZ, R1CAST(csrValA), U1CAST(numContacts), U1CAST(csrColIndA), (double*)R1CAST(p_old),
+                   R1CAST(B_i));
+        cudaCheckError();
+
+        //        thrust::copy(xd, xd + numAllMarkers, p_old.begin());
+
+        //        cusp::csr_matrix<uint, double, cusp::device_memory> AMatrix(numAllMarkers, numAllMarkers,
+        //        NNZ);
+        //        AMatrix.row_offsets = numContacts;
+        //        AMatrix.column_indices = csrColIndA;
+        //        AMatrix.values = csrValA;
+        //
+        //        cusp::array1d<double, cusp::device_memory> x(numAllMarkers, paramsH->BASEPRES);
+        //        //    cusp::array1d<double, cusp::device_memory> x(numAllMarkers, 1000.);
+        //
+        //        // set stopping criteria:
+        //
+        //        //    cusp::identity_operator<double, cusp::device_memory> M(AMatrix.num_rows, AMatrix.num_rows);
+        //        //    cusp::precond::scaled_bridson_ainv<double, cusp::device_memory> M(AMatrix, .1);
+        //        //    cusp::precond::bridson_ainv<double, cusp::device_memory> M(AMatrix, 0, -1, true, 2);
+        //        //    cusp::precond::scaled_bridson_ainv<double, cusp::device_memory> M(AMatrix, 0, 10);
+        //        //    cusp::precond::aggregation::smoothed_aggregation<int, double, cusp::device_memory> M(AMatrix);
+        //        //    cusp::precond::diagonal<double, cusp::device_memory> M(AMatrix);
+        //
+        //        int restart = 200;
+        //
+        //        if (paramsH->Cusp_solver == gmres)
+        //            cusp::krylov::gmres(AMatrix, x, b, restart, monitor);
+        //
+        //        if (paramsH->Cusp_solver == bicgstab)
+        //            cusp::krylov::bicgstab(AMatrix, x, b, monitor);
+        //
+        //        if (paramsH->Cusp_solver == cr)
+        //            cusp::krylov::cr(AMatrix, x, b, monitor);
+        //
+        //        if (paramsH->Cusp_solver == cg)
+        //            cusp::krylov::cg(AMatrix, x, b, monitor);
+        //
+        //        if (paramsH->Cusp_solver == bicgstab_m) {
+        //            size_t N_s = 4;
+        //            cusp::array1d<float, cusp::device_memory> x_i(AMatrix.num_rows * N_s, 0);
+        //            // set sigma values
+        //            cusp::array1d<float, cusp::device_memory> sigma(N_s);
+        //            sigma[0] = 0.1;
+        //            sigma[1] = 0.2;
+        //            sigma[2] = 0.3;
+        //            sigma[3] = 0.4;
+        //            cusp::krylov::bicgstab_m(AMatrix, x_i, b, sigma, monitor);
+        //            thrust::copy(x_i.begin(), x_i.end(), p_old.begin());
+        //        }
+        //        if (paramsH->Cusp_solver != bicgstab_m) {
+        //            thrust::copy(x.begin(), x.end(), p_old.begin());
+        //        }
+
+        /*std::string outnameA = "_A_" + std::to_string(numAllMarkers);
+        std::string outnamex = "_x_" + std::to_string(numAllMarkers);
+        std::string outnameb = "_b_" + std::to_string(numAllMarkers);
+        cusp::io::write_matrix_market_file(AMatrix, outnameA);
+        cusp::io::write_matrix_market_file(x, outnamex);
+        cusp::io::write_matrix_market_file(b, outnameb);*/
+    }
+
+    while ((MaxRes > paramsH->LinearSolver_Rel_Tol || Iteration < 3) && mySolutionType == MATRIX_FREE) {
         *isErrorH = false;
         cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
         Initialize_Variables<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(p_old),
@@ -2352,7 +2441,7 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
             *isErrorH = false;
             cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
             Calc_Pressure_AXB_USING_CSR<<<numBlocks, numThreads>>>(
-                R1CAST(csrValA), R1CAST(a_ii), U1CAST(csrColIndA), LU1CAST(numContacts),
+                R1CAST(csrValA), R1CAST(a_ii), U1CAST(csrColIndA), U1CAST(numContacts),
                 mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(nonNormRho), mR3CAST(sortedSphMarkersD->velMasD),
                 mR3CAST(V_new), R1CAST(p_old), R1CAST(B_i), numAllMarkers, isErrorD);
             cudaThreadSynchronize();
@@ -2390,27 +2479,6 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
         //      Real R_p = thrust::reduce(rho_p.begin(), rho_p.end(), 0.0, thrust::plus<Real>()) / rho_p.size();
         //
         //    printf("Iter= %d, Res= %f\n", Iteration, MaxRes);
-
-        if (paramsH->USE_CUSP && MaxRes < 0.0001) {
-            //      if (!paramsH->USE_CUSP) {
-            //        cusp::csr_matrix<unsigned long int, double, cusp::device_memory> AMatrix(numAllMarkers,
-            //      numAllMarkers,
-            //        NNZ);
-            //        AMatrix.row_offsets = numContacts;
-            //        AMatrix.column_indices = csrColIndA;
-            //        AMatrix.values = csrValA;
-            //
-            //        cusp::array1d<double, cusp::device_memory> x = p_old;
-            //        cusp::array1d<double, cusp::device_memory> b = B_i;
-            //        std::string outnameA = "_A_" + std::to_string(numAllMarkers);
-            //        std::string outnamex = "_x_" + std::to_string(numAllMarkers);
-            //        std::string outnameb = "_b_" + std::to_string(numAllMarkers);
-            //        cusp::io::write_matrix_market_file(AMatrix, outnameA);
-            //        cusp::io::write_matrix_market_file(x, outnamex);
-            //        cusp::io::write_matrix_market_file(b, outnameb);
-            //      }
-            break;
-        }
     }
 
     //  thrust::device_vector<Real>::iterator iter = thrust::min_element(p_old.begin(), p_old.end());
@@ -2419,7 +2487,7 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
     Real shift_p = 0;
 
     // This must be run if cusp solver is used
-    if (paramsH->ClampPressure || paramsH->USE_CUSP) {
+    if (paramsH->ClampPressure || paramsH->USE_LinearSolver) {
         //    printf("Shifting pressure values by %f\n", -shift_p);
         *isErrorH = false;
         cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
@@ -2440,18 +2508,16 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
     printf("---------------IISPH CLOCK-------------------\n");
     printf(" Total: %f \n FormAXB: %f\n Linear System: %f \n", durationtotal_step_time, durationFormAXB,
            durationLinearSystem);
-    if (paramsH->USE_iterative_solver)
+    if (!paramsH->USE_LinearSolver)
         printf(" Iter (Jacobi+SOR)# = %d, to Res= %f \n", Iteration, MaxRes);
-    //    if (paramsH->USE_CUSP)
-    //        if (monitor.converged()) {
-    //            std::cout << " Solver converged to " << monitor.tolerance() << " tolerance";
-    //            std::cout << " after " << monitor.iteration_count() << " iterations";
-    //            std::cout << " (" << monitor.residual_norm() << " final residual)" << std::endl;
-    //        } else {
-    //            std::cout << "Failed to converge after " << monitor.iteration_limit() << " iterations";
-    //            std::cout << " to " << monitor.tolerance() << " tolerance ";
-    //            std::cout << " (" << monitor.residual_norm() << " final residual)" << std::endl;
-    //        }
+    if (paramsH->USE_LinearSolver)
+        if (myLS.GetSolverStatus()) {
+            std::cout << " Solver converged to " << myLS.GetResidual() << " tolerance";
+            std::cout << " after " << myLS.GetNumIterations() << " iterations" << std::endl;
+        } else {
+            std::cout << "Failed to converge after " << myLS.GetIterationLimit() << " iterations";
+            std::cout << " (" << myLS.GetResidual() << " final residual)" << std::endl;
+        }
 
     //------------------------------------------------------------------------
     //------------------------------------------------------------------------
