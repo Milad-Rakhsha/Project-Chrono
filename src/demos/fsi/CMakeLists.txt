@@ -3,26 +3,27 @@
 # ------------------------------------------------------------------------------
 
 # List all FSI demos that use chrono
-SET(FSI_DEMOS
-# add fluid demos here
+SET(FSI_DEMOS # add fluid demos here
+demo_FSI_DamBreak
 )
 
 # List all FSI demos that use chrono-parallel
-SET(FSI_PARALLEL_DEMOS
-# add fluid demos here
-#demo_FSI_cylinderDrop
-#demo_FSI_DamBreak
-#demo_FSI_CylinderDrop_Implicit
-test_linearSolver
+SET(FSI_PARALLEL_DEMOS #add fluid demos + chrono_parallel here
+demo_FSI_cylinderDrop
+demo_FSI_CylinderDrop_Implicit
 )
 
-SET(FSI_FEA_DEMOS
+SET(FSI_FEA_DEMOS #add fluid demos + chrono_fea here
 demo_FSI_Flexible_Shell
 )
 
+SET(FSI_FEA_MKL_DEMOS #add fluid demos + chrono_mkl here
+)
+
+
 
 # List all FSI demos use vehicle
-SET(FSI_VEHICLE_DEMOS
+SET(FSI_VEHICLE_DEMOS #add fluid demos + chrono_vehicle here
 # add fluid demos here
 )
 
@@ -85,7 +86,7 @@ IF(ENABLE_MODULE_PARALLEL)
 	IF(ENABLE_MODULE_MKL AND ENABLE_MODULE_FEA)
         INCLUDE_DIRECTORIES(${CH_MKL_INCLUDES})
        
-       FOREACH(PROGRAM ${FSI_PARALLEL_MKL_DEMOS})
+       FOREACH(PROGRAM ${FSI_FEA_MKL_DEMOS})
             MESSAGE(STATUS "...add ${PROGRAM}")
 
             CUDA_ADD_EXECUTABLE(${PROGRAM}  "${PROGRAM}.cpp")
@@ -147,24 +148,48 @@ IF(ENABLE_MODULE_PARALLEL)
 		ENDFOREACH()
 	ENDIF()
     
-	FOREACH(PROGRAM ${FSI_PARALLEL_DEMOS})
-	    MESSAGE(STATUS "...add ${PROGRAM}")
+    IF(ENABLE_MODULE_PARALLEL)
+		FOREACH(PROGRAM ${FSI_PARALLEL_DEMOS})
+			MESSAGE(STATUS "...add ${PROGRAM}")
 
-	    CUDA_ADD_EXECUTABLE(${PROGRAM}  "${PROGRAM}.cpp")
-	    SOURCE_GROUP(""  FILES "${PROGRAM}.cpp")
+			CUDA_ADD_EXECUTABLE(${PROGRAM}  "${PROGRAM}.cpp")
+			SOURCE_GROUP(""  FILES "${PROGRAM}.cpp")
 
-	    SET_TARGET_PROPERTIES(${PROGRAM} PROPERTIES
-			FOLDER demos
-			COMPILE_FLAGS "${CH_CXX_FLAGS} ${CH_PARALLEL_CXX_FLAGS}"
-			LINK_FLAGS "${CH_LINKERFLAG_EXE}"
-	    )
+			SET_TARGET_PROPERTIES(${PROGRAM} PROPERTIES
+				FOLDER demos
+				COMPILE_FLAGS "${CH_CXX_FLAGS} ${CH_PARALLEL_CXX_FLAGS}"
+				LINK_FLAGS "${CH_LINKERFLAG_EXE}"
+			)
 
-	    TARGET_LINK_LIBRARIES(${PROGRAM} ${LIBRARIES})
-	    ADD_DEPENDENCIES(${PROGRAM} ${LIBRARIES})
+			TARGET_LINK_LIBRARIES(${PROGRAM} ${LIBRARIES})
+			ADD_DEPENDENCIES(${PROGRAM} ${LIBRARIES})
 
-	    INSTALL(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
+			INSTALL(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
 
-	ENDFOREACH()
+		ENDFOREACH()
+	ENDIF()
+
+
+		FOREACH(PROGRAM ${FSI_DEMOS})
+			MESSAGE(STATUS "...add ${PROGRAM}")
+
+			CUDA_ADD_EXECUTABLE(${PROGRAM}  "${PROGRAM}.cpp")
+			SOURCE_GROUP(""  FILES "${PROGRAM}.cpp")
+
+			SET_TARGET_PROPERTIES(${PROGRAM} PROPERTIES
+				FOLDER demos
+				COMPILE_FLAGS "${CH_CXX_FLAGS} ${CH_CXX_FLAGS}"
+				LINK_FLAGS "${CH_LINKERFLAG_EXE}"
+			)
+
+			TARGET_LINK_LIBRARIES(${PROGRAM} ${LIBRARIES})
+			ADD_DEPENDENCIES(${PROGRAM} ${LIBRARIES})
+
+			INSTALL(TARGETS ${PROGRAM} DESTINATION ${CH_INSTALL_DEMO})
+
+		ENDFOREACH()
+
+	
 
 ELSE()
 

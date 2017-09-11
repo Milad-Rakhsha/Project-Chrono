@@ -113,7 +113,7 @@ int main(int argc, char* argv[]) {
     timeinfo = localtime(&rawtime);
     // You can set your cuda device, if you have multiple of them
     // If not this should be set to 0 or not specified at all
-    ////cudaSetDevice(1);
+    cudaSetDevice(1);
 
     if (ChFileutils::MakeDirectory(out_dir.c_str()) < 0) {
         cout << "Error creating directory " << out_dir << endl;
@@ -439,12 +439,9 @@ void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
             myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
             myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, data_folder, true);
 
-        cout << "\n------------ Output frame:   " << next_frame << endl;
         cout << "             Sim frame:      " << next_frame << endl;
         cout << "             Time:           " << mTime << endl;
-        cout << "             Avg. contacts:  " << num_contacts / out_steps << endl;
-        cout << "             Execution time: " << exec_time << endl << endl;
-        cout << "\n----------------------------\n" << endl;
+        cout << "---------------------------------------------" << endl;
 
         char SaveAsBuffer[256];  // The filename buffer.
         snprintf(SaveAsBuffer, sizeof(char) * 256, (data_folder + "/flex_body.%d.vtk").c_str(), next_frame);

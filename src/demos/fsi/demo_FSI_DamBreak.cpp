@@ -22,12 +22,7 @@
 #include <string>
 #include <vector>
 
-// Chrono Parallel Includes
-#include "chrono_parallel/physics/ChSystemParallel.h"
-
-#ifdef CHRONO_OPENGL
-#include "chrono_opengl/ChOpenGLWindow.h"
-#endif
+#include "chrono/physics/ChSystemSMC.h"
 
 #include "chrono/utils/ChUtilsCreators.h"
 #include "chrono/utils/ChUtilsGenerators.h"
@@ -64,7 +59,7 @@ const std::string demo_dir = out_dir + "/DamBreak";
 // Save data as csv files, turn it on to be able to see the results off-line using paraview
 bool save_output = true;
 // Frequency of the save output
-int out_fps = 50;
+int out_fps = 25;
 typedef fsi::Real Real;
 
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -88,14 +83,12 @@ void SetArgumentsForMbdFromInput(int argc,
                                  int& max_iteration_normal,
                                  int& max_iteration_spinning);
 
-void InitializeMbdPhysicalSystem(ChSystemParallelNSC& mphysicalSystem, ChVector<> gravity, int argc, char* argv[]);
-
 void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
-                          ChSystemParallelNSC& mphysicalSystem,
+                          ChSystemSMC& mphysicalSystem,
                           chrono::fsi::SimParams* paramsH,
                           int tStep,
                           double mTime);
-void CreateMbdPhysicalSystemObjects(ChSystemParallelNSC& mphysicalSystem,
+void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
                                     fsi::ChSystemFsi& myFsiSystem,
                                     chrono::fsi::SimParams* paramsH);
 
@@ -144,13 +137,14 @@ int main(int argc, char* argv[]) {
 #if haveFluid
     mHaveFluid = true;
 #endif
-    ChSystemParallelNSC mphysicalSystem;
+    ChSystemSMC mphysicalSystem;
     fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid);
 
     chrono::fsi::SimParams* paramsH = myFsiSystem.GetSimParams();
 
     SetupParamsH(paramsH, bxDim, byDim, bzDim, fxDim, fyDim, fzDim);
     printSimulationParameters(paramsH);
+
 #if haveFluid
 
     // ******************************* Create Fluid region ****************************************
@@ -251,23 +245,23 @@ int main(int argc, char* argv[]) {
 // bce representation are created and added to the systems
 //------------------------------------------------------------------
 
-void CreateMbdPhysicalSystemObjects(ChSystemParallelNSC& mphysicalSystem,
+void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
                                     fsi::ChSystemFsi& myFsiSystem,
                                     chrono::fsi::SimParams* paramsH) {
     std::shared_ptr<ChMaterialSurfaceNSC> mat_g(new ChMaterialSurfaceNSC);
-    // Set common material Properties
-    mat_g->SetFriction(0.8);
-    mat_g->SetCohesion(0);
-    mat_g->SetCompliance(0.0);
-    mat_g->SetComplianceT(0.0);
-    mat_g->SetDampingF(0.2);
+    auto mysurfmaterial = std::make_shared<ChMaterialSurfaceSMC>();
 
+    // Set common material Properties
+    mysurfmaterial->SetYoungModulus(6e4);
+    mysurfmaterial->SetFriction(0.3f);
+    mysurfmaterial->SetRestitution(0.2f);
+    mysurfmaterial->SetAdhesion(0);
     // Ground body
-    auto ground = std::make_shared<ChBody>(std::make_shared<collision::ChCollisionModelParallel>());
+    auto ground = std::make_shared<ChBody>();
     ground->SetIdentifier(-1);
     ground->SetBodyFixed(true);
     ground->SetCollide(true);
-    ground->SetMaterialSurface(mat_g);
+    ground->SetMaterialSurface(mysurfmaterial);
     ground->GetCollisionModel()->ClearModel();
 
     // Create the geometry of the boundaries
@@ -317,7 +311,7 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelNSC& mphysicalSystem,
 // Function to save the povray files of the MBD
 //------------------------------------------------------------------
 void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
-                          ChSystemParallelNSC& mphysicalSystem,
+                          ChSystemSMC& mphysicalSystem,
                           chrono::fsi::SimParams* paramsH,
                           int next_frame,
                           double mTime) {
