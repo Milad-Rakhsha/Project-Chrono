@@ -24,30 +24,6 @@
 #include <thrust/extrema.h>
 
 //==========================================================================================================================================
-#include <cusp/csr_matrix.h>
-#include <cusp/print.h>
-#include <cusp/io/matrix_market.h>
-#include <cusp/monitor.h>
-//
-//#include <cusp/krylov/cg.h>
-//#include <cusp/krylov/bicgstab.h>
-//#include <cusp/krylov/bicgstab_m.h>
-//#include <cusp/krylov/gmres.h>
-//#include <cusp/krylov/cg_m.h>
-//#include <cusp/krylov/cr.h>
-//#include <cusp/krylov/bicg.h>
-//
-//#include <cusp/precond/aggregation/smoothed_aggregation.h>
-//#include <cusp/precond/diagonal.h>
-//#include <cusp/precond/ainv.h>
-//
-//#include <cusp/relaxation/jacobi.h>
-//#include <cusp/multiply.h>
-
-//#include <sap/common.h>
-//#include <sap/spmv.h>
-//#include <sap/solver.h>
-
 namespace chrono {
 namespace fsi {
 
@@ -2229,43 +2205,7 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
     thrust::device_vector<Real> rho_p(numAllMarkers);
     thrust::fill(rho_p.begin(), rho_p.end(), 0);
 
-    //    int AcolIdxSize = NNZ, ArowIdxSize = numAllMarkers + 1;
-    //    double* aVal = 0;
-    //    int *aRowInd, *aColInd;
-    //    double* rhs = 0;
-    //    rhs = (double*)malloc(numAllMarkers * sizeof(double));
-    //    checkCudaErrors(cudaMemcpy(ArowIdx, aRowInd, (size_t)(ArowIdxSize * sizeof(int)), cudaMemcpyHostToDevice));
-    //    checkCudaErrors(cudaMemcpy(AcolIdx, aColInd, (size_t)(AcolIdxSize * sizeof(int)), cudaMemcpyHostToDevice));
-    //    checkCudaErrors(cudaMemcpy(A, aVal, (size_t)(NNZ * sizeof(double)), cudaMemcpyHostToDevice));
-    //    checkCudaErrors(cudaMemcpy(b, rhs, (size_t)(SIZE * sizeof(double)), cudaMemcpyHostToDevice));
-    //    checkCudaErrors(cudaMemcpy(x, rhs, (size_t)(SIZE * sizeof(double)), cudaMemcpyHostToDevice));
-
     double LinearSystemClock = clock();
-
-    //    myLS.PCG(numAllMarkers, NNZ, thrust::raw_pointer_cast(csrValA.data()),
-    //    thrust::raw_pointer_cast(numContacts.data()),
-    //             thrust::raw_pointer_cast(csrColIndA.data()), thrust::raw_pointer_cast(p_old.data(),
-    //             thrust::raw_pointer_cast(B_i.data()));
-
-    //    cusp::array1d<double, cusp::device_memory> b = B_i;
-    //    cusp::monitor<double> monitor(b, paramsH->PPE_Max_Iter, paramsH->PPE_res, paramsH->PPE_Abs_res,
-    //                                  paramsH->Verbose_monitoring);
-
-    //    if (paramsH->USE_LinearSolver) {
-    //        cusp::csr_matrix<uint, double, cusp::device_memory> AMatrix(numAllMarkers, numAllMarkers, NNZ);
-    //        AMatrix.row_offsets = numContacts;
-    //        AMatrix.column_indices = csrColIndA;
-    //        AMatrix.values = csrValA;
-    //
-    //        cusp::array1d<double, cusp::device_memory> x = p_old;
-    //        cusp::array1d<double, cusp::device_memory> b = B_i;
-    //        std::string outnameA = "_A_" + std::to_string(numAllMarkers);
-    //        std::string outnamex = "_x_" + std::to_string(numAllMarkers);
-    //        std::string outnameb = "_b_" + std::to_string(numAllMarkers);
-    //        cusp::io::write_matrix_market_file(AMatrix, outnameA);
-    //        cusp::io::write_matrix_market_file(x, outnamex);
-    //        cusp::io::write_matrix_market_file(b, outnameb);
-    //    }
 
     ChFsiLinearSolver myLS(paramsH->LinearSolver, paramsH->LinearSolver_Rel_Tol, paramsH->LinearSolver_Abs_Tol,
                            paramsH->LinearSolver_Max_Iter, paramsH->Verbose_monitoring);
@@ -2276,117 +2216,10 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
                 "solvers\n");
             exit(0);
         }
-        //        for (int i = 0; i < 30; i++) {
-        //            std::cout << "A_t[" << numContacts[i] << ", " << csrColIndA[i] << "]= " << csrValA[i] << ", ";
-        //        }
-        //        std::cout << "numContacts[0]=" << numContacts[0] << ", csrColIndA[0]= " << csrColIndA[0]
-        //                  << ",csrValA[0]=" << csrValA[0] << "NNZ= " << NNZ
-        //                  << ", numContacts[numAllMarkers]= " << numContacts[numAllMarkers]
-        //                  << ", csrColIndA.size()=" << csrColIndA.size() << ", csrValA.size()=" << csrValA.size();
-        //
-        //        printf("\n");
 
-        //        double *Ad, *xd, *bd;
-        //        uint *rowAd, *colAd;
-        //        cudaMalloc((void**)&Ad, sizeof(double) * NNZ);
-        //        cudaMalloc((void**)&xd, sizeof(double) * numAllMarkers);
-        //        cudaMalloc((void**)&bd, sizeof(double) * numAllMarkers);
-        //        cudaMalloc((void**)&colAd, sizeof(uint) * NNZ);
-        //        cudaMalloc((void**)&rowAd, sizeof(uint) * (numAllMarkers + 1));
-        //        int test = 800012;
-        //        printf("data transfer test %d...\n", test);
-
-        //        double* Ah = (double*)malloc(NNZ * sizeof(double));
-        //        int* colAh = (int*)malloc(NNZ * sizeof(int));
-        //        int* rowAh = (int*)malloc((numAllMarkers + 1) * sizeof(int));
-        //        double* xh = (double*)malloc(numAllMarkers * sizeof(double));
-        //        double* bh = (double*)malloc(numAllMarkers * sizeof(double));
-        //        for (int i = 0; i < numAllMarkers; i++) {
-        //            xh[i] = p_old[i];
-        //            bh[i] = B_i[i];
-        //            rowAh[i] = numContacts[i];
-        //        }
-        //
-        //        rowAh[numAllMarkers] = numContacts[numAllMarkers];
-        //
-        //        for (int i = 0; i < NNZ; i++) {
-        //            Ah[i] = csrValA[i];
-        //            colAh[i] = csrColIndA[i];
-        //        }
-
-        //        cudaMemcpy(Ad, Ah, (size_t)(NNZ * sizeof(double)), cudaMemcpyHostToDevice);
-        //        cudaMemcpy(colAd, colAh, (size_t)(NNZ * sizeof(int)), cudaMemcpyHostToDevice);
-        //        cudaMemcpy(rowAd, rowAh, (size_t)((numAllMarkers + 1) * sizeof(int)), cudaMemcpyHostToDevice);
-        //        cudaMemcpy(xd, xh, (size_t)(numAllMarkers * sizeof(double)), cudaMemcpyHostToDevice);
-        //        cudaMemcpy(bd, bh, (size_t)(numAllMarkers * sizeof(double)), cudaMemcpyHostToDevice);
-
-        //        thrust::copy(B_i.begin(), B_i.end(), bd);
-        //        thrust::copy(p_old.begin(), p_old.end(), xd);
-        //        thrust::copy(numContacts.begin(), numContacts.end(), rowAd);
-        //        thrust::copy(csrColIndA.begin(), csrColIndA.end(), colAd);
-        //        thrust::copy(csrValA.begin(), csrValA.end(), Ad);
-
-        //        myLS.PCG(numAllMarkers, NNZ, Ad, rowAd, colAd, xd, bd);
         myLS.Solve(numAllMarkers, NNZ, R1CAST(csrValA), U1CAST(numContacts), U1CAST(csrColIndA), (double*)R1CAST(p_old),
                    R1CAST(B_i));
         cudaCheckError();
-
-        //        thrust::copy(xd, xd + numAllMarkers, p_old.begin());
-
-        //        cusp::csr_matrix<uint, double, cusp::device_memory> AMatrix(numAllMarkers, numAllMarkers,
-        //        NNZ);
-        //        AMatrix.row_offsets = numContacts;
-        //        AMatrix.column_indices = csrColIndA;
-        //        AMatrix.values = csrValA;
-        //
-        //        cusp::array1d<double, cusp::device_memory> x(numAllMarkers, paramsH->BASEPRES);
-        //        //    cusp::array1d<double, cusp::device_memory> x(numAllMarkers, 1000.);
-        //
-        //        // set stopping criteria:
-        //
-        //        //    cusp::identity_operator<double, cusp::device_memory> M(AMatrix.num_rows, AMatrix.num_rows);
-        //        //    cusp::precond::scaled_bridson_ainv<double, cusp::device_memory> M(AMatrix, .1);
-        //        //    cusp::precond::bridson_ainv<double, cusp::device_memory> M(AMatrix, 0, -1, true, 2);
-        //        //    cusp::precond::scaled_bridson_ainv<double, cusp::device_memory> M(AMatrix, 0, 10);
-        //        //    cusp::precond::aggregation::smoothed_aggregation<int, double, cusp::device_memory> M(AMatrix);
-        //        //    cusp::precond::diagonal<double, cusp::device_memory> M(AMatrix);
-        //
-        //        int restart = 200;
-        //
-        //        if (paramsH->Cusp_solver == gmres)
-        //            cusp::krylov::gmres(AMatrix, x, b, restart, monitor);
-        //
-        //        if (paramsH->Cusp_solver == bicgstab)
-        //            cusp::krylov::bicgstab(AMatrix, x, b, monitor);
-        //
-        //        if (paramsH->Cusp_solver == cr)
-        //            cusp::krylov::cr(AMatrix, x, b, monitor);
-        //
-        //        if (paramsH->Cusp_solver == cg)
-        //            cusp::krylov::cg(AMatrix, x, b, monitor);
-        //
-        //        if (paramsH->Cusp_solver == bicgstab_m) {
-        //            size_t N_s = 4;
-        //            cusp::array1d<float, cusp::device_memory> x_i(AMatrix.num_rows * N_s, 0);
-        //            // set sigma values
-        //            cusp::array1d<float, cusp::device_memory> sigma(N_s);
-        //            sigma[0] = 0.1;
-        //            sigma[1] = 0.2;
-        //            sigma[2] = 0.3;
-        //            sigma[3] = 0.4;
-        //            cusp::krylov::bicgstab_m(AMatrix, x_i, b, sigma, monitor);
-        //            thrust::copy(x_i.begin(), x_i.end(), p_old.begin());
-        //        }
-        //        if (paramsH->Cusp_solver != bicgstab_m) {
-        //            thrust::copy(x.begin(), x.end(), p_old.begin());
-        //        }
-
-        /*std::string outnameA = "_A_" + std::to_string(numAllMarkers);
-        std::string outnamex = "_x_" + std::to_string(numAllMarkers);
-        std::string outnameb = "_b_" + std::to_string(numAllMarkers);
-        cusp::io::write_matrix_market_file(AMatrix, outnameA);
-        cusp::io::write_matrix_market_file(x, outnamex);
-        cusp::io::write_matrix_market_file(b, outnameb);*/
     }
 
     while ((MaxRes > paramsH->LinearSolver_Rel_Tol || Iteration < 3) && mySolutionType == MATRIX_FREE) {

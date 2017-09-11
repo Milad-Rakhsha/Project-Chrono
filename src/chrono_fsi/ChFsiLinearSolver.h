@@ -32,38 +32,6 @@ enum solverType { gmres, cr, bicgstab, cg, sap };
 
 typedef char MM_typecode[4];
 
-static int loadMMSparseMatrix(int& m, int& n, int& nnz, double** aVal, int** aRowInd, int** aColInd) {
-    nnz = 5;
-    m = 4;
-    n = 4;
-    *aRowInd = (int*)malloc(5 * sizeof(int));
-    *aColInd = (int*)malloc(5 * sizeof(int));
-    *aVal = (double*)malloc(5 * sizeof(double));
-    (*aVal)[0] = 3000.0;
-    (*aVal)[1] = 20.0;
-    (*aVal)[2] = 30.0;
-    (*aVal)[3] = 11.0;
-    (*aVal)[4] = 105.0;
-
-    (*aColInd)[0] = 0;
-    (*aColInd)[1] = 1;
-    (*aColInd)[2] = 2;
-    (*aColInd)[3] = 2;
-    (*aColInd)[4] = 3;
-
-    (*aRowInd)[0] = 0;
-    (*aRowInd)[1] = 1;
-    (*aRowInd)[2] = 3;
-    (*aRowInd)[3] = 4;
-    (*aRowInd)[4] = 5;
-
-    //    aVal= [ 1, 2, 3, 4 ];
-    //    aColInd = [ 0, 0, 2, 1 ];
-    //    aRowInd = [ 0, 1, 3, 3, 4 ];
-
-    return 0;
-}
-
 class ChFsiLinearSolver {
   private:
     double rel_res = 1e-3;
@@ -96,7 +64,6 @@ class ChFsiLinearSolver {
     int GetSolverStatus() { return solver_status; }
     void Solve(int SIZE, int NNZ, double* A, uint* ArowIdx, uint* AcolIdx, double* x, double* b);
     void BiCGStab(int SIZE, int NNZ, double* A, uint* ArowIdx, uint* AcolIdx, double* x, double* b);
-    int PCG_CUDA(int SIZE, int NNZ, double* A, uint* ArowIdx, uint* AcolIdx, double* x, double* b);
 };
 
 }  // end namespace fsi
