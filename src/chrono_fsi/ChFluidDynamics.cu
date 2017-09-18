@@ -89,8 +89,7 @@ __global__ void ApplyPeriodicBoundaryXKernel(Real3* posRadD, Real4* rhoPresMuD) 
         posRad.x -= (paramsD.cMax.x - paramsD.cMin.x);
         posRadD[index] = posRad;
         if (rhoPresMu.w < -.1) {
-            rhoPresMu.y = rhoPresMu.y + paramsD.deltaPress.x;
-            rhoPresMuD[index] = rhoPresMu;
+            rhoPresMuD[index].y += paramsD.deltaPress.x;
         }
         return;
     }
@@ -98,8 +97,7 @@ __global__ void ApplyPeriodicBoundaryXKernel(Real3* posRadD, Real4* rhoPresMuD) 
         posRad.x += (paramsD.cMax.x - paramsD.cMin.x);
         posRadD[index] = posRad;
         if (rhoPresMu.w < -.1) {
-            rhoPresMu.y = rhoPresMu.y - paramsD.deltaPress.x;
-            rhoPresMuD[index] = rhoPresMu;
+            rhoPresMuD[index].y -= paramsD.deltaPress.x;
         }
         return;
     }
@@ -139,8 +137,13 @@ __global__ void ApplyInletBoundaryXKernel(Real3* posRadD, Real3* VelMassD, Real4
         return;
     }
 
-    if (posRad.x < paramsD.x_in)
+    if (posRad.x > -paramsD.x_in)
+        rhoPresMuD[index].y = 0;
+
+    if (posRad.x < paramsD.x_in) {
+        //        Real vel = paramsD.V_in * 4 * (posRadD[index].z) * (0.41 - posRadD[index].z) / (0.41 * 0.41);
         VelMassD[index] = mR3(paramsD.V_in, 0, 0);
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -450,8 +453,8 @@ void ChFluidDynamics::IntegrateSPH(SphMarkerDataD* sphMarkersD2,
 void ChFluidDynamics::IntegrateIISPH(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD, FsiMeshDataD* fsiMeshD) {
     forceSystem->ForceIISPH(sphMarkersD, fsiBodiesD, fsiMeshD);
     this->UpdateFluid_Implicit(sphMarkersD);
-    this->ApplyBoundarySPH_Markers(sphMarkersD);
-    //  this->ApplyModifiedBoundarySPH_Markers(sphMarkersD2);
+    //    this->ApplyBoundarySPH_Markers(sphMarkersD);
+    this->ApplyModifiedBoundarySPH_Markers(sphMarkersD);
 }
 // -----------------------------------------------------------------------------
 
