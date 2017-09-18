@@ -101,19 +101,19 @@ void ChFsiLinearSolver::BiCGStab(int SIZE, int NNZ, double* A, uint* ArowIdx, ui
     //    cusparseCreateSolveAnalysisInfo(&info_u);
     //    cusparseSetMatFillMode(descrM, CUSPARSE_FILL_MODE_LOWER);
     //    cusparseSetMatDiagType(descrM, CUSPARSE_DIAG_TYPE_UNIT);
-    //    cusparseDcsrsv_analysis(cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE, SIZE, NNZ, descrM, A, ArowIdx,
-    //                            AcolIdx, info_l);
+    //    cusparseDcsrsv_analysis(cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE, SIZE, NNZ, descrM, A, (int*)ArowIdx,
+    //                            (int*)AcolIdx, info_l);
     //    cusparseSetMatFillMode(descrM, CUSPARSE_FILL_MODE_UPPER);
     //    cusparseSetMatDiagType(descrM, CUSPARSE_DIAG_TYPE_NON_UNIT);
-    //    cusparseDcsrsv_analysis(cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE, SIZE, NNZ, descrM, A, ArowIdx,
-    //                            AcolIdx, info_u);
+    //    cusparseDcsrsv_analysis(cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE, SIZE, NNZ, descrM, A, (int*)ArowIdx,
+    //                            (int*)AcolIdx, info_u);
     //    cudaThreadSynchronize();
-
-    //==========Compute the lower and upper triangular factors using CUSPARSE csrilu0 routine
-    //        int* MrowIdx = ArowIdx;
-    //        int* McolIdx = AcolIdx;
-    //    cusparseDcsrilu0(cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE, SIZE, descrM, M, ArowIdx,
-    //    AcolIdx,
+    //
+    //    //=======Compute the lower and upper triangular factors using CUSPARSE csrilu0 routine
+    //    int* MrowIdx = (int*)ArowIdx;
+    //    int* McolIdx = (int*)AcolIdx;
+    //    cusparseDcsrilu0(cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE, SIZE, descrM, M, (int*)ArowIdx,
+    //    (int*)AcolIdx,
     //                     info_l);
     //    cudaThreadSynchronize();
 
@@ -163,19 +163,19 @@ void ChFsiLinearSolver::BiCGStab(int SIZE, int NNZ, double* A, uint* ArowIdx, ui
         cublasDcopy(cublasHandle, SIZE, p, 1, Mp, 1);
         cudaThreadSynchronize();
 
-        //        // Mp=M^(-1)*p
+        //        //        // Mp=M^(-1)*p
         //        cusparseSetMatFillMode(descrM, CUSPARSE_FILL_MODE_LOWER);
         //        cusparseSetMatDiagType(descrM, CUSPARSE_DIAG_TYPE_UNIT);
         //        cusparseDcsrsv_solve(cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE, SIZE, &one, descrM, M,
-        //        ArowIdx,
-        //                             AcolIdx, info_l, p,
+        //        (int*)ArowIdx,
+        //                             (int*)AcolIdx, info_l, p,
         //                             AMp);  // AMp is just dummy vector to save (Ml^-1*p)
         //        cudaThreadSynchronize();
         //        cusparseSetMatFillMode(descrM, CUSPARSE_FILL_MODE_UPPER);
         //        cusparseSetMatDiagType(descrM, CUSPARSE_DIAG_TYPE_NON_UNIT);
         //        cusparseDcsrsv_solve(cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE, SIZE, &one, descrM, M,
-        //        ArowIdx,
-        //                             AcolIdx, info_u, AMp,
+        //        (int*)ArowIdx,
+        //                             (int*)AcolIdx, info_u, AMp,
         //                             Mp);  // AMp is just dummy vector to save (Ml ^ -1 * p), Mu ^ -1 * AMp = Mp
         //
         //        cudaThreadSynchronize();
@@ -216,16 +216,16 @@ void ChFsiLinearSolver::BiCGStab(int SIZE, int NNZ, double* A, uint* ArowIdx, ui
         //        cusparseSetMatFillMode(descrM, CUSPARSE_FILL_MODE_LOWER);
         //        cusparseSetMatDiagType(descrM, CUSPARSE_DIAG_TYPE_UNIT);
         //        cusparseDcsrsv_solve(cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE, SIZE, &one, descrM, M,
-        //        ArowIdx,
-        //                             AcolIdx, info_l, AMs,
+        //        (int*)ArowIdx,
+        //                             (int*)AcolIdx, info_l, AMs,
         //                             Ms);  // AMs is just dummy vector to save
         //                                   //        (Ml ^ -1 * s)
         //
         //        cusparseSetMatFillMode(descrM, CUSPARSE_FILL_MODE_UPPER);
         //        cusparseSetMatDiagType(descrM, CUSPARSE_DIAG_TYPE_NON_UNIT);
         //        cusparseDcsrsv_solve(cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE, SIZE, &one, descrM, M,
-        //        ArowIdx,
-        //                             AcolIdx, info_u, AMs,
+        //        (int*)ArowIdx,
+        //                             (int*)AcolIdx, info_u, AMs,
         //                             Ms);  // AMs is just dummy vector to save (Ml ^ -1 * s),Mu ^ -1 * AMs = Ms
 
         // AMs=A*Ms

@@ -164,13 +164,8 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelNSC& mphysicalSystem,
     // Add falling cylinder
     ChVector<> cyl_pos = ChVector<>(0, 0, fzDim + cyl_radius + 2 * initSpace0);
     ChQuaternion<> cyl_rot = chrono::QUNIT;
-
     std::vector<std::shared_ptr<ChBody>>* FSI_Bodies = myFsiSystem.GetFsiBodiesPtr();
 
-#ifdef AddCylinder
-    chrono::fsi::utils::CreateCylinderFSI(myFsiSystem.GetDataManager(), mphysicalSystem, FSI_Bodies, paramsH, mat_g,
-                                          paramsH->rho0, cyl_pos, cyl_rot, cyl_radius, cyl_length);
-#endif
 #endif
 
     auto body = std::make_shared<ChBody>(std::make_shared<collision::ChCollisionModelParallel>());
@@ -195,6 +190,11 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelNSC& mphysicalSystem,
 
     int numRigidObjects = mphysicalSystem.Get_bodylist()->size();
     mphysicalSystem.AddBody(body);
+
+    std::vector<std::shared_ptr<ChBody>>* fsiBodeisPtr = myFsiSystem.GetFsiBodiesPtr();
+    fsiBodeisPtr->push_back(body);
+    chrono::fsi::utils::AddCylinderBce(myFsiSystem.GetDataManager(), paramsH, body, ChVector<>(0, 0, 0),
+                                       ChQuaternion<>(1, 0, 0, 0), cyl_radius, cyl_length);
 }
 
 //------------------------------------------------------------------

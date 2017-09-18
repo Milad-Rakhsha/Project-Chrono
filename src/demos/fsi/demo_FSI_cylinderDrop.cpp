@@ -262,17 +262,6 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelNSC& mphysicalSystem,
     // slope 2
     fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos5, rot5, size5);
 
-    // Add floating cylinder
-    // ---------------------
-    double cyl_length = 3.5;
-    double cyl_radius = .55;
-    ChVector<> cyl_pos = ChVector<>(0, 0, 1);
-    ChQuaternion<> cyl_rot = Q_from_AngAxis(CH_C_PI / 3, VECT_Z);
-
-    std::vector<std::shared_ptr<ChBody>>* FSI_Bodies = myFsiSystem.GetFsiBodiesPtr();
-    fsi::utils::CreateCylinderFSI(myFsiSystem.GetDataManager(), mphysicalSystem, FSI_Bodies, paramsH, mat_g,
-                                  paramsH->rho0, cyl_pos, cyl_rot, cyl_radius, cyl_length);
-
 #endif
 
     auto body = std::make_shared<ChBody>(std::make_shared<collision::ChCollisionModelParallel>());
@@ -298,6 +287,12 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelNSC& mphysicalSystem,
 
     int numRigidObjects = mphysicalSystem.Get_bodylist()->size();
     mphysicalSystem.AddBody(body);
+    std::vector<std::shared_ptr<ChBody>>* fsiBodeisPtr = myFsiSystem.GetFsiBodiesPtr();
+    fsiBodeisPtr->push_back(body);
+    double cyl_length = 3.5;
+    double cyl_radius = .55;
+    chrono::fsi::utils::AddCylinderBce(myFsiSystem.GetDataManager(), paramsH, body, ChVector<>(0, 0, 0),
+                                       ChQuaternion<>(1, 0, 0, 0), cyl_radius, cyl_length);
 }
 
 //------------------------------------------------------------------

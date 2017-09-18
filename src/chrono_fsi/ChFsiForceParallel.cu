@@ -675,8 +675,8 @@ __global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted 
     }
     Real m_0 = paramsD.markerMass;
     //    Real3 gravity = paramsD.gravity;
-    //    Real RHO_0 = paramsD.rho0;
-    //    Real IncompressibilityFactor = paramsD.IncompressibilityFactor;
+    Real RHO_0 = paramsD.rho0;
+    Real IncompressibilityFactor = paramsD.IncompressibilityFactor;
 
     Real3 posRadA = sortedPosRad[i_idx];
     dxi_over_Vi[i_idx] = 1e10;
@@ -726,10 +726,10 @@ __global__ void calcNormalizedRho_kernel(Real3* sortedPosRad,  // input: sorted 
         }
     }
 
-    //    if (sortedRhoPreMu[i_idx].x > RHO_0)
-    //        IncompressibilityFactor = 1;
+    if (sortedRhoPreMu[i_idx].x > RHO_0)
+        IncompressibilityFactor = 1;
 
-    //  sortedRhoPreMu[i_idx].x = (sum_mW / sum_mW_over_Rho - RHO_0) * IncompressibilityFactor + RHO_0;
+    sortedRhoPreMu[i_idx].x = (sum_mW / sum_mW_over_Rho - RHO_0) * IncompressibilityFactor + RHO_0;
     //    sortedRhoPreMu[i_idx].x = (sum_mW - RHO_0) * IncompressibilityFactor + RHO_0;
     //
     //    if (sortedRhoPreMu[i_idx].x < EPSILON) {
@@ -890,7 +890,7 @@ __global__ void Rho_np_AND_a_ii_AND_sum_m_GradW(Real3* sortedPosRad,
     a_ii[i_idx] = my_a_ii;
     sum_m_GradW[i_idx] = My_sum_m_gradW;
 
-    //  sortedRhoPreMu[i_idx].y = 1000;  // Note that this is outside of the for loop
+    p_old[i_idx] = sortedRhoPreMu[i_idx].y;  // = 1000;  // Note that this is outside of the for loop
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 
@@ -2025,7 +2025,7 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
     if (*isErrorH == true) {
         throw std::runtime_error("Error! program crashed after calcRho_kernel!\n");
     }
-
+    /*
     thrust::device_vector<Real> dxi_over_Vi(numAllMarkers);
     thrust::fill(dxi_over_Vi.begin(), dxi_over_Vi.end(), 0);
 
@@ -2042,7 +2042,7 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
     if (*isErrorH == true) {
         throw std::runtime_error("Error! program crashed after calcNormalizedRho_kernel!\n");
     }
-    /*
+
         if (paramsH->Adaptive_time_stepping) {
           int position = thrust::min_element(dxi_over_Vi.begin(), dxi_over_Vi.end()) - dxi_over_Vi.begin();
           Real min_dxi_over_Vi = dxi_over_Vi[position];
@@ -2222,7 +2222,7 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
         cudaCheckError();
     }
 
-    while ((MaxRes > paramsH->LinearSolver_Rel_Tol || Iteration < 3) && mySolutionType == MATRIX_FREE) {
+    while ((MaxRes > paramsH->LinearSolver_Rel_Tol || Iteration < 3) && paramsH->USE_Iterative_solver) {
         *isErrorH = false;
         cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
         Initialize_Variables<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(p_old),
