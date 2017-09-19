@@ -28,7 +28,7 @@ namespace chrono {
 namespace fsi {
 namespace utils {
 // =============================================================================
-void CreateBCE_On_Sphere(thrust::host_vector<Real3>& posRadBCE, Real rad, SimParams* paramsH) {
+void CreateBCE_On_Sphere(thrust::host_vector<Real4>& posRadBCE, Real rad, SimParams* paramsH) {
     Real spacing = paramsH->MULT_INITSPACE * paramsH->HSML;
 
     for (Real r = spacing; r < rad - paramsH->solidSurfaceAdjust; r += spacing) {
@@ -38,7 +38,7 @@ void CreateBCE_On_Sphere(thrust::host_vector<Real3>& posRadBCE, Real rad, SimPar
         for (Real phi = .1 * deltaPhi; phi < chrono::CH_C_PI - .1 * deltaPhi; phi += deltaPhi) {
             for (Real teta = .1 * deltaTeta; teta < 2 * chrono::CH_C_PI - .1 * deltaTeta; teta += deltaTeta) {
                 Real3 BCE_Pos_local = mR3(r * sin(phi) * cos(teta), r * sin(phi) * sin(teta), r * cos(phi));
-                posRadBCE.push_back(BCE_Pos_local);
+                posRadBCE.push_back(mR4(BCE_Pos_local, spacing));
             }
         }
     }
@@ -46,18 +46,28 @@ void CreateBCE_On_Sphere(thrust::host_vector<Real3>& posRadBCE, Real rad, SimPar
 
 // =============================================================================
 
-void CreateBCE_On_Cylinder(thrust::host_vector<Real3>& posRadBCE, Real cyl_rad, Real cyl_h, SimParams* paramsH) {
+void CreateBCE_On_Cylinder(thrust::host_vector<Real4>& posRadBCE,
+                           Real cyl_rad,
+                           Real cyl_h,
+                           SimParams* paramsH,
+                           Real kernel_h) {
     // Arman : take care of velocity and w stuff for BCE
-    Real spacing = paramsH->MULT_INITSPACE * paramsH->HSML;
+    Real spacing = kernel_h;
     for (Real s = -0.5 * cyl_h; s <= 0.5 * cyl_h + 1e-5; s += spacing) {
-        printf("%f\n", s);
+        ///////////
+        //        for (Real x = -cyl_rad; x <= cyl_rad; x += spacing) {
+        //            for (Real y = -cyl_rad; y <= cyl_rad; y += spacing) {
+        //                if (x * x + y * y <= cyl_rad * cyl_rad)
+        //                    posRadBCE.push_back(mR4(x, s, y, spacing));
+        //            }
+        //        }
         Real3 centerPointLF = mR3(0, s, 0);
-        posRadBCE.push_back(centerPointLF);
+        posRadBCE.push_back(mR4(centerPointLF, spacing));
         for (Real r = spacing; r < cyl_rad - paramsH->solidSurfaceAdjust; r += spacing) {
             Real deltaTeta = spacing / r;
             for (Real teta = .1 * deltaTeta; teta < 2 * chrono::CH_C_PI - .1 * deltaTeta; teta += deltaTeta) {
                 Real3 BCE_Pos_local = mR3(r * cos(teta), 0, r * sin(teta)) + centerPointLF;
-                posRadBCE.push_back(BCE_Pos_local);
+                posRadBCE.push_back(mR4(BCE_Pos_local, spacing));
             }
         }
     }
@@ -68,7 +78,7 @@ void CreateBCE_On_Cylinder(thrust::host_vector<Real3>& posRadBCE, Real cyl_rad, 
 // x=1, y=2, z =3; therefore 12 means creating markers on the top surface
 // parallel to xy plane,
 // similarly -12 means bottom face paralel to xy. similarly 13, -13, 23, -23
-void CreateBCE_On_Box(thrust::host_vector<Real3>& posRadBCE, const Real3& hsize, int face, SimParams* paramsH) {
+void CreateBCE_On_Box(thrust::host_vector<Real4>& posRadBCE, const Real3& hsize, int face, SimParams* paramsH) {
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
     int nFX = ceil(hsize.x / (initSpace0));
     int nFY = ceil(hsize.y / (initSpace0));
@@ -116,14 +126,14 @@ void CreateBCE_On_Box(thrust::host_vector<Real3>& posRadBCE, const Real3& hsize,
                     (relMarkerPos.z < paramsH->cMin.z || relMarkerPos.z > paramsH->cMax.z)) {
                     continue;
                 }
-                posRadBCE.push_back(relMarkerPos);
+                posRadBCE.push_back(mR4(relMarkerPos, initSpace0));
             }
         }
     }
 }
 // =============================================================================
 
-void CreateBCE_On_shell(thrust::host_vector<Real3>& posRadBCE,
+void CreateBCE_On_shell(thrust::host_vector<Real4>& posRadBCE,
                         SimParams* paramsH,
                         std::shared_ptr<chrono::fea::ChElementShellANCF> shell,
                         bool multiLayer,
@@ -172,13 +182,13 @@ void CreateBCE_On_shell(thrust::host_vector<Real3>& posRadBCE,
                     continue;
                 }
 
-                posRadBCE.push_back(relMarkerPos);
+                posRadBCE.push_back(mR4(relMarkerPos, initSpace0));
             }
         }
     }
 }  // =============================================================================
 
-void CreateBCE_On_ChElementCableANCF(thrust::host_vector<Real3>& posRadBCE,
+void CreateBCE_On_ChElementCableANCF(thrust::host_vector<Real4>& posRadBCE,
                                      SimParams* paramsH,
                                      std::shared_ptr<chrono::fea::ChElementCableANCF> cable,
                                      std::vector<int> remove,
@@ -220,13 +230,13 @@ void CreateBCE_On_ChElementCableANCF(thrust::host_vector<Real3>& posRadBCE,
         if (multiLayer) {
             for (int j = 1; j <= SIDE; j++) {
                 relMarkerPos = mR3(i * initSpaceX, j * initSpaceZ, 0);
-                posRadBCE.push_back(relMarkerPos);
+                posRadBCE.push_back(mR4(relMarkerPos, initSpace0));
                 relMarkerPos = mR3(i * initSpaceX, -j * initSpaceZ, 0);
-                posRadBCE.push_back(relMarkerPos);
+                posRadBCE.push_back(mR4(relMarkerPos, initSpace0));
                 relMarkerPos = mR3(i * initSpaceX, 0, j * initSpaceZ);
-                posRadBCE.push_back(relMarkerPos);
+                posRadBCE.push_back(mR4(relMarkerPos, initSpace0));
                 relMarkerPos = mR3(i * initSpaceX, 0, -j * initSpaceZ);
-                posRadBCE.push_back(relMarkerPos);
+                posRadBCE.push_back(mR4(relMarkerPos, initSpace0));
 
                 double CONST = sqrt(2) / 2;
                 //        if (removeMiddleLayer) {
@@ -244,13 +254,13 @@ void CreateBCE_On_ChElementCableANCF(thrust::host_vector<Real3>& posRadBCE,
 
         if (!removeMiddleLayer) {
             relMarkerPos = mR3(i * initSpaceX, 0, 0);
-            posRadBCE.push_back(relMarkerPos);
+            posRadBCE.push_back(mR4(relMarkerPos, initSpace0));
         }
     }
 }
 // =============================================================================
 
-void CreateBCE_On_ChElementShellANCF(thrust::host_vector<Real3>& posRadBCE,
+void CreateBCE_On_ChElementShellANCF(thrust::host_vector<Real4>& posRadBCE,
                                      SimParams* paramsH,
                                      std::shared_ptr<chrono::fea::ChElementShellANCF> shell,
                                      std::vector<int> remove,
@@ -316,14 +326,14 @@ void CreateBCE_On_ChElementShellANCF(thrust::host_vector<Real3>& posRadBCE,
                 if (con1 || con2 || con3 || con4)
                     continue;
 
-                posRadBCE.push_back(relMarkerPos);
+                posRadBCE.push_back(mR4(relMarkerPos, initSpace0));
             }
         }
     }
 }
 // =============================================================================
 
-void LoadBCE_fromFile(thrust::host_vector<Real3>& posRadBCE,  // do not set the
+void LoadBCE_fromFile(thrust::host_vector<Real4>& posRadBCE,  // do not set the
                                                               // size here since
                                                               // you are using
                                                               // push back later
@@ -346,7 +356,7 @@ void LoadBCE_fromFile(thrust::host_vector<Real3>& posRadBCE,  // do not set the
             linestream.getline(buff, 50, ',');
             q[i] = atof(buff);
         }
-        posRadBCE.push_back(mR3(q[0], q[1], q[2]));
+        posRadBCE.push_back(mR4(q[0], q[1], q[2], q[3]));
         numBce++;
     }
 

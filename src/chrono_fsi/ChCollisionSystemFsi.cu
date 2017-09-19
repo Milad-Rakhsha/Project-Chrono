@@ -47,7 +47,7 @@ namespace fsi {
 __global__ void calcHashD(
     uint* gridMarkerHashD,   ///< gridMarkerHash Store marker hash here
     uint* gridMarkerIndexD,  ///< gridMarkerIndex Store marker index here
-    Real3* posRad,           ///< posRad Vector containing the positions of all particles, including boundary particles
+    Real4* posRad,           ///< posRad Vector containing the positions of all particles, including boundary particles
     uint numAllMarkers,      ///<Total number of markers (fluid + boundary)
     volatile bool* isErrorD) {
     /* Calculate the index of where the particle is stored in posRad. */
@@ -55,7 +55,7 @@ __global__ void calcHashD(
     if (index >= numAllMarkers)
         return;
 
-    Real3 p = posRad[index];
+    Real3 p = mR3(posRad[index]);
 
     if (!(isfinite(p.x) && isfinite(p.y) && isfinite(p.z))) {
         printf(
@@ -102,14 +102,14 @@ __global__ void calcHashD(
  */
 __global__ void reorderDataAndFindCellStartD(uint* cellStartD,      // output: cell start index
                                              uint* cellEndD,        // output: cell end index
-                                             Real3* sortedPosRadD,  // output: sorted positions
+                                             Real4* sortedPosRadD,  // output: sorted positions
                                              Real3* sortedVelMasD,  // output: sorted velocities
                                              Real4* sortedRhoPreMuD,
                                              uint* gridMarkerHashD,      // input: sorted grid hashes
                                              uint* gridMarkerIndexD,     // input: sorted particle indices
                                              uint* mapOriginalToSorted,  // mapOriginalToSorted[originalIndex] =
                                                                          // originalIndex
-                                             Real3* posRadD,             // input: sorted position array
+                                             Real4* posRadD,             // input: sorted position array
                                              Real3* velMasD,             // input: sorted velocity array
                                              Real4* rhoPresMuD,
                                              uint numAllMarkers) {
@@ -158,9 +158,9 @@ __global__ void reorderDataAndFindCellStartD(uint* cellStartD,      // output: c
         // mapOriginalToSorted[originalIndex] = index; without need to sort. But
         // that
         // is not thread safe
-        Real3 posRad = posRadD[originalIndex];  // macro does either global read or
-                                                // texture fetch
-        Real3 velMas = velMasD[originalIndex];  // see particles_kernel.cuh
+        Real3 posRad = mR3(posRadD[originalIndex]);  // macro does either global read or
+                                                     // texture fetch
+        Real3 velMas = velMasD[originalIndex];       // see particles_kernel.cuh
         Real4 rhoPreMu = rhoPresMuD[originalIndex];
 
         if (!(isfinite(posRad.x) && isfinite(posRad.y) && isfinite(posRad.z))) {
@@ -178,7 +178,7 @@ __global__ void reorderDataAndFindCellStartD(uint* cellStartD,      // output: c
                 "Error! particle rhoPreMu is NAN: thrown from "
                 "SDKCollisionSystem.cu, reorderDataAndFindCellStartD !\n");
         }
-        sortedPosRadD[index] = posRad;
+        sortedPosRadD[index] = mR4(posRad, posRadD[originalIndex].w);
         sortedVelMasD[index] = velMas;
         sortedRhoPreMuD[index] = rhoPreMu;
     }
@@ -232,7 +232,7 @@ void ChCollisionSystemFsi::calcHash() {
     /* Execute Kernel */
 
     calcHashD<<<numBlocks, numThreads>>>(U1CAST(markersProximityD->gridMarkerHashD),
-                                         U1CAST(markersProximityD->gridMarkerIndexD), mR3CAST(sphMarkersD->posRadD),
+                                         U1CAST(markersProximityD->gridMarkerIndexD), mR4CAST(sphMarkersD->posRadD),
                                          numObjectsH->numAllMarkers, isErrorD);
 
     /* Check for errors in kernel execution */
@@ -267,10 +267,10 @@ void ChCollisionSystemFsi::reorderDataAndFindCellStart() {
 
     uint smemSize = sizeof(uint) * (numThreads + 1);
     reorderDataAndFindCellStartD<<<numBlocks, numThreads, smemSize>>>(
-        U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), mR3CAST(sortedSphMarkersD->posRadD),
+        U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), mR4CAST(sortedSphMarkersD->posRadD),
         mR3CAST(sortedSphMarkersD->velMasD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
         U1CAST(markersProximityD->gridMarkerHashD), U1CAST(markersProximityD->gridMarkerIndexD),
-        U1CAST(markersProximityD->mapOriginalToSorted), mR3CAST(sphMarkersD->posRadD), mR3CAST(sphMarkersD->velMasD),
+        U1CAST(markersProximityD->mapOriginalToSorted), mR4CAST(sphMarkersD->posRadD), mR3CAST(sphMarkersD->velMasD),
         mR4CAST(sphMarkersD->rhoPresMuD), numObjectsH->numAllMarkers);
     cudaThreadSynchronize();
     cudaCheckError();

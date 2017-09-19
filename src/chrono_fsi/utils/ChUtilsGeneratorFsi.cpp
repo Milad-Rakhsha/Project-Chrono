@@ -59,7 +59,7 @@ ChVector<> TransformBCEToCOG(ChBody* body, const Real3& pos3) {
 // =============================================================================
 void CreateBceGlobalMarkersFromBceLocalPos(ChFsiDataManager* fsiData,
                                            SimParams* paramsH,
-                                           const thrust::host_vector<Real3>& posRadBCE,
+                                           const thrust::host_vector<Real4>& posRadBCE,
                                            std::shared_ptr<ChBody> body,
                                            ChVector<> collisionShapeRelativePos,
                                            ChQuaternion<> collisionShapeRelativeRot,
@@ -89,12 +89,12 @@ void CreateBceGlobalMarkersFromBceLocalPos(ChFsiDataManager* fsiData,
     //#pragma omp parallel for  // it is very wrong to do it in parallel. race
     // condition will occur
     for (int i = 0; i < posRadBCE.size(); i++) {
-        ChVector<> posLoc_collisionShape = ChFsiTypeConvert::Real3ToChVector(posRadBCE[i]);
+        ChVector<> posLoc_collisionShape = ChFsiTypeConvert::Real3ToChVector(mR3(posRadBCE[i]));
         ChVector<> posLoc_body = ChTransform<>::TransformLocalToParent(posLoc_collisionShape, collisionShapeRelativePos,
                                                                        collisionShapeRelativeRot);
         ChVector<> posLoc_COG = TransformBCEToCOG(body.get(), posLoc_body);
         ChVector<> posGlob = ChTransform<>::TransformLocalToParent(posLoc_COG, body->GetPos(), body->GetRot());
-        fsiData->sphMarkersH.posRadH.push_back(ChFsiTypeConvert::ChVectorToReal3(posGlob));
+        fsiData->sphMarkersH.posRadH.push_back(mR4(ChFsiTypeConvert::ChVectorToReal3(posGlob), posRadBCE[i].w));
 
         ChVector<> vAbs = body->PointSpeedLocalToParent(posLoc_COG);
         Real3 v3 = ChFsiTypeConvert::ChVectorToReal3(vAbs);
@@ -146,7 +146,7 @@ void CreateBceGlobalMarkersFromBceLocalPos(ChFsiDataManager* fsiData,
 
 void CreateBceGlobalMarkersFromBceLocalPos_CableANCF(ChFsiDataManager* fsiData,
                                                      SimParams* paramsH,
-                                                     const thrust::host_vector<Real3>& posRadBCE,
+                                                     const thrust::host_vector<Real4>& posRadBCE,
                                                      std::shared_ptr<chrono::fea::ChElementCableANCF> cable) {
     int type = 2;
 
@@ -181,7 +181,7 @@ void CreateBceGlobalMarkersFromBceLocalPos_CableANCF(ChFsiDataManager* fsiData,
     printf(" posRadBCE.size()= :%d\n", posRadBCE.size());
     for (int i = 0; i < posRadBCE.size(); i++) {
         //    chrono::ChVector<> posGlob =
-        chrono::ChVector<> pos_physical = ChFsiTypeConvert::Real3ToChVector(posRadBCE[i]);
+        chrono::ChVector<> pos_physical = ChFsiTypeConvert::Real3ToChVector(mR3(posRadBCE[i]));
         chrono::ChVector<> pos_natural = pos_physical * physic_to_natural;
 
         //    cable->ShapeFunctions(N, pos_natural.x);
@@ -210,7 +210,7 @@ void CreateBceGlobalMarkersFromBceLocalPos_CableANCF(ChFsiDataManager* fsiData,
 
         bool addthis = true;
         for (int p = 0; p < fsiData->sphMarkersH.posRadH.size() - 1; p++) {
-            if (length(fsiData->sphMarkersH.posRadH[p] - ChFsiTypeConvert::ChVectorToReal3(Correct_Pos)) < 1e-8 &&
+            if (length(mR3(fsiData->sphMarkersH.posRadH[p]) - ChFsiTypeConvert::ChVectorToReal3(Correct_Pos)) < 1e-8 &&
                 fsiData->sphMarkersH.rhoPresMuH[p].w != -1) {
                 addthis = false;
                 //        printf("remove this particle %f,%f,%f because of its overlap with a particle at %f,%f,%f\n",
@@ -238,7 +238,7 @@ void CreateBceGlobalMarkersFromBceLocalPos_CableANCF(ChFsiDataManager* fsiData,
         //                Correct_Pos.z > box[4] && Correct_Pos.z < box[5];
 
         if (addthis) {
-            fsiData->sphMarkersH.posRadH.push_back(ChFsiTypeConvert::ChVectorToReal3(Correct_Pos));
+            fsiData->sphMarkersH.posRadH.push_back(mR4(ChFsiTypeConvert::ChVectorToReal3(Correct_Pos), posRadBCE[i].w));
             chrono::ChVector<> Correct_Vel = N(0) * nAv + N(2) * nBv + ChVector<double>(1e-20);
             Real3 v3 = ChFsiTypeConvert::ChVectorToReal3(Correct_Vel);
             fsiData->sphMarkersH.velMasH.push_back(v3);
@@ -284,7 +284,7 @@ void CreateBceGlobalMarkersFromBceLocalPos_CableANCF(ChFsiDataManager* fsiData,
 
 void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
                                                      SimParams* paramsH,
-                                                     const thrust::host_vector<Real3>& posRadBCE,
+                                                     const thrust::host_vector<Real4>& posRadBCE,
                                                      std::shared_ptr<chrono::fea::ChElementShellANCF> shell) {
     int type = 3;
 
@@ -311,7 +311,7 @@ void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
     printf(" posRadBCE.size()= :%d\n", posRadBCE.size());
     for (int i = 0; i < posRadBCE.size(); i++) {
         //    chrono::ChVector<> posGlob =
-        chrono::ChVector<> pos_physical = ChFsiTypeConvert::Real3ToChVector(posRadBCE[i]);
+        chrono::ChVector<> pos_physical = ChFsiTypeConvert::Real3ToChVector(mR3(posRadBCE[i]));
         chrono::ChVector<> pos_natural = pos_physical * physic_to_natural;
         shell->ShapeFunctions(N, pos_natural.x(), pos_natural.y(), pos_natural.z());
         chrono::ChVector<> x_dir = (nBp - nAp + nCp - nDp);
@@ -334,7 +334,7 @@ void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
         // Note that the fluid markers are removed differently
         bool addthis = true;
         for (int p = 0; p < fsiData->sphMarkersH.posRadH.size() - 1; p++) {
-            if (length(fsiData->sphMarkersH.posRadH[p] - ChFsiTypeConvert::ChVectorToReal3(Correct_Pos)) < 1e-8 &&
+            if (length(mR3(fsiData->sphMarkersH.posRadH[p]) - ChFsiTypeConvert::ChVectorToReal3(Correct_Pos)) < 1e-8 &&
                 fsiData->sphMarkersH.rhoPresMuH[p].w != -1) {
                 addthis = false;
                 //        printf("remove this particle %f,%f,%f because of its overlap with a particle at %f,%f,%f\n",
@@ -346,7 +346,7 @@ void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
         }
 
         if (addthis) {
-            fsiData->sphMarkersH.posRadH.push_back(ChFsiTypeConvert::ChVectorToReal3(Correct_Pos));
+            fsiData->sphMarkersH.posRadH.push_back(mR4(ChFsiTypeConvert::ChVectorToReal3(Correct_Pos), posRadBCE[i].w));
             chrono::ChVector<> Correct_Vel = N(0) * nAv + N(2) * nBv + N(4) * nCv + N(6) * nDv;
             Real3 v3 = ChFsiTypeConvert::ChVectorToReal3(Correct_Vel);
             fsiData->sphMarkersH.velMasH.push_back(v3);
@@ -395,7 +395,7 @@ void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
 // =============================================================================
 void CreateBceGlobalMarkersFromBceLocalPosBoundary(ChFsiDataManager* fsiData,
                                                    SimParams* paramsH,
-                                                   const thrust::host_vector<Real3>& posRadBCE,
+                                                   const thrust::host_vector<Real4>& posRadBCE,
                                                    std::shared_ptr<ChBody> body,
                                                    ChVector<> collisionShapeRelativePos,
                                                    ChQuaternion<> collisionShapeRelativeRot) {
@@ -409,7 +409,7 @@ void AddSphereBce(ChFsiDataManager* fsiData,
                   ChVector<> relPos,
                   ChQuaternion<> relRot,
                   Real radius) {
-    thrust::host_vector<Real3> posRadBCE;
+    thrust::host_vector<Real4> posRadBCE;
     CreateBCE_On_Sphere(posRadBCE, radius, paramsH);
 
     //	if (fsiData->sphMarkersH.posRadH.size() !=
@@ -433,9 +433,10 @@ void AddCylinderBce(ChFsiDataManager* fsiData,
                     ChVector<> relPos,
                     ChQuaternion<> relRot,
                     Real radius,
-                    Real height) {
-    thrust::host_vector<Real3> posRadBCE;
-    CreateBCE_On_Cylinder(posRadBCE, radius, height, paramsH);
+                    Real height,
+                    Real kernel_h) {
+    thrust::host_vector<Real4> posRadBCE;
+    CreateBCE_On_Cylinder(posRadBCE, radius, height, paramsH, kernel_h);
 
     //	if (fsiData->sphMarkersH.posRadH.size() !=
     // fsiData->numObjects.numAllMarkers) {
@@ -466,7 +467,7 @@ void AddBoxBce(ChFsiDataManager* fsiData,
                ChQuaternion<> relRot,
                const ChVector<>& size,
                int plane) {
-    thrust::host_vector<Real3> posRadBCE;
+    thrust::host_vector<Real4> posRadBCE;
 
     CreateBCE_On_Box(posRadBCE, ChFsiTypeConvert::ChVectorToReal3(size), plane, paramsH);
     //	if (fsiData->sphMarkersH.posRadH.size() !=
@@ -490,7 +491,7 @@ void AddBCE_ShellANCF(ChFsiDataManager* fsiData,
                       bool multiLayer,
                       bool removeMiddleLayer,
                       int SIDE) {
-    thrust::host_vector<Real3> posRadBCE;
+    thrust::host_vector<Real4> posRadBCE;
     int numShells = my_mesh->GetNelements();
     printf("number of shells to be meshed is %d\n", numShells);
     for (int i = 0; i < numShells; i++) {
@@ -515,7 +516,7 @@ void AddBCE_ShellFromMesh(ChFsiDataManager* fsiData,
                           bool multiLayer,
                           bool removeMiddleLayer,
                           int SIDE) {
-    thrust::host_vector<Real3> posRadBCE;
+    thrust::host_vector<Real4> posRadBCE;
     int numShells = my_mesh->GetNelements();
     std::vector<int> remove;
 
@@ -589,7 +590,7 @@ void AddBCE_FromMesh(ChFsiDataManager* fsiData,
                      bool removeMiddleLayer,
                      int SIDE,
                      int SIDE2D) {
-    thrust::host_vector<Real3> posRadBCE;
+    thrust::host_vector<Real4> posRadBCE;
     int numElems = my_mesh->GetNelements();
     std::vector<int> remove2D;
     std::vector<int> remove1D;
@@ -723,7 +724,7 @@ void AddBCE_FromFile(ChFsiDataManager* fsiData,
     //----------------------------
     //  chassis
     //----------------------------
-    thrust::host_vector<Real3> posRadBCE;
+    thrust::host_vector<Real4> posRadBCE;
 
     LoadBCE_fromFile(posRadBCE, dataPath);
 
@@ -800,7 +801,8 @@ void CreateCylinderFSI(ChFsiDataManager* fsiData,
     mphysicalSystem.AddBody(body);
 
     fsiBodeisPtr->push_back(body);
-    AddCylinderBce(fsiData, paramsH, body, ChVector<>(0, 0, 0), ChQuaternion<>(1, 0, 0, 0), radius, length);
+    AddCylinderBce(fsiData, paramsH, body, ChVector<>(0, 0, 0), ChQuaternion<>(1, 0, 0, 0), radius, length,
+                   paramsH->HSML * paramsH->MULT_INITSPACE);
 }
 
 // =============================================================================

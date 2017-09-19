@@ -106,7 +106,7 @@ class CH_FSI_API ChBce : public ChFsiGeneral {
 
     void RecalcSortedVelocityPressure_BCE(thrust::device_vector<Real3>& velMas_ModifiedBCE,
                                           thrust::device_vector<Real4>& rhoPreMu_ModifiedBCE,
-                                          const thrust::device_vector<Real3>& sortedPosRad,
+                                          const thrust::device_vector<Real4>& sortedPosRad,
                                           const thrust::device_vector<Real3>& sortedVelMas,
                                           const thrust::device_vector<Real4>& sortedRhoPreMu,
                                           const thrust::device_vector<uint>& cellStart,

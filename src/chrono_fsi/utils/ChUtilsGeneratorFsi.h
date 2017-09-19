@@ -31,7 +31,7 @@ chrono::ChVector<> TransformBCEToCOG(chrono::ChBody* body, const Real3& pos3);
 CH_FSI_API void CreateBceGlobalMarkersFromBceLocalPos(
     ChFsiDataManager* fsiData,
     SimParams* paramsH,
-    const thrust::host_vector<Real3>& posRadBCE,
+    const thrust::host_vector<Real4>& posRadBCE,
     std::shared_ptr<chrono::ChBody> body,
     chrono::ChVector<> collisionShapeRelativePos = chrono::ChVector<>(0),
     chrono::ChQuaternion<> collisionShapeRelativeRot = chrono::QUNIT,
@@ -39,7 +39,7 @@ CH_FSI_API void CreateBceGlobalMarkersFromBceLocalPos(
 
 CH_FSI_API void CreateBceGlobalMarkersFromBceLocalPosBoundary(ChFsiDataManager* fsiData,
                                                               SimParams* paramsH,
-                                                              const thrust::host_vector<Real3>& posRadBCE,
+                                                              const thrust::host_vector<Real4>& posRadBCE,
                                                               std::shared_ptr<chrono::ChBody> body,
                                                               chrono::ChVector<> collisionShapeRelativePos,
                                                               chrono::ChQuaternion<> collisionShapeRelativeRot);
@@ -57,7 +57,8 @@ CH_FSI_API void AddCylinderBce(ChFsiDataManager* fsiData,
                                chrono::ChVector<> relPos,
                                chrono::ChQuaternion<> relRot,
                                Real radius,
-                               Real height);
+                               Real height,
+                               Real kernel_h);
 
 CH_FSI_API void AddBoxBce(ChFsiDataManager* fsiData,
                           SimParams* paramsH,

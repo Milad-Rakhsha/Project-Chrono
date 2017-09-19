@@ -36,7 +36,7 @@ typedef thrust::device_vector<Real3>::iterator r3IterD;
 /// typedef device iterators for shorthand sph operation of thrust vectors of Real4
 typedef thrust::device_vector<Real4>::iterator r4IterD;
 /// typedef device tuple for holding sph data pos,vel,[rho,pressure,mu,type]
-typedef thrust::tuple<r3IterD, r3IterD, r4IterD> iterTupleSphD;
+typedef thrust::tuple<r4IterD, r3IterD, r4IterD> iterTupleSphD;
 typedef thrust::zip_iterator<iterTupleSphD> zipIterSphD;
 
 /// typedef host iterators for shorthand sph operation of thrust vectors of Real3
@@ -44,7 +44,7 @@ typedef thrust::host_vector<Real3>::iterator r3IterH;
 /// typedef host iterators for shorthand sph operation of thrust vectors of Real4
 typedef thrust::host_vector<Real4>::iterator r4IterH;
 /// typedef host tuple for holding sph data pos,vel,[rho,pressure,mu,type]
-typedef thrust::tuple<r3IterH, r3IterH, r4IterH> iterTupleH;
+typedef thrust::tuple<r4IterH, r3IterH, r4IterH> iterTupleH;
 typedef thrust::zip_iterator<iterTupleH> zipIterSphH;
 
 /// typedef device iterators for shorthand rigid body states:
@@ -103,7 +103,7 @@ struct NumberOfObjects {
 /// Class for storing the information of SPH markers on the device
 class SphMarkerDataD {
   public:
-    thrust::device_vector<Real3> posRadD;     ///< Vector of the positions of markers
+    thrust::device_vector<Real4> posRadD;     ///< Vector of the positions of markers + characteristic radius
     thrust::device_vector<Real3> velMasD;     ///< Vector of the velocities of markers
     thrust::device_vector<Real4> rhoPresMuD;  ///< Vector of the rho+pressure+mu+type of markers
 
@@ -118,7 +118,7 @@ class SphMarkerDataD {
 /// Class for storing the information of SPH markers on the host
 class SphMarkerDataH {
   public:
-    thrust::host_vector<Real3> posRadH;     ///< Vector of the positions of markers
+    thrust::host_vector<Real4> posRadH;     ///< Vector of the positions of markers
     thrust::host_vector<Real3> velMasH;     ///< Vector of the velocities of markers
     thrust::host_vector<Real4> rhoPresMuH;  ///< Vector of the rho+pressure+mu+type of markers
 
@@ -369,7 +369,7 @@ class CH_FSI_API ChFsiDataManager {
     ChFsiDataManager();
     ~ChFsiDataManager();
 
-    void AddSphMarker(Real3 pos, Real3 vel, Real4 rhoPresMu);
+    void AddSphMarker(Real4 pos, Real3 vel, Real4 rhoPresMu);
     void ResizeDataManager(int numNodes);
 
     NumberOfObjects numObjects;

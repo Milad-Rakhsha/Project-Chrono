@@ -32,7 +32,7 @@ namespace utils {
 /// When called, this function creates three files to write fluid,
 /// fluid-boundary
 /// and BCE markers data into file
-CH_FSI_API void PrintToFile(const thrust::device_vector<Real3>& posRadD,
+CH_FSI_API void PrintToFile(const thrust::device_vector<Real4>& posRadD,
                             const thrust::device_vector<Real3>& velMasD,
                             const thrust::device_vector<Real4>& rhoPresMuD,
                             const thrust::host_vector<int4>& referenceArray,

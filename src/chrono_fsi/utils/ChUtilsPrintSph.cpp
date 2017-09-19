@@ -27,14 +27,14 @@ namespace chrono {
 namespace fsi {
 namespace utils {
 //*******************************************************************************************************************************
-void PrintToFile(const thrust::device_vector<Real3>& posRadD,
+void PrintToFile(const thrust::device_vector<Real4>& posRadD,
                  const thrust::device_vector<Real3>& velMasD,
                  const thrust::device_vector<Real4>& rhoPresMuD,
                  const thrust::host_vector<int4>& referenceArray,
                  const thrust::host_vector<int4>& referenceArrayFEA,
                  const std::string& out_dir,
                  bool printToParaview) {
-    thrust::host_vector<Real3> posRadH = posRadD;
+    thrust::host_vector<Real4> posRadH = posRadD;
     thrust::host_vector<Real3> velMasH = velMasD;
     thrust::host_vector<Real4> rhoPresMuH = rhoPresMuD;
 
@@ -50,15 +50,17 @@ void PrintToFile(const thrust::device_vector<Real3>& posRadD,
     fileNameFluidParticles.open(nameFluid);
     std::stringstream ssFluidParticles;
     if (printToParaview)
-        ssFluidParticles << "x,y,z,v_x,v_y,v_z,|U|,rho(rpx),p(rpy),mu(rpz),type(rpw)\n";
+        ssFluidParticles << "x,y,z,h,v_x,v_y,v_z,|U|,rho(rpx),p(rpy),mu(rpz),type(rpw)\n";
 
     for (int i = referenceArray[0].x; i < referenceArray[0].y; i++) {
-        Real3 pos = posRadH[i];
+        Real4 pos = posRadH[i];
         Real3 vel = velMasH[i];
         Real4 rP = rhoPresMuH[i];
+
         Real velMag = length(vel);
-        ssFluidParticles << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x << ", " << vel.y << ", " << vel.z
-                         << ", " << velMag << ", " << rP.x << ", " << rP.y << ", " << rP.z << ", " << rP.w << std::endl;
+        ssFluidParticles << pos.x << ", " << pos.y << ", " << pos.z << ", " << pos.w << ", " << vel.x << ", " << vel.y
+                         << ", " << vel.z << ", " << velMag << ", " << rP.x << ", " << rP.y << ", " << rP.z << ", "
+                         << rP.w << std::endl;
     }
     fileNameFluidParticles << ssFluidParticles.str();
     fileNameFluidParticles.close();
@@ -70,17 +72,17 @@ void PrintToFile(const thrust::device_vector<Real3>& posRadD,
     fileNameFluidBoundaries.open(nameFluidBoundaries);
     std::stringstream ssFluidBoundaryParticles;
     if (printToParaview)
-        ssFluidBoundaryParticles << "x,y,z,v_x,v_y,v_z,|U|,rho(rpx),p(rpy),mu(rpz),type(rpw)\n";
+        ssFluidBoundaryParticles << "x,y,z,h,v_x,v_y,v_z,|U|,rho(rpx),p(rpy),mu(rpz),type(rpw)\n";
 
     //		ssFluidBoundaryParticles.precision(20);
     for (int i = referenceArray[0].x; i < referenceArray[1].y; i++) {
-        Real3 pos = posRadH[i];
+        Real4 pos = posRadH[i];
         Real3 vel = velMasH[i];
         Real4 rP = rhoPresMuH[i];
         Real velMag = length(vel);
-        ssFluidBoundaryParticles << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x << ", " << vel.y << ", "
-                                 << vel.z << ", " << velMag << ", " << rP.x << ", " << rP.y << ", " << rP.z << ", "
-                                 << rP.w << std::endl;
+        ssFluidBoundaryParticles << pos.x << ", " << pos.y << ", " << pos.z << ", " << pos.w << ", " << vel.x << ", "
+                                 << vel.y << ", " << vel.z << ", " << velMag << ", " << rP.x << ", " << rP.y << ", "
+                                 << rP.z << ", " << rP.w << std::endl;
     }
     fileNameFluidBoundaries << ssFluidBoundaryParticles.str();
     fileNameFluidBoundaries.close();
@@ -92,18 +94,19 @@ void PrintToFile(const thrust::device_vector<Real3>& posRadD,
     std::stringstream ssBCE;
     //		ssFluidBoundaryParticles.precision(20);
     if (printToParaview)
-        ssBCE << "x,y,z,vx,vy,vz,U,rpx,rpy,rpz,rpw\n";
+        ssBCE << "x,y,z,h,vx,vy,vz,U,rpx,rpy,rpz,rpw\n";
 
     int refSize = referenceArray.size();
     if (refSize > 2) {
         for (int i = referenceArray[2].x; i < referenceArray[refSize - 1].y; i++) {
-            Real3 pos = posRadH[i];
+            Real4 pos = posRadH[i];
             Real3 vel = velMasH[i];
             Real4 rP = rhoPresMuH[i];
             Real velMag = length(vel);
 
-            ssBCE << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x << ", " << vel.y << ", " << vel.z << ", "
-                  << velMag << ", " << rP.x << ", " << rP.y << ", " << rP.z << ", " << rP.w << std::endl;
+            ssBCE << pos.x << ", " << pos.y << ", " << pos.z << ", " << pos.w << ", " << vel.x << ", " << vel.y << ", "
+                  << vel.z << ", " << velMag << ", " << rP.x << ", " << rP.y << ", " << rP.z << ", " << rP.w
+                  << std::endl;
         }
     }
     fileNameBCE << ssBCE.str();
@@ -121,15 +124,16 @@ void PrintToFile(const thrust::device_vector<Real3>& posRadD,
 
     if (refSize_Flex > 0) {
         if (printToParaview)
-            ssBCE_Flex << "x,y,z,v_x,v_y,v_z,|U|,rho(rpx),p(rpy),mu(rpz),type(rpw)\n";
+            ssBCE_Flex << "x,y,z,h,v_x,v_y,v_z,|U|,rho(rpx),p(rpy),mu(rpz),type(rpw)\n";
         for (int i = referenceArrayFEA[0].x; i < referenceArrayFEA[refSize_Flex - 1].y; i++) {
-            Real3 pos = posRadH[i];
+            Real4 pos = posRadH[i];
             Real3 vel = velMasH[i];
             Real4 rP = rhoPresMuH[i];
             Real velMag = length(vel);
 
-            ssBCE_Flex << pos.x << ", " << pos.y << ", " << pos.z << ", " << vel.x << ", " << vel.y << ", " << vel.z
-                       << ", " << velMag << ", " << rP.x << ", " << rP.y << ", " << rP.z << ", " << rP.w << std::endl;
+            ssBCE_Flex << pos.x << ", " << pos.y << ", " << pos.z << ", " << pos.w << ", " << vel.x << ", " << vel.y
+                       << ", " << vel.z << ", " << velMag << ", " << rP.x << ", " << rP.y << ", " << rP.z << ", "
+                       << rP.w << std::endl;
         }
     }
     fileNameBCE_Flex << ssBCE_Flex.str();

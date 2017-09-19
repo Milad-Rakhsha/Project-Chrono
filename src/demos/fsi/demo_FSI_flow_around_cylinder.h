@@ -54,14 +54,15 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->deltaPress = mR3(0.0, 0, 0.0);
     paramsH->multViscosity_FSI = 1;
     paramsH->gravity = mR3(0.0, 0, 0.0);
-    paramsH->V_in = 0.05;
-    paramsH->x_in = -0.25;
+    paramsH->V_in = 0.2;
+    paramsH->x_in = -0.17;
 
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 0.5;
-    paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
+    paramsH->mu0 = 1.0;
+    paramsH->kappa = 0.000;  ///<surface tension parameter, experimental
+    paramsH->v_Max = 1;      // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
     paramsH->USE_LinearSolver = true;  ///< IISPH parameter: whether or not use linear solvers
@@ -69,7 +70,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
     paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
     paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
-    paramsH->LinearSolver_Rel_Tol = 0;      ///< relative res, is used in the matrix free solver and linear solvers
+    paramsH->LinearSolver_Rel_Tol = 1e-10;  ///< relative res, is used in the matrix free solver and linear solvers
     paramsH->LinearSolver_Abs_Tol = 1e-10;  ///< absolute error, applied when linear solvers are used
     paramsH->LinearSolver_Max_Iter = 2000;  ///< max number of iteration for linear solvers
     paramsH->PPE_relaxation = 0.3;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
@@ -82,7 +83,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->dT_Max = 0.01;  ///< This is problem dependent should set by the user based on characteristic time step
     paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 
-    paramsH->dT = 2e-4;
+    paramsH->dT = 5e-4;
 
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
@@ -96,16 +97,15 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
     paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
-    paramsH->cMin = mR3(-bxDim / 2 - paramsH->HSML * 1, -0.1, -bzDim - paramsH->HSML * 6);
-    paramsH->cMax = mR3(bxDim / 2 + 0.00001, 0.1, bzDim + paramsH->HSML * 6);
+    paramsH->cMin = mR3(-bxDim / 2 - paramsH->HSML * 1, -0.2, -bzDim * 2);
+    paramsH->cMax = mR3(bxDim / 2 + 0.00001, 0.2, bzDim * 2);
 
     //****************************************************************************************
-    // printf("a1  paramsH->cMax.x, y, z %f %f %f,  binSize %f\n",
-    // paramsH->cMax.x, paramsH->cMax.y, paramsH->cMax.z, 2 *
-    // paramsH->HSML);
+    // note that neighbor search should be performed via the largest characteristic length for now
     int3 side0 = mI3(floor((paramsH->cMax.x - paramsH->cMin.x) / (2 * paramsH->HSML)),
                      floor((paramsH->cMax.y - paramsH->cMin.y) / (2 * paramsH->HSML)),
                      floor((paramsH->cMax.z - paramsH->cMin.z) / (2 * paramsH->HSML)));
+
     Real3 binSize3 = mR3((paramsH->cMax.x - paramsH->cMin.x) / side0.x, (paramsH->cMax.y - paramsH->cMin.y) / side0.y,
                          (paramsH->cMax.z - paramsH->cMin.z) / side0.z);
     paramsH->binSize0 = (binSize3.x > binSize3.y) ? binSize3.x : binSize3.y;

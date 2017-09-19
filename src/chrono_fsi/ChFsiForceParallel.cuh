@@ -116,6 +116,7 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
                            thrust::device_vector<Real3> pos_fsi_fea_D,
                            thrust::device_vector<Real3> vel_fsi_fea__D,
                            thrust::device_vector<Real3> acc_fsi_fea_D,
+                           thrust::device_vector<Real> sumWij_inv,
                            thrust::device_vector<Real> Color);
 
     ChCollisionSystemFsi* fsiCollisionSystem;  ///< collision system; takes care of  constructing neighbors list
@@ -138,7 +139,7 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
     /// This function calculates the derivatives of the density and velocity in a WCSPH fashion.
     void collide(
         thrust::device_vector<Real4>& sortedDerivVelRho_fsi_D,  ///< dv/dt, and d(rho)/dt in the sorted array
-        thrust::device_vector<Real3>& sortedPosRad,             ///< position of markers in the sorted array
+        thrust::device_vector<Real4>& sortedPosRad,             ///< position of markers in the sorted array
         thrust::device_vector<Real3>& sortedVelMas,             ///< velocity of markers in the sorted array
         thrust::device_vector<Real3>& vel_XSPH_Sorted_D,        ///< XSPH velocity of markers in the sorted array
         thrust::device_vector<Real4>& sortedRhoPreMu,  ///< (rho,pressure,mu,type) of markers in the sorted array
