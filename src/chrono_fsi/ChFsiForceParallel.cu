@@ -621,11 +621,13 @@ __global__ void calcRho_kernel(Real4* sortedPosRad,  // input: sorted positionsm
     }
     Real3 posRadA = mR3(sortedPosRad[i_idx]);
     Real h_i = sortedPosRad[i_idx].w;
+    Real m_i = h_i * h_i * h_i * paramsD.rho0;
     Real sum_mW = 0;
-    Real sum_W = 0;
+    Real sum_W = 1.0;
 
     // get address in grid
     int3 gridPos = calcGridPos(posRadA);
+    //
     //
     // examine neighbouring cells
     for (int z = -1; z <= 1; z++) {
@@ -655,7 +657,9 @@ __global__ void calcRho_kernel(Real4* sortedPosRad,  // input: sorted positionsm
     }
 
     // Adding neighbor contribution is done!
-    sumWij_inv[i_idx] = 1.0 / sum_W;
+    sumWij_inv[i_idx] = m_i / sum_mW;
+    if (sumWij_inv[i_idx] > 1e-5)
+        printf("sum_mW=%f,  sumWij_inv[i_idx]=%.4e\n", sum_mW, sumWij_inv[i_idx]);
     sortedRhoPreMu[i_idx].x = sum_mW;
     if ((sortedRhoPreMu[i_idx].x > 2 * paramsD.rho0 || sortedRhoPreMu[i_idx].x < 0) && sortedRhoPreMu[i_idx].w < 0)
         printf("(calcRho_kernel)too large/small density marker %d, rho=%f\n", i_idx, sortedRhoPreMu[i_idx].x);
@@ -679,12 +683,11 @@ __global__ void calcNormalizedRho_kernel(Real4* sortedPosRad,  // input: sorted 
     //    Real3 gravity = paramsD.gravity;
     Real RHO_0 = paramsD.rho0;
     Real IncompressibilityFactor = paramsD.IncompressibilityFactor;
+    //    dxi_over_Vi[i_idx] = 1e10;
 
     Real3 posRadA = mR3(sortedPosRad[i_idx]);
     Real h_i = sortedPosRad[i_idx].w;
-
-    dxi_over_Vi[i_idx] = 1e10;
-
+    Real m_i = h_i * h_i * h_i * paramsD.rho0;
     Real sum_mW = 0;
     Real sum_W_sumWij_inv = 0;
     Real C = 0;
@@ -713,20 +716,20 @@ __global__ void calcNormalizedRho_kernel(Real4* sortedPosRad,  // input: sorted 
                         Real d = length(dist3);
                         Real h_j = sortedPosRad[j].w;
                         Real m_j = h_j * h_j * h_j * paramsD.rho0;
-
                         C += m_j * Color[i_idx] / sortedRhoPreMu[i_idx].x * W3h(d, 0.5 * (h_j + h_i));
-                        Real particle_particle_n_CFL = abs(dot(dv3, dist3)) / d;
-                        Real particle_particle = length(dv3);
-                        Real particle_n_CFL = abs(dot(sortedVelMas[i_idx], dist3)) / d;
-                        Real particle_CFL = length(sortedVelMas[i_idx]);
+                        //                        Real particle_particle_n_CFL = abs(dot(dv3, dist3)) / d;
+                        //                        Real particle_particle = length(dv3);
+                        //                        Real particle_n_CFL = abs(dot(sortedVelMas[i_idx], dist3)) / d;
+                        //                        Real particle_CFL = length(sortedVelMas[i_idx]);
 
-                        if (i_idx != j)
-                            dxi_over_Vi[i_idx] = fminf(d / particle_CFL, dxi_over_Vi[i_idx]);
+                        //                        if (i_idx != j)
+                        //                            dxi_over_Vi[i_idx] = fminf(d / particle_CFL, dxi_over_Vi[i_idx]);
 
                         if (d > RESOLUTION_LENGTH_MULT * h_i)
                             continue;
-                        sum_mW += m_j * W3h(d, 0.5 * (h_j + h_i));
-                        sum_W_sumWij_inv += sumWij_inv[j] * W3h(d, 0.5 * (h_j + h_i));
+                        Real W3 = W3h(d, 0.5 * (h_j + h_i));
+                        sum_mW += m_j * W3;
+                        sum_W_sumWij_inv += sumWij_inv[j] * W3;
                     }
                 }
             }
@@ -737,6 +740,12 @@ __global__ void calcNormalizedRho_kernel(Real4* sortedPosRad,  // input: sorted 
         IncompressibilityFactor = 1;
 
     sortedRhoPreMu[i_idx].x = (sum_mW / sum_W_sumWij_inv - RHO_0) * IncompressibilityFactor + RHO_0;
+
+    //    if (sortedRhoPreMu[i_idx].x < EPSILON)
+    if (sortedRhoPreMu[i_idx].x > 5 * RHO_0 || sortedRhoPreMu[i_idx].x < RHO_0 / 5)
+        printf("sum_mW=%f, sum_W_sumWij_inv=%.4e, sortedRhoPreMu[i_idx].x=%.4e\n", sum_mW, sum_W_sumWij_inv,
+               sortedRhoPreMu[i_idx].x);
+
     //    sortedRhoPreMu[i_idx].x = (sum_mW - RHO_0) * IncompressibilityFactor + RHO_0;
     //
     //    if (sortedRhoPreMu[i_idx].x < EPSILON) {
@@ -933,7 +942,7 @@ __global__ void Calc_dij_pj(Real3* dij_pj,  // write
     Real3 pos_i = mR3(sortedPosRad[i_idx]);
     Real Rho_i = sortedRhoPreMu[i_idx].x;
     if (sortedRhoPreMu[i_idx].x < EPSILON) {
-        printf("My density is %f in Calc_dij_pj\n", sortedRhoPreMu[i_idx].x);
+        printf("(Calc_dij_pj) My density is %f in Calc_dij_pj\n", sortedRhoPreMu[i_idx].x);
     }
     Real dT = paramsD.dT;
 
@@ -1663,7 +1672,7 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
     bool ClampPressure = paramsD.ClampPressure;
 
     if (sortedRhoPreMu[i_idx].x < EPSILON) {
-        printf("My density is %f in Calc_Pressure\n", sortedRhoPreMu[i_idx].x);
+        printf("(Calc_Pressure)My density is %f in Calc_Pressure\n", sortedRhoPreMu[i_idx].x);
     }
     int myType = sortedRhoPreMu[i_idx].w;
     Real Rho_i = sortedRhoPreMu[i_idx].x;
@@ -2059,8 +2068,8 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
                                            thrust::device_vector<Real3> pos_fsi_fea_D,
                                            thrust::device_vector<Real3> vel_fsi_fea_D,
                                            thrust::device_vector<Real3> acc_fsi_fea_D,
-                                           thrust::device_vector<Real> sumWij_inv,
-                                           thrust::device_vector<Real> Color) {
+                                           thrust::device_vector<Real>& sumWij_inv,
+                                           thrust::device_vector<Real>& Color) {
     //    Real RES = paramsH->PPE_res;
 
     PPE_SolutionType mySolutionType = paramsH->PPE_Solution_type;
@@ -2091,7 +2100,7 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
     if (*isErrorH == true) {
         throw std::runtime_error("Error! program crashed after calcRho_kernel!\n");
     }
-    /*
+
     thrust::device_vector<Real> dxi_over_Vi(numAllMarkers);
     thrust::fill(dxi_over_Vi.begin(), dxi_over_Vi.end(), 0);
 
@@ -2100,15 +2109,13 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
         mR4CAST(sortedSphMarkersD->rhoPresMuD),  // input: sorted velocities
         R1CAST(sumWij_inv), R1CAST(dxi_over_Vi), R1CAST(Color), U1CAST(markersProximityD->cellStartD),
         U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
-
-    // This is mandatory to sync here
     cudaThreadSynchronize();
     cudaCheckError();
     cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
     if (*isErrorH == true) {
         throw std::runtime_error("Error! program crashed after calcNormalizedRho_kernel!\n");
     }
-
+    /*
         if (paramsH->Adaptive_time_stepping) {
           int position = thrust::min_element(dxi_over_Vi.begin(), dxi_over_Vi.end()) - dxi_over_Vi.begin();
           Real min_dxi_over_Vi = dxi_over_Vi[position];
@@ -2422,7 +2429,6 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
     //------------------------------------------------------------------------
     cudaFree(isErrorD);
     free(isErrorH);
-    sumWij_inv.clear();
     // dxi_over_Vi.clear();
     p_old.clear();
     d_ii.clear();
@@ -2459,10 +2465,11 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
     thrust::device_vector<Real> Color(numAllMarkers);
     thrust::fill(Color.begin(), Color.end(), 1e10);
     thrust::device_vector<Real> sumWij_inv(numAllMarkers);
+    thrust::fill(sumWij_inv.begin(), sumWij_inv.end(), 1.0);
 
     calcPressureIISPH(otherFsiBodiesD->velMassRigid_fsiBodies_D, otherFsiBodiesD->accRigid_fsiBodies_D,
-                      otherFsiMeshD->pos_fsi_fea_D, otherFsiMeshD->vel_fsi_fea_D, otherFsiMeshD->acc_fsi_fea_D, Color,
-                      sumWij_inv);
+                      otherFsiMeshD->pos_fsi_fea_D, otherFsiMeshD->vel_fsi_fea_D, otherFsiMeshD->acc_fsi_fea_D,
+                      sumWij_inv, Color);
 
     uint numThreads, numBlocks;
     computeGridSize(numAllMarkers, 256, numBlocks, numThreads);
@@ -2507,6 +2514,7 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
     double calcforce = (clock() - CalcForcesClock) / (double)CLOCKS_PER_SEC;
     printf(" Force Computation: %f \n", calcforce);
     double UpdateClock = clock();
+    sumWij_inv.clear();
 
     CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vel_XSPH_D, vel_XSPH_Sorted_D,
                                         markersProximityD->gridMarkerIndexD);

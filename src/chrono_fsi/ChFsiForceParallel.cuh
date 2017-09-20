@@ -116,8 +116,8 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
                            thrust::device_vector<Real3> pos_fsi_fea_D,
                            thrust::device_vector<Real3> vel_fsi_fea__D,
                            thrust::device_vector<Real3> acc_fsi_fea_D,
-                           thrust::device_vector<Real> sumWij_inv,
-                           thrust::device_vector<Real> Color);
+                           thrust::device_vector<Real>& sumWij_inv,
+                           thrust::device_vector<Real>& Color);
 
     ChCollisionSystemFsi* fsiCollisionSystem;  ///< collision system; takes care of  constructing neighbors list
     ChBce* bceWorker;                          ///< pointer to Boundary Condition Enforcing markers class.

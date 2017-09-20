@@ -61,7 +61,7 @@ const std::string out_dir = GetChronoOutputPath() + "FSI_FLOW_AROUND_CYLINDER";
 const std::string demo_dir = out_dir + "/FlowAroundCylinder";
 bool save_output = true;
 
-int out_fps = 2000;
+int out_fps = 100;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -75,7 +75,6 @@ Real fyDim = byDim;
 Real fzDim = bzDim;
 double cyl_length = 0.04;
 double cyl_radius = .05;
-ChVector<> cyl_pos = ChVector<>(-0.0, 0, 0.2);
 
 void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
 void InitializeMbdPhysicalSystem(ChSystemSMC& mphysicalSystem, ChVector<> gravity, int argc, char* argv[]);
@@ -149,6 +148,8 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
     body->SetBodyFixed(true);
     body->SetCollide(true);
     body->SetMaterialSurface(mysurfmaterial);
+    ChVector<> cyl_pos = ChVector<>(-paramsH->HSML / 2, 0, 0.2 - paramsH->HSML / 2);
+
     body->SetPos(cyl_pos);
 
     double sphereRad = 0.3;
@@ -166,9 +167,8 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
 
     std::vector<std::shared_ptr<ChBody>>* fsiBodeisPtr = myFsiSystem.GetFsiBodiesPtr();
     fsiBodeisPtr->push_back(body);
-    chrono::fsi::utils::AddCylinderBce(myFsiSystem.GetDataManager(), paramsH, body,
-                                       ChVector<>(-paramsH->HSML / 2, 0, 0), ChQuaternion<>(1, 0, 0, 0), cyl_radius,
-                                       cyl_length, paramsH->HSML / 2);
+    chrono::fsi::utils::AddCylinderBce(myFsiSystem.GetDataManager(), paramsH, body, ChVector<>(0, 0, 0),
+                                       ChQuaternion<>(1, 0, 0, 0), cyl_radius, cyl_length, paramsH->HSML / 2);
 }
 
 //------------------------------------------------------------------
