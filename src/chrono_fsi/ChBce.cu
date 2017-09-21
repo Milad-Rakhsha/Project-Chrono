@@ -559,12 +559,13 @@ void ChBce::Finalize(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD, Fs
     // Resizing the arrays used to modify the BCE velocity and pressure according
     // to ADAMI
 
+    int haveGhost = (numObjectsH->numGhostMarkers > 0) ? 1 : 0;
     int numFlexAndRigidAndBoundaryMarkers =
         fsiGeneralData
-            ->referenceArray[2 + numObjectsH->numRigidBodies + numObjectsH->numFlexBodies1D +
+            ->referenceArray[2 + haveGhost + numObjectsH->numRigidBodies + numObjectsH->numFlexBodies1D +
                              numObjectsH->numFlexBodies2D - 1]
             .y -
-        fsiGeneralData->referenceArray[0].y;
+        fsiGeneralData->referenceArray[haveGhost].y;
     printf(" numFlexAndRigidAndBoundaryMarkers= %d, All= %d\n", numFlexAndRigidAndBoundaryMarkers,
            numObjectsH->numBoundaryMarkers + numObjectsH->numRigid_SphMarkers + numObjectsH->numFlex_SphMarkers);
 
@@ -588,8 +589,9 @@ ChBce::~ChBce() {
 ////--------------------------------------------------------------------------------------------------------------------------------
 void ChBce::MakeRigidIdentifier() {
     if (numObjectsH->numRigidBodies > 0) {
+        int haveGhost = (numObjectsH->numGhostMarkers > 0) ? 1 : 0;
         for (int rigidSphereA = 0; rigidSphereA < numObjectsH->numRigidBodies; rigidSphereA++) {
-            int4 referencePart = fsiGeneralData->referenceArray[2 + rigidSphereA];
+            int4 referencePart = fsiGeneralData->referenceArray[haveGhost + 2 + rigidSphereA];
             if (referencePart.z != 1) {
                 printf(
                     " Error! in accessing rigid bodies. Reference array indexing is "

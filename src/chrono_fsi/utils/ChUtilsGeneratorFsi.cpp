@@ -73,18 +73,21 @@ void CreateBceGlobalMarkersFromBceLocalPos(ChFsiDataManager* fsiData,
     }
     ::int4 refSize4 = fsiData->fsiGeneralData.referenceArray[fsiData->fsiGeneralData.referenceArray.size() - 1];
     int type = 0;
+
     if (isSolid) {
         type = refSize4.w + 1;
+        printf("adding solid, type is %d, ref size=%d\n", type, fsiData->fsiGeneralData.referenceArray.size());
     }
     if (type < 0) {
         printf(
             "\n\n\n\n Error! reference array type is not correct. It does not "
             "denote boundary or rigid \n\n\n\n");
         std::cin.get();
-    } else if (type > 0 && (fsiData->fsiGeneralData.referenceArray.size() - 1 != type)) {
-        printf("\n\n\n\n Error! reference array size does not match type \n\n\n\n");
-        std::cin.get();
     }
+    //    else if (type > 0 && (fsiData->fsiGeneralData.referenceArray.size() - 1 != type)) {
+    //        printf("\n\n\n\n Error! reference array size does not match type \n\n\n\n");
+    //        std::cin.get();
+    //    }
 
     //#pragma omp parallel for  // it is very wrong to do it in parallel. race
     // condition will occur
@@ -100,7 +103,7 @@ void CreateBceGlobalMarkersFromBceLocalPos(ChFsiDataManager* fsiData,
         Real3 v3 = ChFsiTypeConvert::ChVectorToReal3(vAbs);
         fsiData->sphMarkersH.velMasH.push_back(v3);
 
-        fsiData->sphMarkersH.rhoPresMuH.push_back(mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, type));
+        fsiData->sphMarkersH.rhoPresMuH.push_back(mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, (double)type));
     }
 
     // ------------------------
@@ -111,17 +114,19 @@ void CreateBceGlobalMarkersFromBceLocalPos(ChFsiDataManager* fsiData,
     fsiData->numObjects.numAllMarkers += numBce;
     if (type == 0) {
         fsiData->numObjects.numBoundaryMarkers += numBce;
-        if (fsiData->fsiGeneralData.referenceArray.size() == 1) {
+        if (refSize4.w == -1) {
+            printf("pushing back to refarr\n");
             fsiData->fsiGeneralData.referenceArray.push_back(mI4(refSize4.y, refSize4.y + numBce, 0, 0));
-        } else if (fsiData->fsiGeneralData.referenceArray.size() == 2) {
+        } else if (refSize4.w == 0) {
             refSize4.y = refSize4.y + numBce;
-            fsiData->fsiGeneralData.referenceArray[1] = refSize4;
-        } else {
-            printf(
-                "Error! reference array size is greater than 2 while marker type "
-                "is 0 \n\n");
-            std::cin.get();
+            fsiData->fsiGeneralData.referenceArray[fsiData->fsiGeneralData.referenceArray.size() - 1] = refSize4;
         }
+        //        else {
+        //            printf(
+        //                "Error! reference array size is greater than 2 while marker type "
+        //                "is 0 \n\n");
+        //            std::cin.get();
+        //        }
     } else {
         if (fsiData->fsiGeneralData.referenceArray.size() < 2) {
             printf(
@@ -134,10 +139,10 @@ void CreateBceGlobalMarkersFromBceLocalPos(ChFsiDataManager* fsiData,
         fsiData->numObjects.startRigidMarkers = fsiData->fsiGeneralData.referenceArray[1].y;
         fsiData->fsiGeneralData.referenceArray.push_back(
             mI4(refSize4.y, refSize4.y + numBce, 1, type));  // 1: for rigid
-        if (fsiData->numObjects.numRigidBodies != fsiData->fsiGeneralData.referenceArray.size() - 2) {
-            printf("Error! num rigid bodies does not match reference array size!\n\n");
-            std::cin.get();
-        }
+        //        if (fsiData->numObjects.numRigidBodies != fsiData->fsiGeneralData.referenceArray.size() - 2) {
+        //            printf("Error! num rigid bodies does not match reference array size!\n\n");
+        //            std::cin.get();
+        //        }
     }
 
     //	SetNumObjects(numObjects, fsiGeneralData.referenceArray, numAllMarkers);
@@ -478,6 +483,7 @@ void AddBoxBce(ChFsiDataManager* fsiData,
     // fsiData->sphMarkersH.posRadH.size());
     //		std::cin.get();
     //	}
+    printf("in AddBoxBce Ref size=%d\n", fsiData->fsiGeneralData.referenceArray.size());
 
     CreateBceGlobalMarkersFromBceLocalPosBoundary(fsiData, paramsH, posRadBCE, body, relPos, relRot);
     posRadBCE.clear();

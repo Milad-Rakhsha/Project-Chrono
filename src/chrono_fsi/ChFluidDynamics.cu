@@ -531,6 +531,35 @@ void ChFluidDynamics::UpdateFluid_Implicit(SphMarkerDataD* sphMarkersD) {
     free(isErrorH);
 }
 
+// void ChFluidDynamics::Split_and_Merge(SphMarkerDataD* sphMarkersD) {
+//    uint numThreads, numBlocks;
+//    computeGridSize(numObjectsH->numAllMarkers, 256, numBlocks, numThreads);
+//    std::cout << "dT in UpdateFluid_Implicit: " << paramsH->dT << "\n";
+//
+//    int4 updatePortion =
+//        mI4(fsiData->fsiGeneralData.referenceArray[0].x, fsiData->fsiGeneralData.referenceArray[0].y, 0, 0);
+//    std::cout << "Skipping the markers > " << fsiData->fsiGeneralData.referenceArray[0].y << " in position update\n";
+//
+//    bool *isErrorH, *isErrorD;
+//    isErrorH = (bool*)malloc(sizeof(bool));
+//    cudaMalloc((void**)&isErrorD, sizeof(bool));
+//    *isErrorH = false;
+//    cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+//    Split_and_MergeD<<<numBlocks, numThreads>>>(
+//        mR3CAST(fsiData->fsiGeneralData.vel_XSPH_D), mR4CAST(sphMarkersD->posRadD), mR3CAST(sphMarkersD->velMasD),
+//        mR4CAST(sphMarkersD->rhoPresMuD), updatePortion, numObjectsH->numAllMarkers, paramsH->dT, isErrorD);
+//    cudaThreadSynchronize();
+//    cudaCheckError();
+//
+//    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+//    if (*isErrorH == true) {
+//        throw std::runtime_error("Error! program crashed in  Update_Fluid_State!\n");
+//    }
+//    //------------------------------------------------------------------------
+//
+//    cudaFree(isErrorD);
+//    free(isErrorH);
+//}
 // -----------------------------------------------------------------------------
 
 // -----------------------------------------------------------------------------

@@ -343,18 +343,30 @@ void ChFsiDataManager::CalcNumObjects() {
     int rSize = fsiGeneralData.referenceArray.size();
     bool flagRigid = false;
     bool flagFlex = false;
+    std::cout << "ChFsiDataManager::CalcNumObjects: rSize=" << rSize << " \n";
+
     for (int i = 0; i < rSize; i++) {
         ::int4 rComp4 = fsiGeneralData.referenceArray[i];
         int numMerkers = rComp4.y - rComp4.x;
+        std::cout << "rComp4.z=" << rComp4.z << " \n";
+
         switch (rComp4.z) {
+            case -2:
+                numObjects.numGhostMarkers += numMerkers;
+                std::cout << "Added " << numMerkers << " ghost  markers\n";
+                break;
             case -1:
                 numObjects.numFluidMarkers += numMerkers;
+                std::cout << "Added " << numMerkers << " fluid  markers\n";
                 break;
             case 0:
                 numObjects.numBoundaryMarkers += numMerkers;
+                std::cout << "Added " << numMerkers << " boundary  markers\n";
+
                 break;
             case 1:
                 numObjects.numRigid_SphMarkers += numMerkers;
+                std::cout << "Added " << numMerkers << " rigid  markers\n";
                 numObjects.numRigidBodies++;
                 flagRigid = true;
                 break;
@@ -375,6 +387,7 @@ void ChFsiDataManager::CalcNumObjects() {
     }
 
     std::cout << "numObjects.numFlexNodes" << numObjects.numFlexNodes << std::endl;
+    numObjects.numFluidMarkers += numObjects.numGhostMarkers;
 
     numObjects.numAllMarkers = numObjects.numFluidMarkers + numObjects.numBoundaryMarkers +
                                numObjects.numRigid_SphMarkers + numObjects.numFlex_SphMarkers;
@@ -385,12 +398,10 @@ void ChFsiDataManager::CalcNumObjects() {
         (flagFlex) ? (numObjects.numFluidMarkers + numObjects.numBoundaryMarkers + numObjects.numRigid_SphMarkers)
                    : numObjects.numAllMarkers;
 
-    printf(
-        "numFluid %d boundary %d ridigSph %d flexSph %d all %d start rigid %d "
-        "startFlex %d \n",
-        numObjects.numFluidMarkers, numObjects.numBoundaryMarkers, numObjects.numRigid_SphMarkers,
-        numObjects.numFlex_SphMarkers, numObjects.numAllMarkers, numObjects.startRigidMarkers,
-        numObjects.startFlexMarkers);
+    printf("# Markers: Ghost:%d, Fluid:%d boundary:%d ridigSph:%d flexSph:%d, start-rigid:%d, start-flex:%d, All:%d \n",
+           numObjects.numGhostMarkers, numObjects.numFluidMarkers, numObjects.numBoundaryMarkers,
+           numObjects.numRigid_SphMarkers, numObjects.numFlex_SphMarkers, numObjects.startRigidMarkers,
+           numObjects.startFlexMarkers, numObjects.numAllMarkers);
 }
 
 void ChFsiDataManager::ConstructReferenceArray() {
@@ -421,6 +432,8 @@ void ChFsiDataManager::ConstructReferenceArray() {
     // 	return;
     // }
 
+    printf("numberOfComponents=%d\n", numberOfComponents);
+
     fsiGeneralData.referenceArray.resize(numberOfComponents);
     dummyRhoPresMuH.resize(numberOfComponents);
     numComponentMarkers.resize(numberOfComponents);
@@ -428,7 +441,9 @@ void ChFsiDataManager::ConstructReferenceArray() {
     for (int i = 0; i < numberOfComponents; i++) {
         int compType = std::floor(dummyRhoPresMuH[i].w + .1);
         int phaseType = -1;
-        if (compType < 0) {
+        if (compType == -2) {
+            phaseType = -1;
+        } else if (compType == -1) {
             phaseType = -1;
         } else if (compType == 0) {
             phaseType = 0;

@@ -133,7 +133,10 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
     mphysicalSystem.AddBody(ground);
 
 #if haveFluid
+    printf("Ref size=%d\n", myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.size());
+
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posBottom, chrono::QUNIT, sizeBottom);
+
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT, sizeBottom);
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yp, chrono::QUNIT, size_XZ, 13);
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT, size_XZ, 13);
@@ -227,9 +230,18 @@ int main(int argc, char* argv[]) {
     SetupParamsH(paramsH, bxDim, byDim, bzDim, fxDim, fyDim, fzDim);
     printSimulationParameters(paramsH);
 #if haveFluid
+
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
     Real initSpace1 = initSpace0 / 2;
     Real initSpace2 = initSpace0;
+
+    // Ghost particles for Variable Resolution SPH
+    int numGhostMarkers = 0;
+    for (int i = 0; i < numGhostMarkers; i++) {
+        myFsiSystem.GetDataManager()->AddSphMarker(chrono::fsi::mR4(0.0, 0.0, 0.0, 0.0),
+                                                   chrono::fsi::mR3(1e-10, 0.0, 0.0),
+                                                   chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -2.0));
+    }
 
     utils::GridSampler<> sampler1(initSpace1);
     utils::GridSampler<> sampler2(initSpace2);
@@ -245,6 +257,7 @@ int main(int argc, char* argv[]) {
 
     utils::Generator::PointVector points1 = sampler1.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter1),
                                                                fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim1));
+
     utils::Generator::PointVector points2 = sampler2.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter2),
                                                                fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim2));
     int numPart1 = points1.size();
@@ -308,7 +321,7 @@ int main(int argc, char* argv[]) {
         }
         if (!removeThis) {
             myFsiSystem.GetDataManager()->AddSphMarker(p, chrono::fsi::mR3(1e-10, 0.0, 0.0),
-                                                       chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -1));
+                                                       chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -1.0));
         } else
             numremove++;
     }
@@ -332,7 +345,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "Removed " << numremove << " Fluid particles from the simulation" << std::endl;
-    std::cout << "Final fluid size:" << myFsiSystem.GetDataManager()->sphMarkersH.rhoPresMuH.size() << std::endl;
+
     particles_position.clear();
 
     //    int numPart = points.size();
@@ -345,18 +358,19 @@ int main(int argc, char* argv[]) {
     int numPhases = myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.size();
 
     int numFluidPart = myFsiSystem.GetDataManager()->sphMarkersH.posRadH.size();
+    std::cout << "Final fluid size:" << numFluidPart << std::endl;
 
     if (numPhases != 0) {
         std::cout << "Error! numPhases is wrong, thrown from main\n" << std::endl;
         std::cin.get();
         return -1;
     } else {
+        myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(mI4(0, numGhostMarkers, -2, -1));
         myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(
-            mI4(0, numFluidPart, -1, -1));  // map fluid -1, Arman : this will later be
-                                            // removed, relying on finalize function and
-                                            // automatic sorting
-        myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(
-            mI4(numFluidPart, numFluidPart, 0, 0));  // Arman : delete later
+            mI4(numGhostMarkers, numFluidPart, -1, -1));
+        //        myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(mI4(numFluidPart, numFluidPart,
+        //        0, 0));
+        printf("Ref size=%d\n", myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.size());
     }
 #endif
 

@@ -52,7 +52,9 @@ void PrintToFile(const thrust::device_vector<Real4>& posRadD,
     if (printToParaview)
         ssFluidParticles << "x,y,z,h,v_x,v_y,v_z,|U|,rho(rpx),p(rpy),mu(rpz),type(rpw)\n";
 
-    for (int i = referenceArray[0].x; i < referenceArray[0].y; i++) {
+    int startFluid = referenceArray[0].z == -1 ? 0 : 1;
+
+    for (int i = referenceArray[startFluid].x; i < referenceArray[startFluid].y; i++) {
         Real4 pos = posRadH[i];
         Real3 vel = velMasH[i];
         Real4 rP = rhoPresMuH[i];
@@ -75,7 +77,7 @@ void PrintToFile(const thrust::device_vector<Real4>& posRadD,
         ssFluidBoundaryParticles << "x,y,z,h,v_x,v_y,v_z,|U|,rho(rpx),p(rpy),mu(rpz),type(rpw)\n";
 
     //		ssFluidBoundaryParticles.precision(20);
-    for (int i = referenceArray[0].x; i < referenceArray[1].y; i++) {
+    for (int i = referenceArray[startFluid].x; i < referenceArray[startFluid + 1].y; i++) {
         Real4 pos = posRadH[i];
         Real3 vel = velMasH[i];
         Real4 rP = rhoPresMuH[i];
@@ -98,7 +100,7 @@ void PrintToFile(const thrust::device_vector<Real4>& posRadD,
 
     int refSize = referenceArray.size();
     if (refSize > 2) {
-        for (int i = referenceArray[2].x; i < referenceArray[refSize - 1].y; i++) {
+        for (int i = referenceArray[startFluid + 2].x; i < referenceArray[refSize - 1].y; i++) {
             Real4 pos = posRadH[i];
             Real3 vel = velMasH[i];
             Real4 rP = rhoPresMuH[i];
