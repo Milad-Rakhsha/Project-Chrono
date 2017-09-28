@@ -37,6 +37,12 @@ void CreateBCE_On_Cylinder(thrust::host_vector<Real4>& posRadBCE,
                            SimParams* paramsH,
                            Real kernel_h);
 
+void CreateBCE_On_surface_of_Cylinder(thrust::host_vector<Real4>& posRadBCE,
+                                      thrust::host_vector<Real3>& normals,
+                                      Real cyl_rad,
+                                      Real cyl_h,
+                                      Real spacing);
+
 void CreateBCE_On_Box(thrust::host_vector<Real4>& posRadBCE, const Real3& hsize, int face, SimParams* paramsH);
 
 void CreateBCE_On_shell(thrust::host_vector<Real4>& posRadBCE,

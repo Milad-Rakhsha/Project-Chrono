@@ -1193,6 +1193,9 @@ __host__ __device__ inline Real3 make_Real3(uint3 a) {
 __host__ __device__ inline int3 make_int3(Real3 a) {
     return make_int3(int(a.x), int(a.y), int(a.z));
 }
+__host__ __device__ inline Real3 make_Real3(Real3 a) {
+    return make_Real3(a.x, a.y, a.z);
+}
 
 __host__ __device__ inline Real4 make_Real4(Real a, Real b, Real c, Real d)  ///
 {
@@ -1211,6 +1214,9 @@ __host__ __device__ inline Real4 make_Real4(Real3 a) {
 }
 __host__ __device__ inline Real4 make_Real4(Real3 a, Real w) {
     return make_Real4(a.x, a.y, a.z, w);
+}
+__host__ __device__ inline Real4 make_Real4(Real4 a) {
+    return make_Real4(a.x, a.y, a.z, a.w);
 }
 __host__ __device__ inline Real4 make_Real4(int4 a) {
     return make_Real4(Real(a.x), Real(a.y), Real(a.z), Real(a.w));

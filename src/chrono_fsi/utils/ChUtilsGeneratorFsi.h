@@ -35,7 +35,8 @@ CH_FSI_API void CreateBceGlobalMarkersFromBceLocalPos(
     std::shared_ptr<chrono::ChBody> body,
     chrono::ChVector<> collisionShapeRelativePos = chrono::ChVector<>(0),
     chrono::ChQuaternion<> collisionShapeRelativeRot = chrono::QUNIT,
-    bool isSolid = true);
+    bool isSolid = true,
+    bool add_to_fluid_helpers = false);
 
 CH_FSI_API void CreateBceGlobalMarkersFromBceLocalPosBoundary(ChFsiDataManager* fsiData,
                                                               SimParams* paramsH,
@@ -59,7 +60,14 @@ CH_FSI_API void AddCylinderBce(ChFsiDataManager* fsiData,
                                Real radius,
                                Real height,
                                Real kernel_h);
-
+void AddCylinderSurfaceBce(ChFsiDataManager* fsiData,
+                           SimParams* paramsH,
+                           std::shared_ptr<ChBody> body,
+                           ChVector<> relPos,
+                           ChQuaternion<> relRot,
+                           Real radius,
+                           Real height,
+                           Real kernel_h);
 CH_FSI_API void AddBoxBce(ChFsiDataManager* fsiData,
                           SimParams* paramsH,
                           std::shared_ptr<chrono::ChBody> body,

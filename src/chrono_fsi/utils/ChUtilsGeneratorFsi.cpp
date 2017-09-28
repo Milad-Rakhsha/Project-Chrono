@@ -56,6 +56,7 @@ ChVector<> TransformBCEToCOG(ChBody* body, const Real3& pos3) {
     ChVector<> pos = ChFsiTypeConvert::Real3ToChVector(pos3);
     return TransformBCEToCOG(body, pos);
 }
+
 // =============================================================================
 void CreateBceGlobalMarkersFromBceLocalPos(ChFsiDataManager* fsiData,
                                            SimParams* paramsH,
@@ -63,14 +64,19 @@ void CreateBceGlobalMarkersFromBceLocalPos(ChFsiDataManager* fsiData,
                                            std::shared_ptr<ChBody> body,
                                            ChVector<> collisionShapeRelativePos,
                                            ChQuaternion<> collisionShapeRelativeRot,
-                                           bool isSolid) {
-    if (fsiData->fsiGeneralData.referenceArray.size() < 1) {
+                                           bool isSolid,
+                                           bool add_to_fluid_helpers) {
+    if (fsiData->fsiGeneralData.referenceArray.size() < 1 && !add_to_fluid_helpers) {
         printf(
             "\n\n\n\n Error! fluid need to be initialized before boundary. "
             "Reference array should have two "
             "components \n\n\n\n");
         std::cin.get();
     }
+
+    if (fsiData->fsiGeneralData.referenceArray.size() == 0)
+        fsiData->fsiGeneralData.referenceArray.push_back(mI4(0, posRadBCE.size(), -3, -1));
+
     ::int4 refSize4 = fsiData->fsiGeneralData.referenceArray[fsiData->fsiGeneralData.referenceArray.size() - 1];
     int type = 0;
 
@@ -84,13 +90,10 @@ void CreateBceGlobalMarkersFromBceLocalPos(ChFsiDataManager* fsiData,
             "denote boundary or rigid \n\n\n\n");
         std::cin.get();
     }
-    //    else if (type > 0 && (fsiData->fsiGeneralData.referenceArray.size() - 1 != type)) {
-    //        printf("\n\n\n\n Error! reference array size does not match type \n\n\n\n");
-    //        std::cin.get();
-    //    }
 
-    //#pragma omp parallel for  // it is very wrong to do it in parallel. race
-    // condition will occur
+    if (add_to_fluid_helpers)
+        type = -3;
+
     for (int i = 0; i < posRadBCE.size(); i++) {
         ChVector<> posLoc_collisionShape = ChFsiTypeConvert::Real3ToChVector(mR3(posRadBCE[i]));
         ChVector<> posLoc_body = ChTransform<>::TransformLocalToParent(posLoc_collisionShape, collisionShapeRelativePos,
@@ -102,7 +105,6 @@ void CreateBceGlobalMarkersFromBceLocalPos(ChFsiDataManager* fsiData,
         ChVector<> vAbs = body->PointSpeedLocalToParent(posLoc_COG);
         Real3 v3 = ChFsiTypeConvert::ChVectorToReal3(vAbs);
         fsiData->sphMarkersH.velMasH.push_back(v3);
-
         fsiData->sphMarkersH.rhoPresMuH.push_back(mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, (double)type));
     }
 
@@ -112,7 +114,9 @@ void CreateBceGlobalMarkersFromBceLocalPos(ChFsiDataManager* fsiData,
 
     int numBce = posRadBCE.size();
     fsiData->numObjects.numAllMarkers += numBce;
-    if (type == 0) {
+    if (type == -3 && fsiData->fsiGeneralData.referenceArray.size() != 1) {
+        fsiData->fsiGeneralData.referenceArray.push_back(mI4(refSize4.y, refSize4.y + posRadBCE.size(), -3, -1));
+    } else if (type == 0 && !add_to_fluid_helpers) {
         fsiData->numObjects.numBoundaryMarkers += numBce;
         if (refSize4.w == -1) {
             printf("pushing back to refarr\n");
@@ -127,7 +131,7 @@ void CreateBceGlobalMarkersFromBceLocalPos(ChFsiDataManager* fsiData,
         //                "is 0 \n\n");
         //            std::cin.get();
         //        }
-    } else {
+    } else if (!add_to_fluid_helpers) {
         if (fsiData->fsiGeneralData.referenceArray.size() < 2) {
             printf(
                 "Error! Boundary markers are not initialized while trying to "
@@ -442,20 +446,26 @@ void AddCylinderBce(ChFsiDataManager* fsiData,
                     Real kernel_h) {
     thrust::host_vector<Real4> posRadBCE;
     CreateBCE_On_Cylinder(posRadBCE, radius, height, paramsH, kernel_h);
-
-    //	if (fsiData->sphMarkersH.posRadH.size() !=
-    // fsiData->numObjects.numAllMarkers) {
-    //		printf("Error! numMarkers, %d, does not match posRadH.size(),
-    //%d\n",
-    //				fsiData->numObjects.numAllMarkers,
-    // fsiData->sphMarkersH.posRadH.size());
-    //		std::cin.get();
-    //	}
-
     CreateBceGlobalMarkersFromBceLocalPos(fsiData, paramsH, posRadBCE, body);
     posRadBCE.clear();
 }
+// =============================================================================
 
+void AddCylinderSurfaceBce(ChFsiDataManager* fsiData,
+                           SimParams* paramsH,
+                           std::shared_ptr<ChBody> body,
+                           ChVector<> relPos,
+                           ChQuaternion<> relRot,
+                           Real radius,
+                           Real height,
+                           Real kernel_h) {
+    thrust::host_vector<Real4> posRadBCE;
+    thrust::host_vector<Real3> normals;
+    CreateBCE_On_surface_of_Cylinder(posRadBCE, normals, radius, height, kernel_h);
+    CreateBceGlobalMarkersFromBceLocalPos(fsiData, paramsH, posRadBCE, body, relPos, relRot, false, true);
+    posRadBCE.clear();
+    normals.clear();
+}
 // =============================================================================
 // Arman note, the function in the current implementation creates boundary bce
 // (accesses only referenceArray[1])

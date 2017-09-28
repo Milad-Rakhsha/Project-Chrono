@@ -37,11 +37,36 @@ void PrintToFile(const thrust::device_vector<Real4>& posRadD,
     thrust::host_vector<Real4> posRadH = posRadD;
     thrust::host_vector<Real3> velMasH = velMasD;
     thrust::host_vector<Real4> rhoPresMuH = rhoPresMuD;
-
+    int haveHelper = (referenceArray[0].z == -3) ? 1 : 0;
+    int haveGhost = (referenceArray[0].z == -2 || referenceArray[1].z == -2) ? 1 : 0;
     char fileCounter[5];
     static int dumNumChar = -1;
     dumNumChar++;
     sprintf(fileCounter, "%d", dumNumChar);
+
+    if (haveHelper) {
+        const std::string nameOthers =
+            out_dir + std::string("/others") + std::string(fileCounter) + std::string(".csv");
+
+        std::ofstream fileNameOtherParticles;
+        fileNameOtherParticles.open(nameOthers);
+        std::stringstream ssotherParticles;
+        if (printToParaview)
+            ssotherParticles << "x,y,z,h,v_x,v_y,v_z,|U|,rho(rpx),p(rpy),mu(rpz),type(rpw)\n";
+        for (int i = referenceArray[0].x; i < referenceArray[haveHelper].y; i++) {
+            Real4 rP = rhoPresMuH[i];
+            if (rP.w != -3)
+                continue;
+            Real4 pos = posRadH[i];
+            Real3 vel = velMasH[i];
+            Real velMag = length(vel);
+            ssotherParticles << pos.x << ", " << pos.y << ", " << pos.z << ", " << pos.w << ", " << vel.x << ", "
+                             << vel.y << ", " << vel.z << ", " << velMag << ", " << rP.x << ", " << rP.y << ", " << rP.z
+                             << ", " << rP.w << std::endl;
+        }
+        fileNameOtherParticles << ssotherParticles.str();
+        fileNameOtherParticles.close();
+    }
 
     //*****************************************************
     const std::string nameFluid = out_dir + std::string("/fluid") + std::string(fileCounter) + std::string(".csv");
@@ -52,14 +77,15 @@ void PrintToFile(const thrust::device_vector<Real4>& posRadD,
     if (printToParaview)
         ssFluidParticles << "x,y,z,h,v_x,v_y,v_z,|U|,rho(rpx),p(rpy),mu(rpz),type(rpw)\n";
 
-    int startFluid = referenceArray[0].z == -1 ? 0 : 1;
-
-    for (int i = referenceArray[startFluid].x; i < referenceArray[startFluid].y; i++) {
+    int startFluid = haveHelper + haveGhost;
+    for (int i = referenceArray[0].x; i < referenceArray[haveHelper + haveGhost].y; i++) {
+        Real4 rP = rhoPresMuH[i];
+        if (rP.w <= -2)
+            continue;
         Real4 pos = posRadH[i];
         Real3 vel = velMasH[i];
-        Real4 rP = rhoPresMuH[i];
-
         Real velMag = length(vel);
+
         ssFluidParticles << pos.x << ", " << pos.y << ", " << pos.z << ", " << pos.w << ", " << vel.x << ", " << vel.y
                          << ", " << vel.z << ", " << velMag << ", " << rP.x << ", " << rP.y << ", " << rP.z << ", "
                          << rP.w << std::endl;
@@ -77,10 +103,12 @@ void PrintToFile(const thrust::device_vector<Real4>& posRadD,
         ssFluidBoundaryParticles << "x,y,z,h,v_x,v_y,v_z,|U|,rho(rpx),p(rpy),mu(rpz),type(rpw)\n";
 
     //		ssFluidBoundaryParticles.precision(20);
-    for (int i = referenceArray[startFluid].x; i < referenceArray[startFluid + 1].y; i++) {
+    for (int i = referenceArray[0].x; i < referenceArray[haveHelper + haveGhost + 1].y; i++) {
+        Real4 rP = rhoPresMuH[i];
+        if (rP.w <= -2)
+            continue;
         Real4 pos = posRadH[i];
         Real3 vel = velMasH[i];
-        Real4 rP = rhoPresMuH[i];
         Real velMag = length(vel);
         ssFluidBoundaryParticles << pos.x << ", " << pos.y << ", " << pos.z << ", " << pos.w << ", " << vel.x << ", "
                                  << vel.y << ", " << vel.z << ", " << velMag << ", " << rP.x << ", " << rP.y << ", "
@@ -96,7 +124,7 @@ void PrintToFile(const thrust::device_vector<Real4>& posRadD,
     std::stringstream ssBCE;
     //		ssFluidBoundaryParticles.precision(20);
     if (printToParaview)
-        ssBCE << "x,y,z,h,vx,vy,vz,U,rpx,rpy,rpz,rpw\n";
+        ssBCE << "x,y,z,h,v_x,v_y,v_z,|U|,rho(rpx),p(rpy),mu(rpz),type(rpw)\n";
 
     int refSize = referenceArray.size();
     if (refSize > 2) {

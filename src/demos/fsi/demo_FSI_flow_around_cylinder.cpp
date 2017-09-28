@@ -66,7 +66,7 @@ int out_fps = 100;
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
-Real bxDim = 0.40;
+Real bxDim = 0.60;
 Real byDim = 0.1;
 Real bzDim = 0.40;
 
@@ -75,6 +75,7 @@ Real fyDim = byDim;
 Real fzDim = bzDim;
 double cyl_length = 0.04;
 double cyl_radius = .05;
+ChVector<> cyl_pos = ChVector<>(0.0);
 
 void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
 void InitializeMbdPhysicalSystem(ChSystemSMC& mphysicalSystem, ChVector<> gravity, int argc, char* argv[]);
@@ -136,7 +137,6 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
     printf("Ref size=%d\n", myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.size());
 
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posBottom, chrono::QUNIT, sizeBottom);
-
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT, sizeBottom);
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yp, chrono::QUNIT, size_XZ, 13);
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT, size_XZ, 13);
@@ -151,7 +151,6 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
     body->SetBodyFixed(true);
     body->SetCollide(true);
     body->SetMaterialSurface(mysurfmaterial);
-    ChVector<> cyl_pos = ChVector<>(-paramsH->HSML / 2, 0, 0.2 - paramsH->HSML / 2);
 
     body->SetPos(cyl_pos);
 
@@ -234,15 +233,6 @@ int main(int argc, char* argv[]) {
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
     Real initSpace1 = initSpace0 / 2;
     Real initSpace2 = initSpace0;
-
-    // Ghost particles for Variable Resolution SPH
-    int numGhostMarkers = 0;
-    for (int i = 0; i < numGhostMarkers; i++) {
-        myFsiSystem.GetDataManager()->AddSphMarker(chrono::fsi::mR4(0.0, 0.0, 0.0, 0.0),
-                                                   chrono::fsi::mR3(1e-10, 0.0, 0.0),
-                                                   chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -2.0));
-    }
-
     utils::GridSampler<> sampler1(initSpace1);
     utils::GridSampler<> sampler2(initSpace2);
 
@@ -254,9 +244,27 @@ int main(int argc, char* argv[]) {
 
     chrono::fsi::Real3 boxHalfDim1 = chrono::fsi::mR3(fxDim / 6, fyDim / 3, fzDim / 6);
     chrono::fsi::Real3 boxHalfDim2 = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
+    auto mbody = std::make_shared<ChBody>();
+    mbody->SetBodyFixed(true);
+    cyl_pos = ChVector<>(-paramsH->HSML / 2, 0, 0.2 - paramsH->HSML / 2);
+    mbody->SetPos(cyl_pos);
 
-    utils::Generator::PointVector points1 = sampler1.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter1),
-                                                               fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim1));
+    // Here we add a particle to the surface of the cylinder for merging purposes
+    chrono::fsi::utils::AddCylinderSurfaceBce(myFsiSystem.GetDataManager(), paramsH, mbody, ChVector<>(0, 0, 0),
+                                              ChQuaternion<>(1, 0, 0, 0), 0.10, 0.06, paramsH->HSML);
+
+    int numhelperMarkers = myFsiSystem.GetDataManager()->sphMarkersH.posRadH.size();
+
+    // Ghost particles for Variable Resolution SPH
+    int numGhostMarkers = 5000;
+    for (int i = 0; i < numGhostMarkers; i++) {
+        myFsiSystem.GetDataManager()->AddSphMarker(chrono::fsi::mR4(0.0, 0.0, -0.4, 0.0),
+                                                   chrono::fsi::mR3(1e-10, 0.0, 0.0),
+                                                   chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -2.0));
+    }
+
+    utils::Generator::PointVector points1 =
+        sampler1.SampleCylinderY(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter1), 0.1, 0.03);
 
     utils::Generator::PointVector points2 = sampler2.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter2),
                                                                fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim2));
@@ -299,12 +307,13 @@ int main(int argc, char* argv[]) {
             particles_position.push_back(this_particle);
         }
     }
+
     int BCE_RIGID_SIZE = particles_position.size();
     for (int i = 0; i < numPart1; i++) {
         particles_position.push_back(fsi::ChFsiTypeConvert::ChVectorToReal3(points1[i]));
     }
 
-    std::cout << "Set Removal points from: BCE_Flex0.csv" << std::endl;
+    std::cout << "Set Removal points from: BCE.csv" << std::endl;
     std::cout << "Searching among " << particles_position.size() << "BCE points" << std::endl;
 
     int numremove = 0;
@@ -320,7 +329,7 @@ int main(int argc, char* argv[]) {
             }
         }
         if (!removeThis) {
-            myFsiSystem.GetDataManager()->AddSphMarker(p, chrono::fsi::mR3(1e-10, 0.0, 0.0),
+            myFsiSystem.GetDataManager()->AddSphMarker(p, chrono::fsi::mR3(paramsH->V_in, 0.0, 0.0),
                                                        chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -1.0));
         } else
             numremove++;
@@ -332,13 +341,13 @@ int main(int argc, char* argv[]) {
         fsi::Real4 p = fsi::mR4(points2[i].x(), points2[i].y(), points2[i].z(), h);
         for (int remove = 0; remove < particles_position.size(); remove++) {
             double dist = length(particles_position[remove] - mR3(p));
-            if (dist < 0.95 * initSpace1) {
+            if (dist < 0.98 * initSpace1) {
                 removeThis = true;
                 break;
             }
         }
         if (!removeThis) {
-            myFsiSystem.GetDataManager()->AddSphMarker(p, chrono::fsi::mR3(1e-10, 0.0, 0.0),
+            myFsiSystem.GetDataManager()->AddSphMarker(p, chrono::fsi::mR3(paramsH->V_in, 0.0, 0.0),
                                                        chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -1));
         } else
             numremove++;
@@ -360,18 +369,13 @@ int main(int argc, char* argv[]) {
     int numFluidPart = myFsiSystem.GetDataManager()->sphMarkersH.posRadH.size();
     std::cout << "Final fluid size:" << numFluidPart << std::endl;
 
-    if (numPhases != 0) {
-        std::cout << "Error! numPhases is wrong, thrown from main\n" << std::endl;
-        std::cin.get();
-        return -1;
-    } else {
-        myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(mI4(0, numGhostMarkers, -2, -1));
-        myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(
-            mI4(numGhostMarkers, numFluidPart, -1, -1));
-        //        myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(mI4(numFluidPart, numFluidPart,
-        //        0, 0));
-        printf("Ref size=%d\n", myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.size());
-    }
+    myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(mI4(0, numGhostMarkers, -2, -1));
+    myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(
+        mI4(numhelperMarkers + numGhostMarkers, numFluidPart, -1, -1));
+    //        myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(mI4(numFluidPart, numFluidPart,
+    //        0, 0));
+    printf("Ref size=%d\n", myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.size());
+
 #endif
 
     // ********************** Create Rigid ******************************
@@ -401,14 +405,8 @@ int main(int argc, char* argv[]) {
     // ********************************************
 
     double mTime = 0;
-
-#ifdef CHRONO_FSI_USE_DOUBLE
-    printf("Double Precision\n");
-#else
-    printf("Single Precision\n");
-#endif
     int stepEnd = int(paramsH->tFinal / paramsH->dT);
-    stepEnd = 1000000;
+    stepEnd = 100000;
     std::vector<std::vector<double>> vCoor;
     std::vector<std::vector<int>> faces;
     const std::string rmCmd = (std::string("rm ") + demo_dir + std::string("/*"));

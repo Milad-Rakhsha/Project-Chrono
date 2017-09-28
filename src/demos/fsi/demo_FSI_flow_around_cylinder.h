@@ -55,7 +55,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->multViscosity_FSI = 1;
     paramsH->gravity = mR3(0.0, 0, 0.0);
     paramsH->V_in = 0.2;
-    paramsH->x_in = -0.17;
+    paramsH->x_in = -0.27;
 
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
@@ -83,7 +83,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->dT_Max = 0.01;  ///< This is problem dependent should set by the user based on characteristic time step
     paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 
-    paramsH->dT = 5e-4;
+    paramsH->dT = 2.5e-3;
 
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
@@ -97,7 +97,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
     paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
-    paramsH->cMin = mR3(-bxDim / 2 - paramsH->HSML * 1, -0.2, -bzDim * 2);
+    paramsH->cMin = mR3(-bxDim / 2 - paramsH->HSML * 1, -0.2, -bzDim * 4);
     paramsH->cMax = mR3(bxDim / 2 + 0.00001, 0.2, bzDim * 2);
 
     //****************************************************************************************

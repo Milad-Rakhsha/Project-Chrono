@@ -220,6 +220,8 @@ void ChCollisionSystemFsi::calcHash() {
         throw std::runtime_error("Error! size error, calcHash!");
     }
 
+    //    printf("Neighbor search on numObjectsH->numAllMarkers=%d makers\n", numObjectsH->numAllMarkers);
+
     bool *isErrorH, *isErrorD;
     isErrorH = (bool*)malloc(sizeof(bool));
     cudaMalloc((void**)&isErrorD, sizeof(bool));

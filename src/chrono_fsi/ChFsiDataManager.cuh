@@ -91,7 +91,8 @@ struct NumberOfObjects {
     int numFlexNodes;         ///< Number of Nodes in a flexible mesh, Each FE is made up of nodes
     int numFlexBodies1D;      ///< Number of 1D-Flexible bodies, Each FE is one body
     int numFlexBodies2D;      ///< Number of 2D-Flexible bodies, Each FE is one body
-    int numGhostMarkers;      ///< Number of Ghost SPH markers that come into play with Variable Resolution methods
+    int numGhostMarkers;      ///< Number of Ghost SPH markers that comes into play with Variable Resolution methods
+    int numHelperMarkers;     ///< Number of helper SPH markers that is used for merging particles
     int numFluidMarkers;      ///< Number of fluid SPH markers
     int numBoundaryMarkers;   ///< Number of boundary SPH markers
     int startRigidMarkers;    ///< Index of the first SPH marker that covers the first rigid body.
