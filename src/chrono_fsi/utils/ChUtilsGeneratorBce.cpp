@@ -98,7 +98,8 @@ void CreateBCE_On_surface_of_Cylinder(thrust::host_vector<Real4>& posRadBCE,
             for (Real t = 0.0; t < numTheta; t++) {
                 Real teta = t * 2 * 3.1415 / numTheta;
                 Real3 BCE_Pos_local = mR3(r * cos(teta), 0, r * sin(teta)) + centerPointLF;
-                if (abs(s + 0.5 * cyl_h) < spacing / 5 || (s - 0.5 * cyl_h) > 0 || abs(r - cyl_rad) < spacing / 3) {
+                if (abs(s + 0.5 * cyl_h) < spacing / 5 || abs(s - 0.5 * cyl_h) < spacing / 5 ||
+                    abs(r - cyl_rad) < spacing / 3) {
                     posRadBCE.push_back(mR4(BCE_Pos_local, spacing));
                 }
             }

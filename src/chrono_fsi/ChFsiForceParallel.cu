@@ -2127,6 +2127,7 @@ __global__ void FinalizePressure(Real4* sortedPosRad,  // Read
 __global__ void Calc_HelperMarkers_normals(Real4* sortedPosRad,
                                            Real4* sortedRhoPreMu,
                                            Real3* helpers_normal,
+                                           int* myType,
                                            uint* cellStart,
                                            uint* cellEnd,
                                            uint* gridMarkerIndexD,
@@ -2136,13 +2137,15 @@ __global__ void Calc_HelperMarkers_normals(Real4* sortedPosRad,
     if (i_idx >= numAllMarkers) {
         return;
     }
+    myType[i_idx] = (int)floor(sortedRhoPreMu[i_idx].w);
+
     if (sortedRhoPreMu[i_idx].w != -3) {
         return;
     }
     int Original_idx = gridMarkerIndexD[i_idx];
-
     Real3 posi = mR3(sortedPosRad[i_idx]);
     Real h_i = sortedPosRad[i_idx].w;
+
     int j_pre = i_idx;
     int num_samples = 0;
     Real3 my_normal = mR3(0.1);
@@ -2194,21 +2197,23 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
                                        Real4* sortedRhoPreMu,
                                        Real3* sortedVelMas,
                                        Real3* helpers_normal,
-                                       int4* MergingMarkers1,
-                                       int4* MergingMarkers2,
                                        uint* splitMe,
+                                       uint* MergeMe,
+                                       int* myType,
                                        uint* cellStart,
                                        uint* cellEnd,
                                        uint* gridMarkerIndexD,
                                        Real fineResolution,
                                        Real coarseResolution,
                                        int numAllMarkers,
+                                       int limit,
                                        volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     int Original_idx = gridMarkerIndexD[i_idx];
     if (i_idx >= numAllMarkers) {
         return;
     }
+
     if (sortedRhoPreMu[i_idx].w != -3) {
         return;
     }
@@ -2222,6 +2227,7 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
     //    sortedRhoPreMu[i_idx].y = normal.y;
     //    sortedRhoPreMu[i_idx].z = normal.z;
     int3 gridPos = calcGridPos(posi);
+
     //    printf("Original_idx=%d, p=(%f,%f,%f), n1=%f, n2=%f, n3=%f\n", Original_idx, posi.x, posi.y, posi.z,
     //           helpers_normal[Original_idx].x, helpers_normal[Original_idx].y, helpers_normal[Original_idx].z);
     //    uint N1, N2, N3, N4, N5, N6, N7, N8;
@@ -2233,28 +2239,47 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
     uint N6 = i_idx;
     uint N7 = i_idx;
     uint N8 = i_idx;
-
-    for (int z = -2; z <= 2; z++) {
-        for (int y = -2; y <= 2; y++) {
-            for (int x = -2; x <= 2; x++) {
+    uint mySplits = 0;
+    uint myMerges = 0;
+    for (int z = -1; z <= 1; z++) {
+        for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
                 //                int x = 0, y = 0, z = 0;
                 int3 neighbourPos = gridPos + mI3(x, y, z);
                 uint gridHash = calcGridHash(neighbourPos);
                 uint startIndex = cellStart[gridHash];
                 uint endIndex = cellEnd[gridHash];
                 for (uint j = startIndex; j < endIndex; j++) {
+                    if (sortedRhoPreMu[j].w != -1 || j == i_idx)
+                        continue;
+
                     Real3 posj = mR3(sortedPosRad[j]);
                     Real3 dist3 = Distance(posj, posi);
                     Real d = length(dist3);
                     Real cosT = dot(dist3, normal) / length(dist3) * length(normal);
+                    Real3 velj = sortedVelMas[j];
                     //                    Real y2 = d * d * cosT * cosT;
                     //                    Real b2 = coarseResolution * coarseResolution;
                     Real x2 = d * d * (1 - cosT * cosT);
                     //                    Real a2 = fineResolution * fineResolution;
                     //                    y2 / b2 + x2 / a2 < 1
 
-                    if (abs(sortedPosRad[j].w - fineResolution) < EPSILON && (sortedRhoPreMu[j].w == -1) &&
-                        dot(dist3, normal) > 0 && x2 < fineResolution * fineResolution) {
+                    atomicCAS(&MergeMe[j], 0, i_idx);
+                    ////////////////////////////////////////////////////////////////
+                    ////////////////////////////////////////////////////////////////
+                    /*x2 < 9 / 4 * fineResolution * fineResolution &&*/
+                    /*|| (d * cosT < fineResolution * 1.5 && dot(velj, normal) > 0))*/
+                    /*||
+                         (d * cosT < fineResolution * 1 && dot(velj, normal) > 0.8 * length(velj)))*/
+
+                    //                    if (abs(sortedPosRad[j].w - fineResolution) < EPSILON && (MergeMe[j] == i_idx)
+                    //                    &&
+                    //                        (MergeMe[j] == i_idx) && myType[j] == -1 && dot(dist3, normal) > 0 &&
+                    //                        x2 < fineResolution * fineResolution) {
+                    //////////////////////////////////////////////////////////////////
+                    //////////////////////////////////////////////////////////////////
+                    if (abs(sortedPosRad[j].w - fineResolution) < EPSILON && (dot(dist3, normal) > 0) &&
+                        (x2 < fineResolution * fineResolution)) {
                         uint p = 9;
                         if (d < length(Distance(posi, mR3(sortedPosRad[N8]))) || N8 == i_idx)
                             p = 8;
@@ -2272,6 +2297,9 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
                             p = 2;
                         if (d < length(Distance(posi, mR3(sortedPosRad[N1]))) || N1 == i_idx)
                             p = 1;
+                        // Release the last one if
+                        if (p < 9)
+                            atomicExch(&MergeMe[N8], 0);
                         if (p == 8) {
                             N8 = j;
                         } else if (p == 7) {
@@ -2317,31 +2345,74 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
                             N2 = N1;
                             N1 = j;
                         }
-                    } else if (abs(sortedPosRad[j].w - coarseResolution) < EPSILON && dot(dist3, normal) < 0 &&
-                               sortedRhoPreMu[j].w == -1 && d < 2 * fineResolution) {
-                        atomicExch(&splitMe[j], 1);
+                        atomicExch(&MergeMe[N1], i_idx);
+                        atomicExch(&MergeMe[N2], i_idx);
+                        atomicExch(&MergeMe[N3], i_idx);
+                        atomicExch(&MergeMe[N4], i_idx);
+                        atomicExch(&MergeMe[N5], i_idx);
+                        atomicExch(&MergeMe[N6], i_idx);
+                        atomicExch(&MergeMe[N7], i_idx);
+                        atomicExch(&MergeMe[N8], i_idx);
+                    }
+                    if (abs(sortedPosRad[j].w - coarseResolution) < EPSILON && dot(dist3, normal) < 0 &&
+                        d < 2 * fineResolution) {
+                        atomicCAS(&splitMe[j], 0, i_idx);
+                        uint temp = 0;
+                        if (splitMe[j] == i_idx) {
+                            uint childMarkers[7];
+                            temp = 0;
+                            uint k = 0;
+                            Real4 RhoPreMu = sortedRhoPreMu[j];
+
+                            while (k < 7) {
+                                atomicCAS(&myType[temp], -2, i_idx);
+                                if (myType[temp] == i_idx) {
+                                    childMarkers[k] = temp;
+                                    k++;
+                                }
+                                if (temp > numAllMarkers) {
+                                    break;
+                                    *isErrorD = true;
+                                }
+                                temp++;
+                            }
+                            for (int n = 0; n < 7; n++) {
+                                sortedVelMas[childMarkers[n]] = velj;
+                                sortedRhoPreMu[childMarkers[n]] = RhoPreMu;
+                            }
+                            Real3 center = mR3(sortedPosRad[j]);
+                            Real h = fineResolution;
+                            // This is recommended for our confuguration from Vacondio et. al
+                            //                            Real d = 0.72 * coarseResolution / 1.7321;
+                            Real d = 0.5 * fineResolution;
+
+                            sortedPosRad[childMarkers[0]] = mR4(center + d * mR3(-1, -1, -1), h);
+                            sortedPosRad[childMarkers[1]] = mR4(center + d * mR3(+1, -1, -1), h);
+                            sortedPosRad[childMarkers[2]] = mR4(center + d * mR3(+1, +1, -1), h);
+                            sortedPosRad[childMarkers[3]] = mR4(center + d * mR3(-1, +1, -1), h);
+                            sortedPosRad[childMarkers[4]] = mR4(center + d * mR3(-1, -1, +1), h);
+                            sortedPosRad[childMarkers[5]] = mR4(center + d * mR3(+1, -1, +1), h);
+                            sortedPosRad[childMarkers[6]] = mR4(center + d * mR3(+1, +1, +1), h);
+                            sortedPosRad[j] = mR4(center + d * mR3(-1, +1, +1), h);
+                        }
+                        if (temp > numAllMarkers)
+                            printf(
+                                "Reached the limit of the ghost markers. Please increase the number of ghost "
+                                "markers.\n");
+
                     }
                 }
             }
         }
     }
 
-    // note that this can cause race condition if two helper markers share try to merge the same marker Ni
+    // note that this can cause race condition if two helper markers try to merge the same marker Ni
     if (N8 != i_idx) {
-        if (sortedRhoPreMu[N1].w == -2 || sortedRhoPreMu[N2].w == -2 || sortedRhoPreMu[N3].w == -2 ||
-            sortedRhoPreMu[N4].w == -2 || sortedRhoPreMu[N5].w == -2 || sortedRhoPreMu[N6].w == -2 ||
-            sortedRhoPreMu[N7].w == -2 || sortedRhoPreMu[N8].w == -2) {
+        if (MergeMe[N1] != i_idx || MergeMe[N2] != i_idx || MergeMe[N3] != i_idx || MergeMe[N4] != i_idx ||
+            MergeMe[N5] != i_idx || MergeMe[N6] != i_idx || MergeMe[N7] != i_idx || MergeMe[N8] != i_idx) {
             printf("RACE CONDITION in merging! Please revise the spacing or the merging scheme.\n");
             *isErrorD = true;
         }
-        sortedRhoPreMu[N1].w = -1;
-        sortedRhoPreMu[N2].w = -2;
-        sortedRhoPreMu[N3].w = -2;
-        sortedRhoPreMu[N4].w = -2;
-        sortedRhoPreMu[N5].w = -2;
-        sortedRhoPreMu[N6].w = -2;
-        sortedRhoPreMu[N7].w = -2;
-        sortedRhoPreMu[N8].w = -2;
 
         sortedPosRad[N1] = 0.125 * (sortedPosRad[N1] + sortedPosRad[N2] + sortedPosRad[N3] + sortedPosRad[N4] +
                                     sortedPosRad[N5] + sortedPosRad[N6] + sortedPosRad[N7] + sortedPosRad[N8]);
@@ -2351,15 +2422,21 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
         sortedVelMas[N1] = 0.125 * (sortedVelMas[N1] + sortedVelMas[N2] + sortedVelMas[N3] + sortedVelMas[N4] +
                                     sortedVelMas[N5] + sortedVelMas[N6] + sortedVelMas[N7] + sortedVelMas[N8]);
         sortedPosRad[N1].w = coarseResolution;
-
-        //        atomicExch((double*)&sortedRhoPreMu[N1].w, (double)-1.0);
-        //        atomicExch((double*)&sortedRhoPreMu[N2].w, (double)-2.0);
-        //        atomicExch((double*)&sortedRhoPreMu[N3].w, (double)-2.0);
-        //        atomicExch((double*)&sortedRhoPreMu[N4].w, (double)-2.0);
-        //        atomicExch((double*)&sortedRhoPreMu[N5].w, (double)-2.0);
-        //        atomicExch((double*)&sortedRhoPreMu[N6].w, (double)-2.0);
-        //        atomicExch((double*)&sortedRhoPreMu[N7].w, (double)-2.0);
-        //        atomicExch((double*)&sortedRhoPreMu[N8].w, (double)-2.0);
+        sortedRhoPreMu[N1].w = -1;
+        sortedRhoPreMu[N2].w = -2;
+        sortedRhoPreMu[N3].w = -2;
+        sortedRhoPreMu[N4].w = -2;
+        sortedRhoPreMu[N5].w = -2;
+        sortedRhoPreMu[N6].w = -2;
+        sortedRhoPreMu[N7].w = -2;
+        sortedRhoPreMu[N8].w = -2;
+        sortedPosRad[N2] = mR4(mR3(0.0, 0.0, -0.4), coarseResolution);
+        sortedPosRad[N3] = mR4(mR3(0.0, 0.0, -0.4), coarseResolution);
+        sortedPosRad[N4] = mR4(mR3(0.0, 0.0, -0.4), coarseResolution);
+        sortedPosRad[N5] = mR4(mR3(0.0, 0.0, -0.4), coarseResolution);
+        sortedPosRad[N6] = mR4(mR3(0.0, 0.0, -0.4), coarseResolution);
+        sortedPosRad[N7] = mR4(mR3(0.0, 0.0, -0.4), coarseResolution);
+        sortedPosRad[N8] = mR4(mR3(0.0, 0.0, -0.4), coarseResolution);
     }
 }
 
@@ -2793,17 +2870,21 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
     thrust::device_vector<int4> MergingMarkers1(numHelperMarkers);
     thrust::device_vector<int4> MergingMarkers2(numHelperMarkers);
     thrust::device_vector<uint> SplitMe(numAllMarkers);
+    thrust::device_vector<uint> MergeMe(numAllMarkers);
+    thrust::device_vector<uint> myType(numAllMarkers);
     thrust::device_vector<Real3> helpers_normal(numHelperMarkers);
 
     thrust::fill(MergingMarkers1.begin(), MergingMarkers1.end(), mI4(0));
     thrust::fill(MergingMarkers2.begin(), MergingMarkers2.end(), mI4(0));
     thrust::fill(SplitMe.begin(), SplitMe.end(), 0);
+    thrust::fill(MergeMe.begin(), MergeMe.end(), 0);
+    thrust::fill(myType.begin(), myType.end(), 0);
     thrust::fill(helpers_normal.begin(), helpers_normal.end(), mR3(0));
     cudaThreadSynchronize();
 
     Calc_HelperMarkers_normals<<<numBlocks, numThreads>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(helpers_normal),
-        U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD),
+        I1CAST(myType), U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD),
         U1CAST(markersProximityD->gridMarkerIndexD), numAllMarkers, isErrorD2);
     cudaThreadSynchronize();
     cudaCheckError();
@@ -2811,19 +2892,25 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
     if (*isErrorH == true) {
         throw std::runtime_error("Error! program crashed in Calc_HelperMarkers_normals!\n");
     }
+    int haveGhost = (numObjectsH->numGhostMarkers > 0) ? 1 : 0;
+    int haveHelper = (numObjectsH->numHelperMarkers > 0) ? 1 : 0;
+    int limit = numObjectsH->numFluidMarkers + numObjectsH->numGhostMarkers + numObjectsH->numHelperMarkers;
 
     Calc_Splits_and_Merges<<<numBlocks, numThreads>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
-        mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(helpers_normal), mI4CAST(MergingMarkers1),
-        mI4CAST(MergingMarkers2), U1CAST(SplitMe), U1CAST(markersProximityD->cellStartD),
-        U1CAST(markersProximityD->cellEndD), U1CAST(markersProximityD->gridMarkerIndexD), paramsH->HSML / 2.0,
-        paramsH->HSML, numAllMarkers, isErrorD2);
+        mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(helpers_normal),U1CAST(SplitMe), U1CAST(MergeMe), I1CAST(myType),
+        U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD),
+        U1CAST(markersProximityD->gridMarkerIndexD), paramsH->HSML / 2.0, paramsH->HSML, numAllMarkers, limit,
+        isErrorD2);
     cudaThreadSynchronize();
     cudaCheckError();
     cudaMemcpy(isErrorH, isErrorD2, sizeof(bool), cudaMemcpyDeviceToHost);
     if (*isErrorH == true) {
         throw std::runtime_error("Error! program crashed in Calc_Split_and_Merges!\n");
     }
+
+    double splitMerge = (clock() - CalcSplitMerge) / (double)CLOCKS_PER_SEC;
+    printf(" Splitting and Merging: %f \n", splitMerge);
 
     thrust::device_vector<Real> Color(numAllMarkers);
     thrust::fill(Color.begin(), Color.end(), 1.0e10);
@@ -2870,77 +2957,81 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
     double calcforce = (clock() - CalcForcesClock) / (double)CLOCKS_PER_SEC;
     printf(" Force Computation: %f \n", calcforce);
 
-    Calc_Splits_and_Merges<<<numBlocks, numThreads>>>(
-        mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
-        mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(helpers_normal), mI4CAST(MergingMarkers1),
-        mI4CAST(MergingMarkers2), U1CAST(SplitMe), U1CAST(markersProximityD->cellStartD),
-        U1CAST(markersProximityD->cellEndD), U1CAST(markersProximityD->gridMarkerIndexD), paramsH->HSML / 2.0,
-        paramsH->HSML, numAllMarkers, isErrorD2);
-    cudaThreadSynchronize();
-    cudaCheckError();
-    cudaMemcpy(isErrorH, isErrorD2, sizeof(bool), cudaMemcpyDeviceToHost);
-    if (*isErrorH == true) {
-        throw std::runtime_error("Error! program crashed in Calc_Split_and_Merges!\n");
-    }
+    //    Calc_Splits_and_Merges<<<numBlocks, numThreads>>>(
+    //        mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
+    //        mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(helpers_normal), mI4CAST(MergingMarkers1),
+    //        mI4CAST(MergingMarkers2), U1CAST(SplitMe), U1CAST(markersProximityD->cellStartD),
+    //        U1CAST(markersProximityD->cellEndD), U1CAST(markersProximityD->gridMarkerIndexD),
+    //        paramsH->HSML / 2.0,
+    //        paramsH->HSML, numAllMarkers, isErrorD2);
+    //    cudaThreadSynchronize();
+    //    cudaCheckError();
+    //    cudaMemcpy(isErrorH, isErrorD2, sizeof(bool), cudaMemcpyDeviceToHost);
+    //    if (*isErrorH == true) {
+    //        throw std::runtime_error("Error! program crashed in Calc_Split_and_Merges!\n");
+    //    }
 
-    int haveGhost = (numObjectsH->numGhostMarkers > 0) ? 1 : 0;
-    int haveHelper = (numObjectsH->numHelperMarkers > 0) ? 1 : 0;
-    int limit = numObjectsH->numFluidMarkers + numObjectsH->numGhostMarkers + numObjectsH->numHelperMarkers;
-    int StartSearching = numObjectsH->numHelperMarkers;
-    int temp = 0;
-    int numSplits = 0;
+    //    int StartSearching = numObjectsH->numHelperMarkers;
+    //    int temp = 0;
+    //    int numSplits = 0;
     //    thrust::host_vector<Real4> posRadH = sphMarkersD->posRadD;
-    thrust::host_vector<Real4> rhoPresMuH = sortedSphMarkersD->rhoPresMuD;
+    //    thrust::host_vector<Real4> rhoPresMuH = sortedSphMarkersD->rhoPresMuD;
     //    thrust::host_vector<Real4> velMasH = sphMarkersD->velMasD;
 
-    for (int i = 0; i < SplitMe.size(); i++) {
-        int childMarkers[7];
-        Real3 velmass = sortedSphMarkersD->velMasD[i];
-        Real4 rpmt = sortedSphMarkersD->rhoPresMuD[i];
-        if (rpmt.w != -1)
-            continue;
-        if (SplitMe[i] == 1) {
-            int j = 0;
-            while (j < 7) {
-                Real4 test = rhoPresMuH[temp];
-                if (test.w == -2.0) {
-                    childMarkers[j] = temp;
-                    j++;
-                }
-                temp++;
-                if (temp > limit)
-                    throw std::runtime_error("Reached the limit of the helper markers;\n");
-            }
-            StartSearching += temp;
-            //
-            //            printf("velmass=%f,%f,%f rpmt=%f,%f,%f,%f\n", velmass.x, velmass.y, velmass.z,
-            //            rpmt.x, rpmt.y,
-            //            rpmt.z,
-            //                   rpmt.w);
-
-            for (int k = 0; k < 7; k++) {
-                sortedSphMarkersD->velMasD[childMarkers[k]] = mR3(sortedSphMarkersD->velMasD[i]);
-                sortedSphMarkersD->rhoPresMuD[childMarkers[k]] = rpmt;
-            }
-            Real3 center = mR3(sortedSphMarkersD->posRadD[i]);
-            Real h = paramsH->HSML / 2.0;
-            Real4 test = mR4(center + h / 2 * mR3(-1, -1, -1), h);
-            sortedSphMarkersD->velMasD[childMarkers[0]] = sortedSphMarkersD->velMasD[i];
-
-            sortedSphMarkersD->posRadD[childMarkers[0]] = mR4(center + h / 2 * mR3(-1, -1, -1), h);
-            sortedSphMarkersD->posRadD[childMarkers[1]] = mR4(center + h / 2 * mR3(+1, -1, -1), h);
-            sortedSphMarkersD->posRadD[childMarkers[2]] = mR4(center + h / 2 * mR3(+1, +1, -1), h);
-            sortedSphMarkersD->posRadD[childMarkers[3]] = mR4(center + h / 2 * mR3(-1, +1, -1), h);
-            sortedSphMarkersD->posRadD[childMarkers[4]] = mR4(center + h / 2 * mR3(-1, -1, +1), h);
-            sortedSphMarkersD->posRadD[childMarkers[5]] = mR4(center + h / 2 * mR3(+1, -1, +1), h);
-            sortedSphMarkersD->posRadD[childMarkers[6]] = mR4(center + h / 2 * mR3(+1, +1, +1), h);
-            sortedSphMarkersD->posRadD[i] = mR4(center + h / 2 * mR3(-1, +1, +1), h);
-            numSplits++;
-        }
-    }
-    printf("Splitted %d markers...\n", numSplits);
-    double splitMerge = (clock() - CalcSplitMerge) / (double)CLOCKS_PER_SEC;
-    printf(" Splitting and Merging: %f \n", splitMerge);
+    //    for (int i = 0; i < SplitMe.size(); i++) {
+    //        int childMarkers[7];
+    //        Real3 velmass = sortedSphMarkersD->velMasD[i];
+    //        Real4 rpmt = sortedSphMarkersD->rhoPresMuD[i];
+    //        if (rpmt.w != -1)
+    //            continue;
+    //        if (SplitMe[i] == 1) {
+    //            int j = 0;
+    //            while (j < 7) {
+    //                Real4 test = rhoPresMuH[temp];
+    //                if (test.w == -2.0) {
+    //                    childMarkers[j] = temp;
+    //                    j++;
+    //                }
+    //                temp++;
+    //                if (temp > limit)
+    //                    throw std::runtime_error("Reached the limit of the helper markers;\n");
+    //            }
+    //            StartSearching += temp;
+    //            //
+    //            //            printf("velmass=%f,%f,%f rpmt=%f,%f,%f,%f\n", velmass.x, velmass.y,
+    //            velmass.z,
+    //            //            rpmt.x, rpmt.y,
+    //            //            rpmt.z,
+    //            //                   rpmt.w);
+    //
+    //            for (int k = 0; k < 7; k++) {
+    //                sortedSphMarkersD->velMasD[childMarkers[k]] = mR3(sortedSphMarkersD->velMasD[i]);
+    //                sortedSphMarkersD->rhoPresMuD[childMarkers[k]] = rpmt;
+    //            }
+    //            Real3 center = mR3(sortedSphMarkersD->posRadD[i]);
+    //            Real h = paramsH->HSML / 2.0;
+    //            Real4 test = mR4(center + h / 2 * mR3(-1, -1, -1), h);
+    //            sortedSphMarkersD->velMasD[childMarkers[0]] = sortedSphMarkersD->velMasD[i];
+    //
+    //            sortedSphMarkersD->posRadD[childMarkers[0]] = mR4(center + h / 2 * mR3(-1, -1, -1),
+    //            h);
+    //            sortedSphMarkersD->posRadD[childMarkers[1]] = mR4(center + h / 2 * mR3(+1, -1, -1),
+    //            h);
+    //            sortedSphMarkersD->posRadD[childMarkers[2]] = mR4(center + h / 2 * mR3(+1, +1, -1),
+    //            h);
+    //            sortedSphMarkersD->posRadD[childMarkers[3]] = mR4(center + h / 2 * mR3(-1, +1, -1),
+    //            h);
+    //            sortedSphMarkersD->posRadD[childMarkers[4]] = mR4(center + h / 2 * mR3(-1, -1, +1),
+    //            h);
+    //            sortedSphMarkersD->posRadD[childMarkers[5]] = mR4(center + h / 2 * mR3(+1, -1, +1),
+    //            h);
+    //            sortedSphMarkersD->posRadD[childMarkers[6]] = mR4(center + h / 2 * mR3(+1, +1, +1),
+    //            h);
+    //            sortedSphMarkersD->posRadD[i] = mR4(center + h / 2 * mR3(-1, +1, +1), h);
+    //            numSplits++;
+    //        }
+    //    }
+    //    printf("Splitted %d markers...\n", numSplits);
 
     double UpdateClock = clock();
     CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vel_XSPH_D, vel_XSPH_Sorted_D,

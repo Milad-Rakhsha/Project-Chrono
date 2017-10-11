@@ -83,7 +83,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->dT_Max = 0.01;  ///< This is problem dependent should set by the user based on characteristic time step
     paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 
-    paramsH->dT = 2.5e-3;
+    paramsH->dT = 1e-3;
 
     paramsH->tFinal = 2;
     paramsH->timePause = 0;

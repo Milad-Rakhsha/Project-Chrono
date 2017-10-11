@@ -329,6 +329,8 @@ void ChFsiDataManager::InitNumObjects() {
     numObjects.numFlexBodies1D = 0;     /* Number of Flexible bodies*/
     numObjects.numFlexBodies2D = 0;     /* Number of Flexible bodies*/
     numObjects.numFlexNodes = 0;        /* Number of FE nodes*/
+    numObjects.numGhostMarkers=0;
+    numObjects.numHelperMarkers=0;
     numObjects.numFluidMarkers = 0;     /* Number of fluid SPH markers*/
     numObjects.numBoundaryMarkers = 0;  /* Number of boundary SPH markers */
     numObjects.startRigidMarkers = 0;   /* */
@@ -390,6 +392,9 @@ void ChFsiDataManager::CalcNumObjects() {
     }
 
     std::cout << "numObjects.numFlexNodes" << numObjects.numFlexNodes << std::endl;
+
+
+    std::cout << "numObjects.numGhostMarkers" << numObjects.numGhostMarkers << std::endl;
     numObjects.numFluidMarkers += numObjects.numGhostMarkers + numObjects.numHelperMarkers;
 
     numObjects.numAllMarkers = numObjects.numFluidMarkers + numObjects.numBoundaryMarkers +
