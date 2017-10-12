@@ -51,7 +51,7 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
         FsiGeneralData* otherFsiGeneralData,  ///< Pointer to the sph general data
         SimParams* otherParamsH,              ///< Pointer to the simulation parameters on host
         NumberOfObjects* otherNumObjects      ///< Pointer to number of objects, fluid and boundary markers, etc.
-        );
+    );
 
     /// Destructor. Deletes the collision system.
     ~ChFsiForceParallel();
@@ -117,6 +117,7 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
                            thrust::device_vector<Real3> vel_fsi_fea__D,
                            thrust::device_vector<Real3> acc_fsi_fea_D,
                            thrust::device_vector<Real>& sumWij_inv,
+                           thrust::device_vector<Real>& G_i,
                            thrust::device_vector<Real>& Color);
 
     ChCollisionSystemFsi* fsiCollisionSystem;  ///< collision system; takes care of  constructing neighbors list
