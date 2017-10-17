@@ -391,9 +391,9 @@ void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
     int4 test = fsiData->fsiGeneralData.referenceArray[fsiData->fsiGeneralData.referenceArray.size() - 1];
     printf(" x=%d, y=%d, z=%d, w=%d\n", test.x, test.y, test.z, test.w);
 
-    if (fsiData->numObjects.numFlexBodies2D !=
-        fsiData->fsiGeneralData.referenceArray.size() - 2 - fsiData->numObjects.numRigidBodies -
-            fsiData->numObjects.numFlexBodies1D) {
+    if (fsiData->numObjects.numFlexBodies2D != fsiData->fsiGeneralData.referenceArray.size() - 2 -
+                                                   fsiData->numObjects.numRigidBodies -
+                                                   fsiData->numObjects.numFlexBodies1D) {
         printf("Error! num rigid Flexible does not match reference array size!\n\n");
         std::cin.get();
     }
@@ -462,6 +462,22 @@ void AddCylinderSurfaceBce(ChFsiDataManager* fsiData,
     thrust::host_vector<Real4> posRadBCE;
     thrust::host_vector<Real3> normals;
     CreateBCE_On_surface_of_Cylinder(posRadBCE, normals, radius, height, kernel_h);
+    CreateBceGlobalMarkersFromBceLocalPos(fsiData, paramsH, posRadBCE, body, relPos, relRot, false, true);
+    posRadBCE.clear();
+    normals.clear();
+}
+// =============================================================================
+
+void AddSphereSurfaceBce(ChFsiDataManager* fsiData,
+                         SimParams* paramsH,
+                         std::shared_ptr<ChBody> body,
+                         ChVector<> relPos,
+                         ChQuaternion<> relRot,
+                         Real radius,
+                         Real kernel_h) {
+    thrust::host_vector<Real4> posRadBCE;
+    thrust::host_vector<Real3> normals;
+    CreateBCE_On_surface_of_Sphere(posRadBCE, radius, kernel_h);
     CreateBceGlobalMarkersFromBceLocalPos(fsiData, paramsH, posRadBCE, body, relPos, relRot, false, true);
     posRadBCE.clear();
     normals.clear();

@@ -18,11 +18,11 @@
 #include <sstream>  // std::stringstream
 
 #include "chrono/core/ChMathematics.h"  // for CH_C_PI
-#include "chrono_fsi/ChDeviceUtils.cuh"
-#include "chrono_fsi/utils/ChUtilsGeneratorBce.h"
-#include "chrono_fea/ChNodeFEAxyzD.h"
 #include "chrono_fea/ChElementCableANCF.h"
 #include "chrono_fea/ChElementShellANCF.h"
+#include "chrono_fea/ChNodeFEAxyzD.h"
+#include "chrono_fsi/ChDeviceUtils.cuh"
+#include "chrono_fsi/utils/ChUtilsGeneratorBce.h"
 
 namespace chrono {
 namespace fsi {
@@ -43,7 +43,25 @@ void CreateBCE_On_Sphere(thrust::host_vector<Real4>& posRadBCE, Real rad, SimPar
         }
     }
 }
+// =============================================================================
+void CreateBCE_On_surface_of_Sphere(thrust::host_vector<Real4>& posRadBCE, Real rad, Real kernel_h) {
+    Real spacing = kernel_h;
 
+    Real r = rad;
+    Real deltaTeta = spacing / r;
+    Real deltaPhi = deltaTeta;
+
+    int numphi = std::floor(3.1415 * r / spacing);
+    for (Real p = 0.0; p < numphi; p++) {
+        Real phi = p * 3.1415 / numphi;
+        int numTheta = std::floor(2 * 3.1415 * r * sin(phi) / spacing);
+        for (Real t = 0.0; t < numTheta; t++) {
+            Real teta = t * 2 * 3.1415 / numTheta;
+            Real3 BCE_Pos_local = mR3(r * sin(phi) * cos(teta), r * sin(phi) * sin(teta), r * cos(phi));
+            posRadBCE.push_back(mR4(BCE_Pos_local, spacing));
+        }
+    }
+}
 // =============================================================================
 
 void CreateBCE_On_Cylinder(thrust::host_vector<Real4>& posRadBCE,
@@ -65,7 +83,8 @@ void CreateBCE_On_Cylinder(thrust::host_vector<Real4>& posRadBCE,
         //        posRadBCE.push_back(mR4(centerPointLF, spacing));
         //        for (Real r = spacing; r < cyl_rad - paramsH->solidSurfaceAdjust; r += spacing) {
         //            Real deltaTeta = spacing / r;
-        //            for (Real teta = .1 * deltaTeta; teta < 2 * chrono::CH_C_PI - .1 * deltaTeta; teta += deltaTeta) {
+        //            for (Real teta = .1 * deltaTeta; teta < 2 * chrono::CH_C_PI - .1 * deltaTeta; teta +=
+        //            deltaTeta) {
         //                Real3 BCE_Pos_local = mR3(r * cos(teta), 0, r * sin(teta)) + centerPointLF;
         //                posRadBCE.push_back(mR4(BCE_Pos_local, spacing));
         //            }
@@ -80,7 +99,9 @@ void CreateBCE_On_surface_of_Cylinder(thrust::host_vector<Real4>& posRadBCE,
                                       Real cyl_rad,
                                       Real cyl_h,
                                       Real spacing) {
-    for (Real s = -0.5 * cyl_h; s <= 0.5 * cyl_h + 1e-4; s += spacing) {
+    int num_layers = floor(cyl_h / spacing);
+    for (int si = 0; si < num_layers; si++) {
+        Real s = -0.5 * cyl_h + (cyl_h / num_layers) * si;
         ///////////
         //        for (Real x = -cyl_rad; x <= cyl_rad; x += spacing) {
         //            for (Real y = -cyl_rad; y <= cyl_rad; y += spacing) {
@@ -92,14 +113,15 @@ void CreateBCE_On_surface_of_Cylinder(thrust::host_vector<Real4>& posRadBCE,
         //        }
         Real3 centerPointLF = mR3(0, s, 0);
         printf("creating markers on the surface of the cylinder at layer at y=%f\n", s);
-        for (Real r = spacing; r < cyl_rad + 1e-5; r += spacing) {
+        Real numr = floor(cyl_rad / spacing);
+        for (int ir = 1; ir < numr; ir++) {
+            Real r = spacing + ir * cyl_rad / numr;
             //                Real deltaTeta = 2 * spacing / r;
             int numTheta = std::floor(2 * 3.1415 * r / spacing);
             for (Real t = 0.0; t < numTheta; t++) {
                 Real teta = t * 2 * 3.1415 / numTheta;
                 Real3 BCE_Pos_local = mR3(r * cos(teta), 0, r * sin(teta)) + centerPointLF;
-                if (abs(s + 0.5 * cyl_h) < spacing / 5 || abs(s - 0.5 * cyl_h) < spacing / 5 ||
-                    abs(r - cyl_rad) < spacing / 3) {
+                if (si == 0 || si == num_layers - 1 || ir == numr - 1) {
                     posRadBCE.push_back(mR4(BCE_Pos_local, spacing));
                 }
             }
@@ -400,6 +422,6 @@ void LoadBCE_fromFile(thrust::host_vector<Real4>& posRadBCE,  // do not set the
     std::cout << "  Loaded BCE data from: " << fileName << std::endl;
 }
 
-}  // end namespace utils
-}  // end namespace fsi
-}  // end namespace chrono
+}  // namespace utils
+}  // namespace fsi
+}  // namespace chrono

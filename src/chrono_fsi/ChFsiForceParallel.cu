@@ -626,6 +626,10 @@ __device__ void grad_scalar(int i_idx,
     Real h_i = sortedPosRad[i_idx].w;
     int3 gridPos = calcGridPos(posRadA);
 
+    //    printf("update G[%d]= %f,%f,%f  %f,%f,%f, %f,%f,%f\n", i_idx, G_i[i_idx * 9 + 0], G_i[i_idx * 9 + 1],
+    //           G_i[i_idx * 9 + 2], G_i[i_idx * 9 + 3], G_i[i_idx * 9 + 4], G_i[i_idx * 9 + 5], G_i[i_idx * 9 + 6],
+    //           G_i[i_idx * 9 + 7], G_i[i_idx * 9 + 8]);
+
     // This is the elements of inverse of G
     Real mGi[9];
     for (int n = 0; n < 9; n++)
@@ -654,17 +658,18 @@ __device__ void grad_scalar(int i_idx,
                         Real W3 = W3h(d, h_ij);
                         Real3 grad_i_wij = GradWh(dist3, h_ij);
                         Real V_j = sumWij_inv[j];
-                        Real3 common_part;
+                        Real3 common_part = mR3(0);
                         common_part.x = grad_i_wij.x * mGi[0] + grad_i_wij.y * mGi[1] + grad_i_wij.z * mGi[2];
                         common_part.y = grad_i_wij.x * mGi[3] + grad_i_wij.y * mGi[4] + grad_i_wij.z * mGi[5];
                         common_part.z = grad_i_wij.x * mGi[6] + grad_i_wij.y * mGi[7] + grad_i_wij.z * mGi[8];
-                        grad_si += common_part * (Scalar[i_idx].x - Scalar[j].x) * V_j;
+                        grad_si += common_part * (Scalar[j].x - Scalar[i_idx].x) * V_j;
                     }
                 }
             }
         }
     }
     myGrad = grad_si;
+    //    printf("grad_scalar[%d]= %f,%f,%f\n", i_idx, myGrad.x, myGrad.y, myGrad.z);
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 __device__ void grad_vector(int i_idx,
@@ -728,6 +733,8 @@ __device__ void grad_vector(int i_idx,
     myGradx = grad_Vx;
     myGrady = grad_Vy;
     myGradz = grad_Vz;
+    //    printf("grad_vector[%d]= %f,%f,%f  %f,%f,%f, %f,%f,%f\n", i_idx, myGradx.x, myGradx.y, myGradx.z, myGrady.x,
+    //           myGrady.y, myGrady.z, myGradz.x, myGradz.y, myGradz.z);
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void calcRho_kernel(Real4* sortedPosRad,  // input: sorted positionsmin(
@@ -769,6 +776,7 @@ __global__ void calcRho_kernel(Real4* sortedPosRad,  // input: sorted positionsm
                         Real h_j = sortedPosRad[j].w;
                         Real m_j = h_j * h_j * h_j * paramsD.rho0;
                         Real W3 = W3h(d, 0.5 * (h_j + h_i));
+                        //                        Real W3 = 0.5 * (W3h(d, h_i) + W3h(d, h_j));
                         sum_mW += m_j * W3;
                         sum_W += W3;
                     }
@@ -779,6 +787,7 @@ __global__ void calcRho_kernel(Real4* sortedPosRad,  // input: sorted positionsm
 
     // Adding neighbor contribution is done!
     sumWij_inv[i_idx] = m_i / sum_mW;
+    sortedRhoPreMu[i_idx].x = sum_mW;
 
     //    if (sumWij_inv[i_idx] > 1e-5 && sortedRhoPreMu[i_idx].w > -2)
     //        printf("sum_mW=%f,  sumWij_inv[i_idx]=%.4e\n", sum_mW, sumWij_inv[i_idx]);
@@ -888,6 +897,10 @@ __global__ void calcNormalizedRho_kernel(Real4* sortedPosRad,  // input: sorted 
     G_i[i_idx * 9 + 7] = -(mGi[0] * mGi[7] - mGi[1] * mGi[6]) / Det;
     G_i[i_idx * 9 + 8] = (mGi[0] * mGi[4] - mGi[1] * mGi[3]) / Det;
 
+    //    printf("update G[%d]= %f,%f,%f  %f,%f,%f, %f,%f,%f\n", i_idx, G_i[i_idx * 9 + 0], G_i[i_idx * 9 + 1],
+    //           G_i[i_idx * 9 + 2], G_i[i_idx * 9 + 3], G_i[i_idx * 9 + 4], G_i[i_idx * 9 + 5], G_i[i_idx * 9 + 6],
+    //           G_i[i_idx * 9 + 7], G_i[i_idx * 9 + 8]);
+
     if (sortedRhoPreMu[i_idx].x > RHO_0)
         IncompressibilityFactor = 1;
 
@@ -962,19 +975,19 @@ __global__ void V_i_np__AND__d_ii_kernel(Real4* sortedPosRad,  // input: sorted 
                 if (startIndex != 0xffffffff) {  // cell is not empty
                     uint endIndex = cellEnd[gridHash];
                     for (uint j = startIndex; j < endIndex; j++) {
-                        if (i_idx == j)
-                            continue;
                         Real3 posj = mR3(sortedPosRad[j]);
-                        Real3 Velj = sortedVelMas[j];
-                        Real Rhoj = sortedRhoPreMu[j].x;
-                        if (Rhoj == 0) {
-                            printf("Bug F_i_np__AND__d_ii_kernel i=%d j=%d\n", i_idx, j);
-                        }
                         Real3 dist3 = Distance(posi, posj);
                         Real d = length(dist3);
-                        if (d > RESOLUTION_LENGTH_MULT * h_i || sortedRhoPreMu[j].w <= -2)
+                        if (d > RESOLUTION_LENGTH_MULT * h_i || sortedRhoPreMu[j].w <= -2 || i_idx == j)
                             continue;
+                        Real3 Velj = sortedVelMas[j];
+                        Real Rhoj = sortedRhoPreMu[j].x;
                         Real h_j = sortedPosRad[j].w;
+
+                        if (Rhoj == 0) {
+                            printf("Bug F_i_np__AND__d_ii_kernel i=%d j=%d, hi=%f, hj=%f\n", i_idx, j, h_i, h_j);
+                        }
+
                         Real m_j = h_j * h_j * h_j * paramsD.rho0;
                         Real h_ij = 0.5 * (h_j + h_i);
                         Real3 grad_i_wij = GradWh(dist3, h_ij);
@@ -2283,7 +2296,7 @@ __global__ void Calc_HelperMarkers_normals(Real4* sortedPosRad,
     if (i_idx >= numAllMarkers) {
         return;
     }
-    myType[i_idx] = (int)floor(sortedRhoPreMu[i_idx].w);
+    myType[i_idx] = (int)round(sortedRhoPreMu[i_idx].w);
 
     if (sortedRhoPreMu[i_idx].w != -3) {
         return;
@@ -2325,13 +2338,26 @@ __global__ void Calc_HelperMarkers_normals(Real4* sortedPosRad,
     //        }
     //    }
 
-    my_normal = posi - mR3(-0.005, 0, 0.195);
+    Real3 cent = mR3(-0.005, 0, 0.195);
+    my_normal = posi - cent;
     my_normal = mR3(my_normal.x, 0.0, my_normal.z);
+    Real r = length(my_normal);
+    normalize(my_normal);
+    //    Real3 test = (posi - cent);
+    //    test.y = 0;
 
-    if (posi.y > 0.028 && length(my_normal) < 0.098)
+    if (posi.y > 0.028 && r < 0.098)
         my_normal = mR3(0, 1, 0);
+    else if (posi.y > 0.028 && r > 0.098)
+        my_normal = normalize(my_normal + mR3(0, 0.05, 0));
     else if (posi.y < -0.028 && length(my_normal) < 0.098)
         my_normal = mR3(0, -1, 0);
+    else if (posi.y < -0.028 && r > 0.098)
+        my_normal = normalize(my_normal + mR3(0, -0.05, 0));
+
+    //    Real3 cent = mR3(-0.005, 0, 0.195);
+    //    my_normal = posi - cent;
+    //    normalize(my_normal);
 
     helpers_normal[Original_idx] = my_normal / length(my_normal);
 
@@ -2371,9 +2397,12 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
     //    MergingMarkers1[Original_idx] = mI4(i_idx);
     //    MergingMarkers2[Original_idx] = mI4(i_idx);
     Real3 normal = helpers_normal[Original_idx];
+    //    Real3 normal = posi - mR3(-0.005, 0.0, 0.195);
+
     //    sortedRhoPreMu[i_idx].x = normal.x;
     //    sortedRhoPreMu[i_idx].y = normal.y;
     //    sortedRhoPreMu[i_idx].z = normal.z;
+
     int3 gridPos = calcGridPos(posi);
 
     //    printf("Original_idx=%d, p=(%f,%f,%f), n1=%f, n2=%f, n3=%f\n", Original_idx, posi.x, posi.y, posi.z,
@@ -2404,8 +2433,10 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
         Real3 posj = mR3(sortedPosRad[j]);
         Real3 dist3 = Distance(posj, posi);
         Real d = length(dist3);
-        Real cosT = dot(dist3, normal) / length(dist3) * length(normal);
         Real3 velj = sortedVelMas[j];
+        Real cosT = dot(dist3, normal) / (length(dist3) * length(normal));
+        Real cosTv = dot(velj, normal) / (length(velj) * length(normal));
+
         //                    Real y2 = d * d * cosT * cosT;
         //                    Real b2 = coarseResolution * coarseResolution;
         Real x2 = d * d * (1 - cosT * cosT);
@@ -2425,8 +2456,14 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
         //                        x2 < fineResolution * fineResolution) {
         //////////////////////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////
-        if (abs(sortedPosRad[j].w - fineResolution) < EPSILON && dot(velj, normal) > 0 && MergeMe[j] == 0 &&
-            d < fineResolution * 2) {
+        //                    if (sortedRhoPreMu[j].w == -1 && abs(sortedPosRad[j].w - fineResolution) <
+        //                    EPSILON &&
+        //                        myType[j] == -1 && MergeMe[j] == 0 && splitMe[j] == 0 && d <
+        //                        coarseResolution && cosTv > 0.2) {
+
+        if (abs(sortedPosRad[j].w - fineResolution) < EPSILON && (MergeMe[j] == 0) && (sortedRhoPreMu[j].w == -1) &&
+            dot(velj, normal) > 0 && (dot(dist3, normal) > 0 || (d < 2 * fineResolution && cosTv > 0.2)) &&
+            posj.x > 0) {
             uint p = 9;
             if (d < length(Distance(posi, mR3(sortedPosRad[N8]))) || N8 == i_idx)
                 p = 8;
@@ -2449,7 +2486,9 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
                 atomicCAS(&MergeMe[j], 0, i_idx);
                 if (MergeMe[j] != i_idx)
                     continue;
-                atomicExch(&MergeMe[N8], 0);
+                // Release the last one since it is going to be replaced
+                if (N8 != i_idx)
+                    atomicExch(&MergeMe[N8], 0);
             }
             if (p == 8) {
                 N8 = j;
@@ -2496,141 +2535,14 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
                 N2 = N1;
                 N1 = j;
             }
-            atomicExch(&MergeMe[N1], i_idx);
-            atomicExch(&MergeMe[N2], i_idx);
-            atomicExch(&MergeMe[N3], i_idx);
-            atomicExch(&MergeMe[N4], i_idx);
-            atomicExch(&MergeMe[N5], i_idx);
-            atomicExch(&MergeMe[N6], i_idx);
-            atomicExch(&MergeMe[N7], i_idx);
-            atomicExch(&MergeMe[N8], i_idx);
-        }
-        if (abs(sortedPosRad[j].w - coarseResolution) < EPSILON && dot(dist3, normal) < 0 && dot(velj, normal) < 0 &&
-            d < 0.0000 * fineResolution) {
+        } else if (abs(sortedPosRad[j].w - coarseResolution) < EPSILON && dot(dist3, normal) < 0 &&
+                   sortedRhoPreMu[j].w == -1 && d < 1 * fineResolution && splitMe[j] == 0 && myType[j] == -1 &&
+                   sortedRhoPreMu[j].w == -1 && cosTv < -0.3 && posj.x < 0) {
+            //                    } else if (abs(sortedPosRad[j].w - coarseResolution) < EPSILON &&
+            //                    splitMe[j] == 0 &&
+            //                               MergeMe[j] == 0 && myType[j] == -1 && sortedRhoPreMu[j].w == -1
+            //                               && d < 1 * coarseResolution && cosTv < -0.5) {
             atomicCAS(&splitMe[j], 0, i_idx);
-            uint temp = 0;
-            if (splitMe[j] == i_idx) {
-                uint childMarkers[7];
-                temp = 0;
-                uint k = 0;
-                Real4 RhoPreMu = sortedRhoPreMu[j];
-
-                while (k < 7) {
-                    atomicCAS(&myType[temp], -2, i_idx);
-                    if (myType[temp] == i_idx) {
-                        childMarkers[k] = temp;
-                        k++;
-                    }
-                    if (temp > numAllMarkers) {
-                        break;
-                        *isErrorD = true;
-                    }
-                    temp++;
-                }
-                for (int n = 0; n < 7; n++) {
-                    sortedVelMas[childMarkers[n]] = velj;
-                    sortedRhoPreMu[childMarkers[n]] = RhoPreMu;
-                }
-                Real3 center = mR3(sortedPosRad[j]);
-                Real h = fineResolution;
-                // This is recommended for our confuguration from Vacondio et. al
-                //                            Real d = 0.72 * coarseResolution / 1.7321;
-                Real d = 0.5 * fineResolution;
-                int N1 = childMarkers[0];
-                int N2 = childMarkers[1];
-                int N3 = childMarkers[2];
-                int N4 = childMarkers[3];
-                int N5 = childMarkers[4];
-                int N6 = childMarkers[5];
-                int N7 = childMarkers[6];
-                int N8 = j;
-
-                sortedPosRad[N1] = mR4(center + d * mR3(-1, -1, -1), h);
-                sortedPosRad[N2] = mR4(center + d * mR3(+1, -1, -1), h);
-                sortedPosRad[N3] = mR4(center + d * mR3(+1, +1, -1), h);
-                sortedPosRad[N4] = mR4(center + d * mR3(-1, +1, -1), h);
-                sortedPosRad[N5] = mR4(center + d * mR3(-1, -1, +1), h);
-                sortedPosRad[N6] = mR4(center + d * mR3(+1, -1, +1), h);
-                sortedPosRad[N7] = mR4(center + d * mR3(+1, +1, +1), h);
-                sortedPosRad[N8] = mR4(center + d * mR3(-1, +1, +1), h);
-                Real3 myGrad[8];
-
-                grad_scalar(N1, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedRhoPreMu, myGrad[0], cellStart,
-                            cellEnd);
-                grad_scalar(N2, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedRhoPreMu, myGrad[1], cellStart,
-                            cellEnd);
-                grad_scalar(N3, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedRhoPreMu, myGrad[2], cellStart,
-                            cellEnd);
-                grad_scalar(N4, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedRhoPreMu, myGrad[3], cellStart,
-                            cellEnd);
-                grad_scalar(N5, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedRhoPreMu, myGrad[4], cellStart,
-                            cellEnd);
-                grad_scalar(N6, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedRhoPreMu, myGrad[5], cellStart,
-                            cellEnd);
-                grad_scalar(N7, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedRhoPreMu, myGrad[6], cellStart,
-                            cellEnd);
-                grad_scalar(N8, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedRhoPreMu, myGrad[7], cellStart,
-                            cellEnd);
-                sortedRhoPreMu[N1].x = dot(myGrad[0], mR3(sortedPosRad[N1] - center));
-                sortedRhoPreMu[N2].x = dot(myGrad[1], mR3(sortedPosRad[N2] - center));
-                sortedRhoPreMu[N3].x = dot(myGrad[2], mR3(sortedPosRad[N3] - center));
-                sortedRhoPreMu[N4].x = dot(myGrad[3], mR3(sortedPosRad[N4] - center));
-                sortedRhoPreMu[N5].x = dot(myGrad[4], mR3(sortedPosRad[N5] - center));
-                sortedRhoPreMu[N6].x = dot(myGrad[5], mR3(sortedPosRad[N6] - center));
-                sortedRhoPreMu[N7].x = dot(myGrad[6], mR3(sortedPosRad[N7] - center));
-                sortedRhoPreMu[N8].x = dot(myGrad[7], mR3(sortedPosRad[N8] - center));
-
-                Real3 myGradx[8];
-                Real3 myGrady[8];
-                Real3 myGradz[8];
-                grad_vector(N1, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedVelMas, myGradx[0], myGrady[0],
-                            myGradz[0], cellStart, cellEnd);
-                grad_vector(N2, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedVelMas, myGradx[1], myGrady[1],
-                            myGradz[1], cellStart, cellEnd);
-                grad_vector(N3, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedVelMas, myGradx[2], myGrady[2],
-                            myGradz[2], cellStart, cellEnd);
-                grad_vector(N4, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedVelMas, myGradx[3], myGrady[3],
-                            myGradz[3], cellStart, cellEnd);
-                grad_vector(N5, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedVelMas, myGradx[4], myGrady[4],
-                            myGradz[4], cellStart, cellEnd);
-                grad_vector(N6, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedVelMas, myGradx[5], myGrady[5],
-                            myGradz[5], cellStart, cellEnd);
-                grad_vector(N7, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedVelMas, myGradx[6], myGrady[6],
-                            myGradz[6], cellStart, cellEnd);
-                grad_vector(N8, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedVelMas, myGradx[7], myGrady[7],
-                            myGradz[7], cellStart, cellEnd);
-
-                sortedVelMas[N1].x = dot(myGradx[0], mR3(sortedPosRad[N1] - center));
-                sortedVelMas[N2].x = dot(myGradx[1], mR3(sortedPosRad[N2] - center));
-                sortedVelMas[N3].x = dot(myGradx[2], mR3(sortedPosRad[N3] - center));
-                sortedVelMas[N4].x = dot(myGradx[3], mR3(sortedPosRad[N4] - center));
-                sortedVelMas[N5].x = dot(myGradx[4], mR3(sortedPosRad[N5] - center));
-                sortedVelMas[N6].x = dot(myGradx[5], mR3(sortedPosRad[N6] - center));
-                sortedVelMas[N7].x = dot(myGradx[6], mR3(sortedPosRad[N7] - center));
-                sortedVelMas[N8].x = dot(myGradx[7], mR3(sortedPosRad[N8] - center));
-
-                sortedVelMas[N1].y = dot(myGrady[0], mR3(sortedPosRad[N1] - center));
-                sortedVelMas[N2].y = dot(myGrady[1], mR3(sortedPosRad[N2] - center));
-                sortedVelMas[N3].y = dot(myGrady[2], mR3(sortedPosRad[N3] - center));
-                sortedVelMas[N4].y = dot(myGrady[3], mR3(sortedPosRad[N4] - center));
-                sortedVelMas[N5].y = dot(myGrady[4], mR3(sortedPosRad[N5] - center));
-                sortedVelMas[N6].y = dot(myGrady[5], mR3(sortedPosRad[N6] - center));
-                sortedVelMas[N7].y = dot(myGrady[6], mR3(sortedPosRad[N7] - center));
-                sortedVelMas[N8].y = dot(myGrady[7], mR3(sortedPosRad[N8] - center));
-
-                sortedVelMas[N1].z = dot(myGradz[0], mR3(sortedPosRad[N1] - center));
-                sortedVelMas[N2].z = dot(myGradz[1], mR3(sortedPosRad[N2] - center));
-                sortedVelMas[N3].z = dot(myGradz[2], mR3(sortedPosRad[N3] - center));
-                sortedVelMas[N4].z = dot(myGradz[3], mR3(sortedPosRad[N4] - center));
-                sortedVelMas[N5].z = dot(myGradz[4], mR3(sortedPosRad[N5] - center));
-                sortedVelMas[N6].z = dot(myGradz[5], mR3(sortedPosRad[N6] - center));
-                sortedVelMas[N7].z = dot(myGradz[6], mR3(sortedPosRad[N7] - center));
-                sortedVelMas[N8].z = dot(myGradz[7], mR3(sortedPosRad[N8] - center));
-            }
-            if (temp > numAllMarkers)
-                printf(
-                    "Reached the limit of the ghost markers. Please increase the number of ghost "
-                    "markers.\n");
         }
     }
     //            }
@@ -2645,6 +2557,16 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
             printf("RACE CONDITION in merging! Please revise the spacing or the merging scheme.\n");
             *isErrorD = true;
         }
+
+        printf("idx=%d merging %d,%d,%d,%d,%d,%d,%d,%d\n", i_idx, N1, N2, N3, N4, N5, N6, N7, N8);
+        if (sortedPosRad[N1].w != fineResolution || sortedPosRad[N2].w != fineResolution ||
+            sortedPosRad[N3].w != fineResolution || sortedPosRad[N4].w != fineResolution ||
+            sortedPosRad[N5].w != fineResolution || sortedPosRad[N6].w != fineResolution ||
+            sortedPosRad[N7].w != fineResolution || sortedPosRad[N8].w != fineResolution) {
+            printf("ops something went wrong!.\n");
+            *isErrorD = true;
+        }
+
         Real4 center = 0.125 * (sortedPosRad[N1] + sortedPosRad[N2] + sortedPosRad[N3] + sortedPosRad[N4] +
                                 sortedPosRad[N5] + sortedPosRad[N6] + sortedPosRad[N7] + sortedPosRad[N8]);
 
@@ -2721,6 +2643,10 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
                                     sortedVelMas[N5] + sortedVelMas[N6] + sortedVelMas[N7] + sortedVelMas[N8]);
         sortedPosRad[N1] = center;
 
+        if (sortedPosRad[N1].w != fineResolution || sortedRhoPreMu[N1].w != -1) {
+            printf("ops something went wrong!!!!\n");
+            *isErrorD = true;
+        }
         sortedPosRad[N1].w = coarseResolution;
         sortedRhoPreMu[N1].w = -1;
         sortedRhoPreMu[N2].w = -2;
@@ -2737,6 +2663,175 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
         sortedPosRad[N6] = mR4(mR3(0.0, 0.0, -0.4), coarseResolution);
         sortedPosRad[N7] = mR4(mR3(0.0, 0.0, -0.4), coarseResolution);
         sortedPosRad[N8] = mR4(mR3(0.0, 0.0, -0.4), coarseResolution);
+        sortedVelMas[N2] = mR3(0.0);
+        sortedVelMas[N3] = mR3(0.0);
+        sortedVelMas[N4] = mR3(0.0);
+        sortedVelMas[N5] = mR3(0.0);
+        sortedVelMas[N6] = mR3(0.0);
+        sortedVelMas[N7] = mR3(0.0);
+        sortedVelMas[N8] = mR3(0.0);
+    }
+}
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void Split(Real4* sortedPosRad,
+                      Real4* sortedRhoPreMu,
+                      Real3* sortedVelMas,
+                      Real3* helpers_normal,
+                      Real* sumWij_inv,
+                      Real* G_i,
+                      uint* splitMe,
+                      uint* MergeMe,
+                      int* myType,
+                      uint* cellStart,
+                      uint* cellEnd,
+                      uint* gridMarkerIndexD,
+                      Real fineResolution,
+                      Real coarseResolution,
+                      int numAllMarkers,
+                      int limit,
+                      volatile bool* isErrorD) {
+    uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int Original_idx = gridMarkerIndexD[i_idx];
+    if (i_idx >= numAllMarkers) {
+        return;
+    }
+    if (splitMe[i_idx] == 0)
+        return;
+
+    Real3 posi = mR3(sortedPosRad[i_idx]);
+    Real3 veli = sortedVelMas[i_idx];
+
+    if (abs(sortedPosRad[i_idx].w - coarseResolution) < EPSILON && sortedRhoPreMu[i_idx].w == -1 &&
+        splitMe[i_idx] != 0 && myType[i_idx] == -1) {
+        uint temp = 0;
+
+        MergeMe[i_idx] = -1;
+        uint childMarkers[7] = {0};
+        temp = 0;
+        uint k = 0;
+        int numpass = 0;
+        Real4 RhoPreMu = sortedRhoPreMu[i_idx];
+
+        while (k < 7) {
+            atomicCAS(&myType[temp], -2, i_idx);
+            if (myType[temp] == i_idx) {
+                childMarkers[k] = temp;
+                k++;
+            }
+            if (temp > numAllMarkers) {
+                if (numpass < 2) {
+                    temp = 0;
+                    continue;
+                }
+                break;
+                *isErrorD = true;
+            }
+            temp++;
+        }
+        for (int n = 0; n < 7; n++) {
+            sortedVelMas[childMarkers[n]] = veli;
+            sortedRhoPreMu[childMarkers[n]] = RhoPreMu;
+            sumWij_inv[childMarkers[n]] = sumWij_inv[i_idx];
+
+            for (int l = 0; l < 9; l++)
+                G_i[childMarkers[n] * 9 + l] = G_i[i_idx * 9 + l];
+        }
+        Real3 center = mR3(sortedPosRad[i_idx]);
+        Real h = fineResolution;
+
+        int N1 = childMarkers[0];
+        int N2 = childMarkers[1];
+        int N3 = childMarkers[2];
+        int N4 = childMarkers[3];
+        int N5 = childMarkers[4];
+        int N6 = childMarkers[5];
+        int N7 = childMarkers[6];
+        int N8 = i_idx;
+        Real d = 0.5 * fineResolution;
+        // This is recommended for our confuguration from Vacondio et. al
+        //                Real d = 0.72 * coarseResolution / 1.7321;
+        sortedPosRad[N1] = mR4(center + d * mR3(-1, -1, -1), h);
+        sortedPosRad[N2] = mR4(center + d * mR3(+1, -1, -1), h);
+        sortedPosRad[N3] = mR4(center + d * mR3(+1, +1, -1), h);
+        sortedPosRad[N4] = mR4(center + d * mR3(-1, +1, -1), h);
+        sortedPosRad[N5] = mR4(center + d * mR3(-1, -1, +1), h);
+        sortedPosRad[N6] = mR4(center + d * mR3(+1, -1, +1), h);
+        sortedPosRad[N7] = mR4(center + d * mR3(+1, +1, +1), h);
+        sortedPosRad[N8] = mR4(center + d * mR3(-1, +1, +1), h);
+
+        Real3 myGrad[8] = {0};
+        Real rho0 = +sortedRhoPreMu[N8].x;
+        grad_scalar(N1, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedRhoPreMu, myGrad[0], cellStart, cellEnd);
+        grad_scalar(N2, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedRhoPreMu, myGrad[1], cellStart, cellEnd);
+        grad_scalar(N3, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedRhoPreMu, myGrad[2], cellStart, cellEnd);
+        grad_scalar(N4, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedRhoPreMu, myGrad[3], cellStart, cellEnd);
+        grad_scalar(N5, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedRhoPreMu, myGrad[4], cellStart, cellEnd);
+        grad_scalar(N6, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedRhoPreMu, myGrad[5], cellStart, cellEnd);
+        grad_scalar(N7, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedRhoPreMu, myGrad[6], cellStart, cellEnd);
+        grad_scalar(N8, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedRhoPreMu, myGrad[7], cellStart, cellEnd);
+        sortedRhoPreMu[N1].x += dot(myGrad[0], mR3(sortedPosRad[N1]) - center);
+        sortedRhoPreMu[N2].x += dot(myGrad[1], mR3(sortedPosRad[N2]) - center);
+        sortedRhoPreMu[N3].x += dot(myGrad[2], mR3(sortedPosRad[N3]) - center);
+        sortedRhoPreMu[N4].x += dot(myGrad[3], mR3(sortedPosRad[N4]) - center);
+        sortedRhoPreMu[N5].x += dot(myGrad[4], mR3(sortedPosRad[N5]) - center);
+        sortedRhoPreMu[N6].x += dot(myGrad[5], mR3(sortedPosRad[N6]) - center);
+        sortedRhoPreMu[N7].x += dot(myGrad[6], mR3(sortedPosRad[N7]) - center);
+        sortedRhoPreMu[N8].x += dot(myGrad[7], mR3(sortedPosRad[N8]) - center);
+
+        Real3 myGradx[8] = {0};
+        Real3 myGrady[8] = {0};
+        Real3 myGradz[8] = {0};
+        grad_vector(N1, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedVelMas, myGradx[0], myGrady[0], myGradz[0],
+                    cellStart, cellEnd);
+        grad_vector(N2, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedVelMas, myGradx[1], myGrady[1], myGradz[1],
+                    cellStart, cellEnd);
+        grad_vector(N3, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedVelMas, myGradx[2], myGrady[2], myGradz[2],
+                    cellStart, cellEnd);
+        grad_vector(N4, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedVelMas, myGradx[3], myGrady[3], myGradz[3],
+                    cellStart, cellEnd);
+        grad_vector(N5, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedVelMas, myGradx[4], myGrady[4], myGradz[4],
+                    cellStart, cellEnd);
+        grad_vector(N6, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedVelMas, myGradx[5], myGrady[5], myGradz[5],
+                    cellStart, cellEnd);
+        grad_vector(N7, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedVelMas, myGradx[6], myGrady[6], myGradz[6],
+                    cellStart, cellEnd);
+        grad_vector(N8, sortedPosRad, sortedRhoPreMu, sumWij_inv, G_i, sortedVelMas, myGradx[7], myGrady[7], myGradz[7],
+                    cellStart, cellEnd);
+
+        sortedVelMas[N1].x += dot(myGradx[0], mR3(sortedPosRad[N1]) - center);
+        sortedVelMas[N2].x += dot(myGradx[1], mR3(sortedPosRad[N2]) - center);
+        sortedVelMas[N3].x += dot(myGradx[2], mR3(sortedPosRad[N3]) - center);
+        sortedVelMas[N4].x += dot(myGradx[3], mR3(sortedPosRad[N4]) - center);
+        sortedVelMas[N5].x += dot(myGradx[4], mR3(sortedPosRad[N5]) - center);
+        sortedVelMas[N6].x += dot(myGradx[5], mR3(sortedPosRad[N6]) - center);
+        sortedVelMas[N7].x += dot(myGradx[6], mR3(sortedPosRad[N7]) - center);
+        sortedVelMas[N8].x += dot(myGradx[7], mR3(sortedPosRad[N8]) - center);
+
+        sortedVelMas[N1].y += dot(myGrady[0], mR3(sortedPosRad[N1]) - center);
+        sortedVelMas[N2].y += dot(myGrady[1], mR3(sortedPosRad[N2]) - center);
+        sortedVelMas[N3].y += dot(myGrady[2], mR3(sortedPosRad[N3]) - center);
+        sortedVelMas[N4].y += dot(myGrady[3], mR3(sortedPosRad[N4]) - center);
+        sortedVelMas[N5].y += dot(myGrady[4], mR3(sortedPosRad[N5]) - center);
+        sortedVelMas[N6].y += dot(myGrady[5], mR3(sortedPosRad[N6]) - center);
+        sortedVelMas[N7].y += dot(myGrady[6], mR3(sortedPosRad[N7]) - center);
+        sortedVelMas[N8].y += dot(myGrady[7], mR3(sortedPosRad[N8]) - center);
+
+        sortedVelMas[N1].z += dot(myGradz[0], mR3(sortedPosRad[N1]) - center);
+        sortedVelMas[N2].z += dot(myGradz[1], mR3(sortedPosRad[N2]) - center);
+        sortedVelMas[N3].z += dot(myGradz[2], mR3(sortedPosRad[N3]) - center);
+        sortedVelMas[N4].z += dot(myGradz[3], mR3(sortedPosRad[N4]) - center);
+        sortedVelMas[N5].z += dot(myGradz[4], mR3(sortedPosRad[N5]) - center);
+        sortedVelMas[N6].z += dot(myGradz[5], mR3(sortedPosRad[N6]) - center);
+        sortedVelMas[N7].z += dot(myGradz[6], mR3(sortedPosRad[N7]) - center);
+        sortedVelMas[N8].z += dot(myGradz[7], mR3(sortedPosRad[N8]) - center);
+
+        //        printf("extrapolate vel of marker %d with %f\n", N1, dot(myGradx[0], mR3(sortedPosRad[N1])
+        //        - center));
+
+        if (temp > numAllMarkers)
+            printf(
+                "Reached the limit of the ghost markers. Please increase the number of ghost "
+                "markers.\n");
     }
 }
 
@@ -3173,11 +3268,36 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
     thrust::device_vector<Real> G_i(numAllMarkers * 9);
     thrust::fill(G_i.begin(), G_i.end(), 0);
 
-    calcPressureIISPH(otherFsiBodiesD->velMassRigid_fsiBodies_D, otherFsiBodiesD->accRigid_fsiBodies_D,
-                      otherFsiMeshD->pos_fsi_fea_D, otherFsiMeshD->vel_fsi_fea_D, otherFsiMeshD->acc_fsi_fea_D,
-                      _sumWij_inv, G_i, Color);
-
     double CalcSplitMerge = clock();
+
+    *isErrorH = false;
+    cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
+
+    calcRho_kernel<<<numBlocks, numThreads>>>(
+        mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),
+        U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
+
+    cudaThreadSynchronize();
+    cudaCheckError();
+    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+    if (*isErrorH == true) {
+        throw std::runtime_error("Error! program crashed after calcRho_kernel!\n");
+    }
+
+    thrust::device_vector<Real> dxi_over_Vi(numAllMarkers);
+    thrust::fill(dxi_over_Vi.begin(), dxi_over_Vi.end(), 0);
+
+    calcNormalizedRho_kernel<<<numBlocks, numThreads>>>(
+        mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
+        mR4CAST(sortedSphMarkersD->rhoPresMuD),  // input: sorted velocities
+        R1CAST(_sumWij_inv), R1CAST(G_i), R1CAST(dxi_over_Vi), R1CAST(Color), U1CAST(markersProximityD->cellStartD),
+        U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
+    cudaThreadSynchronize();
+    cudaCheckError();
+    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+    if (*isErrorH == true) {
+        throw std::runtime_error("Error! program crashed after calcNormalizedRho_kernel!\n");
+    }
 
     thrust::device_vector<uint> SplitMe(numAllMarkers);
     thrust::device_vector<uint> MergeMe(numAllMarkers);
@@ -3217,19 +3337,38 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
         throw std::runtime_error("Error! program crashed in Calc_Split_and_Merges!\n");
     }
 
-    calcNormalizedRho_kernel<<<numBlocks, numThreads>>>(
-        mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
-        mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv), R1CAST(G_i), R1CAST(_sumWij_inv), R1CAST(Color),
-        U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
+    Split<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
+                                     mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(helpers_normal), R1CAST(_sumWij_inv),
+                                     R1CAST(G_i), U1CAST(SplitMe), U1CAST(MergeMe), I1CAST(myType),
+                                     U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD),
+                                     U1CAST(markersProximityD->gridMarkerIndexD), paramsH->HSML / 2.0, paramsH->HSML,
+                                     numAllMarkers, limit, isErrorD2);
     cudaThreadSynchronize();
     cudaCheckError();
-    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+    cudaMemcpy(isErrorH, isErrorD2, sizeof(bool), cudaMemcpyDeviceToHost);
     if (*isErrorH == true) {
-        throw std::runtime_error("Error! program crashed after calcNormalizedRho_kernel!\n");
+        throw std::runtime_error("Error! program crashed in Calc_Split_and_Merges!\n");
     }
 
     double splitMerge = (clock() - CalcSplitMerge) / (double)CLOCKS_PER_SEC;
     printf(" Splitting and Merging: %f \n", splitMerge);
+    //    calcNormalizedRho_kernel<<<numBlocks, numThreads>>>(
+    //        mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
+    //        mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv), R1CAST(G_i), R1CAST(_sumWij_inv),
+    //        R1CAST(Color), U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD),
+    //        numAllMarkers, isErrorD);
+    //    cudaThreadSynchronize();
+    //    cudaCheckError();
+    //    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+    //    if (*isErrorH == true) {
+    //        throw std::runtime_error("Error! program crashed after calcNormalizedRho_kernel!\n");
+    //    }
+    //
+    std::cout << "Done with splitting and merging \n";
+
+    calcPressureIISPH(otherFsiBodiesD->velMassRigid_fsiBodies_D, otherFsiBodiesD->accRigid_fsiBodies_D,
+                      otherFsiMeshD->pos_fsi_fea_D, otherFsiMeshD->vel_fsi_fea_D, otherFsiMeshD->acc_fsi_fea_D,
+                      _sumWij_inv, G_i, Color);
 
     //------------------------------------------------------------------------
     // thread per particle
@@ -3267,82 +3406,6 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
     double calcforce = (clock() - CalcForcesClock) / (double)CLOCKS_PER_SEC;
     printf(" Force Computation: %f \n", calcforce);
 
-    //    Calc_Splits_and_Merges<<<numBlocks, numThreads>>>(
-    //        mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
-    //        mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(helpers_normal), mI4CAST(MergingMarkers1),
-    //        mI4CAST(MergingMarkers2), U1CAST(SplitMe), U1CAST(markersProximityD->cellStartD),
-    //        U1CAST(markersProximityD->cellEndD), U1CAST(markersProximityD->gridMarkerIndexD),
-    //        paramsH->HSML / 2.0,
-    //        paramsH->HSML, numAllMarkers, isErrorD2);
-    //    cudaThreadSynchronize();
-    //    cudaCheckError();
-    //    cudaMemcpy(isErrorH, isErrorD2, sizeof(bool), cudaMemcpyDeviceToHost);
-    //    if (*isErrorH == true) {
-    //        throw std::runtime_error("Error! program crashed in Calc_Split_and_Merges!\n");
-    //    }
-
-    //    int StartSearching = numObjectsH->numHelperMarkers;
-    //    int temp = 0;
-    //    int numSplits = 0;
-    //    thrust::host_vector<Real4> posRadH = sphMarkersD->posRadD;
-    //    thrust::host_vector<Real4> rhoPresMuH = sortedSphMarkersD->rhoPresMuD;
-    //    thrust::host_vector<Real4> velMasH = sphMarkersD->velMasD;
-
-    //    for (int i = 0; i < SplitMe.size(); i++) {
-    //        int childMarkers[7];
-    //        Real3 velmass = sortedSphMarkersD->velMasD[i];
-    //        Real4 rpmt = sortedSphMarkersD->rhoPresMuD[i];
-    //        if (rpmt.w != -1)
-    //            continue;
-    //        if (SplitMe[i] == 1) {
-    //            int j = 0;
-    //            while (j < 7) {
-    //                Real4 test = rhoPresMuH[temp];
-    //                if (test.w == -2.0) {
-    //                    childMarkers[j] = temp;
-    //                    j++;
-    //                }
-    //                temp++;
-    //                if (temp > limit)
-    //                    throw std::runtime_error("Reached the limit of the helper markers;\n");
-    //            }
-    //            StartSearching += temp;
-    //            //
-    //            //            printf("velmass=%f,%f,%f rpmt=%f,%f,%f,%f\n", velmass.x, velmass.y,
-    //            velmass.z,
-    //            //            rpmt.x, rpmt.y,
-    //            //            rpmt.z,
-    //            //                   rpmt.w);
-    //
-    //            for (int k = 0; k < 7; k++) {
-    //                sortedSphMarkersD->velMasD[childMarkers[k]] = mR3(sortedSphMarkersD->velMasD[i]);
-    //                sortedSphMarkersD->rhoPresMuD[childMarkers[k]] = rpmt;
-    //            }
-    //            Real3 center = mR3(sortedSphMarkersD->posRadD[i]);
-    //            Real h = paramsH->HSML / 2.0;
-    //            Real4 test = mR4(center + h / 2 * mR3(-1, -1, -1), h);
-    //            sortedSphMarkersD->velMasD[childMarkers[0]] = sortedSphMarkersD->velMasD[i];
-    //
-    //            sortedSphMarkersD->posRadD[childMarkers[0]] = mR4(center + h / 2 * mR3(-1, -1, -1),
-    //            h);
-    //            sortedSphMarkersD->posRadD[childMarkers[1]] = mR4(center + h / 2 * mR3(+1, -1, -1),
-    //            h);
-    //            sortedSphMarkersD->posRadD[childMarkers[2]] = mR4(center + h / 2 * mR3(+1, +1, -1),
-    //            h);
-    //            sortedSphMarkersD->posRadD[childMarkers[3]] = mR4(center + h / 2 * mR3(-1, +1, -1),
-    //            h);
-    //            sortedSphMarkersD->posRadD[childMarkers[4]] = mR4(center + h / 2 * mR3(-1, -1, +1),
-    //            h);
-    //            sortedSphMarkersD->posRadD[childMarkers[5]] = mR4(center + h / 2 * mR3(+1, -1, +1),
-    //            h);
-    //            sortedSphMarkersD->posRadD[childMarkers[6]] = mR4(center + h / 2 * mR3(+1, +1, +1),
-    //            h);
-    //            sortedSphMarkersD->posRadD[i] = mR4(center + h / 2 * mR3(-1, +1, +1), h);
-    //            numSplits++;
-    //        }
-    //    }
-    //    printf("Splitted %d markers...\n", numSplits);
-
     double UpdateClock = clock();
     CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vel_XSPH_D, vel_XSPH_Sorted_D,
                                         markersProximityD->gridMarkerIndexD);
@@ -3363,5 +3426,5 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
     //
 }
 
-}  // end namespace fsi
-}  // end namespace chrono
+}  // namespace fsi
+}  // namespace chrono

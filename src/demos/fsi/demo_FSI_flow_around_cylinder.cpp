@@ -16,11 +16,11 @@
 
 // General Includes
 #include <assert.h>
+#include <limits.h>
+#include <stdlib.h>  // system
 #include <ctime>
 #include <fstream>
 #include <iostream>
-#include <limits.h>
-#include <stdlib.h>  // system
 #include <string>
 #include <vector>
 
@@ -61,7 +61,7 @@ const std::string out_dir = GetChronoOutputPath() + "FSI_FLOW_AROUND_CYLINDER";
 const std::string demo_dir = out_dir + "/FlowAroundCylinder";
 bool save_output = true;
 
-int out_fps = 500;
+int out_fps = 200;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -246,17 +246,22 @@ int main(int argc, char* argv[]) {
     chrono::fsi::Real3 boxHalfDim2 = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
     auto mbody = std::make_shared<ChBody>();
     mbody->SetBodyFixed(true);
-    cyl_pos = ChVector<>(-paramsH->HSML / 2, 0, 0.2 - paramsH->HSML / 2);
+
+    cyl_pos = ChVector<>(-paramsH->HSML / 2, paramsH->HSML / 2, 0.2 - paramsH->HSML / 2);
     mbody->SetPos(cyl_pos);
 
     // Here we add a particle to the surface of the cylinder for merging purposes
     chrono::fsi::utils::AddCylinderSurfaceBce(myFsiSystem.GetDataManager(), paramsH, mbody, ChVector<>(0, 0, 0),
-                                              ChQuaternion<>(1, 0, 0, 0), 0.10, 0.07, paramsH->HSML);
+                                              ChQuaternion<>(1, 0, 0, 0), 0.10, 0.1, paramsH->HSML / 2 * sqrt(3) * 1.5);
+    //    chrono::fsi::utils::AddSphereSurfaceBce(myFsiSystem.GetDataManager(), paramsH, mbody, ChVector<>(0, 0, 0),
+    //                                            ChQuaternion<>(1, 0, 0, 0), 0.07, paramsH->HSML);
 
+    cyl_pos = ChVector<>(-paramsH->HSML / 2, 0, 0.2 - paramsH->HSML / 2);
+    mbody->SetPos(cyl_pos);
     int numhelperMarkers = myFsiSystem.GetDataManager()->sphMarkersH.posRadH.size();
 
     // Ghost particles for Variable Resolution SPH
-    int numGhostMarkers = 10000;
+    int numGhostMarkers = 50000;
     for (int i = 0; i < numGhostMarkers; i++) {
         myFsiSystem.GetDataManager()->AddSphMarker(chrono::fsi::mR4(0.0, 0.0, -0.4, 0.0),
                                                    chrono::fsi::mR3(1e-10, 0.0, 0.0),

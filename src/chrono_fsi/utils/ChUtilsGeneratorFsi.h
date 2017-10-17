@@ -68,6 +68,13 @@ void AddCylinderSurfaceBce(ChFsiDataManager* fsiData,
                            Real radius,
                            Real height,
                            Real kernel_h);
+void AddSphereSurfaceBce(ChFsiDataManager* fsiData,
+                         SimParams* paramsH,
+                         std::shared_ptr<ChBody> body,
+                         ChVector<> relPos,
+                         ChQuaternion<> relRot,
+                         Real radius,
+                         Real kernel_h);
 CH_FSI_API void AddBoxBce(ChFsiDataManager* fsiData,
                           SimParams* paramsH,
                           std::shared_ptr<chrono::ChBody> body,

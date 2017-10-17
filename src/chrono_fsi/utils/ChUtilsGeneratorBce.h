@@ -18,19 +18,19 @@
 #ifndef CH_UTILSGENERATORBCE__CUH
 #define CH_UTILSGENERATORBCE__CUH
 
+#include <thrust/host_vector.h>
+#include <string>
+#include "chrono_fea/ChElementCableANCF.h"
+#include "chrono_fea/ChElementShellANCF.h"
 #include "chrono_fsi/ChParams.cuh"
 #include "chrono_fsi/custom_math.h"
-#include <string>
-#include <thrust/host_vector.h>
-#include "chrono_fea/ChElementShellANCF.h"
-#include "chrono_fea/ChElementCableANCF.h"
 
 namespace chrono {
 namespace fsi {
 namespace utils {
 // =============================================================================
 void CreateBCE_On_Sphere(thrust::host_vector<Real4>& posRadBCE, Real rad, SimParams* paramsH);
-
+void CreateBCE_On_surface_of_Sphere(thrust::host_vector<Real4>& posRadBCE, Real rad, Real kernel_h);
 void CreateBCE_On_Cylinder(thrust::host_vector<Real4>& posRadBCE,
                            Real cyl_rad,
                            Real cyl_h,
