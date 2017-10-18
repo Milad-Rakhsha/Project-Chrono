@@ -2066,6 +2066,7 @@ __global__ void CalcForces(Real3* new_vel,  // Write
                            Real4* sortedPosRad,  // Read
                            Real3* sortedVelMas,  // Read
                            Real4* sortedRhoPreMu,
+                           Real3* r_shift,
                            uint* cellStart,
                            uint* cellEnd,
                            uint numAllMarkers,
@@ -2093,6 +2094,12 @@ __global__ void CalcForces(Real3* new_vel,  // Write
     Real3 F_i_p = mR3(0);
     if ((sortedRhoPreMu[i_idx].x > 3 * paramsD.rho0 || sortedRhoPreMu[i_idx].x < 0) && sortedRhoPreMu[i_idx].w < 0)
         printf("too large/small density marker %d, type=%f\n", i_idx, sortedRhoPreMu[i_idx].w);
+
+    Real r0 = 0;
+    int Ni = 0;
+    Real mi_bar = 0;
+    Real3 inner_sum = mR3(0);
+
     // get address in grid
     int3 gridPos = calcGridPos(posi);
     for (int z = -1; z <= 1; z++) {
@@ -2111,6 +2118,12 @@ __global__ void CalcForces(Real3* new_vel,  // Write
                         continue;
                     Real h_j = sortedPosRad[j].w;
                     Real m_j = h_j * h_j * h_j * paramsD.rho0;
+
+                    mi_bar += m_j;
+                    Ni++;
+                    r0 += d;
+                    inner_sum += m_j * dist3 / (d * d * d);
+
                     Real h_ij = 0.5 * (h_j + h_i);
                     Real Wd = m_j * W3h(d, h_ij);
                     Real3 grad_i_wij = GradWh(dist3, h_ij);
@@ -2143,6 +2156,9 @@ __global__ void CalcForces(Real3* new_vel,  // Write
         }
     }
 
+    r0 /= Ni;
+    r_shift[i_idx] = 0.5 * r0 * r0 * paramsD.v_Max * dT / mi_bar * inner_sum;
+
     F_i_surface_tension = -F_i_surface_tension * paramsD.kappa / m_i;
     // Forces are per unit mass at this point.
     derivVelRhoD[i_idx] = mR4((F_i_p + F_i_mu + F_i_surface_tension) * m_i);
@@ -2150,7 +2166,7 @@ __global__ void CalcForces(Real3* new_vel,  // Write
     if (sortedRhoPreMu[i_idx].w < 0)
         derivVelRhoD[i_idx] = derivVelRhoD[i_idx] + mR4(gravity) * m_i;
 
-    new_vel[i_idx] = Veli + dT * mR3(derivVelRhoD[i_idx]) / m_i;
+    new_vel[i_idx] = Veli + dT * mR3(derivVelRhoD[i_idx]) / m_i + r_shift[i_idx] / dT;
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -2341,19 +2357,17 @@ __global__ void Calc_HelperMarkers_normals(Real4* sortedPosRad,
     Real3 cent = mR3(-0.005, 0, 0.195);
     my_normal = posi - cent;
     my_normal = mR3(my_normal.x, 0.0, my_normal.z);
-    Real r = length(my_normal);
-    normalize(my_normal);
     //    Real3 test = (posi - cent);
     //    test.y = 0;
 
-    if (posi.y > 0.028 && r < 0.098)
-        my_normal = mR3(0, 1, 0);
-    else if (posi.y > 0.028 && r > 0.098)
-        my_normal = normalize(my_normal + mR3(0, 0.05, 0));
-    else if (posi.y < -0.028 && length(my_normal) < 0.098)
-        my_normal = mR3(0, -1, 0);
-    else if (posi.y < -0.028 && r > 0.098)
-        my_normal = normalize(my_normal + mR3(0, -0.05, 0));
+    //    if (posi.y > 0.038 && r < 0.098)
+    //        my_normal = mR3(0, 1, 0);
+    //    else if (posi.y > 0.038 && r > 0.098)
+    //        my_normal = normalize(my_normal + mR3(0, 0.05, 0));
+    //    else if (posi.y < -0.038 && length(my_normal) < 0.098)
+    //        my_normal = mR3(0, -1, 0);
+    //    else if (posi.y < -0.038 && r > 0.098)
+    //        my_normal = normalize(my_normal + mR3(0, -0.05, 0));
 
     //    Real3 cent = mR3(-0.005, 0, 0.195);
     //    my_normal = posi - cent;
@@ -2399,9 +2413,9 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
     Real3 normal = helpers_normal[Original_idx];
     //    Real3 normal = posi - mR3(-0.005, 0.0, 0.195);
 
-    //    sortedRhoPreMu[i_idx].x = normal.x;
-    //    sortedRhoPreMu[i_idx].y = normal.y;
-    //    sortedRhoPreMu[i_idx].z = normal.z;
+    sortedRhoPreMu[i_idx].x = normal.x;
+    sortedRhoPreMu[i_idx].y = normal.y;
+    sortedRhoPreMu[i_idx].z = normal.z;
 
     int3 gridPos = calcGridPos(posi);
 
@@ -2418,136 +2432,141 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
     uint N8 = i_idx;
     uint mySplits = 0;
     uint myMerges = 0;
-    //    for (int z = -1; z <= 1; z++) {
-    //        for (int y = -1; y <= 1; y++) {
-    //            for (int x = -1; x <= 1; x++) {
-    int x = 0, y = 0, z = 0;
-    int3 neighbourPos = gridPos + mI3(x, y, z);
-    uint gridHash = calcGridHash(neighbourPos);
-    uint startIndex = cellStart[gridHash];
-    uint endIndex = cellEnd[gridHash];
-    for (uint j = startIndex; j < endIndex; j++) {
-        if (sortedRhoPreMu[j].w != -1 || j == i_idx)
-            continue;
+    for (int z = -1; z <= 1; z++) {
+        for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
+                //                int x = 0, y = 0, z = 0;
+                int3 neighbourPos = gridPos + mI3(x, y, z);
+                uint gridHash = calcGridHash(neighbourPos);
+                uint startIndex = cellStart[gridHash];
+                uint endIndex = cellEnd[gridHash];
+                for (uint j = startIndex; j < endIndex; j++) {
+                    if (sortedRhoPreMu[j].w != -1 || j == i_idx)
+                        continue;
 
-        Real3 posj = mR3(sortedPosRad[j]);
-        Real3 dist3 = Distance(posj, posi);
-        Real d = length(dist3);
-        Real3 velj = sortedVelMas[j];
-        Real cosT = dot(dist3, normal) / (length(dist3) * length(normal));
-        Real cosTv = dot(velj, normal) / (length(velj) * length(normal));
+                    Real3 posj = mR3(sortedPosRad[j]);
+                    Real3 dist3 = Distance(posj, posi);
+                    Real d = length(dist3);
+                    Real3 velj = sortedVelMas[j];
+                    Real cosT = dot(dist3, normal) / (length(dist3) * length(normal));
+                    Real cosTv = dot(velj, normal) / (length(velj) * length(normal));
 
-        //                    Real y2 = d * d * cosT * cosT;
-        //                    Real b2 = coarseResolution * coarseResolution;
-        Real x2 = d * d * (1 - cosT * cosT);
-        //                    Real a2 = fineResolution * fineResolution;
-        //                    y2 / b2 + x2 / a2 < 1
+                    //                    Real y2 = d * d * cosT * cosT;
+                    //                    Real b2 = coarseResolution * coarseResolution;
+                    Real x2 = d * d * (1 - cosT * cosT);
+                    //                    Real a2 = fineResolution * fineResolution;
+                    //                    y2 / b2 + x2 / a2 < 1
 
-        ////////////////////////////////////////////////////////////////
-        ////////////////////////////////////////////////////////////////
-        /*x2 < 9 / 4 * fineResolution * fineResolution &&*/
-        /*|| (d * cosT < fineResolution * 1.5 && dot(velj, normal) > 0))*/
-        /*||
-             (d * cosT < fineResolution * 1 && dot(velj, normal) > 0.8 * length(velj)))*/
+                    ////////////////////////////////////////////////////////////////
+                    ////////////////////////////////////////////////////////////////
+                    /*x2 < 9 / 4 * fineResolution * fineResolution &&*/
+                    /*|| (d * cosT < fineResolution * 1.5 && dot(velj, normal) > 0))*/
+                    /*||
+                         (d * cosT < fineResolution * 1 && dot(velj, normal) > 0.8 * length(velj)))*/
 
-        //                    if (abs(sortedPosRad[j].w - fineResolution) < EPSILON && (MergeMe[j] == i_idx)
-        //                    &&
-        //                        (MergeMe[j] == i_idx) && myType[j] == -1 && dot(dist3, normal) > 0 &&
-        //                        x2 < fineResolution * fineResolution) {
-        //////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////
-        //                    if (sortedRhoPreMu[j].w == -1 && abs(sortedPosRad[j].w - fineResolution) <
-        //                    EPSILON &&
-        //                        myType[j] == -1 && MergeMe[j] == 0 && splitMe[j] == 0 && d <
-        //                        coarseResolution && cosTv > 0.2) {
+                    //                    if (abs(sortedPosRad[j].w - fineResolution) < EPSILON && (MergeMe[j] == i_idx)
+                    //                    &&
+                    //                        (MergeMe[j] == i_idx) && myType[j] == -1 && dot(dist3, normal) > 0 &&
+                    //                        x2 < fineResolution * fineResolution) {
+                    //////////////////////////////////////////////////////////////////
+                    //////////////////////////////////////////////////////////////////
+                    //                    if (sortedRhoPreMu[j].w == -1 && abs(sortedPosRad[j].w - fineResolution) <
+                    //                    EPSILON &&
+                    //                        myType[j] == -1 && MergeMe[j] == 0 && splitMe[j] == 0 && d <
+                    //                        coarseResolution && cosTv > 0.2) {
+                    //        (dot(dist3, normal) > 0 || (d < 2 * fineResolution && cosTv > 0.2)) &&
+                    if (abs(sortedPosRad[j].w - fineResolution) < EPSILON && (MergeMe[j] == 0) &&
+                        (sortedRhoPreMu[j].w == -1) && posj.x > 0 && dot(dist3, normal) > 0) {
+                        //                        if (x != 0 || y != 0 || z != 0)
+                        //                            continue;
+                        uint p = 9;
+                        if (d < length(Distance(posi, mR3(sortedPosRad[N8]))) || N8 == i_idx)
+                            p = 8;
+                        if (d < length(Distance(posi, mR3(sortedPosRad[N7]))) || N7 == i_idx)
+                            p = 7;
+                        if (d < length(Distance(posi, mR3(sortedPosRad[N6]))) || N6 == i_idx)
+                            p = 6;
+                        if (d < length(Distance(posi, mR3(sortedPosRad[N5]))) || N5 == i_idx)
+                            p = 5;
+                        if (d < length(Distance(posi, mR3(sortedPosRad[N4]))) || N4 == i_idx)
+                            p = 4;
+                        if (d < length(Distance(posi, mR3(sortedPosRad[N3]))) || N3 == i_idx)
+                            p = 3;
+                        if (d < length(Distance(posi, mR3(sortedPosRad[N2]))) || N2 == i_idx)
+                            p = 2;
+                        if (d < length(Distance(posi, mR3(sortedPosRad[N1]))) || N1 == i_idx)
+                            p = 1;
 
-        if (abs(sortedPosRad[j].w - fineResolution) < EPSILON && (MergeMe[j] == 0) && (sortedRhoPreMu[j].w == -1) &&
-            dot(velj, normal) > 0 && (dot(dist3, normal) > 0 || (d < 2 * fineResolution && cosTv > 0.2)) &&
-            posj.x > 0) {
-            uint p = 9;
-            if (d < length(Distance(posi, mR3(sortedPosRad[N8]))) || N8 == i_idx)
-                p = 8;
-            if (d < length(Distance(posi, mR3(sortedPosRad[N7]))) || N7 == i_idx)
-                p = 7;
-            if (d < length(Distance(posi, mR3(sortedPosRad[N6]))) || N6 == i_idx)
-                p = 6;
-            if (d < length(Distance(posi, mR3(sortedPosRad[N5]))) || N5 == i_idx)
-                p = 5;
-            if (d < length(Distance(posi, mR3(sortedPosRad[N4]))) || N4 == i_idx)
-                p = 4;
-            if (d < length(Distance(posi, mR3(sortedPosRad[N3]))) || N3 == i_idx)
-                p = 3;
-            if (d < length(Distance(posi, mR3(sortedPosRad[N2]))) || N2 == i_idx)
-                p = 2;
-            if (d < length(Distance(posi, mR3(sortedPosRad[N1]))) || N1 == i_idx)
-                p = 1;
-            // Release the last one if
-            if (p < 9) {
-                atomicCAS(&MergeMe[j], 0, i_idx);
-                if (MergeMe[j] != i_idx)
-                    continue;
-                // Release the last one since it is going to be replaced
-                if (N8 != i_idx)
-                    atomicExch(&MergeMe[N8], 0);
+                        //            if (abs(sortedPosRad[j].w - coarseResolution) < EPSILON &&
+                        //            length(sortedPosRad[j]-sortedPosRad[j])<fineResolution)
+
+                        // Release the last one if
+                        if (p < 9) {
+                            atomicCAS(&MergeMe[j], 0, i_idx);
+                            if (MergeMe[j] != i_idx)
+                                continue;
+                            // Release the last one since it is going to be replaced
+                            if (N8 != i_idx)
+                                atomicExch(&MergeMe[N8], 0);
+                        }
+                        if (p == 8) {
+                            N8 = j;
+                        } else if (p == 7) {
+                            N8 = N7;
+                            N7 = j;
+                        } else if (p == 6) {
+                            N8 = N7;
+                            N7 = N6;
+                            N6 = j;
+                        } else if (p == 5) {
+                            N8 = N7;
+                            N7 = N6;
+                            N6 = N5;
+                            N5 = j;
+                        } else if (p == 4) {
+                            N8 = N7;
+                            N7 = N6;
+                            N6 = N5;
+                            N5 = N4;
+                            N4 = j;
+                        } else if (p == 3) {
+                            N8 = N7;
+                            N7 = N6;
+                            N6 = N5;
+                            N5 = N4;
+                            N4 = N3;
+                            N3 = j;
+                        } else if (p == 2) {
+                            N8 = N7;
+                            N7 = N6;
+                            N6 = N5;
+                            N5 = N4;
+                            N4 = N3;
+                            N3 = N2;
+                            N2 = j;
+                        } else if (p == 1) {
+                            N8 = N7;
+                            N7 = N6;
+                            N6 = N5;
+                            N5 = N4;
+                            N4 = N3;
+                            N3 = N2;
+                            N2 = N1;
+                            N1 = j;
+                        }
+                    } else if (abs(sortedPosRad[j].w - coarseResolution) < EPSILON && sortedRhoPreMu[j].w == -1 &&
+                               splitMe[j] == 0 && myType[j] == -1 && sortedRhoPreMu[j].w == -1 &&
+                               d < 2 * coarseResolution && cosTv < 0.0 && dot(dist3, normal) < 0 && posj.x < 0) {
+                        //                    } else if (abs(sortedPosRad[j].w - coarseResolution) < EPSILON &&
+                        //                    splitMe[j] == 0 &&
+                        //                               MergeMe[j] == 0 && myType[j] == -1 && sortedRhoPreMu[j].w == -1
+                        //                               && d < 1 * coarseResolution && cosTv < -0.5) {
+                        atomicCAS(&splitMe[j], 0, i_idx);
+                    }
+                }
             }
-            if (p == 8) {
-                N8 = j;
-            } else if (p == 7) {
-                N8 = N7;
-                N7 = j;
-            } else if (p == 6) {
-                N8 = N7;
-                N7 = N6;
-                N6 = j;
-            } else if (p == 5) {
-                N8 = N7;
-                N7 = N6;
-                N6 = N5;
-                N5 = j;
-            } else if (p == 4) {
-                N8 = N7;
-                N7 = N6;
-                N6 = N5;
-                N5 = N4;
-                N4 = j;
-            } else if (p == 3) {
-                N8 = N7;
-                N7 = N6;
-                N6 = N5;
-                N5 = N4;
-                N4 = N3;
-                N3 = j;
-            } else if (p == 2) {
-                N8 = N7;
-                N7 = N6;
-                N6 = N5;
-                N5 = N4;
-                N4 = N3;
-                N3 = N2;
-                N2 = j;
-            } else if (p == 1) {
-                N8 = N7;
-                N7 = N6;
-                N6 = N5;
-                N5 = N4;
-                N4 = N3;
-                N3 = N2;
-                N2 = N1;
-                N1 = j;
-            }
-        } else if (abs(sortedPosRad[j].w - coarseResolution) < EPSILON && dot(dist3, normal) < 0 &&
-                   sortedRhoPreMu[j].w == -1 && d < 1 * fineResolution && splitMe[j] == 0 && myType[j] == -1 &&
-                   sortedRhoPreMu[j].w == -1 && cosTv < -0.3 && posj.x < 0) {
-            //                    } else if (abs(sortedPosRad[j].w - coarseResolution) < EPSILON &&
-            //                    splitMe[j] == 0 &&
-            //                               MergeMe[j] == 0 && myType[j] == -1 && sortedRhoPreMu[j].w == -1
-            //                               && d < 1 * coarseResolution && cosTv < -0.5) {
-            atomicCAS(&splitMe[j], 0, i_idx);
-        }
-    }
-    //            }
-    //        }
-    //    }
+        }  // namespace fsi
+    }      // namespace chrono
 
     // note that this can cause race condition if two helper markers try to merge the same marker Ni
     if (N8 != i_idx && N7 != i_idx && N6 != i_idx && N5 != i_idx && N4 != i_idx && N3 != i_idx && N2 != i_idx &&
@@ -2558,7 +2577,7 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
             *isErrorD = true;
         }
 
-        printf("idx=%d merging %d,%d,%d,%d,%d,%d,%d,%d\n", i_idx, N1, N2, N3, N4, N5, N6, N7, N8);
+        //        printf("idx=%d merging %d,%d,%d,%d,%d,%d,%d,%d\n", i_idx, N1, N2, N3, N4, N5, N6, N7, N8);
         if (sortedPosRad[N1].w != fineResolution || sortedPosRad[N2].w != fineResolution ||
             sortedPosRad[N3].w != fineResolution || sortedPosRad[N4].w != fineResolution ||
             sortedPosRad[N5].w != fineResolution || sortedPosRad[N6].w != fineResolution ||
@@ -2588,9 +2607,13 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
         sortedRhoPreMu[N7].x -= dot(myGrad[6], mR3(sortedPosRad[N7] - center));
         sortedRhoPreMu[N8].x -= dot(myGrad[7], mR3(sortedPosRad[N8] - center));
 
-        sortedRhoPreMu[N1] =
-            0.125 * (sortedRhoPreMu[N1] + sortedRhoPreMu[N2] + sortedRhoPreMu[N3] + sortedRhoPreMu[N4] +
-                     sortedRhoPreMu[N5] + sortedRhoPreMu[N6] + sortedRhoPreMu[N7] + sortedRhoPreMu[N8]);
+        Real4 rpmt = 0.125 * (sortedRhoPreMu[N1] + sortedRhoPreMu[N2] + sortedRhoPreMu[N3] + sortedRhoPreMu[N4] +
+                              sortedRhoPreMu[N5] + sortedRhoPreMu[N6] + sortedRhoPreMu[N7] + sortedRhoPreMu[N8]);
+
+        if (rpmt.x > 1.0 * paramsD.rho0)
+            return;
+
+        sortedRhoPreMu[N1] = rpmt;
 
         Real3 myGradx[8];
         Real3 myGrady[8];
@@ -3079,7 +3102,8 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
         cudaCheckError();
     }
 
-    while ((MaxRes > paramsH->LinearSolver_Rel_Tol || Iteration < 3) && paramsH->USE_Iterative_solver) {
+    while ((MaxRes > paramsH->LinearSolver_Rel_Tol || Iteration < 3) && paramsH->USE_Iterative_solver &&
+           Iteration < paramsH->LinearSolver_Max_Iter) {
         *isErrorH = false;
         cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
         Initialize_Variables<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(p_old),
@@ -3170,7 +3194,8 @@ void ChFsiForceParallel::calcPressureIISPH(thrust::device_vector<Real4> velMassR
         //      Real R_p = thrust::reduce(rho_p.begin(), rho_p.end(), 0.0, thrust::plus<Real>()) /
         //      rho_p.size();
         //
-        //    printf("Iter= %d, Res= %f\n", Iteration, MaxRes);
+        if (paramsH->Verbose_monitoring)
+            printf("Iter= %d, Res= %f\n", Iteration, MaxRes);
     }
 
     //  thrust::device_vector<Real>::iterator iter = thrust::min_element(p_old.begin(), p_old.end());
@@ -3350,19 +3375,29 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
         throw std::runtime_error("Error! program crashed in Calc_Split_and_Merges!\n");
     }
 
+    calcNormalizedRho_kernel<<<numBlocks, numThreads>>>(
+        mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
+        mR4CAST(sortedSphMarkersD->rhoPresMuD),  // input: sorted velocities
+        R1CAST(_sumWij_inv), R1CAST(G_i), R1CAST(dxi_over_Vi), R1CAST(Color), U1CAST(markersProximityD->cellStartD),
+        U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
+    cudaThreadSynchronize();
+    cudaCheckError();
+    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+    if (*isErrorH == true) {
+        throw std::runtime_error("Error! program crashed after calcNormalizedRho_kernel!\n");
+    }
     double splitMerge = (clock() - CalcSplitMerge) / (double)CLOCKS_PER_SEC;
     printf(" Splitting and Merging: %f \n", splitMerge);
-    //    calcNormalizedRho_kernel<<<numBlocks, numThreads>>>(
-    //        mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
-    //        mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv), R1CAST(G_i), R1CAST(_sumWij_inv),
-    //        R1CAST(Color), U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD),
-    //        numAllMarkers, isErrorD);
-    //    cudaThreadSynchronize();
-    //    cudaCheckError();
-    //    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
-    //    if (*isErrorH == true) {
-    //        throw std::runtime_error("Error! program crashed after calcNormalizedRho_kernel!\n");
-    //    }
+    calcNormalizedRho_kernel<<<numBlocks, numThreads>>>(
+        mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
+        mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv), R1CAST(G_i), R1CAST(_sumWij_inv), R1CAST(Color),
+        U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
+    cudaThreadSynchronize();
+    cudaCheckError();
+    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+    if (*isErrorH == true) {
+        throw std::runtime_error("Error! program crashed after calcNormalizedRho_kernel!\n");
+    }
     //
     std::cout << "Done with splitting and merging \n";
 
@@ -3377,11 +3412,13 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
 
     thrust::fill(derivVelRhoD_Sorted_D.begin(), derivVelRhoD_Sorted_D.end(), mR4(0.0));
     thrust::fill(vel_XSPH_Sorted_D.begin(), vel_XSPH_Sorted_D.end(), mR3(0.0));
+    thrust::device_vector<Real3> dr_shift(numAllMarkers);
+    thrust::fill(dr_shift.begin(), dr_shift.end(), mR3(0.0));
 
-    CalcForces<<<numBlocks, numThreads>>>(mR3CAST(vel_XSPH_Sorted_D), mR4CAST(derivVelRhoD_Sorted_D),
-                                          mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
-                                          mR4CAST(sortedSphMarkersD->rhoPresMuD), U1CAST(markersProximityD->cellStartD),
-                                          U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
+    CalcForces<<<numBlocks, numThreads>>>(
+        mR3CAST(vel_XSPH_Sorted_D), mR4CAST(derivVelRhoD_Sorted_D), mR4CAST(sortedSphMarkersD->posRadD),
+        mR3CAST(sortedSphMarkersD->velMasD), mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(dr_shift),
+        U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
     cudaThreadSynchronize();
     cudaCheckError();
 
@@ -3407,6 +3444,59 @@ void ChFsiForceParallel::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
     printf(" Force Computation: %f \n", calcforce);
 
     double UpdateClock = clock();
+
+    //    thrust::device_vector<uint> SplitMe(numAllMarkers);
+    //    thrust::device_vector<uint> MergeMe(numAllMarkers);
+    //    thrust::device_vector<uint> myType(numAllMarkers);
+    //    thrust::device_vector<Real3> helpers_normal(numHelperMarkers);
+    //
+    //    thrust::fill(SplitMe.begin(), SplitMe.end(), 0);
+    //    thrust::fill(MergeMe.begin(), MergeMe.end(), 0);
+    //    thrust::fill(myType.begin(), myType.end(), 0);
+    //    thrust::fill(helpers_normal.begin(), helpers_normal.end(), mR3(0));
+    //    cudaThreadSynchronize();
+    //
+    //    Calc_HelperMarkers_normals<<<numBlocks, numThreads>>>(
+    //        mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(helpers_normal),
+    //        I1CAST(myType), U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD),
+    //        U1CAST(markersProximityD->gridMarkerIndexD), numAllMarkers, isErrorD2);
+    //    cudaThreadSynchronize();
+    //    cudaCheckError();
+    //    cudaMemcpy(isErrorH, isErrorD2, sizeof(bool), cudaMemcpyDeviceToHost);
+    //    if (*isErrorH == true) {
+    //        throw std::runtime_error("Error! program crashed in Calc_HelperMarkers_normals!\n");
+    //    }
+    //    int haveGhost = (numObjectsH->numGhostMarkers > 0) ? 1 : 0;
+    //    int haveHelper = (numObjectsH->numHelperMarkers > 0) ? 1 : 0;
+    //    int limit = numObjectsH->numFluidMarkers + numObjectsH->numGhostMarkers + numObjectsH->numHelperMarkers;
+    //
+    //    Calc_Splits_and_Merges<<<numBlocks, numThreads>>>(
+    //        mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
+    //        mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(helpers_normal), R1CAST(_sumWij_inv), R1CAST(G_i),
+    //        U1CAST(SplitMe), U1CAST(MergeMe), I1CAST(myType), U1CAST(markersProximityD->cellStartD),
+    //        U1CAST(markersProximityD->cellEndD), U1CAST(markersProximityD->gridMarkerIndexD), paramsH->HSML / 2.0,
+    //        paramsH->HSML, numAllMarkers, limit, isErrorD2);
+    //    cudaThreadSynchronize();
+    //    cudaCheckError();
+    //    cudaMemcpy(isErrorH, isErrorD2, sizeof(bool), cudaMemcpyDeviceToHost);
+    //    if (*isErrorH == true) {
+    //        throw std::runtime_error("Error! program crashed in Calc_Split_and_Merges!\n");
+    //    }
+    //
+    //    Split<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
+    //                                     mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(helpers_normal),
+    //                                     R1CAST(_sumWij_inv), R1CAST(G_i), U1CAST(SplitMe), U1CAST(MergeMe),
+    //                                     I1CAST(myType), U1CAST(markersProximityD->cellStartD),
+    //                                     U1CAST(markersProximityD->cellEndD),
+    //                                     U1CAST(markersProximityD->gridMarkerIndexD), paramsH->HSML / 2.0,
+    //                                     paramsH->HSML, numAllMarkers, limit, isErrorD2);
+    //    cudaThreadSynchronize();
+    //    cudaCheckError();
+    //    cudaMemcpy(isErrorH, isErrorD2, sizeof(bool), cudaMemcpyDeviceToHost);
+    //    if (*isErrorH == true) {
+    //        throw std::runtime_error("Error! program crashed in Calc_Split_and_Merges!\n");
+    //    }
+
     CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vel_XSPH_D, vel_XSPH_Sorted_D,
                                         markersProximityD->gridMarkerIndexD);
     CopySortedToOriginal_NonInvasive_R4(sphMarkersD->posRadD, sortedSphMarkersD->posRadD,

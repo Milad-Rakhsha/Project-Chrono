@@ -66,14 +66,14 @@ int out_fps = 200;
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
-Real bxDim = 0.60;
-Real byDim = 0.1;
+Real bxDim = 1.0;
+Real byDim = 0.08;
 Real bzDim = 0.40;
 
 Real fxDim = bxDim;
 Real fyDim = byDim;
 Real fzDim = bzDim;
-double cyl_length = 0.04;
+double cyl_length = 0.09;
 double cyl_radius = .05;
 ChVector<> cyl_pos = ChVector<>(0.0);
 
@@ -247,12 +247,12 @@ int main(int argc, char* argv[]) {
     auto mbody = std::make_shared<ChBody>();
     mbody->SetBodyFixed(true);
 
-    cyl_pos = ChVector<>(-paramsH->HSML / 2, paramsH->HSML / 2, 0.2 - paramsH->HSML / 2);
+    cyl_pos = ChVector<>(-paramsH->HSML / 2, paramsH->HSML, 0.2 - paramsH->HSML / 2);
     mbody->SetPos(cyl_pos);
 
     // Here we add a particle to the surface of the cylinder for merging purposes
     chrono::fsi::utils::AddCylinderSurfaceBce(myFsiSystem.GetDataManager(), paramsH, mbody, ChVector<>(0, 0, 0),
-                                              ChQuaternion<>(1, 0, 0, 0), 0.10, 0.1, paramsH->HSML / 2 * sqrt(3) * 1.5);
+                                              ChQuaternion<>(1, 0, 0, 0), 0.1, 0.20, paramsH->HSML * sqrt(6));
     //    chrono::fsi::utils::AddSphereSurfaceBce(myFsiSystem.GetDataManager(), paramsH, mbody, ChVector<>(0, 0, 0),
     //                                            ChQuaternion<>(1, 0, 0, 0), 0.07, paramsH->HSML);
 
@@ -261,7 +261,7 @@ int main(int argc, char* argv[]) {
     int numhelperMarkers = myFsiSystem.GetDataManager()->sphMarkersH.posRadH.size();
 
     // Ghost particles for Variable Resolution SPH
-    int numGhostMarkers = 50000;
+    int numGhostMarkers = 10000;
     for (int i = 0; i < numGhostMarkers; i++) {
         myFsiSystem.GetDataManager()->AddSphMarker(chrono::fsi::mR4(0.0, 0.0, -0.4, 0.0),
                                                    chrono::fsi::mR3(1e-10, 0.0, 0.0),
@@ -269,7 +269,7 @@ int main(int argc, char* argv[]) {
     }
 
     utils::Generator::PointVector points1 =
-        sampler1.SampleCylinderY(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter1), 0.1, 0.03);
+        sampler1.SampleCylinderY(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter1), 0.1, 0.04);
 
     utils::Generator::PointVector points2 = sampler2.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter2),
                                                                fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim2));
@@ -334,7 +334,7 @@ int main(int argc, char* argv[]) {
             }
         }
         if (!removeThis) {
-            myFsiSystem.GetDataManager()->AddSphMarker(p, chrono::fsi::mR3(paramsH->V_in, 0.0, 0.0),
+            myFsiSystem.GetDataManager()->AddSphMarker(p, chrono::fsi::mR3(paramsH->V_in * 2, 0.0, 0.0),
                                                        chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -1.0));
         } else
             numremove++;

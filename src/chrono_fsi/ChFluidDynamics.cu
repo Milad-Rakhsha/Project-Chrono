@@ -348,7 +348,7 @@ __global__ void Update_Fluid_State(Real3* new_vel,  // input: sorted velocities,
                                    volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (i_idx > updatePortion.y)
+    if (i_idx >= updatePortion.y)
         return;
 
     //  sortedPosRad[i_idx] = new_Pos[i_idx];
@@ -357,12 +357,20 @@ __global__ void Update_Fluid_State(Real3* new_vel,  // input: sorted velocities,
     Real h = posRad[i_idx].w;
     posRad[i_idx] = mR4(newpos, h);
 
+    if (!(isfinite(posRad[i_idx].x) && isfinite(posRad[i_idx].y) && isfinite(posRad[i_idx].z))) {
+        printf(
+            "Error! particle %d position is NAN: thrown from SDKCollisionSystem.cu, UpdateFluidDKernel  %f,%f,%f,%f\n",
+            i_idx, posRad[i_idx].x, posRad[i_idx].y, posRad[i_idx].z, posRad[i_idx].w);
+    }
     if (!(isfinite(rhoPreMu[i_idx].x) && isfinite(rhoPreMu[i_idx].y) && isfinite(rhoPreMu[i_idx].z))) {
-        printf("Error! particle position is NAN: thrown from SDKCollisionSystem.cu, UpdateFluidDKernel !\n");
+        printf(
+            "Error! particle %d rhoPreMu is NAN: thrown from SDKCollisionSystem.cu, UpdateFluidDKernel ! %f,%f,%f,%f\n",
+            i_idx, rhoPreMu[i_idx].x, rhoPreMu[i_idx].y, rhoPreMu[i_idx].z, rhoPreMu[i_idx].w);
     }
 
     if (!(isfinite(new_vel[i_idx].x) && isfinite(new_vel[i_idx].y) && isfinite(new_vel[i_idx].z))) {
-        printf("Error! particle velocity is NAN: thrown from SDKCollisionSystem.cu, UpdateFluidDKernel !\n");
+        printf("Error! particle %d velocity is NAN: thrown from SDKCollisionSystem.cu, UpdateFluidDKernel !%f,%f,%f\n",
+               i_idx, new_vel[i_idx].x, new_vel[i_idx].y, new_vel[i_idx].z);
     }
 }
 
@@ -414,10 +422,10 @@ __global__ void ReCalcDensityD_F1(Real4* dummySortedRhoPreMu,
 
     Real newDensity = densityShare + paramsD.markerMass * W3(0);  //?$ include the particle in its summation as well
     Real newDenominator = denominator + paramsD.markerMass * W3(0) / rhoPreMuA.x;
-    if (rhoPreMuA.w < 0) {
-        //		rhoPreMuA.x = newDensity; // old version
-        rhoPreMuA.x = newDensity / newDenominator;  // correct version
-    }
+    //    if (rhoPreMuA.w < 0) {
+    //        rhoPreMuA.x = newDensity;                   // old version
+    rhoPreMuA.x = newDensity / newDenominator;  // correct version
+                                                //    }
     rhoPreMuA.y = Eos(rhoPreMuA.x, rhoPreMuA.w);
     dummySortedRhoPreMu[index] = rhoPreMuA;
 }
