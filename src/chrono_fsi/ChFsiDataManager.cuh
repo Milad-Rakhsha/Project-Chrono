@@ -18,13 +18,13 @@
 #ifndef CH_FSI_DATAMANAGER_H_
 #define CH_FSI_DATAMANAGER_H_
 
-#include "chrono_fsi/ChApiFsi.h"
-#include "chrono_fsi/ChParams.cuh"
-#include "chrono_fsi/custom_math.h"
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/tuple.h>
+#include "chrono_fsi/ChApiFsi.h"
+#include "chrono_fsi/ChParams.cuh"
+#include "chrono_fsi/custom_math.h"
 
 #include "chrono_fea/ChElementShellANCF.h"
 
@@ -343,6 +343,7 @@ class FsiGeneralData {
     // fluid
     thrust::device_vector<Real4> derivVelRhoD;  ///< dv/dt and d(rho)/dt for markers
     thrust::device_vector<Real3> vel_XSPH_D;    ///< XSPH velocity for markers
+    thrust::device_vector<Real3> vel_IISPH_D;   ///< IISPH velocity for markers
 
     // BCE
     thrust::device_vector<Real3> rigidSPH_MeshPos_LRF_D;  ///< Position of a marker attached to a rigid body in a local

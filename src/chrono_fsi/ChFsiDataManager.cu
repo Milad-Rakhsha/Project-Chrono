@@ -15,9 +15,9 @@
 // Base class for managing data in chrono_fsi, aka fluid system.//
 // =============================================================================
 
+#include <thrust/sort.h>
 #include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFsiDataManager.cuh"
-#include <thrust/sort.h>
 
 namespace chrono {
 namespace fsi {
@@ -325,12 +325,12 @@ void ChFsiDataManager::ArrangeDataManager() {
 }
 
 void ChFsiDataManager::InitNumObjects() {
-    numObjects.numRigidBodies = 0;      /* Number of rigid bodies */
-    numObjects.numFlexBodies1D = 0;     /* Number of Flexible bodies*/
-    numObjects.numFlexBodies2D = 0;     /* Number of Flexible bodies*/
-    numObjects.numFlexNodes = 0;        /* Number of FE nodes*/
-    numObjects.numGhostMarkers=0;
-    numObjects.numHelperMarkers=0;
+    numObjects.numRigidBodies = 0;  /* Number of rigid bodies */
+    numObjects.numFlexBodies1D = 0; /* Number of Flexible bodies*/
+    numObjects.numFlexBodies2D = 0; /* Number of Flexible bodies*/
+    numObjects.numFlexNodes = 0;    /* Number of FE nodes*/
+    numObjects.numGhostMarkers = 0;
+    numObjects.numHelperMarkers = 0;
     numObjects.numFluidMarkers = 0;     /* Number of fluid SPH markers*/
     numObjects.numBoundaryMarkers = 0;  /* Number of boundary SPH markers */
     numObjects.startRigidMarkers = 0;   /* */
@@ -392,7 +392,6 @@ void ChFsiDataManager::CalcNumObjects() {
     }
 
     std::cout << "numObjects.numFlexNodes" << numObjects.numFlexNodes << std::endl;
-
 
     std::cout << "numObjects.numGhostMarkers" << numObjects.numGhostMarkers << std::endl;
     numObjects.numFluidMarkers += numObjects.numGhostMarkers + numObjects.numHelperMarkers;
@@ -500,6 +499,8 @@ void ChFsiDataManager::ResizeDataManager(int numNodes) {
 
     fsiGeneralData.derivVelRhoD.resize(numObjects.numAllMarkers);
     fsiGeneralData.vel_XSPH_D.resize(numObjects.numAllMarkers);
+    fsiGeneralData.vel_IISPH_D.resize(numObjects.numAllMarkers);
+
     printf("fsiData->ResizeDataManager (sphMarkersH)...\n");
 
     //  printf("ChFsiDataManager::ResizeDataManager pos[%d]=%f,%f,%f, pos[%d]=%f,%f,%f\n", 22995,

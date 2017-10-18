@@ -339,6 +339,7 @@ __global__ void UpdateFluidD(Real4* posRadD,
 
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Update_Fluid_State(Real3* new_vel,  // input: sorted velocities,
+                                   Real3* vis_vel,  // input: sorted velocities,
                                    Real4* posRad,   // input: sorted positions
                                    Real3* velMas,
                                    Real4* rhoPreMu,
@@ -352,7 +353,7 @@ __global__ void Update_Fluid_State(Real3* new_vel,  // input: sorted velocities,
         return;
 
     //  sortedPosRad[i_idx] = new_Pos[i_idx];
-    velMas[i_idx] = new_vel[i_idx];
+    velMas[i_idx] = vis_vel[i_idx];
     Real3 newpos = mR3(posRad[i_idx]) + dT * new_vel[i_idx];
     Real h = posRad[i_idx].w;
     posRad[i_idx] = mR4(newpos, h);
@@ -528,8 +529,9 @@ void ChFluidDynamics::UpdateFluid_Implicit(SphMarkerDataD* sphMarkersD) {
     *isErrorH = false;
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
     Update_Fluid_State<<<numBlocks, numThreads>>>(
-        mR3CAST(fsiData->fsiGeneralData.vel_XSPH_D), mR4CAST(sphMarkersD->posRadD), mR3CAST(sphMarkersD->velMasD),
-        mR4CAST(sphMarkersD->rhoPresMuD), updatePortion, numObjectsH->numAllMarkers, paramsH->dT, isErrorD);
+        mR3CAST(fsiData->fsiGeneralData.vel_XSPH_D), mR3CAST(fsiData->fsiGeneralData.vel_IISPH_D),
+        mR4CAST(sphMarkersD->posRadD), mR3CAST(sphMarkersD->velMasD), mR4CAST(sphMarkersD->rhoPresMuD), updatePortion,
+        numObjectsH->numAllMarkers, paramsH->dT, isErrorD);
     cudaThreadSynchronize();
     cudaCheckError();
 

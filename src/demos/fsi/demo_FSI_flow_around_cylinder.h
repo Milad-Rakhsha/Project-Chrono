@@ -57,12 +57,14 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->V_in = 0.2;
     paramsH->x_in = -0.47;
 
+    paramsH->dT = 5e-3;
+
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
     paramsH->mu0 = 1.0;
     paramsH->kappa = 0.000;  ///< surface tension parameter, experimental
-    paramsH->v_Max = 0.1;    // Arman, I changed it to 0.1 for vehicle. Check this
+    paramsH->v_Max = 0.2;    // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
     paramsH->USE_LinearSolver = false;  ///< IISPH parameter: whether or not use linear solvers
@@ -82,8 +84,6 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->Co_number = 0.8;                 ///< 0.2 works well for most cases
     paramsH->dT_Max = 0.01;  ///< This is problem dependent should set by the user based on characteristic time step
     paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
-
-    paramsH->dT = 5e-3;
 
     paramsH->tFinal = 2;
     paramsH->timePause = 0;

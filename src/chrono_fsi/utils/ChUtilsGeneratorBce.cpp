@@ -69,26 +69,29 @@ void CreateBCE_On_Cylinder(thrust::host_vector<Real4>& posRadBCE,
                            Real cyl_h,
                            SimParams* paramsH,
                            Real kernel_h) {
-    // Arman : take care of velocity and w stuff for BCE
-    Real spacing = kernel_h;
-    for (Real s = -0.5 * cyl_h; s <= 0.5 * cyl_h + 1e-5; s += spacing) {
+    int num_layers = floor(cyl_h / kernel_h);
+    for (int si = 0; si < num_layers; si++) {
+        Real s = -0.5 * cyl_h + (cyl_h / num_layers) * si;
         ///////////
-        for (Real x = -cyl_rad; x <= cyl_rad; x += spacing) {
-            for (Real y = -cyl_rad; y <= cyl_rad; y += spacing) {
-                if (x * x + y * y <= cyl_rad * cyl_rad)
-                    posRadBCE.push_back(mR4(x, s, y, spacing));
-            }
-        }
-        //        Real3 centerPointLF = mR3(0, s, 0);
-        //        posRadBCE.push_back(mR4(centerPointLF, spacing));
-        //        for (Real r = spacing; r < cyl_rad - paramsH->solidSurfaceAdjust; r += spacing) {
-        //            Real deltaTeta = spacing / r;
-        //            for (Real teta = .1 * deltaTeta; teta < 2 * chrono::CH_C_PI - .1 * deltaTeta; teta +=
-        //            deltaTeta) {
-        //                Real3 BCE_Pos_local = mR3(r * cos(teta), 0, r * sin(teta)) + centerPointLF;
-        //                posRadBCE.push_back(mR4(BCE_Pos_local, spacing));
+        //        for (Real x = -cyl_rad; x <= cyl_rad; x += spacing) {
+        //            for (Real y = -cyl_rad; y <= cyl_rad; y += spacing) {
+        //                if (x * x + y * y <= cyl_rad * cyl_rad)
+        //                    posRadBCE.push_back(mR4(x, s, y, spacing));
         //            }
         //        }
+        Real3 centerPointLF = mR3(0, s, 0);
+        printf("creating markers on the surface of the cylinder at layer at y=%f\n", s);
+        Real numr = floor(cyl_rad / kernel_h);
+        for (int ir = 0; ir < numr; ir++) {
+            Real r = kernel_h + ir * cyl_rad / numr;
+            //                Real deltaTeta = 2 * spacing / r;
+            int numTheta = std::floor(2 * 3.1415 * r / kernel_h);
+            for (Real t = 0.0; t < numTheta; t++) {
+                Real teta = t * 2 * 3.1415 / numTheta;
+                Real3 BCE_Pos_local = mR3(r * cos(teta), 0, r * sin(teta)) + centerPointLF;
+                posRadBCE.push_back(mR4(BCE_Pos_local, kernel_h));
+            }
+        }
     }
 }
 
