@@ -22,14 +22,14 @@
 
 #include "chrono/ChConfig.h"
 #include "chrono/physics/ChSystem.h"
+#include "chrono_fea/ChElementCableANCF.h"
+#include "chrono_fea/ChElementShellANCF.h"
+#include "chrono_fea/ChMesh.h"
+#include "chrono_fea/ChNodeFEAxyzD.h"
 #include "chrono_fsi/ChBce.cuh"
 #include "chrono_fsi/ChFluidDynamics.cuh"
 #include "chrono_fsi/ChFsiDataManager.cuh"
 #include "chrono_fsi/ChFsiInterface.h"
-#include "chrono_fea/ChMesh.h"
-#include "chrono_fea/ChElementShellANCF.h"
-#include "chrono_fea/ChElementCableANCF.h"
-#include "chrono_fea/ChNodeFEAxyzD.h"
 
 namespace chrono {
 namespace fsi {
@@ -60,6 +60,8 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
     /// system dynamics. The midpoint data of MBS is needed for fluid dynamics update.
     virtual void DoStepDynamics_FSI();
     virtual void DoStepDynamics_FSI_Implicit();
+    void SetFluidIntegratorType(ChFluidDynamics::Integrator type) { fluidIntegrator = type; }
+
     /// Function to integrate the multibody system dynamics based on Runge-Kutta
     /// 2nd-order integration scheme.
     virtual void DoStepDynamics_ChronoRK2();
@@ -123,15 +125,16 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
     std::vector<std::vector<int>> CableElementsNodes;  ///< These are the indices of nodes of each Element
 
     std::vector<std::shared_ptr<chrono::fea::ChElementCableANCF>>
-        fsiCablesPtr;  ///<vector of ChElementShellANCF pointers
+        fsiCablesPtr;  ///< vector of ChElementShellANCF pointers
     std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>
-        fsiShellsPtr;                                                      ///<vector of ChElementShellANCF pointers
-    std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>> fsiNodesPtr;  ///<vector of ChNodeFEAxyzD nodes
+        fsiShellsPtr;                                                      ///< vector of ChElementShellANCF pointers
+    std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>> fsiNodesPtr;  ///< vector of ChNodeFEAxyzD nodes
     std::shared_ptr<chrono::fea::ChMesh> fsi_mesh;                         ///< ChMesh Pointer
 
-    ChFluidDynamics* fluidDynamics;  ///< pointer to the fluid system
-    ChFsiInterface* fsiInterface;    ///< pointer to the fsi interface system
-    ChBce* bceWorker;                ///< pointer to the bce workers
+    ChFluidDynamics* fluidDynamics;                                                    ///< pointer to the fluid system
+    ChFluidDynamics::Integrator fluidIntegrator = ChFluidDynamics::Integrator::IISPH;  ///< IISPH by default
+    ChFsiInterface* fsiInterface;  ///< pointer to the fsi interface system
+    ChBce* bceWorker;              ///< pointer to the bce workers
 
     chrono::ChSystem* mphysicalSystem;  ///< pointer to the multibody system
 

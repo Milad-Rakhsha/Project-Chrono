@@ -52,14 +52,13 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
         SimParams* otherParamsH,              ///< Pointer to the simulation parameters on host
         NumberOfObjects* otherNumObjects      ///< Pointer to number of objects, fluid and boundary markers, etc.
     );
-
+    ChFsiForceParallel();
     /// Destructor. Deletes the collision system.
     ~ChFsiForceParallel();
 
     /// Function calculate the force on SPH markers.
     /// This is a basic force computation relying on WCSPH approach.
     virtual void ForceSPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD);
-
     virtual void ForceIISPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD, FsiMeshDataD* fsiMeshD);
 
     /// Synchronize the copy of the data (parameters and number of objects)
@@ -118,6 +117,7 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
                            thrust::device_vector<Real3> acc_fsi_fea_D,
                            thrust::device_vector<Real>& sumWij_inv,
                            thrust::device_vector<Real>& G_i,
+                           thrust::device_vector<Real>& L_i,
                            thrust::device_vector<Real>& Color);
 
     ChCollisionSystemFsi* fsiCollisionSystem;  ///< collision system; takes care of  constructing neighbors list

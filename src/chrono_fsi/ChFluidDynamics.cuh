@@ -18,9 +18,10 @@
 
 #ifndef CH_FLUIDDYNAMICS_H_
 #define CH_FLUIDDYNAMICS_H_
-
 #include "chrono_fsi/ChFsiDataManager.cuh"
 #include "chrono_fsi/ChFsiForceParallel.cuh"
+
+#include "chrono_fsi/ChFsiForceI2SPH.cuh"
 
 namespace chrono {
 namespace fsi {
@@ -40,6 +41,11 @@ namespace fsi {
 /// by the class.
 class CH_FSI_API ChFluidDynamics : public ChFsiGeneral {
   public:
+    enum class Integrator {
+        XSPH = 0,
+        IISPH = 1,
+        I2SPH = 2,
+    };
     /// Fluid dynamics class constructor.
     ///
     /// The class constructor performs the following operations:
@@ -49,7 +55,8 @@ class CH_FSI_API ChFluidDynamics : public ChFsiGeneral {
     ChFluidDynamics(ChBce* otherBceWorker,
                     ChFsiDataManager* otherFsiData,
                     SimParams* otherParamsH,
-                    NumberOfObjects* otherNumObjects);
+                    NumberOfObjects* otherNumObjects,
+                    ChFluidDynamics::Integrator type);
 
     /// Class destructor. Deletes the force system.
     ~ChFluidDynamics();

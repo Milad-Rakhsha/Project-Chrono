@@ -59,7 +59,8 @@ CH_FSI_API void AddCylinderBce(ChFsiDataManager* fsiData,
                                chrono::ChQuaternion<> relRot,
                                Real radius,
                                Real height,
-                               Real kernel_h);
+                               Real kernel_h,
+                               bool cartesian = true);
 void AddCylinderSurfaceBce(ChFsiDataManager* fsiData,
                            SimParams* paramsH,
                            std::shared_ptr<ChBody> body,

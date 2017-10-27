@@ -73,7 +73,7 @@ Real bzDim = 0.40;
 Real fxDim = bxDim;
 Real fyDim = byDim;
 Real fzDim = bzDim;
-double cyl_length = 0.09;
+double cyl_length = 0.11;
 double cyl_radius = .05;
 ChVector<> cyl_pos = ChVector<>(0.0);
 
@@ -170,7 +170,7 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
     std::vector<std::shared_ptr<ChBody>>* fsiBodeisPtr = myFsiSystem.GetFsiBodiesPtr();
     fsiBodeisPtr->push_back(body);
     chrono::fsi::utils::AddCylinderBce(myFsiSystem.GetDataManager(), paramsH, body, ChVector<>(0, 0, 0),
-                                       ChQuaternion<>(1, 0, 0, 0), cyl_radius, cyl_length, paramsH->HSML / 2);
+                                       ChQuaternion<>(1, 0, 0, 0), cyl_radius, cyl_length, paramsH->HSML / 2, false);
 }
 
 //------------------------------------------------------------------
@@ -352,7 +352,7 @@ int main(int argc, char* argv[]) {
             }
         }
         if (!removeThis) {
-            myFsiSystem.GetDataManager()->AddSphMarker(p, chrono::fsi::mR3(paramsH->V_in / 2, 0.0, 0.0),
+            myFsiSystem.GetDataManager()->AddSphMarker(p, chrono::fsi::mR3(paramsH->V_in, 0.0, 0.0),
                                                        chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -1));
         } else
             numremove++;

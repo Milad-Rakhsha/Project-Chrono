@@ -35,7 +35,8 @@ void CreateBCE_On_Cylinder(thrust::host_vector<Real4>& posRadBCE,
                            Real cyl_rad,
                            Real cyl_h,
                            SimParams* paramsH,
-                           Real kernel_h);
+                           Real kernel_h,
+                           bool cartesian = true);
 
 void CreateBCE_On_surface_of_Cylinder(thrust::host_vector<Real4>& posRadBCE,
                                       thrust::host_vector<Real3>& normals,

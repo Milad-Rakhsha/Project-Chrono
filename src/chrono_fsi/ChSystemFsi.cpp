@@ -17,8 +17,8 @@
 // =============================================================================
 
 #include "chrono_fsi/ChSystemFsi.h"
-#include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fea/ChMesh.h"
+#include "chrono_fsi/ChDeviceUtils.cuh"
 
 namespace chrono {
 namespace fsi {
@@ -40,7 +40,7 @@ ChSystemFsi::ChSystemFsi(ChSystem* other_physicalSystem, bool other_haveFluid)
 
     bceWorker = new ChBce(&(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD), &(fsiData->fsiGeneralData),
                           paramsH, numObjectsH);
-    fluidDynamics = new ChFluidDynamics(bceWorker, fsiData, paramsH, numObjectsH);
+    fluidDynamics = new ChFluidDynamics(bceWorker, fsiData, paramsH, numObjectsH, fluidIntegrator);
     fsiInterface = new ChFsiInterface(
         &(fsiData->fsiBodiesH), &(fsiData->fsiMeshH), mphysicalSystem, &fsiBodeisPtr, &fsiNodesPtr, &fsiCablesPtr,
         &fsiShellsPtr, fsi_mesh, &(fsiData->fsiGeneralData.CableElementsNodesH),
@@ -169,6 +169,8 @@ void ChSystemFsi::DoStepDynamics_ChronoRK2() {
     mTime += paramsH->dT;
     mphysicalSystem->DoStepDynamics(1.0 * paramsH->dT);
 }
+
+void SetIntegratorType(ChFluidDynamics::Integrator type) {}
 
 //--------------------------------------------------------------------------------------------------------------------------------
 void ChSystemFsi::FinalizeData() {

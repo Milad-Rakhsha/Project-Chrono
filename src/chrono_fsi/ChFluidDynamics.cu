@@ -438,10 +438,28 @@ __global__ void ReCalcDensityD_F1(Real4* dummySortedRhoPreMu,
 ChFluidDynamics::ChFluidDynamics(ChBce* otherBceWorker,
                                  ChFsiDataManager* otherFsiData,
                                  SimParams* otherParamsH,
-                                 NumberOfObjects* otherNumObjects)
+                                 NumberOfObjects* otherNumObjects,
+                                 ChFluidDynamics::Integrator type)
     : fsiData(otherFsiData), paramsH(otherParamsH), numObjectsH(otherNumObjects) {
-    forceSystem = new ChFsiForceParallel(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
-                                         &(fsiData->fsiGeneralData), paramsH, numObjectsH);
+    switch (type) {
+        case ChFluidDynamics::Integrator::I2SPH:
+            forceSystem =
+                new ChFsiForceI2SPH(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
+                                    &(fsiData->fsiGeneralData), paramsH, numObjectsH);
+            break;
+
+        case ChFluidDynamics::Integrator::IISPH:
+            forceSystem =
+                new ChFsiForceParallel(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
+                                       &(fsiData->fsiGeneralData), paramsH, numObjectsH);
+            break;
+
+        case ChFluidDynamics::Integrator::XSPH:
+            forceSystem =
+                new ChFsiForceParallel(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
+                                       &(fsiData->fsiGeneralData), paramsH, numObjectsH);
+            break;
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -476,6 +494,7 @@ void ChFluidDynamics::IntegrateIISPH(SphMarkerDataD* sphMarkersD, FsiBodiesDataD
     //    this->ApplyBoundarySPH_Markers(sphMarkersD);
     this->ApplyModifiedBoundarySPH_Markers(sphMarkersD);
 }
+
 // -----------------------------------------------------------------------------
 
 void ChFluidDynamics::UpdateFluid(SphMarkerDataD* sphMarkersD, Real dT) {

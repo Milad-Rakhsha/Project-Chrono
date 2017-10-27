@@ -116,6 +116,7 @@ SET(ChronoEngine_FSI_SOURCES
     ChFluidDynamics.cu
     ChFsiDataManager.cu
     ChFsiForceParallel.cu
+    ChFsiForceI2SPH.cu
     ChFsiGeneral.cu
     ChFsiLinearSolver.cpp
     ChFsiInterface.cpp
@@ -131,11 +132,13 @@ SET(ChronoEngine_FSI_HEADERS
     ChParams.cuh
     ChFsiDataManager.cuh
     ChFsiForceParallel.cuh
+    ChFsiForceI2SPH.cuh
     ChFsiGeneral.cuh
+    ChSphGeneral.cuh
+    solver6x6.cuh
     ChFsiLinearSolver.h
     ChFsiInterface.h
     ChSystemFsi.h
-    ChSphGeneral.cuh
     ChApiFsi.h
     ChFsiTypeConvert.h
     custom_math.h

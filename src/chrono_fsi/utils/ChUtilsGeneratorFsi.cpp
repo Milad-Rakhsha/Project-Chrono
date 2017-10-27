@@ -443,9 +443,10 @@ void AddCylinderBce(ChFsiDataManager* fsiData,
                     ChQuaternion<> relRot,
                     Real radius,
                     Real height,
-                    Real kernel_h) {
+                    Real kernel_h,
+                    bool cartesian) {
     thrust::host_vector<Real4> posRadBCE;
-    CreateBCE_On_Cylinder(posRadBCE, radius, height, paramsH, kernel_h);
+    CreateBCE_On_Cylinder(posRadBCE, radius, height, paramsH, kernel_h, cartesian);
     CreateBceGlobalMarkersFromBceLocalPos(fsiData, paramsH, posRadBCE, body);
     posRadBCE.clear();
 }
