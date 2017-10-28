@@ -9,17 +9,15 @@
 // http://projectchrono.org/license-chrono.txt.
 //
 // =============================================================================
-// Author: Arman Pazouki, Milad Rakhsha
-// =============================================================================
-//
-// Base class for processing SPH force in a FSI system.
-//
+// Author: Milad Rakhsha
 // =============================================================================
 
 #ifndef CH_FSI_FORCEI2SPH_H_
 #define CH_FSI_FORCEI2SPH_H_
 #include "chrono_fsi/ChApiFsi.h"
+#include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFsiForceParallel.cuh"
+#include "chrono_fsi/ChSphGeneral.cuh"
 
 namespace chrono {
 namespace fsi {
@@ -38,12 +36,20 @@ class CH_FSI_API ChFsiForceI2SPH : public ChFsiForceParallel {
         FsiGeneralData* otherFsiGeneralData,  ///< Pointer to the sph general data
         SimParams* otherParamsH,              ///< Pointer to the simulation parameters on host
         NumberOfObjects* otherNumObjects      ///< Pointer to number of objects, fluid and boundary markers, etc.
-    );
-    /// Destructor. Deletes the collision system.
-    virtual ~ChFsiForceI2SPH();
-    void ForceIISPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD, FsiMeshDataD* fsiMeshD) override;
+        )
+        : ChFsiForceParallel(otherBceWorker,
+                             otherSortedSphMarkersD,
+                             otherMarkersProximityD,
+                             otherFsiGeneralData,
+                             otherParamsH,
+                             otherNumObjects) {}
+    virtual ~ChFsiForceI2SPH() {}
+    void Finalize() override;
 
   private:
+    void ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
+                          FsiBodiesDataD* otherFsiBodiesD,
+                          FsiMeshDataD* fsiMeshD) override;
 };
 
 /// @} fsi_physics

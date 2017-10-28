@@ -439,37 +439,38 @@ ChFluidDynamics::ChFluidDynamics(ChBce* otherBceWorker,
                                  NumberOfObjects* otherNumObjects,
                                  ChFluidDynamics::Integrator type)
     : fsiData(otherFsiData), paramsH(otherParamsH), numObjectsH(otherNumObjects) {
-    printf("ChFluidDynamics::ChFluidDynamics constructor\n");
+    printf("ChFluidDynamics::ChFluidDynamics()\n");
 
     switch (type) {
         case ChFluidDynamics::Integrator::I2SPH:
             forceSystem =
                 new ChFsiForceI2SPH(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
                                     &(fsiData->fsiGeneralData), paramsH, numObjectsH);
+            printf("Created an I2SPH frame work.\n");
             break;
 
         case ChFluidDynamics::Integrator::IISPH:
             forceSystem =
                 new ChFsiForceIISPH(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
                                     &(fsiData->fsiGeneralData), paramsH, numObjectsH);
-            printf("created the IISPH frame work.\n");
+            printf("Created an IISPH frame work.\n");
             break;
 
         case ChFluidDynamics::Integrator::XSPH:
             forceSystem =
                 new ChFsiForceParallel(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
                                        &(fsiData->fsiGeneralData), paramsH, numObjectsH);
+            printf("Created an XSPH frame work.\n");
+            break;
     }
 }
 
 // -----------------------------------------------------------------------------
 
 void ChFluidDynamics::Finalize() {
+    printf("ChFluidDynamics::Finalize()\n");
     cudaMemcpyToSymbolAsync(paramsD, paramsH, sizeof(SimParams));
     cudaMemcpyToSymbolAsync(numObjectsD, numObjectsH, sizeof(NumberOfObjects));
-    printf("ChFluidDynamics::Finalize()\n");
-    printf("in ChFluidDynamics::Finalize numAllMarkers=%d\n", numObjectsH->numAllMarkers);
-
     forceSystem->Finalize();
 }
 
@@ -492,7 +493,7 @@ void ChFluidDynamics::IntegrateSPH(SphMarkerDataD* sphMarkersD2,
 // -----------------------------------------------------------------------------
 
 void ChFluidDynamics::IntegrateIISPH(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD, FsiMeshDataD* fsiMeshD) {
-    forceSystem->ForceIISPH(sphMarkersD, fsiBodiesD, fsiMeshD);
+    forceSystem->ForceImplicitSPH(sphMarkersD, fsiBodiesD, fsiMeshD);
     this->UpdateFluid_Implicit(sphMarkersD);
     //    this->ApplyBoundarySPH_Markers(sphMarkersD);
     this->ApplyModifiedBoundarySPH_Markers(sphMarkersD);

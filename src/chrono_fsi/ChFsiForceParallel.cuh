@@ -57,14 +57,17 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
         NumberOfObjects* otherNumObjects      ///< Pointer to number of objects, fluid and boundary markers, etc.
     );
     /// Destructor. Deletes the collision system.
-    ~ChFsiForceParallel();
+    virtual ~ChFsiForceParallel();
 
     /// Function calculate the force on SPH markers.
     /// This is a basic force computation relying on WCSPH approach.
-    virtual void ForceSPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD);
-    virtual void ForceIISPH(SphMarkerDataD* otherSphMarkersD,
-                            FsiBodiesDataD* otherFsiBodiesD,
-                            FsiMeshDataD* fsiMeshD){};
+    void ForceSPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD);
+
+    /// This is a virtual method that needs to be overriden by the child classes to compute fluid forces in an
+    /// implicit integrator.
+    virtual void ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
+                                  FsiBodiesDataD* otherFsiBodiesD,
+                                  FsiMeshDataD* fsiMeshD){};
 
     /// Synchronize the copy of the data (parameters and number of objects)
     /// between device (GPU) and host (CPU).
@@ -115,8 +118,8 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
     /// sorted xsph velocities to the original. The latter is needed later for position update.
     void CollideWrapper();
 
-    ChCollisionSystemFsi* fsiCollisionSystem;  ///< collision system; takes care of  constructing neighbors list
     ChBce* bceWorker;                          ///< pointer to Boundary Condition Enforcing markers class.
+    ChCollisionSystemFsi* fsiCollisionSystem;  ///< collision system; takes care of  constructing neighbors list
 
     // The class takes care of BCE related computations. It is needed here, however,
     // for the implemetation of the ADAMI boundary condition

@@ -408,11 +408,9 @@ ChFsiForceParallel::ChFsiForceParallel(ChBce* otherBceWorker,
       sortedSphMarkersD(otherSortedSphMarkersD),
       markersProximityD(otherMarkersProximityD),
       fsiGeneralData(otherFsiGeneralData),
-      paramsH(otherParamsH),
-      numObjectsH(otherNumObjects) {
-    printf("ChFsiForceParallel::ChFsiForceParallel constructor\n");
+      numObjectsH(otherNumObjects),
+      paramsH(otherParamsH) {
     fsiCollisionSystem = new ChCollisionSystemFsi(sortedSphMarkersD, markersProximityD, paramsH, numObjectsH);
-
     sphMarkersD = NULL;
 }
 //--------------------------------------------------------------------------------------------------------------------------------

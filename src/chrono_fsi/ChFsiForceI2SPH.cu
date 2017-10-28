@@ -12,7 +12,6 @@
 // Author: Milad Rakhsha
 // =============================================================================
 //
-// Base class for processing sph force in fsi system.//
 // =============================================================================
 #include <thrust/extrema.h>
 #include <thrust/sort.h>
@@ -22,27 +21,14 @@
 //==========================================================================================================================================
 namespace chrono {
 namespace fsi {
-
-ChFsiForceI2SPH::~ChFsiForceI2SPH() {}
-ChFsiForceI2SPH::ChFsiForceI2SPH(
-    ChBce* otherBceWorker,                   ///< Pointer to the ChBce object that handles BCE markers
-    SphMarkerDataD* otherSortedSphMarkersD,  ///< Information of markers in the sorted array on device
-    ProximityDataD* otherMarkersProximityD,  ///< Pointer to the object that holds the proximity of the
-                                             ///< markers on device
-    FsiGeneralData* otherFsiGeneralData,     ///< Pointer to the sph general data
-    SimParams* otherParamsH,                 ///< Pointer to the simulation parameters on host
-    NumberOfObjects* otherNumObjects         ///< Pointer to number of objects, fluid and boundary markers, etc.
-    )
-    : ChFsiForceParallel(otherBceWorker,
-                         otherSortedSphMarkersD,
-                         otherMarkersProximityD,
-                         otherFsiGeneralData,
-                         otherParamsH,
-                         otherNumObjects) {}
-
-void ChFsiForceI2SPH::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
-                                 FsiBodiesDataD* otherFsiBodiesD,
-                                 FsiMeshDataD* otherFsiMeshD) {}
+void ChFsiForceI2SPH::Finalize() {
+    cudaMemcpyToSymbolAsync(paramsD, paramsH, sizeof(SimParams));
+    cudaMemcpyToSymbolAsync(numObjectsD, numObjectsH, sizeof(NumberOfObjects));
+    ChFsiForceParallel::Finalize();
+}
+void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
+                                       FsiBodiesDataD* otherFsiBodiesD,
+                                       FsiMeshDataD* otherFsiMeshD) {}
 
 }  // namespace fsi
 }  // namespace chrono

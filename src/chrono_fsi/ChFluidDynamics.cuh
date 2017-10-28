@@ -90,7 +90,7 @@ class CH_FSI_API ChFluidDynamics : public ChFsiGeneral {
     /// Synchronize the copy of the data (parameters and number of objects)
     /// between device (GPU) and host (CPU).
     /// This function needs to be called once the host data are modified
-    virtual void Finalize();
+    void Finalize();
 
   protected:
     ChFsiDataManager* fsiData;  ///< pointer to the fsi data. The values are maintained externally

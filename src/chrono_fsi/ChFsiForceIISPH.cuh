@@ -9,19 +9,16 @@
 // http://projectchrono.org/license-chrono.txt.
 //
 // =============================================================================
-// Author: Arman Pazouki, Milad Rakhsha
-// =============================================================================
-//
-// Base class for processing SPH force in a FSI system.
-//
+// Author: Milad Rakhsha
 // =============================================================================
 
 #ifndef CH_FSI_FORCEIISPH_H_
 #define CH_FSI_FORCEIISPH_H_
 
 #include "chrono_fsi/ChApiFsi.h"
+#include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFsiForceParallel.cuh"
-//#include "chrono_fsi/ChSphKernels.cu"
+#include "chrono_fsi/ChSphGeneral.cuh"
 
 namespace chrono {
 namespace fsi {
@@ -32,7 +29,6 @@ namespace fsi {
 /// @brief Child class of ChForceParallel that implements the I2SPH method.
 class CH_FSI_API ChFsiForceIISPH : public ChFsiForceParallel {
   public:
-    //    ChFsiForceIISPH();
     ChFsiForceIISPH(
         ChBce* otherBceWorker,                   ///< Pointer to the ChBce object that handles BCE markers
         SphMarkerDataD* otherSortedSphMarkersD,  ///< Information of markers in the sorted array on device
@@ -41,11 +37,21 @@ class CH_FSI_API ChFsiForceIISPH : public ChFsiForceParallel {
         FsiGeneralData* otherFsiGeneralData,  ///< Pointer to the sph general data
         SimParams* otherParamsH,              ///< Pointer to the simulation parameters on host
         NumberOfObjects* otherNumObjects      ///< Pointer to number of objects, fluid and boundary markers, etc.
-    );
-    /// Destructor. Deletes the collision system.
-    virtual ~ChFsiForceIISPH();
-    void ForceIISPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD, FsiMeshDataD* fsiMeshD) override;
+        )
+        : ChFsiForceParallel(otherBceWorker,
+                             otherSortedSphMarkersD,
+                             otherMarkersProximityD,
+                             otherFsiGeneralData,
+                             otherParamsH,
+                             otherNumObjects) {}
 
+    ~ChFsiForceIISPH() {}
+    void Finalize() override;
+
+  private:
+    void ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
+                          FsiBodiesDataD* otherFsiBodiesD,
+                          FsiMeshDataD* fsiMeshD) override;
     void calcPressureIISPH(thrust::device_vector<Real4> velMassRigid_fsiBodies_D,
                            thrust::device_vector<Real3> accRigid_fsiBodies_D,
                            thrust::device_vector<Real3> pos_fsi_fea_D,
@@ -55,8 +61,6 @@ class CH_FSI_API ChFsiForceIISPH : public ChFsiForceParallel {
                            thrust::device_vector<Real>& G_i,
                            thrust::device_vector<Real>& L_i,
                            thrust::device_vector<Real>& Color);
-
-  private:
 };
 
 /// @} fsi_physics

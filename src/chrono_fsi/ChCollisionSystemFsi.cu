@@ -16,7 +16,6 @@
 // =============================================================================
 
 #include <thrust/sort.h>
-#include <stdexcept>
 #include "chrono_fsi/ChCollisionSystemFsi.cuh"
 #include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChSphGeneral.cuh"
@@ -294,11 +293,6 @@ void ChCollisionSystemFsi::ArrangeData(SphMarkerDataD* otherSphMarkersD) {
     thrust::sort_by_key(markersProximityD->gridMarkerHashD.begin(), markersProximityD->gridMarkerHashD.end(),
                         markersProximityD->gridMarkerIndexD.begin());
     reorderDataAndFindCellStart();
-
-    std::cout << "fsiCollisionSystem->markersProximityD->cellEndD.size(): " << markersProximityD->cellEndD.size()
-              << "\n";
-    std::cout << "fsiCollisionSystem->markersProximityD->cellStartD.size(): " << markersProximityD->cellStartD.size()
-              << "\n";
 }
 
 }  // end namespace fsi
