@@ -16,10 +16,12 @@
 //
 // =============================================================================
 
-#ifndef CH_FSI_FORCEI2SPH_H_
-#define CH_FSI_FORCEI2SPH_H_
+#ifndef CH_FSI_FORCEIISPH_H_
+#define CH_FSI_FORCEIISPH_H_
+
 #include "chrono_fsi/ChApiFsi.h"
 #include "chrono_fsi/ChFsiForceParallel.cuh"
+//#include "chrono_fsi/ChSphKernels.cu"
 
 namespace chrono {
 namespace fsi {
@@ -28,9 +30,10 @@ namespace fsi {
 /// @{
 
 /// @brief Child class of ChForceParallel that implements the I2SPH method.
-class CH_FSI_API ChFsiForceI2SPH : public ChFsiForceParallel {
+class CH_FSI_API ChFsiForceIISPH : public ChFsiForceParallel {
   public:
-    ChFsiForceI2SPH(
+    //    ChFsiForceIISPH();
+    ChFsiForceIISPH(
         ChBce* otherBceWorker,                   ///< Pointer to the ChBce object that handles BCE markers
         SphMarkerDataD* otherSortedSphMarkersD,  ///< Information of markers in the sorted array on device
         ProximityDataD*
@@ -40,8 +43,18 @@ class CH_FSI_API ChFsiForceI2SPH : public ChFsiForceParallel {
         NumberOfObjects* otherNumObjects      ///< Pointer to number of objects, fluid and boundary markers, etc.
     );
     /// Destructor. Deletes the collision system.
-    virtual ~ChFsiForceI2SPH();
+    virtual ~ChFsiForceIISPH();
     void ForceIISPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD, FsiMeshDataD* fsiMeshD) override;
+
+    void calcPressureIISPH(thrust::device_vector<Real4> velMassRigid_fsiBodies_D,
+                           thrust::device_vector<Real3> accRigid_fsiBodies_D,
+                           thrust::device_vector<Real3> pos_fsi_fea_D,
+                           thrust::device_vector<Real3> vel_fsi_fea_D,
+                           thrust::device_vector<Real3> acc_fsi_fea_D,
+                           thrust::device_vector<Real>& sumWij_inv,
+                           thrust::device_vector<Real>& G_i,
+                           thrust::device_vector<Real>& L_i,
+                           thrust::device_vector<Real>& Color);
 
   private:
 };

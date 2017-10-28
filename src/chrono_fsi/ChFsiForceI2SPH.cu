@@ -23,9 +23,6 @@
 namespace chrono {
 namespace fsi {
 
-// ChFsiForceI2SPH::ChFsiForceI2SPH() {}
-
-ChFsiForceI2SPH::ChFsiForceI2SPH() {}
 ChFsiForceI2SPH::~ChFsiForceI2SPH() {}
 ChFsiForceI2SPH::ChFsiForceI2SPH(
     ChBce* otherBceWorker,                   ///< Pointer to the ChBce object that handles BCE markers
@@ -35,10 +32,13 @@ ChFsiForceI2SPH::ChFsiForceI2SPH(
     FsiGeneralData* otherFsiGeneralData,     ///< Pointer to the sph general data
     SimParams* otherParamsH,                 ///< Pointer to the simulation parameters on host
     NumberOfObjects* otherNumObjects         ///< Pointer to number of objects, fluid and boundary markers, etc.
-) {
-    ChFsiForceParallel(otherBceWorker, otherSortedSphMarkersD, otherMarkersProximityD, otherFsiGeneralData,
-                       otherParamsH, otherNumObjects);
-}
+    )
+    : ChFsiForceParallel(otherBceWorker,
+                         otherSortedSphMarkersD,
+                         otherMarkersProximityD,
+                         otherFsiGeneralData,
+                         otherParamsH,
+                         otherNumObjects) {}
 
 void ChFsiForceI2SPH::ForceIISPH(SphMarkerDataD* otherSphMarkersD,
                                  FsiBodiesDataD* otherFsiBodiesD,

@@ -15,11 +15,11 @@
 // Base class for processing proximity in fsi system.//
 // =============================================================================
 
+#include <thrust/sort.h>
+#include <stdexcept>
 #include "chrono_fsi/ChCollisionSystemFsi.cuh"
 #include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChSphGeneral.cuh"
-#include <stdexcept>
-#include <thrust/sort.h>
 
 namespace chrono {
 namespace fsi {
@@ -48,7 +48,7 @@ __global__ void calcHashD(
     uint* gridMarkerHashD,   ///< gridMarkerHash Store marker hash here
     uint* gridMarkerIndexD,  ///< gridMarkerIndex Store marker index here
     Real4* posRad,           ///< posRad Vector containing the positions of all particles, including boundary particles
-    uint numAllMarkers,      ///<Total number of markers (fluid + boundary)
+    uint numAllMarkers,      ///< Total number of markers (fluid + boundary)
     volatile bool* isErrorD) {
     /* Calculate the index of where the particle is stored in posRad. */
     uint index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -194,6 +194,7 @@ ChCollisionSystemFsi::ChCollisionSystemFsi(SphMarkerDataD* otherSortedSphMarkers
       markersProximityD(otherMarkersProximityD),
       paramsH(otherParamsH),
       numObjectsH(otherNumObjects) {
+    printf("ChCollisionSystemFsi::ChCollisionSystemFsi constructor\n");
     sphMarkersD = NULL;
 }
 
@@ -293,6 +294,11 @@ void ChCollisionSystemFsi::ArrangeData(SphMarkerDataD* otherSphMarkersD) {
     thrust::sort_by_key(markersProximityD->gridMarkerHashD.begin(), markersProximityD->gridMarkerHashD.end(),
                         markersProximityD->gridMarkerIndexD.begin());
     reorderDataAndFindCellStart();
+
+    std::cout << "fsiCollisionSystem->markersProximityD->cellEndD.size(): " << markersProximityD->cellEndD.size()
+              << "\n";
+    std::cout << "fsiCollisionSystem->markersProximityD->cellStartD.size(): " << markersProximityD->cellStartD.size()
+              << "\n";
 }
 
 }  // end namespace fsi

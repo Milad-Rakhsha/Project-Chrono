@@ -18,10 +18,17 @@
 
 #ifndef CH_FLUIDDYNAMICS_H_
 #define CH_FLUIDDYNAMICS_H_
-#include "chrono_fsi/ChFsiDataManager.cuh"
+
 #include "chrono_fsi/ChFsiForceParallel.cuh"
 
+#include "chrono_fsi/ChSphGeneral.cuh"
+
+#include "chrono_fsi/ChDeviceUtils.cuh"
+
 #include "chrono_fsi/ChFsiForceI2SPH.cuh"
+#include "chrono_fsi/ChFsiForceIISPH.cuh"
+
+#include "chrono_fsi/ChFsiDataManager.cuh"
 
 namespace chrono {
 namespace fsi {

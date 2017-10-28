@@ -17,11 +17,11 @@
 
 #ifndef CH_DEVICEUTILS_H_
 #define CH_DEVICEUTILS_H_
-
-#include "chrono_fsi/ChApiFsi.h"
-#include "chrono_fsi/custom_math.h"
+#include <cuda_runtime.h>  // for __host__ __device__ flags
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
+#include "chrono_fsi/ChApiFsi.h"
+#include "chrono_fsi/custom_math.h"
 
 namespace chrono {
 namespace fsi {

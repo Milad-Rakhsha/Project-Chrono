@@ -19,12 +19,15 @@
 #ifndef CH_FSI_FORCEPARALLEL_H_
 #define CH_FSI_FORCEPARALLEL_H_
 
+#include "chrono_fsi/ChSphKernels.cu"
+
 #include "chrono_fsi/ChApiFsi.h"
 #include "chrono_fsi/ChBce.cuh"
 #include "chrono_fsi/ChCollisionSystemFsi.cuh"
+#include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFsiDataManager.cuh"
-#include "chrono_fsi/ChFsiGeneral.cuh"
 #include "chrono_fsi/ChFsiLinearSolver.h"
+#include "chrono_fsi/ChSphGeneral.cuh"
 
 namespace chrono {
 namespace fsi {
@@ -43,6 +46,7 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
     /// Base constructor for FSI force class.
     /// The constructor instantiates the collision system (ChCollisionSystemFsi)
     /// and initializes the pointer to external data.
+    //    ChFsiForceParallel() {}
     ChFsiForceParallel(
         ChBce* otherBceWorker,                   ///< Pointer to the ChBce object that handles BCE markers
         SphMarkerDataD* otherSortedSphMarkersD,  ///< Information of markers in the sorted array on device
@@ -52,14 +56,15 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
         SimParams* otherParamsH,              ///< Pointer to the simulation parameters on host
         NumberOfObjects* otherNumObjects      ///< Pointer to number of objects, fluid and boundary markers, etc.
     );
-    ChFsiForceParallel();
     /// Destructor. Deletes the collision system.
     ~ChFsiForceParallel();
 
     /// Function calculate the force on SPH markers.
     /// This is a basic force computation relying on WCSPH approach.
     virtual void ForceSPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD);
-    virtual void ForceIISPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD, FsiMeshDataD* fsiMeshD);
+    virtual void ForceIISPH(SphMarkerDataD* otherSphMarkersD,
+                            FsiBodiesDataD* otherFsiBodiesD,
+                            FsiMeshDataD* fsiMeshD){};
 
     /// Synchronize the copy of the data (parameters and number of objects)
     /// between device (GPU) and host (CPU).
@@ -100,7 +105,7 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
                                                     thrust::device_vector<Real4>& sorted,
                                                     const thrust::device_vector<uint>& gridMarkerIndex);
 
-  private:
+  protected:
     /// Function to calculate the xsph velocity of the particles.
     /// XSPH velocity is a compromise between Eulerian and Lagrangian velocities, used
     /// to regularize the markers velocity and reduce noise.
@@ -109,16 +114,6 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
     /// A wrapper around collide function, where calculates the force on markers, and copies the
     /// sorted xsph velocities to the original. The latter is needed later for position update.
     void CollideWrapper();
-
-    void calcPressureIISPH(thrust::device_vector<Real4> velMassRigid_fsiBodies_D,
-                           thrust::device_vector<Real3> accRigid_fsiBodies_D,
-                           thrust::device_vector<Real3> pos_fsi_fea_D,
-                           thrust::device_vector<Real3> vel_fsi_fea__D,
-                           thrust::device_vector<Real3> acc_fsi_fea_D,
-                           thrust::device_vector<Real>& sumWij_inv,
-                           thrust::device_vector<Real>& G_i,
-                           thrust::device_vector<Real>& L_i,
-                           thrust::device_vector<Real>& Color);
 
     ChCollisionSystemFsi* fsiCollisionSystem;  ///< collision system; takes care of  constructing neighbors list
     ChBce* bceWorker;                          ///< pointer to Boundary Condition Enforcing markers class.

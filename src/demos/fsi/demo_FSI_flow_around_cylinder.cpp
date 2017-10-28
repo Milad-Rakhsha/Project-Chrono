@@ -38,6 +38,8 @@
 
 // Chrono fsi includes
 #include "chrono_fsi/ChDeviceUtils.cuh"
+#include "chrono_fsi/ChFluidDynamics.cuh"
+
 #include "chrono_fsi/ChFsiTypeConvert.h"
 #include "chrono_fsi/ChSystemFsi.h"
 #include "chrono_fsi/utils/ChUtilsGeneratorFsi.h"
@@ -420,6 +422,7 @@ int main(int argc, char* argv[]) {
     const std::string copyInitials =
         (std::string("cp ") + demo_dir + std::string("/BCE0.csv") + std::string(" ./BCE.csv "));
     system(copyInitials.c_str());
+    myFsiSystem.SetFluidIntegratorType(fsi::ChFluidDynamics::Integrator::IISPH);
 
     Real time = 0;
     Real Global_max_dT = paramsH->dT_Max;
@@ -440,7 +443,6 @@ int main(int argc, char* argv[]) {
             paramsH->dT_Max = Global_max_dT;
 
         printf("next_frame is:%d,  max dt is set to %f\n", next_frame, paramsH->dT_Max);
-
 #if haveFluid
         myFsiSystem.DoStepDynamics_FSI_Implicit();
 #else

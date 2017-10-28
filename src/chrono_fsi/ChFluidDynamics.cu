@@ -15,9 +15,7 @@
 // Class for performing time integration in fluid system.//
 // =============================================================================
 
-#include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFluidDynamics.cuh"
-#include "chrono_fsi/ChSphGeneral.cuh"
 
 namespace chrono {
 namespace fsi {
@@ -441,6 +439,8 @@ ChFluidDynamics::ChFluidDynamics(ChBce* otherBceWorker,
                                  NumberOfObjects* otherNumObjects,
                                  ChFluidDynamics::Integrator type)
     : fsiData(otherFsiData), paramsH(otherParamsH), numObjectsH(otherNumObjects) {
+    printf("ChFluidDynamics::ChFluidDynamics constructor\n");
+
     switch (type) {
         case ChFluidDynamics::Integrator::I2SPH:
             forceSystem =
@@ -450,15 +450,15 @@ ChFluidDynamics::ChFluidDynamics(ChBce* otherBceWorker,
 
         case ChFluidDynamics::Integrator::IISPH:
             forceSystem =
-                new ChFsiForceParallel(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
-                                       &(fsiData->fsiGeneralData), paramsH, numObjectsH);
+                new ChFsiForceIISPH(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
+                                    &(fsiData->fsiGeneralData), paramsH, numObjectsH);
+            printf("created the IISPH frame work.\n");
             break;
 
         case ChFluidDynamics::Integrator::XSPH:
             forceSystem =
                 new ChFsiForceParallel(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
                                        &(fsiData->fsiGeneralData), paramsH, numObjectsH);
-            break;
     }
 }
 
@@ -467,6 +467,9 @@ ChFluidDynamics::ChFluidDynamics(ChBce* otherBceWorker,
 void ChFluidDynamics::Finalize() {
     cudaMemcpyToSymbolAsync(paramsD, paramsH, sizeof(SimParams));
     cudaMemcpyToSymbolAsync(numObjectsD, numObjectsH, sizeof(NumberOfObjects));
+    printf("ChFluidDynamics::Finalize()\n");
+    printf("in ChFluidDynamics::Finalize numAllMarkers=%d\n", numObjectsH->numAllMarkers);
+
     forceSystem->Finalize();
 }
 

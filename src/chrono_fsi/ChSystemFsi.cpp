@@ -17,8 +17,6 @@
 // =============================================================================
 
 #include "chrono_fsi/ChSystemFsi.h"
-#include "chrono_fea/ChMesh.h"
-#include "chrono_fsi/ChDeviceUtils.cuh"
 
 namespace chrono {
 namespace fsi {
@@ -59,7 +57,9 @@ void ChSystemFsi::Finalize() {
         printf("\n\n ChSystemFsi::Finalize 2-bceWorker->Finalize..\n");
         bceWorker->Finalize(&(fsiData->sphMarkersD1), &(fsiData->fsiBodiesD1), &(fsiData->fsiMeshD));
         printf("\n\n ChSystemFsi::Finalize 3-fluidDynamics->Finalize..\n");
+
         fluidDynamics->Finalize();
+
         std::cout << "referenceArraySize in 3-fluidDynamics->Finalize.. "
                   << GetDataManager()->fsiGeneralData.referenceArray.size() << "\n";
     }

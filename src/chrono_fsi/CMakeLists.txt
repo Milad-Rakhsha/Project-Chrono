@@ -85,6 +85,8 @@ set(CH_FSI_INCLUDES
 # cuSparse library
 list(APPEND LIBRARIES ${CUDA_cusparse_LIBRARY})
 list(APPEND LIBRARIES ${CUDA_cublas_LIBRARY})
+list(APPEND LIBRARIES ${CUDA_cudart_LIBRARY})
+
 message( STATUS "CUDA_cusparse_LIBRARY: ${CUDA_cusparse_LIBRARY}")
 message( STATUS "CUDA_cusparse_LIBRARY: ${CUDA_cublas_LIBRARY}")
 
@@ -111,12 +113,14 @@ install(FILES "${PROJECT_BINARY_DIR}/chrono_fsi/ChConfigFSI.h"
 
 SET(ChronoEngine_FSI_SOURCES
     ChBce.cu
+ #   ChSphKernels.cu   
     ChCollisionSystemFsi.cu
     ChDeviceUtils.cu
     ChFluidDynamics.cu
     ChFsiDataManager.cu
     ChFsiForceParallel.cu
     ChFsiForceI2SPH.cu
+    ChFsiForceIISPH.cu
     ChFsiGeneral.cu
     ChFsiLinearSolver.cpp
     ChFsiInterface.cpp
@@ -125,16 +129,17 @@ SET(ChronoEngine_FSI_SOURCES
 )
 
 SET(ChronoEngine_FSI_HEADERS
+
     ChBce.cuh
     ChCollisionSystemFsi.cuh
     ChDeviceUtils.cuh
     ChFluidDynamics.cuh
     ChParams.cuh
     ChFsiDataManager.cuh
-    ChFsiForceParallel.cuh
+    ChFsiForceIISPH.cuh
     ChFsiForceI2SPH.cuh
+    ChFsiForceParallel.cuh    
     ChFsiGeneral.cuh
-    ChSphGeneral.cuh
     solver6x6.cuh
     ChFsiLinearSolver.h
     ChFsiInterface.h
@@ -142,6 +147,7 @@ SET(ChronoEngine_FSI_HEADERS
     ChApiFsi.h
     ChFsiTypeConvert.h
     custom_math.h
+    
 )
 
 SOURCE_GROUP("" FILES

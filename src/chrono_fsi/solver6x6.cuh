@@ -7,7 +7,7 @@ namespace chrono {
 namespace fsi {
 // Note that this is function calculates L=[L11 L12 L13 L22 L23 L33]' in B*L=[-1 0 0 -1 0 -1]' for a given B 6x6 matirx
 // This is is the core function for higher-order accurate schemes
-__host__ __device__ void inv6xdelta_mn(Real* B, Real* L) {
+static __host__ __device__ void inv6xdelta_mn(Real* B, Real* L) {
     Real DET = B[0] * B[7] * B[14] * B[21] * B[28] * B[35] - B[0] * B[7] * B[14] * B[21] * B[29] * B[34] -
                B[0] * B[7] * B[14] * B[22] * B[27] * B[35] + B[0] * B[7] * B[14] * B[22] * B[29] * B[33] +
                B[0] * B[7] * B[14] * B[23] * B[27] * B[34] - B[0] * B[7] * B[14] * B[23] * B[28] * B[33] -
