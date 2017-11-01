@@ -20,6 +20,8 @@
 #include "chrono_fsi/custom_math.h"
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
+#include "chrono_fsi/ChDeviceUtils.cuh"
+#include "chrono_fsi/ChParams.cuh"
 
 struct SimParams;
 

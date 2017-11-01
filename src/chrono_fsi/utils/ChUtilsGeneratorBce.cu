@@ -22,7 +22,7 @@
 #include "chrono_fea/ChElementShellANCF.h"
 #include "chrono_fea/ChNodeFEAxyzD.h"
 #include "chrono_fsi/ChDeviceUtils.cuh"
-#include "chrono_fsi/utils/ChUtilsGeneratorBce.h"
+#include "chrono_fsi/utils/ChUtilsGeneratorBce.cuh"
 
 namespace chrono {
 namespace fsi {

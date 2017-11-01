@@ -15,7 +15,7 @@
 // Base class for processing the interface between chrono and fsi modules
 // =============================================================================
 
-#include "chrono_fsi/ChFsiInterface.h"
+#include "chrono_fsi/ChFsiInterface.cuh"
 #include "chrono_fsi/ChFsiTypeConvert.h"
 #include "chrono_fea/ChMesh.h"
 #include "chrono_fea/ChNodeFEAxyzD.h"
@@ -132,8 +132,9 @@ void ChFsiInterface::Add_Rigid_ForceTorques_To_ChSystem() {
             bodyPtr->AddForce(hydroTorque);
         }
 
-        chrono::ChVector<> mforce = ChFsiTypeConvert::Real3ToChVector((*rigid_FSI_ForcesD)[i]);
-        chrono::ChVector<> mtorque = ChFsiTypeConvert::Real3ToChVector((*rigid_FSI_TorquesD)[i]);
+        thrust::device_vector<Real3> rigidFD=*(rigid_FSI_ForcesD);
+        chrono::ChVector<> mforce = chrono::ChVector<> (0);//ChFsiTypeConvert::Real3ToChVector(rigidFD[i]);
+        chrono::ChVector<> mtorque = ChFsiTypeConvert::Real3ToChVector((*(rigid_FSI_TorquesD))[i]);
 
         hydroForce->SetVpoint(bodyPtr->GetPos());
         hydroForce->SetMforce(mforce.Length());
