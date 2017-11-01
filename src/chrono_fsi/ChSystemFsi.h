@@ -30,8 +30,8 @@
 //#include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFluidDynamics.cuh"
 #include "chrono_fsi/ChFsiDataManager.cuh"
-//#include "chrono_fsi/ChFsiGeneral.cuh"
-#include "chrono_fsi/ChFsiInterface.h"
+#include "chrono_fsi/ChFsiGeneral.cuh"
+#include "chrono_fsi/ChFsiInterface.cuh"
 
 namespace chrono {
 namespace fsi {
@@ -52,7 +52,7 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
     /// This class constructor instantiates all the member objects. Wherever relevant, the
     /// instantiation is handled by sending a pointer to other objects or data.
     /// Therefore, the sub-classes have pointers to the same data.
-    ChSystemFsi(ChSystem* other_physicalSystem, bool other_haveFluid);
+    ChSystemFsi(ChSystem* other_physicalSystem, bool other_haveFluid, ChFluidDynamics::Integrator type);
 
     /// Destructor for the FSI system.
     ~ChSystemFsi();
@@ -62,7 +62,9 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
     /// system dynamics. The midpoint data of MBS is needed for fluid dynamics update.
     virtual void DoStepDynamics_FSI();
     virtual void DoStepDynamics_FSI_Implicit();
-    void SetFluidIntegratorType(ChFluidDynamics::Integrator type) { fluidIntegrator = type; }
+    void SetFluidIntegratorType(ChFluidDynamics::Integrator type) {
+        fluidIntegrator = (ChFluidDynamics::Integrator)type;
+    }
 
     /// Function to integrate the multibody system dynamics based on Runge-Kutta
     /// 2nd-order integration scheme.
@@ -133,10 +135,10 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
     std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>> fsiNodesPtr;  ///< vector of ChNodeFEAxyzD nodes
     std::shared_ptr<chrono::fea::ChMesh> fsi_mesh;                         ///< ChMesh Pointer
 
-    ChFluidDynamics* fluidDynamics;                                                    ///< pointer to the fluid system
-    ChFluidDynamics::Integrator fluidIntegrator = ChFluidDynamics::Integrator::IISPH;  ///< IISPH by default
-    ChFsiInterface* fsiInterface;  ///< pointer to the fsi interface system
-    ChBce* bceWorker;              ///< pointer to the bce workers
+    ChFluidDynamics* fluidDynamics;               ///< pointer to the fluid system
+    ChFluidDynamics::Integrator fluidIntegrator;  ///< IISPH by default
+    ChFsiInterface* fsiInterface;                 ///< pointer to the fsi interface system
+    ChBce* bceWorker;                             ///< pointer to the bce workers
 
     chrono::ChSystem* mphysicalSystem;  ///< pointer to the multibody system
 

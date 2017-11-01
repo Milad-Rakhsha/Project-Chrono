@@ -24,37 +24,49 @@ namespace chrono {
 namespace fsi {
 
 void ChDeviceUtils::ResizeMyThrust3(thrust::device_vector<Real3>& mThrustVec, int mSize) {
-  mThrustVec.resize(mSize);
+    mThrustVec.resize(mSize);
 }
 void ChDeviceUtils::ResizeMyThrust4(thrust::device_vector<Real4>& mThrustVec, int mSize) {
-  mThrustVec.resize(mSize);
+    mThrustVec.resize(mSize);
 }
 void ChDeviceUtils::FillMyThrust4(thrust::device_vector<Real4>& mThrustVec, Real4 v) {
-  thrust::fill(mThrustVec.begin(), mThrustVec.end(), v);
+    thrust::fill(mThrustVec.begin(), mThrustVec.end(), v);
 }
 void ChDeviceUtils::ClearMyThrustR3(thrust::device_vector<Real3>& mThrustVec) {
-  mThrustVec.clear();
+    mThrustVec.clear();
 }
 void ChDeviceUtils::ClearMyThrustR4(thrust::device_vector<Real4>& mThrustVec) {
-  mThrustVec.clear();
+    mThrustVec.clear();
 }
 void ChDeviceUtils::ClearMyThrustU1(thrust::device_vector<uint>& mThrustVec) {
-  mThrustVec.clear();
+    mThrustVec.clear();
 }
 void ChDeviceUtils::PushBackR3(thrust::device_vector<Real3>& mThrustVec, Real3 a3) {
-  mThrustVec.push_back(a3);
+    mThrustVec.push_back(a3);
 }
 void ChDeviceUtils::PushBackR4(thrust::device_vector<Real4>& mThrustVec, Real4 a4) {
-  mThrustVec.push_back(a4);
+    mThrustVec.push_back(a4);
 }
 void ChDeviceUtils::ResizeR3(thrust::device_vector<Real3>& mThrustVec, int size) {
-  mThrustVec.resize(size);
+    mThrustVec.resize(size);
 }
 void ChDeviceUtils::ResizeR4(thrust::device_vector<Real4>& mThrustVec, int size) {
-  mThrustVec.resize(size);
+    mThrustVec.resize(size);
 }
 void ChDeviceUtils::ResizeU1(thrust::device_vector<uint>& mThrustVec, int size) {
-  mThrustVec.resize(size);
+    mThrustVec.resize(size);
+}
+void ChDeviceUtils::Sync_CheckError(bool* isErrorH, bool* isErrorD, std::string carshReport) {
+    cudaThreadSynchronize();
+    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+    if (*isErrorH == true) {
+        throw std::runtime_error("Error! program crashed after " + carshReport + " !\n");
+    }
+    cudaError_t e = cudaGetLastError();
+    if (e != cudaSuccess) {
+        throw std::runtime_error("Error! program crashed after " + carshReport + " !\n");
+    }
+    cudaCheckError();
 }
 
 }  // end namespace fsi

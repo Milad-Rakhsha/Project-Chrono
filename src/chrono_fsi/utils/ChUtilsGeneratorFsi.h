@@ -19,7 +19,7 @@
 #define CH_UTILSGENERATORFSI_CUH
 
 #include "chrono_fsi/ChFsiDataManager.cuh"
-#include "chrono_fsi/utils/ChUtilsGeneratorBce.h"
+#include "chrono_fsi/utils/ChUtilsGeneratorBce.cuh"
 
 namespace chrono {
 namespace fsi {

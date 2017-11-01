@@ -469,9 +469,13 @@ ChFluidDynamics::ChFluidDynamics(ChBce* otherBceWorker,
 
 void ChFluidDynamics::Finalize() {
     printf("ChFluidDynamics::Finalize()\n");
+    forceSystem->Finalize();
     cudaMemcpyToSymbolAsync(paramsD, paramsH, sizeof(SimParams));
     cudaMemcpyToSymbolAsync(numObjectsD, numObjectsH, sizeof(NumberOfObjects));
-    forceSystem->Finalize();
+
+    cudaMemcpyFromSymbol(paramsH, paramsD, sizeof(SimParams));
+    printf("Finished  ChFluidDynamics paramsD was=%f,%f,%f\n", paramsH->cellSize.x, paramsH->cellSize.y,
+           paramsH->cellSize.z);
 }
 
 // -----------------------------------------------------------------------------

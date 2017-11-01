@@ -177,6 +177,8 @@ class CH_FSI_API ChDeviceUtils {
     /// Resizes a thrust vector of uint on the device to a specific size
     static void ResizeU1(thrust::device_vector<uint>& mThrustVec, int size);
 
+    static void Sync_CheckError(bool* isErrorH, bool* isErrorD, std::string carshReport);
+
   private:
 };
 }  // end namespace fsi

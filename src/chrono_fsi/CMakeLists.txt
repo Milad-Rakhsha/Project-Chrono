@@ -85,10 +85,22 @@ set(CH_FSI_INCLUDES
 # cuSparse library
 list(APPEND LIBRARIES ${CUDA_cusparse_LIBRARY})
 list(APPEND LIBRARIES ${CUDA_cublas_LIBRARY})
-list(APPEND LIBRARIES ${CUDA_cudart_LIBRARY})
+#list(APPEND LIBRARIES ${CUDA_cudart_LIBRARY})
+#list(APPEND LIBRARIES ${CUDA_rt_LIBRARY})
+#list(APPEND LIBRARIES ${CUDA_cudart_static_LIBRARY})
+#list(APPEND LIBRARIES ${CUDA_CUDART_LIBRARY})
+#list(APPEND LIBRARIES ${CUDA_CUDA_LIBRARY})
+list(APPEND LIBRARIES ${CUDA_cudadevrt_LIBRARY})
+
+
+
+
+ 
 
 message( STATUS "CUDA_cusparse_LIBRARY: ${CUDA_cusparse_LIBRARY}")
 message( STATUS "CUDA_cusparse_LIBRARY: ${CUDA_cublas_LIBRARY}")
+
+
 
 set(CH_FSI_INCLUDES "${CH_FSI_INCLUDES}" PARENT_SCOPE)
 
@@ -113,24 +125,27 @@ install(FILES "${PROJECT_BINARY_DIR}/chrono_fsi/ChConfigFSI.h"
 
 SET(ChronoEngine_FSI_SOURCES
     ChBce.cu
- #   ChSphKernels.cu   
+           ChSphGeneral.cu 
+    
     ChCollisionSystemFsi.cu
     ChDeviceUtils.cu
     ChFluidDynamics.cu
     ChFsiDataManager.cu
-    ChFsiForceParallel.cu
-    ChFsiForceI2SPH.cu
     ChFsiForceIISPH.cu
+    ChFsiForceI2SPH.cu
+    ChFsiForceParallel.cu
+#    ChSphKernels.cu   
     ChFsiGeneral.cu
     ChFsiLinearSolver.cpp
-    ChFsiInterface.cpp
+    ChFsiInterface.cu
     ChSystemFsi.cpp
     ChFsiTypeConvert.cpp
+    
 )
 
 SET(ChronoEngine_FSI_HEADERS
-
     ChBce.cuh
+       ChSphGeneral.cuh  
     ChCollisionSystemFsi.cuh
     ChDeviceUtils.cuh
     ChFluidDynamics.cuh
@@ -138,11 +153,11 @@ SET(ChronoEngine_FSI_HEADERS
     ChFsiDataManager.cuh
     ChFsiForceIISPH.cuh
     ChFsiForceI2SPH.cuh
-    ChFsiForceParallel.cuh    
-    ChFsiGeneral.cuh
+    ChFsiForceParallel.cuh 
+    ChFsiGeneral.cuh  
     solver6x6.cuh
     ChFsiLinearSolver.h
-    ChFsiInterface.h
+    ChFsiInterface.cuh
     ChSystemFsi.h
     ChApiFsi.h
     ChFsiTypeConvert.h
@@ -155,18 +170,18 @@ SOURCE_GROUP("" FILES
     ${ChronoEngine_FSI_HEADERS})
 
 set(ChronoEngine_FSI_UTILS_SOURCES
-    utils/ChUtilsGeneratorBce.cpp
+    utils/ChUtilsGeneratorBce.cu
     utils/ChUtilsGeneratorFluid.cpp
     utils/ChUtilsGeneratorFsi.cpp
-    utils/ChUtilsPrintSph.cpp
+    utils/ChUtilsPrintSph.cu
 )
 
 set(ChronoEngine_FSI_UTILS_HEADERS
-    utils/ChUtilsGeneratorBce.h
+    utils/ChUtilsGeneratorBce.cuh
     utils/ChUtilsGeneratorFluid.h
     utils/ChUtilsGeneratorFsi.h
-    utils/ChUtilsPrintSph.h
     utils/ChUtilsPrintStruct.h
+    utils/ChUtilsPrintSph.cuh
 )
 
 source_group(utils FILES

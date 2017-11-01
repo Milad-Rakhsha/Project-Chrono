@@ -27,7 +27,7 @@
 #include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFsiDataManager.cuh"
 #include "chrono_fsi/ChFsiLinearSolver.h"
-#include "chrono_fsi/ChSphGeneral.cuh"
+#include "chrono_fsi/ChParams.cuh"
 
 namespace chrono {
 namespace fsi {
@@ -63,7 +63,7 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
     /// This is a basic force computation relying on WCSPH approach.
     void ForceSPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD);
 
-    /// This is a virtual method that needs to be overriden by the child classes to compute fluid forces in an
+    /// This is a virtual method that needs to be overridden by the child classes to compute fluid forces in an
     /// implicit integrator.
     virtual void ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
                                   FsiBodiesDataD* otherFsiBodiesD,
@@ -108,7 +108,7 @@ class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
                                                     thrust::device_vector<Real4>& sorted,
                                                     const thrust::device_vector<uint>& gridMarkerIndex);
 
-  protected:
+  public:
     /// Function to calculate the xsph velocity of the particles.
     /// XSPH velocity is a compromise between Eulerian and Lagrangian velocities, used
     /// to regularize the markers velocity and reduce noise.

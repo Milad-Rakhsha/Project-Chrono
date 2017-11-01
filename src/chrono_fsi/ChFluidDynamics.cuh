@@ -49,9 +49,9 @@ namespace fsi {
 class CH_FSI_API ChFluidDynamics : public ChFsiGeneral {
   public:
     enum class Integrator {
-        XSPH = 0,
-        IISPH = 1,
-        I2SPH = 2,
+        XSPH,
+        IISPH,
+        I2SPH,
     };
     /// Fluid dynamics class constructor.
     ///

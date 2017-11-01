@@ -37,13 +37,10 @@
 #include "chrono/core/ChTransform.h"  //transform acc from GF to LF for post process
 
 // Chrono fsi includes
-#include "chrono_fsi/ChDeviceUtils.cuh"
-#include "chrono_fsi/ChFluidDynamics.cuh"
-
 #include "chrono_fsi/ChFsiTypeConvert.h"
 #include "chrono_fsi/ChSystemFsi.h"
 #include "chrono_fsi/utils/ChUtilsGeneratorFsi.h"
-#include "chrono_fsi/utils/ChUtilsPrintSph.h"
+#include "chrono_fsi/utils/ChUtilsPrintSph.cuh"
 
 // FSI Interface Includes
 #include "demos/fsi/demo_FSI_flow_around_cylinder.h"  //SetupParamsH()
@@ -222,7 +219,7 @@ int main(int argc, char* argv[]) {
 #endif
     // ************* Create Fluid *************************
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
     chrono::ChVector<> CameraLocation = chrono::ChVector<>(0, -10, 0);
     chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
 
@@ -422,7 +419,6 @@ int main(int argc, char* argv[]) {
     const std::string copyInitials =
         (std::string("cp ") + demo_dir + std::string("/BCE0.csv") + std::string(" ./BCE.csv "));
     system(copyInitials.c_str());
-    myFsiSystem.SetFluidIntegratorType(fsi::ChFluidDynamics::Integrator::IISPH);
 
     Real time = 0;
     Real Global_max_dT = paramsH->dT_Max;
@@ -476,7 +472,7 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
     //    printf("mTime= %f\n", mTime - (next_frame)*frame_time);
 
     if (save_output && std::abs(mTime - (next_frame)*frame_time) < 0.00001) {
-        chrono::fsi::utils::PrintToFile(
+       fsi::utils::PrintToFile(
             myFsiSystem.GetDataManager()->sphMarkersD2.posRadD, myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
             myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
             myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,

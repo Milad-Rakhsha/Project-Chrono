@@ -11,21 +11,41 @@
 // =============================================================================
 // Author: Milad Rakhsha
 // =============================================================================
-//
-// Base class for processing sph force in fsi system.//
-// =============================================================================
 #include <thrust/extrema.h>
 #include <thrust/sort.h>
-#include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFsiForceIISPH.cuh"
-#include "chrono_fsi/ChFsiForceParallel.cuh"
-#include "chrono_fsi/ChSphGeneral.cuh"
-#include "chrono_fsi/solver6x6.cuh"
+#include "chrono_fsi/ChParams.cuh"
+#include "chrono_fsi/ChSphGeneral.cu"
 
 //==========================================================================================================================================
 namespace chrono {
 namespace fsi {
 
+ChFsiForceIISPH::ChFsiForceIISPH(
+    ChBce* otherBceWorker,                   ///< Pointer to the ChBce object that handles BCE markers
+    SphMarkerDataD* otherSortedSphMarkersD,  ///< Information of markers in the sorted array on device
+    ProximityDataD*
+        otherMarkersProximityD,           ///< Pointer to the object that holds the proximity of the markers on device
+    FsiGeneralData* otherFsiGeneralData,  ///< Pointer to the sph general data
+    SimParams* otherParamsH,              ///< Pointer to the simulation parameters on host
+    NumberOfObjects* otherNumObjects      ///< Pointer to number of objects, fluid and boundary markers, etc.
+    )
+    : ChFsiForceParallel(otherBceWorker,
+                         otherSortedSphMarkersD,
+                         otherMarkersProximityD,
+                         otherFsiGeneralData,
+                         otherParamsH,
+                         otherNumObjects) {}
+//--------------------------------------------------------------------------------------------------------------------------------
+ChFsiForceIISPH::~ChFsiForceIISPH() {}
+//--------------------------------------------------------------------------------------------------------------------------------
+void ChFsiForceIISPH::Finalize() {
+    ChFsiForceParallel::Finalize();
+    cudaMemcpyToSymbolAsync(paramsD, paramsH, sizeof(SimParams));
+    cudaMemcpyToSymbolAsync(numObjectsD, numObjectsH, sizeof(NumberOfObjects));
+    cudaMemcpyFromSymbol(paramsH, paramsD, sizeof(SimParams));
+    cudaThreadSynchronize();
+}
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void V_i_np__AND__d_ii_kernel(Real4* sortedPosRad,  // input: sorted positions
                                          Real3* sortedVelMas,
@@ -1717,12 +1737,6 @@ void ChFsiForceIISPH::calcPressureIISPH(thrust::device_vector<Real4> velMassRigi
     numContacts.clear();
 }
 
-void ChFsiForceIISPH::Finalize() {
-    cudaMemcpyToSymbolAsync(paramsD, paramsH, sizeof(SimParams));
-    cudaMemcpyToSymbolAsync(numObjectsD, numObjectsH, sizeof(NumberOfObjects));
-    ChFsiForceParallel::Finalize();
-}
-
 void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
                                        FsiBodiesDataD* otherFsiBodiesD,
                                        FsiMeshDataD* otherFsiMeshD) {
@@ -1838,10 +1852,12 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     //        throw std::runtime_error("Error! program crashed in Calc_Split_and_Merges!\n");
     //    }
     //
-
+    thrust::device_vector<Real> mcontac(numAllMarkers);
+    thrust::fill(mcontac.begin(), mcontac.end(), 0);
     calcRho_kernel<<<numBlocks, numThreads>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),
-        U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
+        U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), U1CAST(mcontac), numAllMarkers,
+        isErrorD);
     cudaThreadSynchronize();
     cudaCheckError();
     cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);

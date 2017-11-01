@@ -23,7 +23,9 @@ namespace fsi {
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-ChSystemFsi::ChSystemFsi(ChSystem* other_physicalSystem, bool other_haveFluid)
+ChSystemFsi::ChSystemFsi(ChSystem* other_physicalSystem,
+                         bool other_haveFluid,
+                         ChFluidDynamics::Integrator type = ChFluidDynamics::Integrator::IISPH)
     : mphysicalSystem(other_physicalSystem), haveFluid(other_haveFluid), mTime(0) {
     fsiData = new ChFsiDataManager();
     paramsH = new SimParams;
@@ -38,6 +40,7 @@ ChSystemFsi::ChSystemFsi(ChSystem* other_physicalSystem, bool other_haveFluid)
 
     bceWorker = new ChBce(&(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD), &(fsiData->fsiGeneralData),
                           paramsH, numObjectsH);
+    fluidIntegrator = type;
     fluidDynamics = new ChFluidDynamics(bceWorker, fsiData, paramsH, numObjectsH, fluidIntegrator);
     fsiInterface = new ChFsiInterface(
         &(fsiData->fsiBodiesH), &(fsiData->fsiMeshH), mphysicalSystem, &fsiBodeisPtr, &fsiNodesPtr, &fsiCablesPtr,
@@ -57,9 +60,7 @@ void ChSystemFsi::Finalize() {
         printf("\n\n ChSystemFsi::Finalize 2-bceWorker->Finalize..\n");
         bceWorker->Finalize(&(fsiData->sphMarkersD1), &(fsiData->fsiBodiesD1), &(fsiData->fsiMeshD));
         printf("\n\n ChSystemFsi::Finalize 3-fluidDynamics->Finalize..\n");
-
         fluidDynamics->Finalize();
-
         std::cout << "referenceArraySize in 3-fluidDynamics->Finalize.. "
                   << GetDataManager()->fsiGeneralData.referenceArray.size() << "\n";
     }

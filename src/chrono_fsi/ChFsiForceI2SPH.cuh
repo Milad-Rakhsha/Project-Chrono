@@ -14,6 +14,7 @@
 
 #ifndef CH_FSI_FORCEI2SPH_H_
 #define CH_FSI_FORCEI2SPH_H_
+
 #include "chrono_fsi/ChApiFsi.h"
 #include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFsiForceParallel.cuh"
@@ -36,20 +37,15 @@ class CH_FSI_API ChFsiForceI2SPH : public ChFsiForceParallel {
         FsiGeneralData* otherFsiGeneralData,  ///< Pointer to the sph general data
         SimParams* otherParamsH,              ///< Pointer to the simulation parameters on host
         NumberOfObjects* otherNumObjects      ///< Pointer to number of objects, fluid and boundary markers, etc.
-        )
-        : ChFsiForceParallel(otherBceWorker,
-                             otherSortedSphMarkersD,
-                             otherMarkersProximityD,
-                             otherFsiGeneralData,
-                             otherParamsH,
-                             otherNumObjects) {}
-    virtual ~ChFsiForceI2SPH() {}
+    );
+
+    ~ChFsiForceI2SPH();
     void Finalize() override;
 
   private:
     void ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
                           FsiBodiesDataD* otherFsiBodiesD,
-                          FsiMeshDataD* fsiMeshD) override;
+                          FsiMeshDataD* otherFsiMeshD) override;
 };
 
 /// @} fsi_physics

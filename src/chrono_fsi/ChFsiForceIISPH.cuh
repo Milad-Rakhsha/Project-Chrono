@@ -37,15 +37,9 @@ class CH_FSI_API ChFsiForceIISPH : public ChFsiForceParallel {
         FsiGeneralData* otherFsiGeneralData,  ///< Pointer to the sph general data
         SimParams* otherParamsH,              ///< Pointer to the simulation parameters on host
         NumberOfObjects* otherNumObjects      ///< Pointer to number of objects, fluid and boundary markers, etc.
-        )
-        : ChFsiForceParallel(otherBceWorker,
-                             otherSortedSphMarkersD,
-                             otherMarkersProximityD,
-                             otherFsiGeneralData,
-                             otherParamsH,
-                             otherNumObjects) {}
+    );
 
-    ~ChFsiForceIISPH() {}
+    ~ChFsiForceIISPH();
     void Finalize() override;
 
   private:
