@@ -66,8 +66,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->Max_Pressure = 1e5;
     paramsH->PPE_Max_Iter = 10000;
     paramsH->PPE_Solution_type = SPARSE_MATRIX_JACOBI;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
-    paramsH->PPE_relaxation = 0.3;                 // Increasing this to 0.5 causes instability
-    paramsH->ClampPressure = true;                 // If the negative pressure should be clamped to zero or not
+    paramsH->PPE_relaxation = 0.3;                      // Increasing this to 0.5 causes instability
+    paramsH->ClampPressure = true;                      // If the negative pressure should be clamped to zero or not
     paramsH->IncompressibilityFactor = 1;     // Increasing this causes lager compressibility, but let for larger dt
     paramsH->USE_CUSP = false;                // Experimentally,don't use if for now
     paramsH->Adaptive_time_stepping = false;  // This let you use large time steps when possible
@@ -75,7 +75,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->dT_Max = 0.01;  // This is problem dependent should set by the user based on characteristic time step
 
     paramsH->dT = 5e-4;
-    paramsH->dT_Flex = paramsH->dT/5 ;
+    paramsH->dT_Flex = paramsH->dT / 5;
 
     paramsH->tFinal = 2;
     paramsH->timePause = 0;

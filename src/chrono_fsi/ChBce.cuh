@@ -21,13 +21,14 @@
 #define CH_BCE_CUH_
 
 #include "chrono_fsi/ChApiFsi.h"
-#include "chrono_fsi/ChFsiDataManager.cuh"  //for FsiGeneralData
 #include "chrono_fsi/ChFsiGeneral.cuh"
-#include "chrono_fsi/custom_math.h"
+#include "chrono_fsi/ChSphGeneral.cuh"
 
 namespace chrono {
 namespace fsi {
 
+// extern __constant__ SimParams paramsD;
+// extern __constant__ NumberOfObjects numObjectsD;
 /// @addtogroup fsi_physics
 /// @{
 
@@ -50,7 +51,7 @@ class CH_FSI_API ChBce : public ChFsiGeneral {
           SimParams* otherParamsH,              ///< Parameter of the simulation
           NumberOfObjects* otherNumObjects      ///< Holds the number of sph markers on each phase
 
-          );
+    );
 
     /// Destructor of the ChBce
     ~ChBce();

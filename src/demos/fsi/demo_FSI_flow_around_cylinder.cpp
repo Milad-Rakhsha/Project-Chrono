@@ -18,12 +18,13 @@
 #include <assert.h>
 #include <limits.h>
 #include <stdlib.h>  // system
+#include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 #include <ctime>
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
-
 #include "chrono/physics/ChSystemSMC.h"
 
 //#include "chrono_utils/ChUtilsVehicle.h"
@@ -66,7 +67,7 @@ typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 Real bxDim = 1.0;
-Real byDim = 0.08;
+Real byDim = 0.05;
 Real bzDim = 0.40;
 
 Real fxDim = bxDim;
@@ -192,7 +193,7 @@ int main(int argc, char* argv[]) {
     struct tm* timeinfo;
 
     //(void) cudaSetDevice(0);
-    cudaSetDevice(1);
+    cudaSetDevice(0);
 
     time(&rawtime);
     timeinfo = localtime(&rawtime);
@@ -260,7 +261,7 @@ int main(int argc, char* argv[]) {
     int numhelperMarkers = myFsiSystem.GetDataManager()->sphMarkersH.posRadH.size();
 
     // Ghost particles for Variable Resolution SPH
-    int numGhostMarkers = 10000;
+    int numGhostMarkers = 1000;
     for (int i = 0; i < numGhostMarkers; i++) {
         myFsiSystem.GetDataManager()->AddSphMarker(chrono::fsi::mR4(0.0, 0.0, -0.4, 0.0),
                                                    chrono::fsi::mR3(1e-10, 0.0, 0.0),
@@ -472,11 +473,11 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
     //    printf("mTime= %f\n", mTime - (next_frame)*frame_time);
 
     if (save_output && std::abs(mTime - (next_frame)*frame_time) < 0.00001) {
-       fsi::utils::PrintToFile(
-            myFsiSystem.GetDataManager()->sphMarkersD2.posRadD, myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
-            myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
-            myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
-            myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, demo_dir, true);
+        fsi::utils::PrintToFile(myFsiSystem.GetDataManager()->sphMarkersD2.posRadD,
+                                myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
+                                myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
+                                myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
+                                myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, demo_dir, true);
 
 #ifdef AddCylinder
         char SaveAsRigidObjVTK[256];  // The filename buffer.

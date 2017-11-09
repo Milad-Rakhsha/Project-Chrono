@@ -19,15 +19,9 @@
 #ifndef CH_FSI_FORCEPARALLEL_H_
 #define CH_FSI_FORCEPARALLEL_H_
 
-#include "chrono_fsi/ChSphKernels.cu"
-
-#include "chrono_fsi/ChApiFsi.h"
 #include "chrono_fsi/ChBce.cuh"
 #include "chrono_fsi/ChCollisionSystemFsi.cuh"
-#include "chrono_fsi/ChDeviceUtils.cuh"
-#include "chrono_fsi/ChFsiDataManager.cuh"
-#include "chrono_fsi/ChFsiLinearSolver.h"
-#include "chrono_fsi/ChParams.cuh"
+#include "chrono_fsi/ChSphGeneral.cuh"
 
 namespace chrono {
 namespace fsi {

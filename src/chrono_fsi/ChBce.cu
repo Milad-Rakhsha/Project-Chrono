@@ -551,7 +551,7 @@ ChBce::ChBce(SphMarkerDataD* otherSortedSphMarkersD,
 void ChBce::Finalize(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD, FsiMeshDataD* fsiMeshD) {
     cudaMemcpyToSymbolAsync(paramsD, paramsH, sizeof(SimParams));
     cudaMemcpyToSymbolAsync(numObjectsD, numObjectsH, sizeof(NumberOfObjects));
-
+    CopyParams_NumberOfObjects(paramsH, numObjectsH);
     totalSurfaceInteractionRigid4.resize(numObjectsH->numRigidBodies);
     dummyIdentify.resize(numObjectsH->numRigidBodies);
     torqueMarkersD.resize(numObjectsH->numRigid_SphMarkers);

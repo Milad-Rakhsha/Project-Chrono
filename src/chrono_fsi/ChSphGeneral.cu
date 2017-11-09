@@ -18,262 +18,22 @@
 namespace chrono {
 namespace fsi {
 
-//__constant__ SimParams paramsD;
-//__constant__ NumberOfObjects numObjectsD;
-
-inline void CopyParams_NumberOfObjects(SimParams* paramsH, NumberOfObjects* numObjectsH) {
+void CopyParams_NumberOfObjects(SimParams* paramsH, NumberOfObjects* numObjectsH) {
     cudaMemcpyToSymbolAsync(paramsD, paramsH, sizeof(SimParams));
     cudaMemcpyToSymbolAsync(numObjectsD, numObjectsH, sizeof(NumberOfObjects));
     cudaThreadSynchronize();
 }
 
-////--------------------------------------------------------------------------------------------------------------------------------
-inline __device__ void BCE_Vel_Acc(int i_idx,
-                                   Real3& myAcc,
-                                   Real3& V_prescribed,
-
-                                   Real4* sortedPosRad,
-                                   int4 updatePortion,
-                                   uint* gridMarkerIndexD,
-
-                                   Real4* velMassRigid_fsiBodies_D,
-                                   Real3* accRigid_fsiBodies_D,
-                                   uint* rigidIdentifierD,
-
-                                   Real3* pos_fsi_fea_D,
-                                   Real3* vel_fsi_fea_D,
-                                   Real3* acc_fsi_fea_D,
-                                   uint* FlexIdentifierD,
-                                   const int numFlex1D,
-                                   uint2* CableElementsNodes,
-                                   uint4* ShellelementsNodes) {
-    int Original_idx = gridMarkerIndexD[i_idx];
-
-    //  Real MASS;
-
-    // See if this belongs to boundary
-    if (Original_idx >= updatePortion.x && Original_idx < updatePortion.y) {
-        myAcc = mR3(0.0);
-        V_prescribed = mR3(0.0);
-        if (paramsD.Apply_BC_U)
-            V_prescribed = user_BC_U(mR3(sortedPosRad[i_idx]));
-
-    } else if (Original_idx >= updatePortion.y && Original_idx < updatePortion.z) {
-        int rigidIndex = rigidIdentifierD[Original_idx - updatePortion.y];
-        V_prescribed = mR3(velMassRigid_fsiBodies_D[rigidIndex].x, velMassRigid_fsiBodies_D[rigidIndex].y,
-                           velMassRigid_fsiBodies_D[rigidIndex].z);
-        myAcc = mR3(accRigid_fsiBodies_D[rigidIndex].x, accRigid_fsiBodies_D[rigidIndex].y,
-                    accRigid_fsiBodies_D[rigidIndex].z);
-
-        // Or not, Flexible bodies for sure
-    } else if (Original_idx >= updatePortion.z && Original_idx < updatePortion.w) {
-        int FlexIndex = FlexIdentifierD[Original_idx - updatePortion.z];
-
-        if (FlexIndex < numFlex1D) {
-            int nA = CableElementsNodes[FlexIndex].y;
-            int nB = CableElementsNodes[FlexIndex].x;
-
-            Real3 pos_fsi_fea_D_nA = pos_fsi_fea_D[nA];
-            Real3 pos_fsi_fea_D_nB = pos_fsi_fea_D[nB];
-
-            Real3 vel_fsi_fea_D_nA = vel_fsi_fea_D[nA];
-            Real3 vel_fsi_fea_D_nB = vel_fsi_fea_D[nB];
-
-            Real3 acc_fsi_fea_D_nA = acc_fsi_fea_D[nA];
-            Real3 acc_fsi_fea_D_nB = acc_fsi_fea_D[nB];
-
-            Real3 dist3 = mR3(sortedPosRad[Original_idx]) - pos_fsi_fea_D_nA;
-            Real3 x_dir = (pos_fsi_fea_D_nB - pos_fsi_fea_D_nA);
-            Real Cable_x = length(x_dir);
-            x_dir = x_dir / length(x_dir);
-            Real dx = dot(dist3, x_dir);
-
-            Real2 N_shell = Cables_ShapeFunctions(dx / Cable_x);
-            Real NA = N_shell.x;
-            Real NB = N_shell.y;
-
-            V_prescribed = NA * vel_fsi_fea_D_nA + NB * vel_fsi_fea_D_nB;
-            myAcc = NA * acc_fsi_fea_D_nA + NB * acc_fsi_fea_D_nB;
-        }
-        if (FlexIndex >= numFlex1D) {
-            int nA = ShellelementsNodes[FlexIndex - numFlex1D].x;
-            int nB = ShellelementsNodes[FlexIndex - numFlex1D].y;
-            int nC = ShellelementsNodes[FlexIndex - numFlex1D].z;
-            int nD = ShellelementsNodes[FlexIndex - numFlex1D].w;
-
-            Real3 pos_fsi_fea_D_nA = pos_fsi_fea_D[nA];
-            Real3 pos_fsi_fea_D_nB = pos_fsi_fea_D[nB];
-            Real3 pos_fsi_fea_D_nC = pos_fsi_fea_D[nC];
-            Real3 pos_fsi_fea_D_nD = pos_fsi_fea_D[nD];
-
-            Real3 vel_fsi_fea_D_nA = vel_fsi_fea_D[nA];
-            Real3 vel_fsi_fea_D_nB = vel_fsi_fea_D[nB];
-            Real3 vel_fsi_fea_D_nC = vel_fsi_fea_D[nC];
-            Real3 vel_fsi_fea_D_nD = vel_fsi_fea_D[nD];
-
-            Real3 acc_fsi_fea_D_nA = acc_fsi_fea_D[nA];
-            Real3 acc_fsi_fea_D_nB = acc_fsi_fea_D[nB];
-            Real3 acc_fsi_fea_D_nC = acc_fsi_fea_D[nC];
-            Real3 acc_fsi_fea_D_nD = acc_fsi_fea_D[nD];
-
-            Real3 Shell_center = 0.25 * (pos_fsi_fea_D_nA + pos_fsi_fea_D_nB + pos_fsi_fea_D_nC + pos_fsi_fea_D_nD);
-            Real3 dist3 = mR3(sortedPosRad[Original_idx]) - Shell_center;
-            Real Shell_x =
-                0.25 * (length(pos_fsi_fea_D_nB - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nC));
-            Real Shell_y =
-                0.25 * (length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nC - pos_fsi_fea_D_nB));
-            Real2 FlexSPH_MeshPos_Natural = mR2(dist3.x / Shell_x, dist3.y / Shell_y);
-
-            Real4 N_shell = Shells_ShapeFunctions(FlexSPH_MeshPos_Natural.x, FlexSPH_MeshPos_Natural.y);
-            Real NA = N_shell.x;
-            Real NB = N_shell.y;
-            Real NC = N_shell.z;
-            Real ND = N_shell.w;
-            V_prescribed =
-                NA * vel_fsi_fea_D_nA + NB * vel_fsi_fea_D_nB + NC * vel_fsi_fea_D_nC + ND * vel_fsi_fea_D_nD;
-            myAcc = NA * acc_fsi_fea_D_nA + NB * acc_fsi_fea_D_nB + NC * acc_fsi_fea_D_nC + ND * acc_fsi_fea_D_nD;
-        }
-    } else {
-        printf("i_idx=%d, Original_idx:%d was not found \n\n", i_idx, Original_idx);
-    }
-}
 //--------------------------------------------------------------------------------------------------------------------------------
-inline __device__ void grad_scalar(int i_idx,
-                                   Real4* sortedPosRad,  // input: sorted positions
-                                   Real4* sortedRhoPreMu,
-                                   Real* sumWij_inv,
-                                   Real* G_i,
-                                   Real4* Scalar,
-                                   Real3& myGrad,
-                                   uint* cellStart,
-                                   uint* cellEnd) {
-    // Note that this function only calculates the gradient of the first element of the Scalar;
-    // This is hard coded like this for now because usually rho appears in Real4 structure
-    Real3 posRadA = mR3(sortedPosRad[i_idx]);
-    Real h_i = sortedPosRad[i_idx].w;
-    int3 gridPos = calcGridPos(posRadA);
-
-    //    printf("update G[%d]= %f,%f,%f  %f,%f,%f, %f,%f,%f\n", i_idx, G_i[i_idx * 9 + 0], G_i[i_idx * 9 + 1],
-    //           G_i[i_idx * 9 + 2], G_i[i_idx * 9 + 3], G_i[i_idx * 9 + 4], G_i[i_idx * 9 + 5], G_i[i_idx * 9 + 6],
-    //           G_i[i_idx * 9 + 7], G_i[i_idx * 9 + 8]);
-
-    // This is the elements of inverse of G
-    Real mGi[9];
-    for (int n = 0; n < 9; n++)
-        mGi[n] = G_i[i_idx * 9 + n];
-
-    Real3 grad_si = mR3(0.);
-    for (int z = -1; z <= 1; z++) {
-        for (int y = -1; y <= 1; y++) {
-            for (int x = -1; x <= 1; x++) {
-                int3 neighbourPos = gridPos + mI3(x, y, z);
-                uint gridHash = calcGridHash(neighbourPos);
-                // get start of bucket for this cell50
-                uint startIndex = cellStart[gridHash];
-                if (startIndex != 0xffffffff) {  // cell is not empty
-                    uint endIndex = cellEnd[gridHash];
-
-                    for (uint j = startIndex; j < endIndex; j++) {
-                        Real3 posRadB = mR3(sortedPosRad[j]);
-                        Real3 dist3 = Distance(posRadA, posRadB);
-                        Real d = length(dist3);
-                        if (d > RESOLUTION_LENGTH_MULT * h_i || sortedRhoPreMu[j].w <= -2)
-                            continue;
-
-                        Real h_j = sortedPosRad[j].w;
-                        Real h_ij = 0.5 * (h_j + h_i);
-                        Real W3 = W3h(d, h_ij);
-                        Real3 grad_i_wij = GradWh(dist3, h_ij);
-                        Real V_j = sumWij_inv[j];
-                        Real3 common_part = mR3(0);
-                        common_part.x = grad_i_wij.x * mGi[0] + grad_i_wij.y * mGi[1] + grad_i_wij.z * mGi[2];
-                        common_part.y = grad_i_wij.x * mGi[3] + grad_i_wij.y * mGi[4] + grad_i_wij.z * mGi[5];
-                        common_part.z = grad_i_wij.x * mGi[6] + grad_i_wij.y * mGi[7] + grad_i_wij.z * mGi[8];
-                        grad_si += common_part * (Scalar[j].x - Scalar[i_idx].x) * V_j;
-                    }
-                }
-            }
-        }
-    }
-    myGrad = grad_si;
-    //    printf("grad_scalar[%d]= %f,%f,%f\n", i_idx, myGrad.x, myGrad.y, myGrad.z);
-}
-
-//--------------------------------------------------------------------------------------------------------------------------------
-inline __device__ void grad_vector(int i_idx,
-                                   Real4* sortedPosRad,  // input: sorted positions
-                                   Real4* sortedRhoPreMu,
-                                   Real* sumWij_inv,
-                                   Real* G_i,
-                                   Real3* Vector,
-                                   Real3& myGradx,
-                                   Real3& myGrady,
-                                   Real3& myGradz,
-                                   uint* cellStart,
-                                   uint* cellEnd) {
-    Real3 posRadA = mR3(sortedPosRad[i_idx]);
-    Real h_i = sortedPosRad[i_idx].w;
-    int3 gridPos = calcGridPos(posRadA);
-
-    // This is the elements of inverse of G
-    Real mGi[9];
-    for (int n = 0; n < 9; n++)
-        mGi[n] = G_i[i_idx * 9 + n];
-
-    Real3 common_part = mR3(0.);
-    Real3 grad_Vx = mR3(0.);
-    Real3 grad_Vy = mR3(0.);
-    Real3 grad_Vz = mR3(0.);
-
-    for (int z = -1; z <= 1; z++) {
-        for (int y = -1; y <= 1; y++) {
-            for (int x = -1; x <= 1; x++) {
-                int3 neighbourPos = gridPos + mI3(x, y, z);
-                uint gridHash = calcGridHash(neighbourPos);
-                // get start of bucket for this cell50
-                uint startIndex = cellStart[gridHash];
-                if (startIndex != 0xffffffff) {  // cell is not empty
-                    uint endIndex = cellEnd[gridHash];
-
-                    for (uint j = startIndex; j < endIndex; j++) {
-                        Real3 posRadB = mR3(sortedPosRad[j]);
-                        Real3 dist3 = Distance(posRadA, posRadB);
-                        Real d = length(dist3);
-                        if (d > RESOLUTION_LENGTH_MULT * h_i || sortedRhoPreMu[j].w <= -2)
-                            continue;
-
-                        Real h_j = sortedPosRad[j].w;
-                        Real h_ij = 0.5 * (h_j + h_i);
-                        Real W3 = W3h(d, h_ij);
-                        Real3 grad_i_wij = GradWh(dist3, h_ij);
-                        Real V_j = sumWij_inv[j];
-                        common_part.x = grad_i_wij.x * mGi[0] + grad_i_wij.y * mGi[1] + grad_i_wij.z * mGi[2];
-                        common_part.y = grad_i_wij.x * mGi[3] + grad_i_wij.y * mGi[4] + grad_i_wij.z * mGi[5];
-                        common_part.z = grad_i_wij.x * mGi[6] + grad_i_wij.y * mGi[7] + grad_i_wij.z * mGi[8];
-                        grad_Vx += common_part * (Vector[i_idx].x - Vector[j].x) * V_j;
-                        grad_Vy += common_part * (Vector[i_idx].y - Vector[j].y) * V_j;
-                        grad_Vz += common_part * (Vector[i_idx].z - Vector[j].z) * V_j;
-                    }
-                }
-            }
-        }
-    }
-    myGradx = grad_Vx;
-    myGrady = grad_Vy;
-    myGradz = grad_Vz;
-    //    printf("grad_vector[%d]= %f,%f,%f  %f,%f,%f, %f,%f,%f\n", i_idx, myGradx.x, myGradx.y, myGradx.z, myGrady.x,
-    //           myGrady.y, myGrady.z, myGradz.x, myGradz.y, myGradz.z);
-}
-//--------------------------------------------------------------------------------------------------------------------------------
-inline __global__ void calc_A_tensor(Real* A_tensor,
-                                     Real* G_tensor,
-                                     Real4* sortedPosRad,
-                                     Real4* sortedRhoPreMu,
-                                     Real* sumWij_inv,
-                                     uint* cellStart,
-                                     uint* cellEnd,
-                                     const int numAllMarkers,
-                                     volatile bool* isErrorD) {
+__global__ void calc_A_tensor(Real* A_tensor,
+                              Real* G_tensor,
+                              Real4* sortedPosRad,
+                              Real4* sortedRhoPreMu,
+                              Real* sumWij_inv,
+                              uint* cellStart,
+                              uint* cellEnd,
+                              const int numAllMarkers,
+                              volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (i_idx >= numAllMarkers) {
         return;
@@ -362,16 +122,16 @@ inline __global__ void calc_A_tensor(Real* A_tensor,
     //           A_ijk[18 + 6], A_ijk[18 + 7], A_ijk[18 + 8]);
 }
 //--------------------------------------------------------------------------------------------------------------------------------
-inline __global__ void calc_L_tensor(Real* A_tensor,
-                                     Real* L_tensor,
-                                     Real* G_tensor,
-                                     Real4* sortedPosRad,
-                                     Real4* sortedRhoPreMu,
-                                     Real* sumWij_inv,
-                                     uint* cellStart,
-                                     uint* cellEnd,
-                                     const int numAllMarkers,
-                                     volatile bool* isErrorD) {
+__global__ void calc_L_tensor(Real* A_tensor,
+                              Real* L_tensor,
+                              Real* G_tensor,
+                              Real4* sortedPosRad,
+                              Real4* sortedRhoPreMu,
+                              Real* sumWij_inv,
+                              uint* cellStart,
+                              uint* cellEnd,
+                              const int numAllMarkers,
+                              volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (i_idx >= numAllMarkers) {
         return;
@@ -506,14 +266,14 @@ inline __global__ void calc_L_tensor(Real* A_tensor,
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
-inline __global__ void calcRho_kernel(Real4* sortedPosRad,  // input: sorted positionsmin(
-                                      Real4* sortedRhoPreMu,
-                                      Real* sumWij_inv,
-                                      uint* cellStart,
-                                      uint* cellEnd,
-                                      uint* mynumContact,
-                                      const int numAllMarkers,
-                                      volatile bool* isErrorD) {
+__global__ void calcRho_kernel(Real4* sortedPosRad,  // input: sorted positionsmin(
+                               Real4* sortedRhoPreMu,
+                               Real* sumWij_inv,
+                               uint* cellStart,
+                               uint* cellEnd,
+                               uint* mynumContact,
+                               const int numAllMarkers,
+                               volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (i_idx >= numAllMarkers) {
         return;
@@ -570,17 +330,17 @@ inline __global__ void calcRho_kernel(Real4* sortedPosRad,  // input: sorted pos
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
-inline __global__ void calcNormalizedRho_kernel(Real4* sortedPosRad,  // input: sorted positions
-                                                Real3* sortedVelMas,
-                                                Real4* sortedRhoPreMu,
-                                                Real* sumWij_inv,
-                                                Real* G_i,
-                                                Real* dxi_over_Vi,
-                                                Real* Color,
-                                                uint* cellStart,
-                                                uint* cellEnd,
-                                                const int numAllMarkers,
-                                                volatile bool* isErrorD) {
+__global__ void calcNormalizedRho_kernel(Real4* sortedPosRad,  // input: sorted positions
+                                         Real3* sortedVelMas,
+                                         Real4* sortedRhoPreMu,
+                                         Real* sumWij_inv,
+                                         Real* G_i,
+                                         Real* dxi_over_Vi,
+                                         Real* Color,
+                                         uint* cellStart,
+                                         uint* cellEnd,
+                                         const int numAllMarkers,
+                                         volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (i_idx >= numAllMarkers || sortedRhoPreMu[i_idx].w <= -2) {
         return;
@@ -701,18 +461,18 @@ inline __global__ void calcNormalizedRho_kernel(Real4* sortedPosRad,  // input: 
     //  }
 }
 //--------------------------------------------------------------------------------------------------------------------------------
-inline __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  // input: sorted positions
-                                                                Real3* sortedVelMas,
-                                                                Real4* sortedRhoPreMu,
-                                                                Real* sumWij_inv,
-                                                                Real* G_i,
-                                                                uint* csrColInd,
-                                                                unsigned long int* GlobalcsrColInd,
-                                                                uint* numContacts,
-                                                                uint* cellStart,
-                                                                uint* cellEnd,
-                                                                const int numAllMarkers,
-                                                                volatile bool* isErrorD) {
+__global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  // input: sorted positions
+                                                         Real3* sortedVelMas,
+                                                         Real4* sortedRhoPreMu,
+                                                         Real* sumWij_inv,
+                                                         Real* G_i,
+                                                         uint* csrColInd,
+                                                         unsigned long int* GlobalcsrColInd,
+                                                         uint* numContacts,
+                                                         uint* cellStart,
+                                                         uint* cellEnd,
+                                                         const int numAllMarkers,
+                                                         volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (i_idx >= numAllMarkers || sortedRhoPreMu[i_idx].w <= -2) {
         return;
@@ -802,19 +562,19 @@ inline __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPos
             sortedRhoPreMu[i_idx].w, sortedPosRad[i_idx].w, sum_mW, sum_W_sumWij_inv, sortedRhoPreMu[i_idx].x);
 }
 //--------------------------------------------------------------------------------------------------------------------------------
-inline __global__ void Gradient_Laplacian_Operator(Real4* sortedPosRad,  // input: sorted positions
-                                                   Real3* sortedVelMas,
-                                                   Real4* sortedRhoPreMu,
-                                                   Real* sumWij_inv,
-                                                   Real* G_tensor,
-                                                   Real* L_tensor,
-                                                   Real* A_L,   // velcotiy Laplacian matrix;
-                                                   Real3* A_G,  // This is a matrix in a way that A*p gives the gradp
-                                                   uint* csrColInd,
-                                                   unsigned long int* GlobalcsrColInd,
-                                                   uint* numContacts,
-                                                   const int numAllMarkers,
-                                                   volatile bool* isErrorD) {
+__global__ void Gradient_Laplacian_Operator(Real4* sortedPosRad,  // input: sorted positions
+                                            Real3* sortedVelMas,
+                                            Real4* sortedRhoPreMu,
+                                            Real* sumWij_inv,
+                                            Real* G_tensor,
+                                            Real* L_tensor,
+                                            Real* A_L,   // velcotiy Laplacian matrix;
+                                            Real3* A_G,  // This is a matrix in a way that A*p gives the gradp
+                                            uint* csrColInd,
+                                            unsigned long int* GlobalcsrColInd,
+                                            uint* numContacts,
+                                            const int numAllMarkers,
+                                            volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (i_idx >= numAllMarkers || sortedRhoPreMu[i_idx].w <= -2) {
         return;
@@ -885,12 +645,12 @@ inline __global__ void Gradient_Laplacian_Operator(Real4* sortedPosRad,  // inpu
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
-inline __global__ void Initialize_Variables(Real4* sortedRhoPreMu,
-                                            Real* p_old,
-                                            Real3* sortedVelMas,
-                                            Real3* V_new,
-                                            const int numAllMarkers,
-                                            volatile bool* isErrorD) {
+__global__ void Initialize_Variables(Real4* sortedRhoPreMu,
+                                     Real* p_old,
+                                     Real3* sortedVelMas,
+                                     Real3* V_new,
+                                     const int numAllMarkers,
+                                     volatile bool* isErrorD) {
     const uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (i_idx >= numAllMarkers) {
         return;
@@ -906,15 +666,15 @@ inline __global__ void Initialize_Variables(Real4* sortedRhoPreMu,
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
-inline __global__ void UpdateDensity(Real3* vis_vel,
-                                     Real3* new_vel,       // Write
-                                     Real4* sortedPosRad,  // Read
-                                     Real4* sortedRhoPreMu,
-                                     Real* sumWij_inv,
-                                     uint* cellStart,
-                                     uint* cellEnd,
-                                     uint numAllMarkers,
-                                     volatile bool* isErrorD) {
+__global__ void UpdateDensity(Real3* vis_vel,
+                              Real3* new_vel,       // Write
+                              Real4* sortedPosRad,  // Read
+                              Real4* sortedRhoPreMu,
+                              Real* sumWij_inv,
+                              uint* cellStart,
+                              uint* cellEnd,
+                              uint numAllMarkers,
+                              volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (i_idx >= numAllMarkers) {
         return;
@@ -976,15 +736,15 @@ inline __global__ void UpdateDensity(Real3* vis_vel,
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
-inline __global__ void Calc_HelperMarkers_normals(Real4* sortedPosRad,
-                                                  Real4* sortedRhoPreMu,
-                                                  Real3* helpers_normal,
-                                                  int* myType,
-                                                  uint* cellStart,
-                                                  uint* cellEnd,
-                                                  uint* gridMarkerIndexD,
-                                                  int numAllMarkers,
-                                                  volatile bool* isErrorD) {
+__global__ void Calc_HelperMarkers_normals(Real4* sortedPosRad,
+                                           Real4* sortedRhoPreMu,
+                                           Real3* helpers_normal,
+                                           int* myType,
+                                           uint* cellStart,
+                                           uint* cellEnd,
+                                           uint* gridMarkerIndexD,
+                                           int numAllMarkers,
+                                           volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (i_idx >= numAllMarkers) {
         return;
@@ -1056,23 +816,23 @@ inline __global__ void Calc_HelperMarkers_normals(Real4* sortedPosRad,
     //           helpers_normal[Original_idx].x, helpers_normal[Original_idx].y, helpers_normal[Original_idx].z);
 }
 //--------------------------------------------------------------------------------------------------------------------------------
-inline __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
-                                              Real4* sortedRhoPreMu,
-                                              Real3* sortedVelMas,
-                                              Real3* helpers_normal,
-                                              Real* sumWij_inv,
-                                              Real* G_i,
-                                              uint* splitMe,
-                                              uint* MergeMe,
-                                              int* myType,
-                                              uint* cellStart,
-                                              uint* cellEnd,
-                                              uint* gridMarkerIndexD,
-                                              Real fineResolution,
-                                              Real coarseResolution,
-                                              int numAllMarkers,
-                                              int limit,
-                                              volatile bool* isErrorD) {
+__global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
+                                       Real4* sortedRhoPreMu,
+                                       Real3* sortedVelMas,
+                                       Real3* helpers_normal,
+                                       Real* sumWij_inv,
+                                       Real* G_i,
+                                       uint* splitMe,
+                                       uint* MergeMe,
+                                       int* myType,
+                                       uint* cellStart,
+                                       uint* cellEnd,
+                                       uint* gridMarkerIndexD,
+                                       Real fineResolution,
+                                       Real coarseResolution,
+                                       int numAllMarkers,
+                                       int limit,
+                                       volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     int Original_idx = gridMarkerIndexD[i_idx];
     if (i_idx >= numAllMarkers) {
@@ -1375,24 +1135,24 @@ inline __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
     }
 }
 //--------------------------------------------------------------------------------------------------------------------------------
-inline __global__ void Split(Real4* sortedPosRad,
-                             Real4* sortedRhoPreMu,
-                             Real3* sortedVelMas,
-                             Real3* helpers_normal,
-                             Real* sumWij_inv,
-                             Real* G_i,
-                             Real* L_i,
-                             uint* splitMe,
-                             uint* MergeMe,
-                             int* myType,
-                             uint* cellStart,
-                             uint* cellEnd,
-                             uint* gridMarkerIndexD,
-                             Real fineResolution,
-                             Real coarseResolution,
-                             int numAllMarkers,
-                             int limit,
-                             volatile bool* isErrorD) {
+__global__ void Split(Real4* sortedPosRad,
+                      Real4* sortedRhoPreMu,
+                      Real3* sortedVelMas,
+                      Real3* helpers_normal,
+                      Real* sumWij_inv,
+                      Real* G_i,
+                      Real* L_i,
+                      uint* splitMe,
+                      uint* MergeMe,
+                      int* myType,
+                      uint* cellStart,
+                      uint* cellEnd,
+                      uint* gridMarkerIndexD,
+                      Real fineResolution,
+                      Real coarseResolution,
+                      int numAllMarkers,
+                      int limit,
+                      volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     int Original_idx = gridMarkerIndexD[i_idx];
     if (i_idx >= numAllMarkers) {

@@ -16,9 +16,7 @@
 #define CH_FSI_FORCEIISPH_H_
 
 #include "chrono_fsi/ChApiFsi.h"
-#include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFsiForceParallel.cuh"
-#include "chrono_fsi/ChSphGeneral.cuh"
 
 namespace chrono {
 namespace fsi {

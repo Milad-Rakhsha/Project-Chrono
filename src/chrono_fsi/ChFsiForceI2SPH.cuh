@@ -16,9 +16,7 @@
 #define CH_FSI_FORCEI2SPH_H_
 
 #include "chrono_fsi/ChApiFsi.h"
-#include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFsiForceParallel.cuh"
-#include "chrono_fsi/ChSphGeneral.cuh"
 
 namespace chrono {
 namespace fsi {
@@ -48,6 +46,35 @@ class CH_FSI_API ChFsiForceI2SPH : public ChFsiForceParallel {
                           FsiMeshDataD* otherFsiMeshD) override;
 };
 
+__global__ void V_star_Predictor(Real4* sortedPosRad,
+                                 Real3* sortedVelMas,
+                                 Real4* sortedRhoPreMu,
+                                 Real* A_Matrix,
+                                 Real3* b,
+                                 Real* A_L,
+                                 Real3* A_G,
+                                 Real* sumWij_inv,
+                                 uint* csrColInd,
+                                 unsigned long int* GlobalcsrColInd,
+                                 uint* numContacts,
+
+                                 Real4* velMassRigid_fsiBodies_D,
+                                 Real3* accRigid_fsiBodies_D,
+                                 uint* rigidIdentifierD,
+
+                                 Real3* pos_fsi_fea_D,
+                                 Real3* vel_fsi_fea_D,
+                                 Real3* acc_fsi_fea_D,
+                                 uint* FlexIdentifierD,
+                                 const int numFlex1D,
+                                 uint2* CableElementsNodes,
+                                 uint4* ShellelementsNodes,
+
+                                 int4 updatePortion,
+                                 uint* gridMarkerIndexD,
+
+                                 const int numAllMarkers,
+                                 volatile bool* isErrorD);
 /// @} fsi_physics
 
 }  // end namespace fsi

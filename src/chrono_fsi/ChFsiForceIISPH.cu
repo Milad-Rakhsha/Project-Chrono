@@ -14,8 +14,6 @@
 #include <thrust/extrema.h>
 #include <thrust/sort.h>
 #include "chrono_fsi/ChFsiForceIISPH.cuh"
-#include "chrono_fsi/ChParams.cuh"
-#include "chrono_fsi/ChSphGeneral.cu"
 
 //==========================================================================================================================================
 namespace chrono {

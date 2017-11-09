@@ -27,7 +27,6 @@
 #include "chrono_fea/ChMesh.h"
 #include "chrono_fea/ChNodeFEAxyzD.h"
 #include "chrono_fsi/ChBce.cuh"
-//#include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFluidDynamics.cuh"
 #include "chrono_fsi/ChFsiDataManager.cuh"
 #include "chrono_fsi/ChFsiGeneral.cuh"

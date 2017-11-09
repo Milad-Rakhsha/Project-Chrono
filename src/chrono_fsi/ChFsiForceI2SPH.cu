@@ -14,14 +14,12 @@
 #include <thrust/extrema.h>
 #include <thrust/sort.h>
 #include "chrono_fsi/ChFsiForceI2SPH.cuh"
-#include "chrono_fsi/ChParams.cuh"
-#include "chrono_fsi/ChSphGeneral.cu"
 
 //==========================================================================================================================================
 namespace chrono {
 namespace fsi {
-//extern __constant__ SimParams paramsD;
-//extern __constant__ NumberOfObjects numObjectsD;
+// extern __constant__ SimParams paramsD;
+// extern __constant__ NumberOfObjects numObjectsD;
 
 // double precision atomic add function
 __device__ inline double datomicAdd(double* address, double val) {
@@ -37,35 +35,35 @@ __device__ inline double datomicAdd(double* address, double val) {
     return __longlong_as_double(old);
 }
 //--------------------------------------------------------------------------------------------------------------------------------
-inline __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted positions
-                                        Real3* sortedVelMas,
-                                        Real4* sortedRhoPreMu,
-                                        Real* A_Matrix,
-                                        Real3* b,
-                                        Real* A_L,
-                                        Real3* A_G,
-                                        Real* sumWij_inv,
-                                        uint* csrColInd,
-                                        unsigned long int* GlobalcsrColInd,
-                                        uint* numContacts,
+__global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted positions
+                                 Real3* sortedVelMas,
+                                 Real4* sortedRhoPreMu,
+                                 Real* A_Matrix,
+                                 Real3* b,
+                                 Real* A_L,
+                                 Real3* A_G,
+                                 Real* sumWij_inv,
+                                 uint* csrColInd,
+                                 unsigned long int* GlobalcsrColInd,
+                                 uint* numContacts,
 
-                                        Real4* velMassRigid_fsiBodies_D,
-                                        Real3* accRigid_fsiBodies_D,
-                                        uint* rigidIdentifierD,
+                                 Real4* velMassRigid_fsiBodies_D,
+                                 Real3* accRigid_fsiBodies_D,
+                                 uint* rigidIdentifierD,
 
-                                        Real3* pos_fsi_fea_D,
-                                        Real3* vel_fsi_fea_D,
-                                        Real3* acc_fsi_fea_D,
-                                        uint* FlexIdentifierD,
-                                        const int numFlex1D,
-                                        uint2* CableElementsNodes,
-                                        uint4* ShellelementsNodes,
+                                 Real3* pos_fsi_fea_D,
+                                 Real3* vel_fsi_fea_D,
+                                 Real3* acc_fsi_fea_D,
+                                 uint* FlexIdentifierD,
+                                 const int numFlex1D,
+                                 uint2* CableElementsNodes,
+                                 uint4* ShellelementsNodes,
 
-                                        int4 updatePortion,
-                                        uint* gridMarkerIndexD,
+                                 int4 updatePortion,
+                                 uint* gridMarkerIndexD,
 
-                                        const int numAllMarkers,
-                                        volatile bool* isErrorD) {
+                                 const int numAllMarkers,
+                                 volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (i_idx >= numAllMarkers || sortedRhoPreMu[i_idx].w <= -2) {
         return;
@@ -133,7 +131,9 @@ ChFsiForceI2SPH::ChFsiForceI2SPH(
                          otherMarkersProximityD,
                          otherFsiGeneralData,
                          otherParamsH,
-                         otherNumObjects) {}
+                         otherNumObjects) {
+    CopyParams_NumberOfObjects(paramsH, numObjectsH);
+}
 
 ChFsiForceI2SPH::~ChFsiForceI2SPH() {}
 
@@ -164,6 +164,7 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
                                        FsiBodiesDataD* otherFsiBodiesD,
                                        FsiMeshDataD* otherFsiMeshD) {
     std::cout << "dT in ForceSPH before calcPressure: " << paramsH->dT << "\n";
+    CopyParams_NumberOfObjects(paramsH, numObjectsH);
 
     sphMarkersD = otherSphMarkersD;
     int numAllMarkers = numObjectsH->numAllMarkers;

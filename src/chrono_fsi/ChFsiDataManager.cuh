@@ -17,16 +17,18 @@
 
 #ifndef CH_FSI_DATAMANAGER_H_
 #define CH_FSI_DATAMANAGER_H_
-
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
+#include <thrust/iterator/detail/normal_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
+
 #include <thrust/tuple.h>
+
+#include "chrono_fea/ChElementShellANCF.h"
 #include "chrono_fsi/ChApiFsi.h"
 #include "chrono_fsi/ChParams.cuh"
 #include "chrono_fsi/custom_math.h"
-
-#include "chrono_fea/ChElementShellANCF.h"
 
 namespace chrono {
 namespace fsi {

@@ -68,7 +68,7 @@ LIST(APPEND CUDA_NVCC_FLAGS ${NVCC_FLAGS_EXTRA})
 message(STATUS "  CUDA toolkit includes:    ${CUDA_TOOLKIT_ROOT_DIR}/include")
 message(STATUS "  CUDA compile flags:       ${CUDA_NVCC_FLAGS}")
 
-option(CUDA_PROPAGATE_HOST_FLAGS "set host flags off" FALSE)
+option(CUDA_PROPAGATE_HOST_FLAGS "set host flags off" TRUE)
 option(USE_FSI_DOUBLE "Compile Chrono::FSI with double precision math" ON)
 IF(USE_FSI_DOUBLE)
   SET(CHRONO_FSI_USE_DOUBLE "#define CHRONO_FSI_USE_DOUBLE")
@@ -82,23 +82,16 @@ ENDIF()
 set(CH_FSI_INCLUDES
     "${CUDA_TOOLKIT_ROOT_DIR}/include"
 )
-# cuSparse library
+
+
+list(APPEND ${CUDA_cudadevrt_LIBRARY} LIBRARIES)
+list(APPEND LIBRARIES ${CUDA_CUDART_LIBRARY})
+list(APPEND LIBRARIES ${CUDA_CUDA_LIBRARY})
 list(APPEND LIBRARIES ${CUDA_cusparse_LIBRARY})
 list(APPEND LIBRARIES ${CUDA_cublas_LIBRARY})
-#list(APPEND LIBRARIES ${CUDA_cudart_LIBRARY})
-#list(APPEND LIBRARIES ${CUDA_rt_LIBRARY})
-#list(APPEND LIBRARIES ${CUDA_cudart_static_LIBRARY})
-#list(APPEND LIBRARIES ${CUDA_CUDART_LIBRARY})
-#list(APPEND LIBRARIES ${CUDA_CUDA_LIBRARY})
-list(APPEND LIBRARIES ${CUDA_cudadevrt_LIBRARY})
+list(APPEND LIBRARIES ${CUDA_cudart_static_LIBRARY})
 
-
-
-
- 
-
-message( STATUS "CUDA_cusparse_LIBRARY: ${CUDA_cusparse_LIBRARY}")
-message( STATUS "CUDA_cusparse_LIBRARY: ${CUDA_cublas_LIBRARY}")
+message( STATUS "FSI_LIBRARIES: ${LIBRARIES}")
 
 
 
@@ -124,9 +117,7 @@ install(FILES "${PROJECT_BINARY_DIR}/chrono_fsi/ChConfigFSI.h"
 # LIST THE FILES THAT MAKE THE FSI FLUID-SOLID INTERACTION LIBRARY
 
 SET(ChronoEngine_FSI_SOURCES
-    ChBce.cu
-           ChSphGeneral.cu 
-    
+    ChBce.cu    
     ChCollisionSystemFsi.cu
     ChDeviceUtils.cu
     ChFluidDynamics.cu
@@ -136,6 +127,7 @@ SET(ChronoEngine_FSI_SOURCES
     ChFsiForceParallel.cu
 #    ChSphKernels.cu   
     ChFsiGeneral.cu
+    ChSphGeneral.cu 
     ChFsiLinearSolver.cpp
     ChFsiInterface.cu
     ChSystemFsi.cpp
@@ -145,7 +137,6 @@ SET(ChronoEngine_FSI_SOURCES
 
 SET(ChronoEngine_FSI_HEADERS
     ChBce.cuh
-       ChSphGeneral.cuh  
     ChCollisionSystemFsi.cuh
     ChDeviceUtils.cuh
     ChFluidDynamics.cuh
@@ -154,7 +145,8 @@ SET(ChronoEngine_FSI_HEADERS
     ChFsiForceIISPH.cuh
     ChFsiForceI2SPH.cuh
     ChFsiForceParallel.cuh 
-    ChFsiGeneral.cuh  
+    ChFsiGeneral.cuh
+    ChSphGeneral.cuh  
     solver6x6.cuh
     ChFsiLinearSolver.h
     ChFsiInterface.cuh
@@ -170,14 +162,14 @@ SOURCE_GROUP("" FILES
     ${ChronoEngine_FSI_HEADERS})
 
 set(ChronoEngine_FSI_UTILS_SOURCES
-    utils/ChUtilsGeneratorBce.cu
+    utils/ChUtilsGeneratorBce.cpp
     utils/ChUtilsGeneratorFluid.cpp
     utils/ChUtilsGeneratorFsi.cpp
     utils/ChUtilsPrintSph.cu
 )
 
 set(ChronoEngine_FSI_UTILS_HEADERS
-    utils/ChUtilsGeneratorBce.cuh
+    utils/ChUtilsGeneratorBce.h
     utils/ChUtilsGeneratorFluid.h
     utils/ChUtilsGeneratorFsi.h
     utils/ChUtilsPrintStruct.h
@@ -225,6 +217,7 @@ SET_TARGET_PROPERTIES(ChronoEngine_fsi PROPERTIES
                       COMPILE_FLAGS "${CXX_FLAGS}"
                       LINK_FLAGS "${CH_LINKERFLAG_SHARED}"
                       COMPILE_DEFINITIONS "CH_API_COMPILE_FSI")
+                      
 
 
 
