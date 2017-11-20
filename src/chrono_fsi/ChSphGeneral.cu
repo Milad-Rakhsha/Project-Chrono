@@ -279,6 +279,11 @@ __global__ void calcRho_kernel(Real4* sortedPosRad,  // input: sorted positionsm
         return;
     }
 
+    if (sortedRhoPreMu[i_idx].w <= -2) {
+        mynumContact[i_idx] = 1;
+        return;
+    }
+
     Real3 posRadA = mR3(sortedPosRad[i_idx]);
     Real h_i = sortedPosRad[i_idx].w;
     Real m_i = h_i * h_i * h_i * paramsD.rho0;
@@ -302,7 +307,8 @@ __global__ void calcRho_kernel(Real4* sortedPosRad,  // input: sorted positionsm
                         Real d = length(dist3);
                         if (d > RESOLUTION_LENGTH_MULT * h_i || sortedRhoPreMu[j].w <= -2)
                             continue;
-                        mcon++;
+                        if (sortedRhoPreMu[j].w == -1 || sortedRhoPreMu[i_idx].w == -1)
+                            mcon++;
                         Real h_j = sortedPosRad[j].w;
                         Real m_j = h_j * h_j * h_j * paramsD.rho0;
                         Real W3 = W3h(d, 0.5 * (h_j + h_i));
@@ -314,7 +320,7 @@ __global__ void calcRho_kernel(Real4* sortedPosRad,  // input: sorted positionsm
             }
         }
     }
-    mynumContact[i_idx] = mcon + 2;
+    mynumContact[i_idx] = mcon;
     // Adding neighbor contribution is done!
     sumWij_inv[i_idx] = m_i / sum_mW;
     sortedRhoPreMu[i_idx].x = sum_mW;
@@ -474,7 +480,7 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
                                                          const int numAllMarkers,
                                                          volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i_idx >= numAllMarkers || sortedRhoPreMu[i_idx].w <= -2) {
+    if (i_idx >= numAllMarkers) {
         return;
     }
     Real RHO_0 = paramsD.rho0;
@@ -490,6 +496,11 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
     csrColInd[csrStartIdx - 1] = i_idx;
     GlobalcsrColInd[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
     uint nextCol = csrStartIdx;
+
+    if (sortedRhoPreMu[i_idx].w <= -2) {
+        csrColInd[csrStartIdx - 1] = i_idx;
+        return;
+    }
 
     // This is the elements of inverse of G
     Real mGi[9] = {0.0};
@@ -568,8 +579,9 @@ __global__ void Gradient_Laplacian_Operator(Real4* sortedPosRad,  // input: sort
                                             Real* sumWij_inv,
                                             Real* G_tensor,
                                             Real* L_tensor,
-                                            Real* A_L,   // velcotiy Laplacian matrix;
-                                            Real3* A_G,  // This is a matrix in a way that A*p gives the gradp
+                                            Real* A_L,   /// Laplacian Operator matrix
+                                            Real3* A_G,  /// Gradient Operator matrix
+                                            /// A_L, A_G are in system level;  A_G* p gives gradp, A_L*p gives Delta^2p
                                             uint* csrColInd,
                                             unsigned long int* GlobalcsrColInd,
                                             uint* numContacts,
@@ -580,11 +592,10 @@ __global__ void Gradient_Laplacian_Operator(Real4* sortedPosRad,  // input: sort
         return;
     }
     Real RHO_0 = paramsD.rho0;
-    uint csrStartIdx = numContacts[i_idx] + 1;  // Reserve the starting index for the A_ii
+    uint csrStartIdx = numContacts[i_idx];  // Reserve the starting index for the A_ii
     uint csrEndIdx = numContacts[i_idx + 1];
     Real3 posRadA = mR3(sortedPosRad[i_idx]);
     Real h_i = sortedPosRad[i_idx].w;
-    uint nextCol = csrStartIdx;
     // get address in grid
     int3 gridPos = calcGridPos(posRadA);
     // This is the elements of inverse of G
@@ -596,7 +607,7 @@ __global__ void Gradient_Laplacian_Operator(Real4* sortedPosRad,  // input: sort
     for (int i = 0; i < 6; i++)
         Li[i] = L_tensor[i_idx * 6 + i];
 
-    for (int count = csrStartIdx - 1; count < csrEndIdx; count++) {
+    for (int count = csrStartIdx; count < csrEndIdx; count++) {
         int j = csrColInd[count];
         Real3 posRadB = mR3(sortedPosRad[j]);
         Real3 rij = Distance(posRadA, posRadB);
@@ -608,15 +619,15 @@ __global__ void Gradient_Laplacian_Operator(Real4* sortedPosRad,  // input: sort
         Real W3 = W3h(d, h_ij);
         Real3 grad_i_wij = GradWh(rij, h_ij);
         Real V_j = sumWij_inv[j];
-        A_G[j].x = grad_i_wij.x * mGi[0] + grad_i_wij.y * mGi[1] + grad_i_wij.z * mGi[2];
-        A_G[j].y = grad_i_wij.x * mGi[3] + grad_i_wij.y * mGi[4] + grad_i_wij.z * mGi[5];
-        A_G[j].z = grad_i_wij.x * mGi[6] + grad_i_wij.y * mGi[7] + grad_i_wij.z * mGi[8];
-        A_G[csrStartIdx - 1].x -= grad_i_wij.x * mGi[0] + grad_i_wij.y * mGi[1] + grad_i_wij.z * mGi[2];
-        A_G[csrStartIdx - 1].y -= grad_i_wij.x * mGi[3] + grad_i_wij.y * mGi[4] + grad_i_wij.z * mGi[5];
-        A_G[csrStartIdx - 1].z -= grad_i_wij.x * mGi[6] + grad_i_wij.y * mGi[7] + grad_i_wij.z * mGi[8];
+        A_G[count].x = V_j * (grad_i_wij.x * mGi[0] + grad_i_wij.y * mGi[1] + grad_i_wij.z * mGi[2]);
+        A_G[count].y = V_j * (grad_i_wij.x * mGi[3] + grad_i_wij.y * mGi[4] + grad_i_wij.z * mGi[5]);
+        A_G[count].z = V_j * (grad_i_wij.x * mGi[6] + grad_i_wij.y * mGi[7] + grad_i_wij.z * mGi[8]);
+        A_G[csrStartIdx].x -= V_j * (grad_i_wij.x * mGi[0] + grad_i_wij.y * mGi[1] + grad_i_wij.z * mGi[2]);
+        A_G[csrStartIdx].y -= V_j * (grad_i_wij.x * mGi[3] + grad_i_wij.y * mGi[4] + grad_i_wij.z * mGi[5]);
+        A_G[csrStartIdx].z -= V_j * (grad_i_wij.x * mGi[6] + grad_i_wij.y * mGi[7] + grad_i_wij.z * mGi[8]);
     }
 
-    for (int count = csrStartIdx - 1; count < csrEndIdx; count++) {
+    for (int count = csrStartIdx; count < csrEndIdx; count++) {
         int j = csrColInd[count];
         Real3 posRadB = mR3(sortedPosRad[j]);
         Real3 rij = Distance(posRadA, posRadB);
@@ -628,18 +639,16 @@ __global__ void Gradient_Laplacian_Operator(Real4* sortedPosRad,  // input: sort
         Real h_ij = 0.5 * (h_j + h_i);
         Real W3 = W3h(d, h_ij);
         Real3 grad_ij = GradWh(rij, h_ij);
-        Real V_j = sumWij_inv[j];
-        Real commonterm = 2 * V_j *
+        Real commonterm = 2 * sumWij_inv[j] *
                           (Li[0] * eij.x * grad_ij.x + Li[1] * eij.x * grad_ij.y + Li[2] * eij.x * grad_ij.z +
                            Li[1] * eij.y * grad_ij.x + Li[3] * eij.y * grad_ij.y + Li[4] * eij.y * grad_ij.z +
                            Li[2] * eij.z * grad_ij.x + Li[4] * eij.z * grad_ij.y + Li[5] * eij.z * grad_ij.z);
-        A_L[j] -= commonterm / d;                // j
-        A_L[csrStartIdx - 1] += commonterm / d;  // i
+        A_L[count] -= commonterm / d;        // j
+        A_L[csrStartIdx] += commonterm / d;  // i
 
-        for (int count_in = csrStartIdx - 1; count_in < csrEndIdx; count_in++) {
-            int k = csrColInd[count_in];
-            A_L[k] -= dot(A_G[k], eij);                // k
-            A_L[csrStartIdx - 1] += dot(A_G[k], eij);  // i
+        for (int count_in = csrStartIdx; count_in < csrEndIdx; count_in++) {
+            A_L[count_in] -= commonterm * dot(A_G[count_in], eij);        // k
+            A_L[csrStartIdx] += commonterm * dot(A_G[csrStartIdx], eij);  // i
         }
     }
 }

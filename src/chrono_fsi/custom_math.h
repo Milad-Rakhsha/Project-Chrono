@@ -1525,6 +1525,9 @@ __host__ __device__ inline Real dot(Real4 a, Real4 b) {
     return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
 }
 
+__host__ __device__ inline Real length(Real v) {
+    return v;
+}
 __host__ __device__ inline Real length(Real2 v) {
     return sqrt(dot(v, v));
 }

@@ -67,15 +67,15 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->v_Max = 0.0;    // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
-    paramsH->USE_LinearSolver = false;  ///< IISPH parameter: whether or not use linear solvers
+    paramsH->USE_LinearSolver = true;  ///< IISPH parameter: whether or not use linear solvers
     paramsH->USE_Iterative_solver = true;
-    paramsH->LinearSolver = bicgstab;          ///< IISPH parameter: gmres, cr, bicgstab, cg
-    paramsH->Verbose_monitoring = true;        ///< IISPH parameter: showing iter/residual
-    paramsH->PPE_Solution_type = MATRIX_FREE;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
-    paramsH->LinearSolver_Rel_Tol = 1e-9;      ///< relative res, is used in the matrix free solver and linear solvers
-    paramsH->LinearSolver_Abs_Tol = 1e-5;      ///< absolute error, applied when linear solvers are used
-    paramsH->LinearSolver_Max_Iter = 50;       ///< max number of iteration for linear solvers
-    paramsH->PPE_relaxation = 0.2;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
+    paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
+    paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
+    paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
+    paramsH->LinearSolver_Rel_Tol = 1e-8;  ///< relative res, is used in the matrix free solver and linear solvers
+    paramsH->LinearSolver_Abs_Tol = 1e-5;  ///< absolute error, applied when linear solvers are used
+    paramsH->LinearSolver_Max_Iter = 100;  ///< max number of iteration for linear solvers
+    paramsH->PPE_relaxation = 0.5;         ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
     /// Experimental parameters
     paramsH->Max_Pressure = 1e5;
     paramsH->IncompressibilityFactor = 1;     ///< to tune the compression

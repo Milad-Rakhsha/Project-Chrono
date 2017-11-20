@@ -265,7 +265,7 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < numGhostMarkers; i++) {
         myFsiSystem.GetDataManager()->AddSphMarker(chrono::fsi::mR4(0.0, 0.0, -0.4, 0.0),
                                                    chrono::fsi::mR3(1e-10, 0.0, 0.0),
-                                                   chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -2.0));
+                                                   chrono::fsi::mR4(paramsH->rho0, 1, paramsH->mu0, -2.0));
     }
 
     utils::Generator::PointVector points1 =
@@ -335,7 +335,7 @@ int main(int argc, char* argv[]) {
         }
         if (!removeThis) {
             myFsiSystem.GetDataManager()->AddSphMarker(p, chrono::fsi::mR3(paramsH->V_in, 0.0, 0.0),
-                                                       chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -1.0));
+                                                       chrono::fsi::mR4(paramsH->rho0, 1, paramsH->mu0, -1.0));
         } else
             numremove++;
     }

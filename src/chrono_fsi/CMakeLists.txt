@@ -68,7 +68,7 @@ LIST(APPEND CUDA_NVCC_FLAGS ${NVCC_FLAGS_EXTRA})
 message(STATUS "  CUDA toolkit includes:    ${CUDA_TOOLKIT_ROOT_DIR}/include")
 message(STATUS "  CUDA compile flags:       ${CUDA_NVCC_FLAGS}")
 
-option(CUDA_PROPAGATE_HOST_FLAGS "set host flags off" TRUE)
+option(CUDA_PROPAGATE_HOST_FLAGS "set host flags off" FALSE)
 option(USE_FSI_DOUBLE "Compile Chrono::FSI with double precision math" ON)
 IF(USE_FSI_DOUBLE)
   SET(CHRONO_FSI_USE_DOUBLE "#define CHRONO_FSI_USE_DOUBLE")

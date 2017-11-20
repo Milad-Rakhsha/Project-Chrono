@@ -117,6 +117,7 @@ IF(ENABLE_MODULE_PARALLEL)
                 ChronoEngine_fsi)
             INSTALL(TARGETS ${PROGRAM} DESTINATION bin)
        ENDFOREACH()
+       
     ENDIF()   
     
    	IF(ENABLE_MODULE_FEA)
