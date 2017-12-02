@@ -16,36 +16,28 @@
 
 // General Includes
 #include <assert.h>
+#include <limits.h>
+#include <stdlib.h>
 #include <ctime>
 #include <fstream>
 #include <iostream>
-#include <limits.h>
-#include <stdlib.h>  // system
 #include <string>
 #include <vector>
 
-// Chrono Parallel Includes
 #include "chrono/physics/ChSystemSMC.h"
 
-//#include "chrono_utils/ChUtilsVehicle.h"
+#include "chrono/core/ChFileutils.h"
 #include "chrono/utils/ChUtilsCreators.h"
 #include "chrono/utils/ChUtilsGenerators.h"
 #include "chrono/utils/ChUtilsGeometry.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
 
-// Chrono general utils
-#include "chrono/core/ChFileutils.h"
-#include "chrono/core/ChTransform.h"  //transform acc from GF to LF for post process
-#include <thrust/reduce.h>
-
 // Chrono fsi includes
 #include "chrono_fsi/ChDeviceUtils.cuh"
-#include "chrono_fsi/custom_math.h"
-
 #include "chrono_fsi/ChFsiTypeConvert.h"
 #include "chrono_fsi/ChSystemFsi.h"
 #include "chrono_fsi/utils/ChUtilsGeneratorFsi.h"
-#include "chrono_fsi/utils/ChUtilsPrintSph.h"
+#include "chrono_fsi/utils/ChUtilsPrintSph.cuh"
 
 // FSI Interface Includes
 #include "demos/fsi/demo_FSI_Compressibility.h"  //SetupParamsH()
@@ -70,7 +62,7 @@ const std::string demo_dir = out_dir + "/Compressibility";
 // Save data as csv files, turn it on to be able to see the results off-line using paraview
 bool save_output = true;
 
-int out_fps = 25;
+int out_fps = 200;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -217,7 +209,7 @@ int main(int argc, char* argv[]) {
 #endif
     // ************* Create Fluid *************************
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
     chrono::ChVector<> CameraLocation = chrono::ChVector<>(0, -10, 0);
     chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
 
@@ -240,7 +232,7 @@ int main(int argc, char* argv[]) {
 
     for (int i = 0; i < numPart; i++) {
         myFsiSystem.GetDataManager()->AddSphMarker(
-            chrono::fsi::mR3(points[i].x(), points[i].y(), points[i].z()), chrono::fsi::mR3(0),
+            chrono::fsi::mR4(points[i].x(), points[i].y(), points[i].z(), paramsH->HSML), chrono::fsi::mR3(1e-10),
             chrono::fsi::mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, -1));
     }
 
@@ -330,8 +322,8 @@ int main(int argc, char* argv[]) {
         myFsiSystem.DoStepDynamics_ChronoRK2();
 #endif
 
-        thrust::host_vector<Real3> velMasH = myFsiSystem.GetDataManager()->sphMarkersD2.velMasD;
-        thrust::host_vector<Real4> rhoPresMuH = myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD;
+        thrust::host_vector<Real3> velMasH = myFsiSystem.GetDataManager()->sphMarkersH.velMasH;
+        thrust::host_vector<Real4> rhoPresMuH = myFsiSystem.GetDataManager()->sphMarkersH.rhoPresMuH;
         std::ofstream output;
         output.open((out_dir + "/Analysis.txt"), std::ios::app);
 
@@ -378,9 +370,7 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
     // If enabled, output data for PovRay postprocessing.
     //    printf("mTime= %f\n", mTime - (next_frame)*frame_time);
 
-    if (save_output && std::abs(mTime - (next_frame)*frame_time) < 0.0001) {
-        // **** out fluid
-
+    if (save_output && std::abs(mTime - (next_frame)*frame_time) < 0.00001) {
         chrono::fsi::utils::PrintToFile(
             myFsiSystem.GetDataManager()->sphMarkersD2.posRadD, myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
             myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,

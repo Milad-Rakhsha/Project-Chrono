@@ -220,7 +220,7 @@ int main(int argc, char* argv[]) {
 #endif
     // ************* Create Fluid *************************
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::IISPH);
     chrono::ChVector<> CameraLocation = chrono::ChVector<>(0, -10, 0);
     chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
 
@@ -265,14 +265,16 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < numGhostMarkers; i++) {
         myFsiSystem.GetDataManager()->AddSphMarker(chrono::fsi::mR4(0.0, 0.0, -0.4, 0.0),
                                                    chrono::fsi::mR3(1e-10, 0.0, 0.0),
-                                                   chrono::fsi::mR4(paramsH->rho0, 1, paramsH->mu0, -2.0));
+                                                   chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -2.0));
     }
 
-    utils::Generator::PointVector points1 =
-        sampler1.SampleCylinderY(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter1), 0.12, 0.04);
+    // Fluid markers
+    utils::Generator::PointVector points1 = sampler1.SampleCylinderY(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter1),
+                                                                     0.12, byDim / 2 + paramsH->HSML / 2);
 
     utils::Generator::PointVector points2 = sampler2.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter2),
                                                                fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim2));
+
     int numPart1 = points1.size();
     int numPart2 = points2.size();
 
@@ -335,7 +337,7 @@ int main(int argc, char* argv[]) {
         }
         if (!removeThis) {
             myFsiSystem.GetDataManager()->AddSphMarker(p, chrono::fsi::mR3(paramsH->V_in, 0.0, 0.0),
-                                                       chrono::fsi::mR4(paramsH->rho0, 1, paramsH->mu0, -1.0));
+                                                       chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -1.0));
         } else
             numremove++;
     }

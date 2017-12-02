@@ -46,39 +46,6 @@ class CH_FSI_API ChFsiForceI2SPH : public ChFsiForceParallel {
                           FsiMeshDataD* otherFsiMeshD) override;
 };
 
-__global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted positions
-                                 Real3* sortedVelMas,
-                                 Real4* sortedRhoPreMu,
-                                 Real* A_Matrix,
-                                 Real3* b,
-                                 Real* vx,
-                                 Real* vy,
-                                 Real* vz,
-
-                                 const Real* A_L,
-                                 const Real3* A_G,
-                                 const Real* sumWij_inv,
-                                 const uint* csrColInd,
-                                 unsigned long int* GlobalcsrColInd,
-                                 const uint* numContacts,
-
-                                 Real4* velMassRigid_fsiBodies_D,
-                                 Real3* accRigid_fsiBodies_D,
-                                 uint* rigidIdentifierD,
-
-                                 Real3* pos_fsi_fea_D,
-                                 Real3* vel_fsi_fea_D,
-                                 Real3* acc_fsi_fea_D,
-                                 uint* FlexIdentifierD,
-                                 int numFlex1D,
-                                 uint2* CableElementsNodes,
-                                 uint4* ShellelementsNodes,
-
-                                 int4 updatePortion,
-                                 uint* gridMarkerIndexD,
-
-                                 int numAllMarkers,
-                                 volatile bool* isErrorD);
 /// @} fsi_physics
 
 }  // end namespace fsi

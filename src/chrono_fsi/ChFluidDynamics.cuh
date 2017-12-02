@@ -95,7 +95,8 @@ class CH_FSI_API ChFluidDynamics : public ChFsiGeneral {
   protected:
     ChFsiDataManager* fsiData;  ///< pointer to the fsi data. The values are maintained externally
 
-    ChFsiForceParallel* forceSystem;  ///< force system object. It calculates the force between markers.
+    ChFsiForceParallel* forceSystem;           ///< force system object. It calculates the force between markers.
+    ChFluidDynamics::Integrator myIntegrator;  ///< IISPH by default
 
     SimParams* paramsH;  ///< pointer to parameters. The values are mainained externally.
 

@@ -14,29 +14,28 @@
 
 // General Includes
 #include <assert.h>
+#include <limits.h>
+#include <stdlib.h>
 #include <ctime>
 #include <fstream>
 #include <iostream>
-#include <limits.h>
-#include <stdlib.h>
 #include <string>
 #include <vector>
 
 #include "chrono/physics/ChSystemSMC.h"
 
+#include "chrono/core/ChFileutils.h"
 #include "chrono/utils/ChUtilsCreators.h"
 #include "chrono/utils/ChUtilsGenerators.h"
 #include "chrono/utils/ChUtilsGeometry.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
-
-#include "chrono/core/ChFileutils.h"
 
 // Chrono fsi includes
 #include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFsiTypeConvert.h"
 #include "chrono_fsi/ChSystemFsi.h"
 #include "chrono_fsi/utils/ChUtilsGeneratorFsi.h"
-#include "chrono_fsi/utils/ChUtilsPrintSph.h"
+#include "chrono_fsi/utils/ChUtilsPrintSph.cuh"
 
 // FSI Interface Includes
 #include "demos/fsi/demo_FSI_DamBreak.h"
@@ -59,20 +58,20 @@ const std::string demo_dir = out_dir + "/DamBreak";
 // Save data as csv files, turn it on to be able to see the results off-line using paraview
 bool save_output = true;
 // Frequency of the save output
-int out_fps = 25;
+int out_fps = 200;
 typedef fsi::Real Real;
 
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 // Dimension of the domain
-Real bxDim = 4;
-Real byDim = 0.1;
-Real bzDim = 2.5;
+Real bxDim = 3.5;
+Real byDim = 0.4;
+Real bzDim = 1.8;
 
 // Dimension of the fluid domain
-Real fxDim = 2;
+Real fxDim = 1;
 Real fyDim = byDim;
-Real fzDim = 2;
+Real fzDim = 1;
 
 // Forward declarations
 void SetArgumentsForMbdFromInput(int argc,
@@ -138,7 +137,7 @@ int main(int argc, char* argv[]) {
     mHaveFluid = true;
 #endif
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
 
     chrono::fsi::SimParams* paramsH = myFsiSystem.GetSimParams();
 
@@ -151,17 +150,18 @@ int main(int argc, char* argv[]) {
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
     utils::GridSampler<> sampler(initSpace0);
     // Use a chrono sampler to create a bucket of fluid
-    chrono::fsi::Real3 boxCenter =
-        chrono::fsi::mR3(-bxDim / 2 + fxDim / 2, 0 * paramsH->HSML, fzDim / 2 + 1 * paramsH->HSML);
-    chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2 + 3 * paramsH->HSML, fzDim / 2);
+    chrono::fsi::Real3 boxCenter = chrono::fsi::mR3(-bxDim / 2 + fxDim / 2, 0 * initSpace0, fzDim / 2 + 1 * initSpace0);
+    //    chrono::fsi::Real3 boxCenter = chrono::fsi::mR3(0.0, 0.0, fzDim / 2 + 10 * paramsH->HSML);
+
+    chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
     utils::Generator::PointVector points = sampler.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter),
                                                              fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim));
     // Add from the sampler points to the FSI system
     int numPart = points.size();
     for (int i = 0; i < numPart; i++) {
         myFsiSystem.GetDataManager()->AddSphMarker(
-            chrono::fsi::mR3(points[i].x(), points[i].y(), points[i].z()), chrono::fsi::mR3(0),
-            chrono::fsi::mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, -1));
+            chrono::fsi::mR4(points[i].x(), points[i].y(), points[i].z(), paramsH->HSML), chrono::fsi::mR3(1e-10),
+            chrono::fsi::mR4(paramsH->rho0, paramsH->BASEPRES / fzDim * (fzDim - points[i].z()), paramsH->mu0, -1));
     }
 
     int numPhases = myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.size();
@@ -214,11 +214,10 @@ int main(int argc, char* argv[]) {
     std::vector<std::vector<double>> vCoor;
     std::vector<std::vector<int>> faces;
 
-    if (save_output)
-        SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, 0, mTime);
-
     const std::string rmCmd = (std::string("rm ") + demo_dir + std::string("/*"));
     system(rmCmd.c_str());
+    if (save_output)
+        SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, 0, mTime);
 
     Real time = 0;
     Real Global_max_dT = paramsH->dT;
@@ -264,21 +263,23 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
     ground->SetMaterialSurface(mysurfmaterial);
     ground->GetCollisionModel()->ClearModel();
 
+    Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
+
     // Create the geometry of the boundaries
     // Bottom wall
-    ChVector<> sizeBottom(bxDim / 2 + 3 * paramsH->HSML, byDim / 2 + 3 * paramsH->HSML, 2 * paramsH->HSML);
-    ChVector<> posBottom(0, 0, -2 * paramsH->HSML);
-    ChVector<> posTop(0, 0, bzDim + 2 * paramsH->HSML);
+    ChVector<> sizeBottom(bxDim / 2 + 3 * initSpace0, byDim / 2 + 3 * initSpace0, 2 * initSpace0);
+    ChVector<> posBottom(0, 0, -2 * initSpace0);
+    ChVector<> posTop(0, 0, bzDim + 2 * initSpace0);
 
     // left and right Wall p:positive n:negative
-    ChVector<> size_YZ(2 * paramsH->HSML, byDim / 2 + 3 * paramsH->HSML, bzDim / 2);
-    ChVector<> pos_xp(bxDim / 2 + paramsH->HSML, 0.0, bzDim / 2 + 1 * paramsH->HSML);
-    ChVector<> pos_xn(-bxDim / 2 - 3 * paramsH->HSML, 0.0, bzDim / 2 + 1 * paramsH->HSML);
+    ChVector<> size_YZ(2 * initSpace0, byDim / 2 + 3 * initSpace0, bzDim / 2);
+    ChVector<> pos_xp(bxDim / 2 + initSpace0, 0.0, bzDim / 2 + 1 * initSpace0);
+    ChVector<> pos_xn(-bxDim / 2 - 3 * initSpace0, 0.0, bzDim / 2 + 1 * initSpace0);
 
     // Front and back Wall
-    ChVector<> size_XZ(bxDim / 2, 2 * paramsH->HSML, bzDim / 2);
-    ChVector<> pos_yp(0, byDim / 2 + paramsH->HSML, bzDim / 2 + 1 * paramsH->HSML);
-    ChVector<> pos_yn(0, -byDim / 2 - 3 * paramsH->HSML, bzDim / 2 + 1 * paramsH->HSML);
+    ChVector<> size_XZ(bxDim / 2, 2 * initSpace0, bzDim / 2);
+    ChVector<> pos_yp(0, byDim / 2 + initSpace0, bzDim / 2 + 1 * initSpace0);
+    ChVector<> pos_yn(0, -byDim / 2 - 3 * initSpace0, bzDim / 2 + 1 * initSpace0);
 
     // Add the Boundaries to the chrono system
     chrono::utils::AddBoxGeometry(ground.get(), sizeBottom, posBottom, chrono::QUNIT, true);
@@ -288,8 +289,8 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
     // You may uncomment the following lines to have side walls as well.
     // To show the use of Periodic boundary condition, these walls are not added
     // To this end, paramsH->cMin and paramsH->cMax were set up appropriately (see the .h file)
-    // chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yp, chrono::QUNIT, true);
-    // chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yn, chrono::QUNIT, true);
+    chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yp, chrono::QUNIT, true);
+    chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yn, chrono::QUNIT, true);
     ground->GetCollisionModel()->BuildModel();
     mphysicalSystem.AddBody(ground);
 
@@ -299,10 +300,10 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT, sizeBottom);
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_xp, chrono::QUNIT, size_YZ, 23);
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_xn, chrono::QUNIT, size_YZ, 23);
-// If you uncommented the above lines that add the side walls, you should uncomment the following two lines as well
-// This is necessary in order to populate the walls with BCE markers for the fluid simulation
-// chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yp, chrono::QUNIT, size_XZ, 13);
-// chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT, size_XZ, 13);
+    // If you uncommented the above lines that add the side walls, you should uncomment the following two lines as well
+    // This is necessary in order to populate the walls with BCE markers for the fluid simulation
+    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yp, chrono::QUNIT, size_XZ, 13);
+    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT, size_XZ, 13);
 
 #endif
 }
@@ -317,13 +318,13 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
                           double mTime) {
     static double exec_time;
     int out_steps = std::ceil((1.0 / paramsH->dT) / out_fps);
-    exec_time += mphysicalSystem.GetTimerStep();
     static int out_frame = 0;
     chrono::fsi::utils::PrintToFile(
         myFsiSystem.GetDataManager()->sphMarkersD2.posRadD, myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
         myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
         myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray, thrust::host_vector<int4>(), demo_dir, true);
     cout << "\n------------ Output frame:   " << next_frame << endl;
-    cout << "             Execution time: " << exec_time << endl;
+    cout << "\n---------------------------------------" << endl;
+
     out_frame++;
 }

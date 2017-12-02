@@ -352,6 +352,8 @@ __global__ void Update_Fluid_State(Real3* new_vel,  // input: sorted velocities,
 
     //  sortedPosRad[i_idx] = new_Pos[i_idx];
     velMas[i_idx] = vis_vel[i_idx];
+    //    printf(" %d vel %f,%f,%f\n", i_idx, vis_vel[i_idx].x, vis_vel[i_idx].y, vis_vel[i_idx].z);
+
     Real3 newpos = mR3(posRad[i_idx]) + dT * new_vel[i_idx];
     Real h = posRad[i_idx].w;
     posRad[i_idx] = mR4(newpos, h);
@@ -440,8 +442,8 @@ ChFluidDynamics::ChFluidDynamics(ChBce* otherBceWorker,
                                  ChFluidDynamics::Integrator type)
     : fsiData(otherFsiData), paramsH(otherParamsH), numObjectsH(otherNumObjects) {
     printf("ChFluidDynamics::ChFluidDynamics()\n");
-
-    switch (type) {
+    myIntegrator = type;
+    switch (myIntegrator) {
         case ChFluidDynamics::Integrator::I2SPH:
             forceSystem =
                 new ChFsiForceI2SPH(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
@@ -498,9 +500,10 @@ void ChFluidDynamics::IntegrateSPH(SphMarkerDataD* sphMarkersD2,
 
 void ChFluidDynamics::IntegrateIISPH(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD, FsiMeshDataD* fsiMeshD) {
     forceSystem->ForceImplicitSPH(sphMarkersD, fsiBodiesD, fsiMeshD);
-    this->UpdateFluid_Implicit(sphMarkersD);
-    //    this->ApplyBoundarySPH_Markers(sphMarkersD);
-    this->ApplyModifiedBoundarySPH_Markers(sphMarkersD);
+    if (myIntegrator == ChFluidDynamics::Integrator::IISPH)
+        this->UpdateFluid_Implicit(sphMarkersD);
+    this->ApplyBoundarySPH_Markers(sphMarkersD);
+    //    this->ApplyModifiedBoundarySPH_Markers(sphMarkersD);
 }
 
 // -----------------------------------------------------------------------------

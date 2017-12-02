@@ -44,7 +44,7 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.05;
+    paramsH->HSML = 0.05 / 1.0;
     paramsH->MULT_INITSPACE = 1.0;
     paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
@@ -57,26 +57,26 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = .05;
+    paramsH->mu0 = .000;
     paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
-    paramsH->USE_LinearSolver = true;                 ///< IISPH parameter: whether or not use linear solvers
+    paramsH->USE_LinearSolver = true;  ///< IISPH parameter: whether or not use linear solvers
+    paramsH->USE_Iterative_solver = true;
     paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
-    paramsH->Verbose_monitoring = true;               ///< IISPH parameter: showing iter/residual
+    paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
     paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
-    paramsH->LinearSolver_Rel_Tol = 0;      ///< relative res, is used in the matrix free solver and linear solvers
-    paramsH->LinearSolver_Abs_Tol = 1e-0;   ///< absolute error, applied when linear solvers are used
-    paramsH->LinearSolver_Max_Iter = 2000;  ///< max number of iteration for linear solvers
-    paramsH->PPE_relaxation = 0.3;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
-
+    paramsH->LinearSolver_Rel_Tol = 1e-10;  ///< relative res, is used in the matrix free solver and linear solvers
+    paramsH->LinearSolver_Abs_Tol = 1e-10;  ///< absolute error, applied when linear solvers are used
+    paramsH->LinearSolver_Max_Iter = 5000;  ///< max number of iteration for linear solvers
+    paramsH->PPE_relaxation = 0.8;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
     /// Experimental parameters
     paramsH->Max_Pressure = 1e5;
     paramsH->IncompressibilityFactor = 1;     ///< to tune the compression
     paramsH->ClampPressure = false;           ///< If the negative pressure should be clamped to zero or not
     paramsH->Adaptive_time_stepping = false;  ///< This let you use large time steps when possible
     paramsH->Co_number = 0.8;                 ///< 0.2 works well for most cases
-    paramsH->dT_Max = 0.01;  ///< This is problem dependent should set by the user based on characteristic time step
+    paramsH->dT_Max = 0.001;  ///< This is problem dependent should set by the user based on characteristic time step
     paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 
     paramsH->dT = 5e-3;

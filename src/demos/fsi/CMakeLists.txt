@@ -4,9 +4,10 @@
 
 # List all FSI demos that use chrono
 SET(FSI_DEMOS # add fluid demos here
-#demo_FSI_DamBreak
-#demo_FSI_Compressibility
 demo_FSI_flow_around_cylinder
+demo_FSI_DamBreak
+demo_FSI_Compressibility
+demo_FSI_Poiseuille_flow
 )
 
 # List all FSI demos that use chrono-parallel

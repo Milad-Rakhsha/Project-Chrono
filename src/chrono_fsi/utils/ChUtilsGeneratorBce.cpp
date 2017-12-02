@@ -189,7 +189,7 @@ void CreateBCE_On_Box(thrust::host_vector<Real4>& posRadBCE, const Real3& hsize,
                     (relMarkerPos.z < paramsH->cMin.z || relMarkerPos.z > paramsH->cMax.z)) {
                     continue;
                 }
-                posRadBCE.push_back(mR4(relMarkerPos, initSpace0));
+                posRadBCE.push_back(mR4(relMarkerPos, paramsH->HSML));
             }
         }
     }

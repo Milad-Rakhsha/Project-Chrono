@@ -1461,14 +1461,14 @@ static __host__ __device__ void inv6xdelta_mn(Real* B, Real* L) {
              B[10] * B[15] * B[20] * B[24] * B[31] - B[10] * B[15] * B[20] * B[25] * B[30]) /
            (DET);
 
-    if (abs(DET) < 1e-8) {
-        printf("ZERO DETERMINENT, SETTING L to Identity;\n");
-        L[0] = 1;
-        L[1] = 0;
-        L[2] = 0;
-        L[3] = 1;
-        L[4] = 0;
-        L[5] = 1;
+    if (abs(DET) < 1e-10) {
+        //        printf("Li, ");
+        L[0] = 1.0;
+        L[1] = 0.0;
+        L[2] = 0.0;
+        L[3] = 1.0;
+        L[4] = 0.0;
+        L[5] = 1.0;
     }
 }
 

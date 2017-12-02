@@ -49,37 +49,40 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
-    paramsH->BASEPRES = 0;
+    paramsH->BASEPRES = 1;
     paramsH->LARGE_PRES = 0;
     paramsH->deltaPress;
     paramsH->multViscosity_FSI = 1;
-    paramsH->gravity = mR3(0.0001, 0, 0.0);
+    paramsH->gravity = mR3(0.01, 0, 0.0);
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 0.5;
-    paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
+    paramsH->mu0 = 0.1;
+    paramsH->v_Max = 1;
+    paramsH->x_in = -bxDim / 2 + 3 * paramsH->HSML;
+    paramsH->V_in = 0.01;
+
     paramsH->EPS_XSPH = .5f;
 
-    paramsH->USE_CUSP = false;
-    paramsH->USE_iterative_solver = true;
-    paramsH->Cusp_solver = bicgstab;               // gmres, cr, bicgstab, cg
-    paramsH->Verbose_monitoring = false;           // If you want cusp to print out the iterations-residual
-    paramsH->PPE_Solution_type = IterativeJacobi;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
-    paramsH->PPE_res = 0.001;      // This is the relative res, is used in the iterative solver and  cusp solvers
-    paramsH->PPE_Abs_res = 1e-10;  // This is the absolute error used when cusp solvers are used
-    paramsH->PPE_Max_Iter = 2000;  // This is the max number of iteration for cusp solvers
+    paramsH->USE_LinearSolver = true;  ///< IISPH parameter: whether or not use linear solvers
+    paramsH->USE_Iterative_solver = true;
+    paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
+    paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
+    paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
+    paramsH->LinearSolver_Rel_Tol = 1e-6;    ///< relative res, is used in the matrix free solver and linear solvers
+    paramsH->LinearSolver_Abs_Tol = 1e-5;    ///< absolute error, applied when linear solvers are used
+    paramsH->LinearSolver_Max_Iter = 10000;  ///< max number of iteration for linear solvers
+    paramsH->PPE_relaxation = 0.5;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
+    /// Experimental parameters
+    paramsH->Max_Pressure = 1e5;
+    paramsH->IncompressibilityFactor = 1;     ///< to tune the compression
+    paramsH->ClampPressure = false;           ///< If the negative pressure should be clamped to zero or not
+    paramsH->Adaptive_time_stepping = false;  ///< This let you use large time steps when possible
+    paramsH->Co_number = 0.8;                 ///< 0.2 works well for most cases
+    paramsH->dT_Max = 0.001;  ///< This is problem dependent should set by the user based on characteristic time step
+    paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 
-    paramsH->Max_Pressure = 1e20;
-    paramsH->PPE_relaxation = 0.4;         // Increasing this to 0.5 causes instability, only used in iterative solvers
-    paramsH->IncompressibilityFactor = 1;  // Increasing this causes lager compressibility, but let for larger dt
-    paramsH->ClampPressure = false;        // If the negative pressure should be clamped to zero or not
-    paramsH->Adaptive_time_stepping = false;  // This let you use large time steps when possible
-    paramsH->Co_number = 0.8;                 // 0.2 works well for most cases
-    paramsH->dT_Max = 0.01;       // This is problem dependent should set by the user based on characteristic time step
-    paramsH->Apply_BC_U = false;  // You should go to custom_math.h all the way to end of file and set your function
-
-    paramsH->dT = 4e-2;
+    paramsH->dT = 5e-3;
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;  // I don't know what is kdT
@@ -92,8 +95,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
     paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
-    paramsH->cMin = mR3(-bxDim / 2, -byDim, -bzDim - paramsH->HSML * 5);
-    paramsH->cMax = mR3(bxDim / 2 + paramsH->HSML * 1, byDim, bzDim + paramsH->HSML * 5);
+    paramsH->cMin = mR3(-bxDim / 2, -byDim / 2 - paramsH->HSML / 2, -bzDim * 4);
+    paramsH->cMax = mR3(bxDim / 2 + paramsH->HSML, byDim / 2 + paramsH->HSML / 2, bzDim * 2);
 
     //****************************************************************************************
     // printf("a1  paramsH->cMax.x, y, z %f %f %f,  binSize %f\n",

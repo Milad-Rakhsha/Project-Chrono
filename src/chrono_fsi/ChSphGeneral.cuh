@@ -600,27 +600,27 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
                                                          Real4* sortedRhoPreMu,
                                                          Real* sumWij_inv,
                                                          Real* G_i,
+                                                         Real3* normals,
                                                          uint* csrColInd,
-                                                         unsigned long int* GlobalcsrColInd,
                                                          uint* numContacts,
                                                          uint* cellStart,
                                                          uint* cellEnd,
                                                          const int numAllMarkers,
                                                          volatile bool* isErrorD);
 //--------------------------------------------------------------------------------------------------------------------------------
-__global__ void Gradient_Laplacian_Operator(Real4* sortedPosRad,  // input: sorted positions
-                                            Real3* sortedVelMas,
-                                            Real4* sortedRhoPreMu,
-                                            Real* sumWij_inv,
-                                            Real* G_tensor,
-                                            Real* L_tensor,
-                                            Real* A_L,   // velcotiy Laplacian matrix;
-                                            Real3* A_G,  // This is a matrix in a way that A*p gives the gradp
-                                            uint* csrColInd,
-                                            unsigned long int* GlobalcsrColInd,
-                                            uint* numContacts,
-                                            const int numAllMarkers,
-                                            volatile bool* isErrorD);
+__global__ void Function_Gradient_Laplacian_Operator(Real4* sortedPosRad,  // input: sorted positions
+                                                     Real3* sortedVelMas,
+                                                     Real4* sortedRhoPreMu,
+                                                     Real* sumWij_inv,
+                                                     Real* G_tensor,
+                                                     Real* L_tensor,
+                                                     Real* A_L,   // velcotiy Laplacian matrix;
+                                                     Real3* A_G,  // This is a matrix in a way that A*p gives the gradp
+                                                     Real* A_f,
+                                                     uint* csrColInd,
+                                                     uint* numContacts,
+                                                     const int numAllMarkers,
+                                                     volatile bool* isErrorD);
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Initialize_Variables(Real4* sortedRhoPreMu,
                                      Real* p_old,
