@@ -50,9 +50,6 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
                                  Real4* sortedRhoPreMu,
                                  Real* A_Matrix,
                                  Real3* b,
-                                 Real* vx,
-                                 Real* vy,
-                                 Real* vz,
                                  Real3* v_old,
 
                                  const Real* A_L,
@@ -96,27 +93,30 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
     if (sortedRhoPreMu[i_idx].w <= -2) {
         A_Matrix[csrStartIdx] = 1;
         b[i_idx] = mR3(0.0);
-        vx[i_idx] = b[i_idx].x;
-        vy[i_idx] = b[i_idx].y;
-        vz[i_idx] = b[i_idx].z;
         return;
     }
 
     Real rho0 = paramsD.rho0;
     Real nu0 = paramsD.mu0 / rho0;
     Real dt = paramsD.dT;
+    Real rhoi = sortedRhoPreMu[i_idx].x;
+    Real3 grad_rho_i = mR3(0.0);
+
+    for (int count = csrStartIdx; count < csrEndIdx; count++) {
+        int j = csrColInd[count];
+        grad_rho_i += A_G[count] * sortedRhoPreMu[j].x;
+    }
 
     if (Fluid_Marker) {
         Real3 rhs = mR3(0.0);
         for (int count = csrStartIdx; count < csrEndIdx; count++) {
             int j = csrColInd[count];
-            A_Matrix[count] = -nu0 / 2.0 * A_L[count];  // viscouse term
 
-            rhs +=  //
-                nu0 / 2.0 * A_L[count] *
-                sortedVelMas[j];  // viscous term
-                                  //                - 1.0 / sortedRhoPreMu[i_idx].x * A_G[count] *
-                                  //                      sortedRhoPreMu[j].y  // pressure gradient
+            A_Matrix[count] =
+                paramsD.mu0 * -(0.5 / rhoi * A_L[count] - 0.5 / (rhoi * rhoi) * dot(grad_rho_i, A_G[count]));
+
+            rhs += paramsD.mu0 * (0.5 / rhoi * A_L[count] - 0.5 / (rhoi * rhoi) * dot(grad_rho_i, A_G[count])) *
+                   sortedVelMas[j];
         }
         A_Matrix[csrStartIdx] += 1 / dt;
         b[i_idx] = rhs + sortedVelMas[i_idx] / dt  //forward euler term from lhs
@@ -156,9 +156,6 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
     }
 
     v_old[i_idx] = sortedVelMas[i_idx];
-    vx[i_idx] = b[i_idx].x;
-    vy[i_idx] = b[i_idx].y;
-    vz[i_idx] = b[i_idx].z;
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positions
@@ -221,8 +218,10 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
         div_vi_star += dot(A_G[count], Vstar[j]);
         grad_rho_i += A_G[count] * sortedRhoPreMu[j].x;
     }
+
     Real rhoi = sortedRhoPreMu[i_idx].x;
-    Real rhoi_star = rhoi - rhoi * div_vi_star * dt;
+    //    Real rhoi_star = rhoi - rhoi * div_vi_star * dt;
+    Real rhoi_star = rhoi + dot(grad_rho_i, Vstar[i_idx] * dt);
 
     //======================== Interior ===========================
     if (Fluid_Marker) {
@@ -243,7 +242,7 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
             for (int count = csrStartIdx; count < csrEndIdx; count++) {
                 A_Matrix[count] = 1.0 / rhoi * A_L[count] - 1.0 / (rhoi * rhoi) * dot(grad_rho_i, A_G[count]);
             }
-            Bi[i_idx] = 1.0 * div_vi_star / dt + 0.0 * (paramsD.rho0 - rhoi_star) / rhoi_star / (dt * dt);
+            Bi[i_idx] = 1.0 * div_vi_star / dt + 0.00 * (paramsD.rho0 - rhoi_star) / paramsD.rho0 / (dt * dt);
         }
 
         //======================= Boundary ===========================
@@ -316,7 +315,7 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
     }
 
     //    q_old[i_idx] = sortedRhoPreMu[i_idx].y;
-}  // namespace fsi
+}
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
                                                Real4* sortedRhoPreMu,
@@ -340,34 +339,28 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
     Real3 grad_p_nPlus1 = mR3(0.0);
     Real3 inner_sum = mR3(0.0), shift_r = mR3(0.0);
     Real mi_bar = 0.0, r0 = 0.0;
-    int Ni = 0;
     for (int count = csrStartIdx; count < csrEndIdx; count++) {
         uint j = csrColInd[count];
         grad_q_i += A_G[count] * q_i[j];
         grad_p_nPlus1 += A_G[count] * (sortedRhoPreMu[j].y + q_i[j]);
-        Real3 rij = mR3(sortedPosRad[i_idx] - sortedPosRad[j]);
+        Real3 rij = Distance(mR3(sortedPosRad[i_idx]), mR3(sortedPosRad[j]));
         Real d = length(rij);
-        if (d == 0)
+        if (count == csrStartIdx)
             continue;
         Real m_j = pow(sortedPosRad[j].w * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
         mi_bar += m_j;
-        Ni++;
         r0 += d;
         inner_sum += m_j * rij / (d * d * d);
     }
-    r0 /= Ni;
+    if (sortedRhoPreMu[i_idx].w == -1.0)
+        r0 /= (csrEndIdx - csrStartIdx - 1);
     shift_r = 0.5 * r0 * r0 * length(MaxVel) * paramsD.dT / mi_bar * inner_sum;
-
-    //    if (sortedPosRad[i_idx].x < 0.99 * paramsD.rho0)
-    //        grad_q_i = mR3(0.0);
 
     Real3 V_new = Vstar[i_idx] - paramsD.dT / sortedRhoPreMu[i_idx].x * grad_q_i;
 
     Real4 x_new = sortedPosRad[i_idx] + mR4(paramsD.dT / 2 * (V_new + sortedVelMas[i_idx]), 0.0);
 
     sortedVelMas[i_idx] = V_new;
-    //    sortedRhoPreMu[i_idx].y = q_i[i_idx];
-    //    printf(" %d qi %f\n", i_idx, q_i[i_idx]);
 
     //    sortedRhoPreMu[i_idx].y += q_i[i_idx] + dot(grad_p_nPlus1, mR3(x_new - sortedPosRad[i_idx]));
 
@@ -392,7 +385,7 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
         grad_uz += A_G[count] * sortedVelMas[i_idx].z;
     }
 
-    if (true && abs(sortedRhoPreMu[i_idx].w - (-1.0)) < EPSILON) {
+    if (true && sortedRhoPreMu[i_idx].w == -1.0) {
         sortedPosRad[i_idx] += mR4(shift_r, 0.0);
         sortedRhoPreMu[i_idx].y += dot(shift_r, grad_p);
         sortedRhoPreMu[i_idx].x += dot(shift_r, grad_rho);
@@ -443,6 +436,9 @@ __global__ void Jacobi_SOR_Iter(Real4* sortedRhoPreMu,
         for (int myIdx = startIdx; myIdx < endIdx; myIdx++) {
             aij_vj += A_Matrix[myIdx] * V_old[csrColInd[myIdx]];
         }
+        if (A_Matrix[startIdx - 1] == 0.0)
+            printf(" %d A_Matrix[startIdx - 1]= %f, type=%f \n", i_idx, A_Matrix[startIdx - 1],
+                   sortedRhoPreMu[i_idx].w);
         V_new[i_idx] = (b3vec[i_idx] - aij_vj) / A_Matrix[startIdx - 1];
     } else {
         Real aij_pj = 0.0;
@@ -477,8 +473,8 @@ __global__ void Update_AND_Calc_Res(Real4* sortedRhoPreMu,
         V_new[i_idx] = (1 - omega) * V_old[i_idx] + omega * V_new[i_idx];
         res = length(V_old[i_idx] - V_new[i_idx]);
         V_old[i_idx] = V_new[i_idx];
-        //        if (!(isfinite(V_old[i_idx].x) && isfinite(V_old[i_idx].y) && isfinite(V_old[i_idx].z)))
-        //            printf(" %d vel= %f,%f,%f\n", i_idx, V_old[i_idx].x, V_old[i_idx].y, V_old[i_idx].z);
+        if (!(isfinite(V_old[i_idx].x) && isfinite(V_old[i_idx].y) && isfinite(V_old[i_idx].z)))
+            printf(" %d vel= %f,%f,%f\n", i_idx, V_old[i_idx].x, V_old[i_idx].y, V_old[i_idx].z);
 
     } else {
         q_new[i_idx] = (1 - omega) * q_old[i_idx] + omega * q_new[i_idx];
@@ -502,38 +498,38 @@ ChFsiForceI2SPH::ChFsiForceI2SPH(
     SimParams* otherParamsH,              ///< Pointer to the simulation parameters on host
     NumberOfObjects* otherNumObjects      ///< Pointer to number of objects, fluid and boundary markers, etc.
     )
-    : ChFsiForceParallel(otherBceWorker,
-                         otherSortedSphMarkersD,
-                         otherMarkersProximityD,
-                         otherFsiGeneralData,
-                         otherParamsH,
-                         otherNumObjects) {
+    : ChFsiForce(otherBceWorker,
+                 otherSortedSphMarkersD,
+                 otherMarkersProximityD,
+                 otherFsiGeneralData,
+                 otherParamsH,
+                 otherNumObjects) {
     CopyParams_NumberOfObjects(paramsH, numObjectsH);
 }
 
 ChFsiForceI2SPH::~ChFsiForceI2SPH() {}
 
 void ChFsiForceI2SPH::Finalize() {
-    ChFsiForceParallel::Finalize();
+    ChFsiForce::Finalize();
     cudaMemcpyToSymbolAsync(paramsD, paramsH, sizeof(SimParams));
     cudaMemcpyToSymbolAsync(numObjectsD, numObjectsH, sizeof(NumberOfObjects));
     cudaMemcpyFromSymbol(paramsH, paramsD, sizeof(SimParams));
     cudaThreadSynchronize();
     CopyParams_NumberOfObjects(paramsH, numObjectsH);
-
-    //    int numAllMarkers = numObjectsH->numAllMarkers;
-    //    _sumWij_inv.resize(numAllMarkers);
-    //    Color.resize(numAllMarkers);
-    //    G_i.resize(numAllMarkers * 9);
-    //    A_i.resize(numAllMarkers * 27);
-    //    L_i.resize(numAllMarkers * 6);
-    //    Contact_i.resize(numAllMarkers);
-    //
-    //    thrust::fill(Contact_i.begin(), Contact_i.end(), 1e-3);
-    //    thrust::fill(_sumWij_inv.begin(), _sumWij_inv.end(), 1e-3);
-    //    thrust::fill(A_i.begin(), A_i.end(), 0);
-    //    thrust::fill(L_i.begin(), L_i.end(), 0);
-    //    thrust::fill(G_i.begin(), G_i.end(), 0);
+    int numAllMarkers = numObjectsH->numAllMarkers;
+    _sumWij_inv.resize(numAllMarkers);
+    Normals.resize(numAllMarkers);
+    G_i.resize(numAllMarkers * 9);
+    A_i.resize(numAllMarkers * 27);
+    L_i.resize(numAllMarkers * 6);
+    Contact_i.resize(numAllMarkers);
+    V_star_new.resize(numAllMarkers);
+    V_star_old.resize(numAllMarkers);
+    q_new.resize(numAllMarkers);
+    q_old.resize(numAllMarkers);
+    b1Vector.resize(numAllMarkers);
+    b3Vector.resize(numAllMarkers);
+    Residuals.resize(numAllMarkers);
 }
 //==========================================================================================================================================
 //==========================================================================================================================================
@@ -543,15 +539,12 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
                                        FsiMeshDataD* otherFsiMeshD) {
     std::cout << "dT in ForceImplicitSPH: " << paramsH->dT << "\n";
     CopyParams_NumberOfObjects(paramsH, numObjectsH);
-
     sphMarkersD = otherSphMarkersD;
     int numAllMarkers = numObjectsH->numAllMarkers;
     int numHelperMarkers = numObjectsH->numHelperMarkers;
     fsiCollisionSystem->ArrangeData(sphMarkersD);
     printf("ForceI2SPH numAllMarkers:%d,numHelperMarkers=%d\n", numAllMarkers, numHelperMarkers);
-
     bool *isErrorH, *isErrorD, *isErrorD2;
-
     isErrorH = (bool*)malloc(sizeof(bool));
     cudaMalloc((void**)&isErrorD, sizeof(bool));
     cudaMalloc((void**)&isErrorD2, sizeof(bool));
@@ -559,38 +552,16 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
     cudaMemcpy(isErrorD2, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
 
+    Contact_i.resize(numAllMarkers);
     uint numThreads, numBlocks;
     computeGridSize(numAllMarkers, 256, numBlocks, numThreads);
-
-    thrust::device_vector<Real> _sumWij_inv;
-    thrust::device_vector<uint> Contact_i;
-    thrust::device_vector<Real> G_i;
-    thrust::device_vector<Real> A_i;
-    thrust::device_vector<Real> L_i;
-    thrust::device_vector<Real> Color;
-    thrust::device_vector<uint> csrColInd;
-    thrust::device_vector<unsigned long int> GlobalcsrColInd;
-    thrust::device_vector<Real> csrValLaplacian;
-    thrust::device_vector<Real3> csrValGradient;
-    thrust::device_vector<Real> csrValFunciton;
-    thrust::device_vector<Real> AMatrix;
-    thrust::device_vector<Real3> V_Star;
-    thrust::device_vector<Real3> Normals;
-
-    _sumWij_inv.resize(numAllMarkers);
-    Normals.resize(numAllMarkers);
-    Color.resize(numAllMarkers);
-    G_i.resize(numAllMarkers * 9);
-    A_i.resize(numAllMarkers * 27);
-    L_i.resize(numAllMarkers * 6);
-    Contact_i.resize(numAllMarkers);
     thrust::fill(Contact_i.begin(), Contact_i.end(), 0);
     thrust::fill(_sumWij_inv.begin(), _sumWij_inv.end(), 1e-3);
     thrust::fill(A_i.begin(), A_i.end(), 0);
     thrust::fill(L_i.begin(), L_i.end(), 0);
     thrust::fill(G_i.begin(), G_i.end(), 0);
-    fsiCollisionSystem->ArrangeData(sphMarkersD);
 
+    //============================================================================================================
     *isErrorH = false;
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
     calcRho_kernel<<<numBlocks, numThreads>>>(
@@ -612,6 +583,7 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     thrust::fill(csrValLaplacian.begin(), csrValLaplacian.end(), 0.0);
     thrust::fill(csrValFunciton.begin(), csrValFunciton.end(), 0.0);
     thrust::fill(csrColInd.begin(), csrColInd.end(), 0.0);
+    thrust::fill(AMatrix.begin(), AMatrix.end(), 0.0);
 
     calcNormalizedRho_Gi_fillInMatrixIndices<<<numBlocks, numThreads>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
@@ -630,7 +602,6 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     //============================================================================================================
     double A_L_Tensor_GradLaplacian = clock();
     printf(" calc_A_tensor+");
-
     calc_A_tensor<<<numBlocks, numThreads>>>(R1CAST(A_i), R1CAST(G_i), mR4CAST(sortedSphMarkersD->posRadD),
                                              mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),
                                              U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD),
@@ -659,35 +630,20 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
             fsiGeneralData->referenceArray[haveGhost + haveHelper + 1 + numObjectsH->numRigidBodies].y,
             fsiGeneralData->referenceArray[haveGhost + haveHelper + 1 + numObjectsH->numRigidBodies + numFlexbodies].y);
 
-    thrust::device_vector<Real3> V_star_new(numAllMarkers);
-    thrust::device_vector<Real3> V_star_old(numAllMarkers);
     thrust::fill(V_star_old.begin(), V_star_old.end(), mR3(0.0));
     thrust::fill(V_star_new.begin(), V_star_new.end(), mR3(0.0));
-
-    thrust::device_vector<Real> q_new(numAllMarkers);
-    thrust::device_vector<Real> q_old(numAllMarkers);
     thrust::fill(q_old.begin(), q_old.end(), 0.0);
     thrust::fill(q_new.begin(), q_new.end(), 0.0);
-
-    thrust::device_vector<Real> b1Vector(numAllMarkers);
     thrust::fill(b1Vector.begin(), b1Vector.end(), 0.0);
-    thrust::device_vector<Real3> b3Vector(numAllMarkers);
     thrust::fill(b3Vector.begin(), b3Vector.end(), mR3(0.0));
-
-    thrust::device_vector<Real> Residuals(numAllMarkers);
     thrust::fill(Residuals.begin(), Residuals.end(), 0.0);
-
-    thrust::device_vector<Real> vx(numAllMarkers);
-    thrust::device_vector<Real> vy(numAllMarkers);
-    thrust::device_vector<Real> vz(numAllMarkers);
-    thrust::device_vector<Real> xvec(numAllMarkers);
-    //============================================================================================================
+    //============================================V_star_Predictor===============================================
     double LinearSystemClock_V = clock();
     V_star_Predictor<<<numBlocks, numThreads>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
-        mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(AMatrix), mR3CAST(b3Vector), R1CAST(vx), R1CAST(vy), R1CAST(vz),
-        mR3CAST(V_star_old), R1CAST(csrValLaplacian), mR3CAST(csrValGradient), R1CAST(csrValFunciton),
-        R1CAST(_sumWij_inv), mR3CAST(Normals), U1CAST(csrColInd), U1CAST(Contact_i),
+        mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(AMatrix), mR3CAST(b3Vector), mR3CAST(V_star_old),
+        R1CAST(csrValLaplacian), mR3CAST(csrValGradient), R1CAST(csrValFunciton), R1CAST(_sumWij_inv), mR3CAST(Normals),
+        U1CAST(csrColInd), U1CAST(Contact_i),
 
         mR4CAST(otherFsiBodiesD->velMassRigid_fsiBodies_D), mR3CAST(otherFsiBodiesD->accRigid_fsiBodies_D),
         U1CAST(fsiGeneralData->rigidIdentifierD),
@@ -703,8 +659,7 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     int Iteration = 0;
     Real MaxRes = 100;
 
-    while ((MaxRes > paramsH->LinearSolver_Rel_Tol || Iteration < 3) && paramsH->USE_Iterative_solver &&
-           Iteration < paramsH->LinearSolver_Max_Iter) {
+    while ((MaxRes > paramsH->LinearSolver_Rel_Tol || Iteration < 3) && Iteration < paramsH->LinearSolver_Max_Iter) {
         Jacobi_SOR_Iter<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(AMatrix),
                                                    mR3CAST(V_star_old), mR3CAST(V_star_new), mR3CAST(b3Vector),
                                                    R1CAST(q_old), R1CAST(q_new), R1CAST(b1Vector), U1CAST(csrColInd),
@@ -730,9 +685,10 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     Real MaxVel = length(*iter);
 
     uint FixedMarker = 5679;
-    //    Real temp = 0;
+    Real temp = 0;
     //    for (int i = 0; i < numAllMarkers; i++) {
-    //        if (Real4(sortedSphMarkersD->rhoPresMuD[i]).w == -1 && Real4(sortedSphMarkersD->posRadD[i]).z > temp) {
+    //        if (Real4(sortedSphMarkersD->rhoPresMuD[i]).w == -1 && Real4(sortedSphMarkersD->posRadD[i]).x > temp)
+    //        {
     //            FixedMarker = i;
     //            //            break;
     //        }
@@ -741,7 +697,7 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
 
     double V_star_Predictor = (clock() - LinearSystemClock_V) / (double)CLOCKS_PER_SEC;
     printf(" V_star_Predictor Equation: %f (sec) - Final Residual=%.3e\n", V_star_Predictor, MaxRes);
-    //============================================================================================================
+    //==================================================Pressure_Equation==============================================
     Iteration = 0;
     MaxRes = 100;
     double LinearSystemClock_p = clock();
@@ -807,7 +763,7 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     }
     double Pressure_Computation = (clock() - LinearSystemClock_p) / (double)CLOCKS_PER_SEC;
     printf(" Pressure Poisson Equation: %f (sec) - Final Residual=%.3e\n", Pressure_Computation, MaxRes);
-    //============================================================================================================
+    //==================================Velocity_Correction_and_update============================================
     double updateClock = clock();
     Velocity_Correction_and_update<<<numBlocks, numThreads>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
@@ -817,7 +773,6 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     double updateComputation = (clock() - updateClock) / (double)CLOCKS_PER_SEC;
     printf(" Pressure Poisson Equation: %f (sec)\n", updateComputation);
     //============================================================================================================
-
     CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vel_IISPH_D, sortedSphMarkersD->velMasD,
                                         markersProximityD->gridMarkerIndexD);
     CopySortedToOriginal_NonInvasive_R3(sphMarkersD->velMasD, sortedSphMarkersD->velMasD,
@@ -826,25 +781,12 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
                                         markersProximityD->gridMarkerIndexD);
     CopySortedToOriginal_NonInvasive_R4(sphMarkersD->posRadD, sortedSphMarkersD->posRadD,
                                         markersProximityD->gridMarkerIndexD);
-
-    _sumWij_inv.clear();
-    Color.clear();
-    Contact_i.clear();
-    AMatrix.clear();
-    csrColInd.clear();
-    G_i.clear();
-    A_i.clear();
-    L_i.clear();
-    csrValLaplacian.clear();
     csrValGradient.clear();
-    V_star_old.clear();
-    V_star_new.clear();
-    b3Vector.clear();
-    q_old.clear();
-    q_new.clear();
-    b1Vector.clear();
-
-}  // namespace fsi
-
+    csrValLaplacian.clear();
+    csrValFunciton.clear();
+    AMatrix.clear();
+    Contact_i.clear();
+    csrColInd.clear();
+}
 }  // namespace fsi
 }  // namespace chrono

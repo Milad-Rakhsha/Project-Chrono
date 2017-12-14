@@ -256,6 +256,8 @@ void ChFsiLinearSolver::BiCGStab(int SIZE, int NNZ, double* A, uint* ArowIdx, ui
 
         cublasDcopy(cublasHandle, SIZE, r, 1, r_old, 1);
         rho_old = rho;
+        residual = nrmr;
+
         cudaThreadSynchronize();
         if (verbose)
             printf("Iterations=%d\t ||b-A*x||=%.4e\n", Iterations, nrmr);

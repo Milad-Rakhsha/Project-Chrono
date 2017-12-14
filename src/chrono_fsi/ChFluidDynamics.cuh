@@ -19,7 +19,7 @@
 #ifndef CH_FLUIDDYNAMICS_H_
 #define CH_FLUIDDYNAMICS_H_
 
-#include "chrono_fsi/ChFsiForceParallel.cuh"
+#include "chrono_fsi/ChFsiForce.cuh"
 
 #include "chrono_fsi/ChSphGeneral.cuh"
 
@@ -56,7 +56,7 @@ class CH_FSI_API ChFluidDynamics : public ChFsiGeneral {
     /// Fluid dynamics class constructor.
     ///
     /// The class constructor performs the following operations:
-    /// Instantiate ChFsiForceParallel, i.e. force system;
+    /// Instantiate ChFsiForce, i.e. force system;
     /// Copy the pointer to fluid data, parameters, and number of objects
     /// to member variables.
     ChFluidDynamics(ChBce* otherBceWorker,
@@ -95,7 +95,7 @@ class CH_FSI_API ChFluidDynamics : public ChFsiGeneral {
   protected:
     ChFsiDataManager* fsiData;  ///< pointer to the fsi data. The values are maintained externally
 
-    ChFsiForceParallel* forceSystem;           ///< force system object. It calculates the force between markers.
+    ChFsiForce* forceSystem;           ///< force system object. It calculates the force between markers.
     ChFluidDynamics::Integrator myIntegrator;  ///< IISPH by default
 
     SimParams* paramsH;  ///< pointer to parameters. The values are mainained externally.

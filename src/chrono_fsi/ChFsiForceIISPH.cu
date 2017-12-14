@@ -28,7 +28,7 @@ ChFsiForceIISPH::ChFsiForceIISPH(
     SimParams* otherParamsH,              ///< Pointer to the simulation parameters on host
     NumberOfObjects* otherNumObjects      ///< Pointer to number of objects, fluid and boundary markers, etc.
     )
-    : ChFsiForceParallel(otherBceWorker,
+    : ChFsiForce(otherBceWorker,
                          otherSortedSphMarkersD,
                          otherMarkersProximityD,
                          otherFsiGeneralData,
@@ -38,7 +38,7 @@ ChFsiForceIISPH::ChFsiForceIISPH(
 ChFsiForceIISPH::~ChFsiForceIISPH() {}
 //--------------------------------------------------------------------------------------------------------------------------------
 void ChFsiForceIISPH::Finalize() {
-    ChFsiForceParallel::Finalize();
+    ChFsiForce::Finalize();
     cudaMemcpyToSymbolAsync(paramsD, paramsH, sizeof(SimParams));
     cudaMemcpyToSymbolAsync(numObjectsD, numObjectsH, sizeof(NumberOfObjects));
     cudaMemcpyFromSymbol(paramsH, paramsD, sizeof(SimParams));
@@ -130,9 +130,9 @@ __global__ void V_i_np__AND__d_ii_kernel(Real4* sortedPosRad,  // input: sorted 
 
                         Real Rho_bar = (Rhoj + Rhoi) * 0.5;
                         Real3 V_ij = (Veli - Velj);
-                        //                        Real nu = mu_0 * paramsD.HSML * 320 / Rho_bar;
-                        //            Real3 muNumerator = nu * fmin(0.0, dot(rij, V_ij)) * grad_i_wij;
-                        Real3 muNumerator = 2 * mu_0 * dot(rij, grad_ij) * V_ij;
+                        Real nu = mu_0 * paramsD.HSML * 320 / Rho_bar;
+                        Real3 muNumerator = nu * fmin(0.0, dot(rij, V_ij)) * grad_ij;
+                        //                        Real3 muNumerator = 2 * mu_0 * dot(rij, grad_ij) * V_ij;
                         Real muDenominator = (Rho_bar * Rho_bar) * (d * d + h_ij * h_ij * epsilon);
                         My_F_i_np += m_j * muNumerator / muDenominator;
 
@@ -1184,9 +1184,9 @@ __global__ void CalcForces(Real3* new_vel,  // Write
                         F_i_p += -m_j * ((p_i / (rho_i * rho_i)) + (p_j / (rho_j * rho_j))) * grad_ij;
 
                     Real Rho_bar = (rho_j + rho_i) * 0.5;
-                    //                    Real nu = mu_0 * paramsD.HSML * 320 / Rho_bar;
-                    //          Real3 muNumerator = nu * fminf(0.0, dot(rij, V_ij)) * grad_ij;
-                    Real3 muNumerator = 2 * mu_0 * dot(rij, grad_ij) * V_ij;
+                    Real nu = mu_0 * paramsD.HSML * 320 / Rho_bar;
+                    Real3 muNumerator = nu * fminf(0.0, dot(rij, V_ij)) * grad_ij;
+                    //                    Real3 muNumerator = 2 * mu_0 * dot(rij, grad_ij) * V_ij;
 
                     Real muDenominator = (Rho_bar * Rho_bar) * (d * d + paramsD.HSML * paramsD.HSML * epsilon);
                     // Only Consider (fluid-fluid + fluid-solid) or Solid-Fluid Interaction
@@ -1322,7 +1322,7 @@ __global__ void FinalizePressure(Real4* sortedPosRad,  // Read
 //    SimParams* otherParamsH,              ///< Pointer to the simulation parameters on host
 //    NumberOfObjects* otherNumObjects      ///< Pointer to number of objects, fluid and boundary markers, etc.
 //    )
-//    : ChFsiForceParallel(otherBceWorker,
+//    : ChFsiForce(otherBceWorker,
 //                         otherSortedSphMarkersD,
 //                         otherMarkersProximityD,
 //                         otherFsiGeneralData,

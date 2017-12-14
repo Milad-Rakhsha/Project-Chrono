@@ -35,27 +35,28 @@ namespace fsi {
 /// method. The class owns a collision system fsi which takes care of GPU based
 /// proximity computation of the markers. It also holds a pointer to external
 /// data of SPH markers, proximity data, parameters, and numbers.
-class CH_FSI_API ChFsiForceParallel : public ChFsiGeneral {
+class CH_FSI_API ChFsiForce : public ChFsiGeneral {
   public:
     /// Base constructor for FSI force class.
     /// The constructor instantiates the collision system (ChCollisionSystemFsi)
     /// and initializes the pointer to external data.
-    //    ChFsiForceParallel() {}
-    ChFsiForceParallel(
-        ChBce* otherBceWorker,                   ///< Pointer to the ChBce object that handles BCE markers
-        SphMarkerDataD* otherSortedSphMarkersD,  ///< Information of markers in the sorted array on device
-        ProximityDataD*
-            otherMarkersProximityD,  ///< Pointer to the object that holds the proximity of the markers on device
-        FsiGeneralData* otherFsiGeneralData,  ///< Pointer to the sph general data
-        SimParams* otherParamsH,              ///< Pointer to the simulation parameters on host
-        NumberOfObjects* otherNumObjects      ///< Pointer to number of objects, fluid and boundary markers, etc.
+    //    ChFsiForce() {}
+    ChFsiForce(ChBce* otherBceWorker,                   ///< Pointer to the ChBce object that handles BCE markers
+               SphMarkerDataD* otherSortedSphMarkersD,  ///< Information of markers in the sorted array on device
+               ProximityDataD*
+                   otherMarkersProximityD,  ///< Pointer to the object that holds the proximity of the markers on device
+               FsiGeneralData* otherFsiGeneralData,  ///< Pointer to the sph general data
+               SimParams* otherParamsH,              ///< Pointer to the simulation parameters on host
+               NumberOfObjects* otherNumObjects      ///< Pointer to number of objects, fluid and boundary markers, etc.
     );
     /// Destructor. Deletes the collision system.
-    virtual ~ChFsiForceParallel();
+    virtual ~ChFsiForce();
 
     /// Function calculate the force on SPH markers.
     /// This is a basic force computation relying on WCSPH approach.
     void ForceSPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD);
+
+    virtual void ForceSPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD, FsiMeshDataD* fsiMeshD){};
 
     /// This is a virtual method that needs to be overridden by the child classes to compute fluid forces in an
     /// implicit integrator.

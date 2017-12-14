@@ -16,7 +16,7 @@
 // =============================================================================
 
 #include "chrono_fsi/ChDeviceUtils.cuh"
-#include "chrono_fsi/ChFsiForceParallel.cuh"
+#include "chrono_fsi/ChFsiForce.cuh"
 #include "chrono_fsi/ChSphGeneral.cuh"
 #include "chrono_fsi/solver6x6.cuh"
 
@@ -397,13 +397,13 @@ __global__ void collideD(Real4* sortedDerivVelRho_fsi_D,  // output: new velocit
     sortedDerivVelRho_fsi_D[index] = derivVelRho;
 }
 //--------------------------------------------------------------------------------------------------------------------------------
-// ChFsiForceParallel::ChFsiForceParallel() {}
-ChFsiForceParallel::ChFsiForceParallel(ChBce* otherBceWorker,
-                                       SphMarkerDataD* otherSortedSphMarkersD,
-                                       ProximityDataD* otherMarkersProximityD,
-                                       FsiGeneralData* otherFsiGeneralData,
-                                       SimParams* otherParamsH,
-                                       NumberOfObjects* otherNumObjects)
+// ChFsiForce::ChFsiForce() {}
+ChFsiForce::ChFsiForce(ChBce* otherBceWorker,
+                       SphMarkerDataD* otherSortedSphMarkersD,
+                       ProximityDataD* otherMarkersProximityD,
+                       FsiGeneralData* otherFsiGeneralData,
+                       SimParams* otherParamsH,
+                       NumberOfObjects* otherNumObjects)
     : bceWorker(otherBceWorker),
       sortedSphMarkersD(otherSortedSphMarkersD),
       markersProximityD(otherMarkersProximityD),
@@ -415,7 +415,7 @@ ChFsiForceParallel::ChFsiForceParallel(ChBce* otherBceWorker,
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 
-void ChFsiForceParallel::Finalize() {
+void ChFsiForce::Finalize() {
     cudaMemcpyToSymbolAsync(paramsD, paramsH, sizeof(SimParams));
     cudaMemcpyToSymbolAsync(numObjectsD, numObjectsH, sizeof(NumberOfObjects));
     printf("in finalize forcesystem numAllMarkers=%d\n", numObjectsH->numAllMarkers);
@@ -426,49 +426,49 @@ void ChFsiForceParallel::Finalize() {
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 
-ChFsiForceParallel::~ChFsiForceParallel() {
+ChFsiForce::~ChFsiForce() {
     delete fsiCollisionSystem;
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 // use invasive to avoid one extra copy. However, keep in mind that sorted is
 // changed.
-void ChFsiForceParallel::CopySortedToOriginal_Invasive_R3(thrust::device_vector<Real3>& original,
-                                                          thrust::device_vector<Real3>& sorted,
-                                                          const thrust::device_vector<uint>& gridMarkerIndex) {
+void ChFsiForce::CopySortedToOriginal_Invasive_R3(thrust::device_vector<Real3>& original,
+                                                  thrust::device_vector<Real3>& sorted,
+                                                  const thrust::device_vector<uint>& gridMarkerIndex) {
     thrust::device_vector<uint> dummyMarkerIndex = gridMarkerIndex;
     thrust::sort_by_key(dummyMarkerIndex.begin(), dummyMarkerIndex.end(), sorted.begin());
     dummyMarkerIndex.clear();
     thrust::copy(sorted.begin(), sorted.end(), original.begin());
 }
 //--------------------------------------------------------------------------------------------------------------------------------
-void ChFsiForceParallel::CopySortedToOriginal_NonInvasive_R3(thrust::device_vector<Real3>& original,
-                                                             const thrust::device_vector<Real3>& sorted,
-                                                             const thrust::device_vector<uint>& gridMarkerIndex) {
+void ChFsiForce::CopySortedToOriginal_NonInvasive_R3(thrust::device_vector<Real3>& original,
+                                                     const thrust::device_vector<Real3>& sorted,
+                                                     const thrust::device_vector<uint>& gridMarkerIndex) {
     thrust::device_vector<Real3> dummySorted = sorted;
     CopySortedToOriginal_Invasive_R3(original, dummySorted, gridMarkerIndex);
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 // use invasive to avoid one extra copy. However, keep in mind that sorted is
 // changed.
-void ChFsiForceParallel::CopySortedToOriginal_Invasive_R4(thrust::device_vector<Real4>& original,
-                                                          thrust::device_vector<Real4>& sorted,
-                                                          const thrust::device_vector<uint>& gridMarkerIndex) {
+void ChFsiForce::CopySortedToOriginal_Invasive_R4(thrust::device_vector<Real4>& original,
+                                                  thrust::device_vector<Real4>& sorted,
+                                                  const thrust::device_vector<uint>& gridMarkerIndex) {
     thrust::device_vector<uint> dummyMarkerIndex = gridMarkerIndex;
     thrust::sort_by_key(dummyMarkerIndex.begin(), dummyMarkerIndex.end(), sorted.begin());
     dummyMarkerIndex.clear();
     thrust::copy(sorted.begin(), sorted.end(), original.begin());
 }
 //--------------------------------------------------------------------------------------------------------------------------------
-void ChFsiForceParallel::CopySortedToOriginal_NonInvasive_R4(thrust::device_vector<Real4>& original,
-                                                             thrust::device_vector<Real4>& sorted,
-                                                             const thrust::device_vector<uint>& gridMarkerIndex) {
+void ChFsiForce::CopySortedToOriginal_NonInvasive_R4(thrust::device_vector<Real4>& original,
+                                                     thrust::device_vector<Real4>& sorted,
+                                                     const thrust::device_vector<uint>& gridMarkerIndex) {
     thrust::device_vector<Real4> dummySorted = sorted;
     CopySortedToOriginal_Invasive_R4(original, dummySorted, gridMarkerIndex);
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-void ChFsiForceParallel::CalculateXSPH_velocity() {
+void ChFsiForce::CalculateXSPH_velocity() {
     /* Calculate vel_XSPH */
     if (vel_XSPH_Sorted_D.size() != numObjectsH->numAllMarkers) {
         printf("vel_XSPH_Sorted_D.size() %d numObjectsH->numAllMarkers %d \n", vel_XSPH_Sorted_D.size(),
@@ -513,7 +513,7 @@ void ChFsiForceParallel::CalculateXSPH_velocity() {
  * @details
  * 		See SDKCollisionSystem.cuh for informaton on collide
  */
-void ChFsiForceParallel::collide(
+void ChFsiForce::collide(
 
     thrust::device_vector<Real4>& sortedDerivVelRho_fsi_D,
     thrust::device_vector<Real4>& sortedPosRad,
@@ -564,7 +564,7 @@ void ChFsiForceParallel::collide(
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 
-void ChFsiForceParallel::CollideWrapper() {
+void ChFsiForce::CollideWrapper() {
     thrust::device_vector<Real4> m_dSortedDerivVelRho_fsi_D(
         numObjectsH->numAllMarkers);  // Store Rho, Pressure, Mu of each particle
                                       // in the device memory
@@ -583,7 +583,7 @@ void ChFsiForceParallel::CollideWrapper() {
     // vel_XSPH_Sorted_D.clear();
 }
 //--------------------------------------------------------------------------------------------------------------------------------
-void ChFsiForceParallel::AddGravityToFluid() {
+void ChFsiForce::AddGravityToFluid() {
     // add gravity to fluid markers
     /* Add outside forces. Don't add gravity to rigids, BCE, and boundaries, it is
      * added in ChSystem */
@@ -598,12 +598,11 @@ void ChFsiForceParallel::AddGravityToFluid() {
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 
-void ChFsiForceParallel::ForceSPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD) {
+void ChFsiForce::ForceSPH(SphMarkerDataD* otherSphMarkersD, FsiBodiesDataD* otherFsiBodiesD) {
     // Arman: Change this function by getting in the arrays of the current stage:
     // useful for RK2. array pointers need to
     // be private members
     sphMarkersD = otherSphMarkersD;
-
     fsiCollisionSystem->ArrangeData(sphMarkersD);
     bceWorker->ModifyBceVelocity(sphMarkersD, otherFsiBodiesD);
     CalculateXSPH_velocity();

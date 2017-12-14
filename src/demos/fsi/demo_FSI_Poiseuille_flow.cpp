@@ -61,7 +61,7 @@ const std::string out_dir = GetChronoOutputPath() + "FSI_POISEUILLE_FLOW";
 const std::string demo_dir = out_dir + "/poiseuille_flow";
 
 bool save_output = true;
-int out_fps = 25;
+int out_fps = 20;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD

@@ -16,7 +16,7 @@
 #define CH_FSI_FORCEIISPH_H_
 
 #include "chrono_fsi/ChApiFsi.h"
-#include "chrono_fsi/ChFsiForceParallel.cuh"
+#include "chrono_fsi/ChFsiForce.cuh"
 
 namespace chrono {
 namespace fsi {
@@ -25,7 +25,7 @@ namespace fsi {
 /// @{
 
 /// @brief Child class of ChForceParallel that implements the I2SPH method.
-class CH_FSI_API ChFsiForceIISPH : public ChFsiForceParallel {
+class CH_FSI_API ChFsiForceIISPH : public ChFsiForce {
   public:
     ChFsiForceIISPH(
         ChBce* otherBceWorker,                   ///< Pointer to the ChBce object that handles BCE markers

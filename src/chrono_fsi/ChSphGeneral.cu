@@ -324,7 +324,7 @@ __global__ void calcRho_kernel(Real4* sortedPosRad,  // input: sorted positionsm
     }
     mynumContact[i_idx] = mcon;
     // Adding neighbor contribution is done!
-    //    sumWij_inv[i_idx] = m_i / sum_mW;
+    sumWij_inv[i_idx] = m_i / sum_mW;
     sortedRhoPreMu[i_idx].x = sum_mW;
 
     //
@@ -549,9 +549,9 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
                         mGi[6] -= dist3.z * grad_i_wij.x * V_j;
                         mGi[7] -= dist3.z * grad_i_wij.y * V_j;
                         mGi[8] -= dist3.z * grad_i_wij.z * V_j;
-                        sum_mW += m_j * W3;
-                        //                        sum_mW += sortedRhoPreMu[j].x * W3 * V_j;
-                        sum_W_sumWij_inv += W3 * sumWij_inv[j];
+                        //                        sum_mW += m_j * sumWij_inv[j];
+                        sum_mW += sortedRhoPreMu[j].x * W3 * V_j;
+                        //                        sum_W_sumWij_inv += W3 * sumWij_inv[j];
                     }
                 }
             }
@@ -587,7 +587,7 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
         G_i[i_idx * 9 + 8] = (mGi[0] * mGi[4] - mGi[1] * mGi[3]) / Det;
     }
     //    sortedRhoPreMu[i_idx].x = sum_mW / sum_W_sumWij_inv;
-    //    sortedRhoPreMu[i_idx].x = sum_mW;
+    sortedRhoPreMu[i_idx].x = sum_mW;
 
     if ((sortedRhoPreMu[i_idx].x > 5 * RHO_0 || sortedRhoPreMu[i_idx].x < RHO_0 / 5) && sortedRhoPreMu[i_idx].w > -2)
         printf(

@@ -61,7 +61,7 @@ const std::string out_dir = GetChronoOutputPath() + "FSI_FLOW_AROUND_CYLINDER";
 const std::string demo_dir = out_dir + "/FlowAroundCylinder";
 bool save_output = true;
 
-int out_fps = 200;
+int out_fps = 50;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -170,7 +170,7 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
     std::vector<std::shared_ptr<ChBody>>* fsiBodeisPtr = myFsiSystem.GetFsiBodiesPtr();
     fsiBodeisPtr->push_back(body);
     chrono::fsi::utils::AddCylinderBce(myFsiSystem.GetDataManager(), paramsH, body, ChVector<>(0, 0, 0),
-                                       ChQuaternion<>(1, 0, 0, 0), cyl_radius, cyl_length, paramsH->HSML / 2, false);
+                                       ChQuaternion<>(1, 0, 0, 0), cyl_radius, cyl_length, paramsH->HSML, false);
 }
 
 //------------------------------------------------------------------
@@ -220,7 +220,7 @@ int main(int argc, char* argv[]) {
 #endif
     // ************* Create Fluid *************************
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::IISPH);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
     chrono::ChVector<> CameraLocation = chrono::ChVector<>(0, -10, 0);
     chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
 
@@ -231,7 +231,7 @@ int main(int argc, char* argv[]) {
 #if haveFluid
 
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
-    Real initSpace1 = initSpace0 / 2;
+    Real initSpace1 = initSpace0;
     Real initSpace2 = initSpace0;
     utils::GridSampler<> sampler1(initSpace1);
     utils::GridSampler<> sampler2(initSpace2);
@@ -269,8 +269,10 @@ int main(int argc, char* argv[]) {
     }
 
     // Fluid markers
-    utils::Generator::PointVector points1 = sampler1.SampleCylinderY(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter1),
-                                                                     0.12, byDim / 2 + paramsH->HSML / 2);
+    utils::Generator::PointVector points1;
+    //    utils::Generator::PointVector points1 =
+    //    sampler1.SampleCylinderY(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter1),
+    //                                                                     0.12, byDim / 2 + paramsH->HSML / 2);
 
     utils::Generator::PointVector points2 = sampler2.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter2),
                                                                fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim2));

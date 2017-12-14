@@ -53,7 +53,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->LARGE_PRES = 0;
     paramsH->deltaPress;
     paramsH->multViscosity_FSI = 1;
-    paramsH->gravity = mR3(0.01, 0, 0.0);
+    paramsH->gravity = mR3(0.001, 0, 0.0);
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
@@ -82,7 +82,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->dT_Max = 0.001;  ///< This is problem dependent should set by the user based on characteristic time step
     paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 
-    paramsH->dT = 5e-3;
+    paramsH->dT = 1e-2;
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;  // I don't know what is kdT
@@ -95,8 +95,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
     paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
-    paramsH->cMin = mR3(-bxDim / 2, -byDim / 2 - paramsH->HSML / 2, -bzDim * 4);
-    paramsH->cMax = mR3(bxDim / 2 + paramsH->HSML, byDim / 2 + paramsH->HSML / 2, bzDim * 2);
+    paramsH->cMin = mR3(-bxDim / 2 - paramsH->HSML / 2, -byDim / 2 - paramsH->HSML / 2, -bzDim * 4);
+    paramsH->cMax = mR3(bxDim / 2 + paramsH->HSML / 2, byDim / 2 + paramsH->HSML / 2, bzDim * 2);
 
     //****************************************************************************************
     // printf("a1  paramsH->cMax.x, y, z %f %f %f,  binSize %f\n",

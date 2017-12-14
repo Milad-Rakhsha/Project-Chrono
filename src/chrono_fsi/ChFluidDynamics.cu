@@ -460,7 +460,7 @@ ChFluidDynamics::ChFluidDynamics(ChBce* otherBceWorker,
 
         case ChFluidDynamics::Integrator::XSPH:
             forceSystem =
-                new ChFsiForceParallel(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
+                new ChFsiForce(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
                                        &(fsiData->fsiGeneralData), paramsH, numObjectsH);
             printf("Created an XSPH frame work.\n");
             break;
@@ -677,7 +677,7 @@ void ChFluidDynamics::DensityReinitialization() {
 
     cudaThreadSynchronize();
     cudaCheckError();
-    ChFsiForceParallel::CopySortedToOriginal_Invasive_R4(fsiData->sphMarkersD1.rhoPresMuD, dummySortedRhoPreMu,
+    ChFsiForce::CopySortedToOriginal_Invasive_R4(fsiData->sphMarkersD1.rhoPresMuD, dummySortedRhoPreMu,
                                                          fsiData->markersProximityD.gridMarkerIndexD);
     dummySortedRhoPreMu.clear();
 }

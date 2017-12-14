@@ -343,7 +343,6 @@ inline __device__ void BCE_Vel_Acc(int i_idx,
         V_prescribed = mR3(0.0);
         if (paramsD.Apply_BC_U)
             V_prescribed = user_BC_U(mR3(sortedPosRad[i_idx]));
-
     } else if (Original_idx >= updatePortion.y && Original_idx < updatePortion.z) {
         int rigidIndex = rigidIdentifierD[Original_idx - updatePortion.y];
         V_prescribed = mR3(velMassRigid_fsiBodies_D[rigidIndex].x, velMassRigid_fsiBodies_D[rigidIndex].y,
