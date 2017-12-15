@@ -58,7 +58,7 @@ const std::string demo_dir = out_dir + "/DamBreak";
 // Save data as csv files, turn it on to be able to see the results off-line using paraview
 bool save_output = true;
 // Frequency of the save output
-int out_fps = 200;
+int out_fps = 20;
 typedef fsi::Real Real;
 
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -137,7 +137,7 @@ int main(int argc, char* argv[]) {
     mHaveFluid = true;
 #endif
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::XSPH);
 
     chrono::fsi::SimParams* paramsH = myFsiSystem.GetSimParams();
 
@@ -226,7 +226,7 @@ int main(int argc, char* argv[]) {
     for (int tStep = 0; tStep < stepEnd + 1; tStep++) {
         printf("step : %d, time= : %f (s) \n", tStep, time);
         double frame_time = 1.0 / out_fps;
-        myFsiSystem.DoStepDynamics_FSI();
+        myFsiSystem.DoStepDynamics_FSI_Implicit();
         time += paramsH->dT;
 
         if (std::abs(time - (double)next_frame * frame_time) < 1e-5 && save_output) {

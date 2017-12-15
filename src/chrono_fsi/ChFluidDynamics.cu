@@ -461,7 +461,7 @@ ChFluidDynamics::ChFluidDynamics(ChBce* otherBceWorker,
         case ChFluidDynamics::Integrator::XSPH:
             forceSystem =
                 new ChFsiForceXSPH(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
-                                       &(fsiData->fsiGeneralData), paramsH, numObjectsH);
+                                   &(fsiData->fsiGeneralData), paramsH, numObjectsH);
             printf("Created an XSPH frame work.\n");
             break;
     }
@@ -493,15 +493,20 @@ void ChFluidDynamics::IntegrateSPH(SphMarkerDataD* sphMarkersD2,
                                    FsiBodiesDataD* fsiBodiesD1,
                                    Real dT) {
     forceSystem->ForceSPH(sphMarkersD1, fsiBodiesD1);
-    //this->UpdateFluid(sphMarkersD2, dT);
+    // this->UpdateFluid(sphMarkersD2, dT);
     this->ApplyBoundarySPH_Markers(sphMarkersD2);
 }
 // -----------------------------------------------------------------------------
 
 void ChFluidDynamics::IntegrateIISPH(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD, FsiMeshDataD* fsiMeshD) {
-    forceSystem->ForceImplicitSPH(sphMarkersD, fsiBodiesD, fsiMeshD);
+    if (GetIntegratorType() == ChFluidDynamics::Integrator::XSPH)
+        forceSystem->ForceSPH(sphMarkersD, fsiBodiesD, fsiMeshD);
+    else
+        forceSystem->ForceImplicitSPH(sphMarkersD, fsiBodiesD, fsiMeshD);
+
     if (myIntegrator == ChFluidDynamics::Integrator::IISPH)
         this->UpdateFluid_Implicit(sphMarkersD);
+
     this->ApplyBoundarySPH_Markers(sphMarkersD);
     //    this->ApplyModifiedBoundarySPH_Markers(sphMarkersD);
 }
@@ -678,7 +683,7 @@ void ChFluidDynamics::DensityReinitialization() {
     cudaThreadSynchronize();
     cudaCheckError();
     ChFsiForce::CopySortedToOriginal_Invasive_R4(fsiData->sphMarkersD1.rhoPresMuD, dummySortedRhoPreMu,
-                                                         fsiData->markersProximityD.gridMarkerIndexD);
+                                                 fsiData->markersProximityD.gridMarkerIndexD);
     dummySortedRhoPreMu.clear();
 }
 

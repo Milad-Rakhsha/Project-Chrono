@@ -46,13 +46,13 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->gravity = mR3(0, 0, -1);
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
-    paramsH->BASEPRES = paramsH->rho0 * length(paramsH->gravity) * fzDim * 1e-10;
+    paramsH->BASEPRES = 5e3;
 
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 0.01;
+    paramsH->mu0 = 0.1;
     paramsH->kappa = 0.001;
 
-    paramsH->v_Max = 1.0;
+    paramsH->v_Max = 1000;
     paramsH->EPS_XSPH = .5f;
 
     paramsH->USE_LinearSolver = true;  ///< IISPH parameter: whether or not use linear solvers
@@ -73,7 +73,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->dT_Max = 0.001;  ///< This is problem dependent should set by the user based on characteristic time step
     paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 
-    paramsH->dT = 2.5e-3;
+    paramsH->dT = 1e-4;
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;

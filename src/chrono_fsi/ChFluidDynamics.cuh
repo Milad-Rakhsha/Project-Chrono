@@ -92,11 +92,12 @@ class CH_FSI_API ChFluidDynamics : public ChFsiGeneral {
     /// between device (GPU) and host (CPU).
     /// This function needs to be called once the host data are modified
     void Finalize();
+    ChFluidDynamics::Integrator GetIntegratorType() { return myIntegrator; }
 
   protected:
     ChFsiDataManager* fsiData;  ///< pointer to the fsi data. The values are maintained externally
 
-    ChFsiForce* forceSystem;           ///< force system object. It calculates the force between markers.
+    ChFsiForce* forceSystem;                   ///< force system object. It calculates the force between markers.
     ChFluidDynamics::Integrator myIntegrator;  ///< IISPH by default
 
     SimParams* paramsH;  ///< pointer to parameters. The values are mainained externally.

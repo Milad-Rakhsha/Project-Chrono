@@ -171,13 +171,15 @@ __device__ inline Real Eos(Real rho, Real type) {
     //////else {
     //////	return 1e9;
     //////}
-
+    if (rho < paramsD.rho0)
+        rho = paramsD.rho0;
     //******************************
     Real gama = 7;
     Real B = 100 * paramsD.rho0 * paramsD.v_Max * paramsD.v_Max /
              gama;  // 200;//314e6; //c^2 * paramsD.rho0 / gama where c = 1484 m/s
                     // for water
-    return B * (pow(rho / paramsD.rho0, gama) - 1) +
+
+    return paramsD.v_Max * (pow(rho / paramsD.rho0, gama) - 1) +
            paramsD.BASEPRES;  // 1 * (B * (pow(rho / paramsD.rho0, gama) - 1) +
                               // paramsD.BASEPRES);
                               //	if (type < +.1f) {
