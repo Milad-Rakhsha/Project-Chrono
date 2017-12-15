@@ -460,7 +460,7 @@ ChFluidDynamics::ChFluidDynamics(ChBce* otherBceWorker,
 
         case ChFluidDynamics::Integrator::XSPH:
             forceSystem =
-                new ChFsiForce(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
+                new ChFsiForceXSPH(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
                                        &(fsiData->fsiGeneralData), paramsH, numObjectsH);
             printf("Created an XSPH frame work.\n");
             break;
@@ -493,7 +493,7 @@ void ChFluidDynamics::IntegrateSPH(SphMarkerDataD* sphMarkersD2,
                                    FsiBodiesDataD* fsiBodiesD1,
                                    Real dT) {
     forceSystem->ForceSPH(sphMarkersD1, fsiBodiesD1);
-    this->UpdateFluid(sphMarkersD2, dT);
+    //this->UpdateFluid(sphMarkersD2, dT);
     this->ApplyBoundarySPH_Markers(sphMarkersD2);
 }
 // -----------------------------------------------------------------------------

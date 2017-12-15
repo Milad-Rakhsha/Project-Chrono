@@ -226,7 +226,7 @@ int main(int argc, char* argv[]) {
     for (int tStep = 0; tStep < stepEnd + 1; tStep++) {
         printf("step : %d, time= : %f (s) \n", tStep, time);
         double frame_time = 1.0 / out_fps;
-        myFsiSystem.DoStepDynamics_FSI_Implicit();
+        myFsiSystem.DoStepDynamics_FSI();
         time += paramsH->dT;
 
         if (std::abs(time - (double)next_frame * frame_time) < 1e-5 && save_output) {

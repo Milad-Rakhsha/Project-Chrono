@@ -127,6 +127,7 @@ struct SimParams {
     Real Co_number;
     Real dT_Max;
     bool Apply_BC_U;
+    Real eos_c; // Speed of sound in EOS
 };
 
 }  // end namespace fsi

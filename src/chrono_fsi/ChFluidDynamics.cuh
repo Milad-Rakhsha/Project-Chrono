@@ -27,6 +27,7 @@
 
 #include "chrono_fsi/ChFsiForceI2SPH.cuh"
 #include "chrono_fsi/ChFsiForceIISPH.cuh"
+#include "chrono_fsi/ChFsiForceXSPH.cuh"
 
 #include "chrono_fsi/ChFsiDataManager.cuh"
 
