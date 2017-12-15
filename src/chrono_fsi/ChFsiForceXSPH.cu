@@ -94,8 +94,8 @@ __global__ void NS_RHS_Predictor(Real4* sortedPosRad,
           + paramsD.gravity;                            // body force
 
     NS_RHS[i_idx] = RHS;
-    sortedVelMas[i_idx] = sortedVelMas[i_idx] + paramsD.dT / 2 * RHS;
     sortedPosRad[i_idx] = sortedPosRad[i_idx] + paramsD.dT / 2 * mR4(sortedVelMas[i_idx], 0.0);
+    sortedVelMas[i_idx] = sortedVelMas[i_idx] + paramsD.dT / 2 * RHS;
 }
 
 //==========================================================================================================================================
@@ -465,10 +465,10 @@ void ChFsiForceXSPH::ForceSPH(SphMarkerDataD* otherSphMarkersD,
     otherSphMarkersD->velMasD = SphMarkerDataD1.velMasD;
     otherSphMarkersD->posRadD = SphMarkerDataD1.posRadD;
     otherSphMarkersD->rhoPresMuD = SphMarkerDataD1.rhoPresMuD;
-    CopySortedToOriginal_NonInvasive_R3(otherSphMarkersD->velMasD, sortedSphMarkersD->velMasD,
-                                        markersProximityD->gridMarkerIndexD);
-    CopySortedToOriginal_NonInvasive_R4(otherSphMarkersD->rhoPresMuD, sortedSphMarkersD->rhoPresMuD,
-                                        markersProximityD->gridMarkerIndexD);
+    // CopySortedToOriginal_NonInvasive_R3(otherSphMarkersD->velMasD, sortedSphMarkersD->velMasD,
+    //                                     markersProximityD->gridMarkerIndexD);
+    // CopySortedToOriginal_NonInvasive_R4(otherSphMarkersD->rhoPresMuD, sortedSphMarkersD->rhoPresMuD,
+    //                                     markersProximityD->gridMarkerIndexD);
     //============================================================================================================
     Update<<<numBlocks, numThreads>>>(mR4CAST(SphMarkerDataD1.posRadD), mR4CAST(SphMarkerDataD1.rhoPresMuD),
                                       mR3CAST(SphMarkerDataD1.velMasD), mR3CAST(otherSphMarkersD->velMasD),
