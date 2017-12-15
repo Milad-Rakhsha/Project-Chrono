@@ -27,6 +27,7 @@
 
 #include "chrono_fsi/ChFsiForceI2SPH.cuh"
 #include "chrono_fsi/ChFsiForceIISPH.cuh"
+#include "chrono_fsi/ChFsiForceXSPH.cuh"
 
 #include "chrono_fsi/ChFsiDataManager.cuh"
 
@@ -95,7 +96,7 @@ class CH_FSI_API ChFluidDynamics : public ChFsiGeneral {
   protected:
     ChFsiDataManager* fsiData;  ///< pointer to the fsi data. The values are maintained externally
 
-    ChFsiForce* forceSystem;           ///< force system object. It calculates the force between markers.
+    ChFsiForce* forceSystem;                   ///< force system object. It calculates the force between markers.
     ChFluidDynamics::Integrator myIntegrator;  ///< IISPH by default
 
     SimParams* paramsH;  ///< pointer to parameters. The values are mainained externally.

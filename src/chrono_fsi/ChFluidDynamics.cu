@@ -112,7 +112,7 @@ __global__ void ApplyInletBoundaryXKernel(Real4* posRadD, Real3* VelMassD, Real4
         return;
     }
     Real4 rhoPresMu = rhoPresMuD[index];
-    if (fabs(rhoPresMu.w) < .1) {
+    if (rhoPresMu.w > 0.0) {
         return;
     }  // no need to do anything if it is a boundary particle
     Real3 posRad = mR3(posRadD[index]);
@@ -121,22 +121,20 @@ __global__ void ApplyInletBoundaryXKernel(Real4* posRadD, Real3* VelMassD, Real4
     if (posRad.x > paramsD.cMax.x) {
         posRad.x -= (paramsD.cMax.x - paramsD.cMin.x);
         posRadD[index] = mR4(posRad, h);
-        if (rhoPresMu.w < -.1) {
+        if (rhoPresMu.w <= 0.0) {
             rhoPresMu.y = rhoPresMu.y + paramsD.deltaPress.x;
             rhoPresMuD[index] = rhoPresMu;
         }
-        return;
     }
     if (posRad.x < paramsD.cMin.x) {
         posRad.x += (paramsD.cMax.x - paramsD.cMin.x);
         posRadD[index] = mR4(posRad, h);
         VelMassD[index] = mR3(paramsD.V_in, 0, 0);
 
-        if (rhoPresMu.w < -.1) {
+        if (rhoPresMu.w <= -.1) {
             rhoPresMu.y = rhoPresMu.y - paramsD.deltaPress.x;
             rhoPresMuD[index] = rhoPresMu;
         }
-        return;
     }
 
     if (posRad.x > -paramsD.x_in)
@@ -460,8 +458,8 @@ ChFluidDynamics::ChFluidDynamics(ChBce* otherBceWorker,
 
         case ChFluidDynamics::Integrator::XSPH:
             forceSystem =
-                new ChFsiForce(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
-                                       &(fsiData->fsiGeneralData), paramsH, numObjectsH);
+                new ChFsiForceXSPH(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
+                                   &(fsiData->fsiGeneralData), paramsH, numObjectsH);
             printf("Created an XSPH frame work.\n");
             break;
     }
@@ -678,7 +676,7 @@ void ChFluidDynamics::DensityReinitialization() {
     cudaThreadSynchronize();
     cudaCheckError();
     ChFsiForce::CopySortedToOriginal_Invasive_R4(fsiData->sphMarkersD1.rhoPresMuD, dummySortedRhoPreMu,
-                                                         fsiData->markersProximityD.gridMarkerIndexD);
+                                                 fsiData->markersProximityD.gridMarkerIndexD);
     dummySortedRhoPreMu.clear();
 }
 

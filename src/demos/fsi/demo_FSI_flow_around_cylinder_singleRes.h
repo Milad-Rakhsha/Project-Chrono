@@ -15,11 +15,20 @@
 namespace chrono {
 namespace fsi {
 // -----------------------------------------------------------------------------
+// Simulation parameters FSI
+// -----------------------------------------------------------------------------
+
+// Duration of the "hold time" (vehicle chassis fixed and no driver inputs).
+// This can be used to allow the granular material to settle.
+
+// Dimensions
+// -----------------------------------------------------------------------------
 // Simulation parameters Fluid
 // -----------------------------------------------------------------------------
-// When adding functionality using "useWallBce" and "haveFluid" macros, pay
+//	when adding functionality using "useWallBce" and "haveFluid" macros, pay
 // attention to  "initializeFluidFromFile"
-// options. For a double security, do your best to set "haveFluid" and "useWallBce"
+// options.
+//	for a double security, do your best to set "haveFluid" and "useWallBce"
 // based on the data you have from
 // checkpoint files
 // very important, since this option will overwrite the BCE pressure and
@@ -34,25 +43,29 @@ namespace fsi {
  * @param paramsH: struct defined in MyStructs.cuh
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
-    paramsH->sizeScale = 1;
-    paramsH->HSML = 0.05;
-    paramsH->MULT_INITSPACE = 0.5;
+    paramsH->sizeScale = 1;  // don't change it.
+    paramsH->HSML = 0.01;
+    paramsH->MULT_INITSPACE = 1.0;
+    Real initSpace = paramsH->MULT_INITSPACE * paramsH->HSML;
     paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
-    paramsH->LARGE_PRES = 1e-10;
-    paramsH->deltaPress;
+    paramsH->BASEPRES = 0.0;
+    paramsH->LARGE_PRES = 0;
+    paramsH->deltaPress = mR3(100.0, 0, 0.0);
     paramsH->multViscosity_FSI = 1;
-    paramsH->gravity = mR3(0, 0, -1);
+    paramsH->gravity = mR3(0.01, 0, 0.0);
+    paramsH->V_in = 0.1;
+    paramsH->x_in = -bxDim / 2 + 3 * initSpace;
+
+    paramsH->dT = 5e-3;
+
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
-    paramsH->BASEPRES = paramsH->rho0 * length(paramsH->gravity) * fzDim * 1e-10;
-
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 0.01;
-    paramsH->kappa = 0.001;
-
-    paramsH->v_Max = 1.0;
+    paramsH->mu0 = 0.1;
+    paramsH->kappa = 0.000;  ///< surface tension parameter, experimental
+    paramsH->v_Max = 0.0;    // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
     paramsH->USE_LinearSolver = true;  ///< IISPH parameter: whether or not use linear solvers
@@ -60,57 +73,66 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
     paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
     paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
-    paramsH->LinearSolver_Rel_Tol = 1e-6;   ///< relative res, is used in the matrix free solver and linear solvers
-    paramsH->LinearSolver_Abs_Tol = 1e-8;   ///< absolute error, applied when linear solvers are used
-    paramsH->LinearSolver_Max_Iter = 5000;  ///< max number of iteration for linear solvers
-    paramsH->PPE_relaxation = 0.4;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
+    paramsH->LinearSolver_Rel_Tol = 1e-5;   ///< relative res, is used in the matrix free solver and linear solvers
+    paramsH->LinearSolver_Abs_Tol = 1e-3;   ///< absolute error, applied when linear solvers are used
+    paramsH->LinearSolver_Max_Iter = 1000;  ///< max number of iteration for linear solvers
+    paramsH->PPE_relaxation = 0.8;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
     /// Experimental parameters
     paramsH->Max_Pressure = 1e5;
     paramsH->IncompressibilityFactor = 1;     ///< to tune the compression
     paramsH->ClampPressure = false;           ///< If the negative pressure should be clamped to zero or not
     paramsH->Adaptive_time_stepping = false;  ///< This let you use large time steps when possible
     paramsH->Co_number = 0.8;                 ///< 0.2 works well for most cases
-    paramsH->dT_Max = 0.001;  ///< This is problem dependent should set by the user based on characteristic time step
+    paramsH->dT_Max = 0.01;  ///< This is problem dependent should set by the user based on characteristic time step
     paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 
-    paramsH->dT = 2.5e-3;
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
-    paramsH->kdT = 5;
+    paramsH->kdT = 5;  // I don't know what is kdT
     paramsH->gammaBB = 0.5;
-    paramsH->binSize0;
-    paramsH->rigidRadius;
-    paramsH->densityReinit = 1;
-
-    paramsH->enableTweak = 0;
+    paramsH->binSize0;     // will be changed
+    paramsH->rigidRadius;  // will be changed
+    paramsH->densityReinit = 0;
+    paramsH->enableTweak = 1;
     paramsH->enableAggressiveTweak = 0;
     paramsH->tweakMultV = 0.1;
-    paramsH->tweakMultRho = .00;
+    paramsH->tweakMultRho = .002;
     paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
-    paramsH->cMin = mR3(-bxDim * 2, -byDim * 2, -2 * bzDim) - 3 * mR3(paramsH->HSML);
-    paramsH->cMax = mR3(bxDim * 2, byDim * 2, 2 * bzDim) + 3 * mR3(paramsH->HSML);
+    paramsH->cMin = mR3(-bxDim / 2 - initSpace / 2, -byDim / 2 - initSpace / 2, -bzDim * 4);
+    paramsH->cMax = mR3(bxDim / 2 + initSpace / 2, byDim / 2 + initSpace / 2, bzDim * 2);
 
     //****************************************************************************************
+    // note that neighbor search should be performed via the largest characteristic length for now
     int3 side0 = mI3(floor((paramsH->cMax.x - paramsH->cMin.x) / (2 * paramsH->HSML)),
                      floor((paramsH->cMax.y - paramsH->cMin.y) / (2 * paramsH->HSML)),
                      floor((paramsH->cMax.z - paramsH->cMin.z) / (2 * paramsH->HSML)));
+
     Real3 binSize3 = mR3((paramsH->cMax.x - paramsH->cMin.x) / side0.x, (paramsH->cMax.y - paramsH->cMin.y) / side0.y,
                          (paramsH->cMax.z - paramsH->cMin.z) / side0.z);
     paramsH->binSize0 = (binSize3.x > binSize3.y) ? binSize3.x : binSize3.y;
+    //	paramsH->binSize0 = (paramsH->binSize0 > binSize3.z) ? paramsH->binSize0
+    //: binSize3.z;
     paramsH->binSize0 = binSize3.x;  // for effect of distance. Periodic BC in x
-
+                                     // direction. we do not care about
+                                     // paramsH->cMax y and z.
     paramsH->boxDims = paramsH->cMax - paramsH->cMin;
+    //****************************************************************************************
+    //	paramsH->cMinInit = mR3(-1.7, -1.55, -0.5); // 3D channel
+    //	paramsH->cMaxInit = mR3(+1.7, +1.55, +0.5);
     //****************************************************************************************
     //*** initialize straight channel
     paramsH->straightChannelBoundaryMin = paramsH->cMin;  // mR3(0, 0, 0);  // 3D channel
     paramsH->straightChannelBoundaryMax = paramsH->cMax;  // SmR3(3, 2, 3) * paramsH->sizeScale;
     //************************** modify pressure ***************************
+    //		paramsH->deltaPress = paramsH->rho0 * paramsH->boxDims *
+    // paramsH->bodyForce3;  //did not work as I expected
     paramsH->deltaPress = mR3(0);  // Wrong: 0.9 * paramsH->boxDims *
-
-    // boundary shape should play a roll
+                                   // paramsH->bodyForce3; // viscosity and
+                                   // boundary shape should play a roll
 
     // modify bin size stuff
-    //****************************** bin size adjustement and contact detection *****************************
+    //****************************** bin size adjustement and contact detection
+    // stuff *****************************
     int3 SIDE = mI3(int((paramsH->cMax.x - paramsH->cMin.x) / paramsH->binSize0 + .1),
                     int((paramsH->cMax.y - paramsH->cMin.y) / paramsH->binSize0 + .1),
                     int((paramsH->cMax.z - paramsH->cMin.z) / paramsH->binSize0 + .1));
@@ -164,6 +186,31 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     std::cout << "********************" << std::endl;
 }
 
+// -----------------------------------------------------------------------------
+// Specification of the terrain
+// -----------------------------------------------------------------------------
+//
+//// Control visibility of containing bin walls
+// bool visible_walls = false;
+//
+// int Id_g = 100;
+// Real r_g = 0.02;
+// Real rho_g = 2500;
+// Real vol_g = (4.0 / 3) * chrono::CH_C_PI * r_g * r_g * r_g; // Arman: PI or
+// CH_C_PI
+// Real mass_g = rho_g * vol_g;
+// chrono::ChVector<> inertia_g = 0.4 * mass_g * r_g * r_g
+//		* chrono::ChVector<>(1, 1, 1);
+//
+//
+//
+// int num_particles = 1000;
+
+// -----------------------------------------------------------------------------
+// Output parameters
+// -----------------------------------------------------------------------------
+
+// Real vertical_offset = 0;  // vehicle vertical offset
 }  // end namespace fsi
 }  // end namespace chrono
-#endif  // end of FSI_HMMWV_PARAMS_H_`
+#endif  // end of FSI_HMMWV_PARAMS_H_

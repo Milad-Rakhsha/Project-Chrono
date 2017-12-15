@@ -73,7 +73,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
     paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
     paramsH->LinearSolver_Rel_Tol = 1e-8;   ///< relative res, is used in the matrix free solver and linear solvers
-    paramsH->LinearSolver_Abs_Tol = 1e-5;   ///< absolute error, applied when linear solvers are used
+    paramsH->LinearSolver_Abs_Tol = 1e-3;   ///< absolute error, applied when linear solvers are used
     paramsH->LinearSolver_Max_Iter = 5000;  ///< max number of iteration for linear solvers
     paramsH->PPE_relaxation = 0.2;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
     /// Experimental parameters

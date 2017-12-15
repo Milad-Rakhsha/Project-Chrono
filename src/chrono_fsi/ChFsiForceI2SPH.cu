@@ -108,20 +108,24 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
     }
 
     if (Fluid_Marker) {
-        Real3 rhs = mR3(0.0);
-        for (int count = csrStartIdx; count < csrEndIdx; count++) {
-            int j = csrColInd[count];
+        if (sortedPosRad[i_idx].x < paramsD.x_in) {
+            A_Matrix[csrStartIdx] = 1.0;
+            b[i_idx] = mR3(paramsD.V_in, 0, 0);
+        } else {
+            Real3 rhs = mR3(0.0);
+            for (int count = csrStartIdx; count < csrEndIdx; count++) {
+                int j = csrColInd[count];
 
-            A_Matrix[count] =
-                paramsD.mu0 * -(0.5 / rhoi * A_L[count] - 0.5 / (rhoi * rhoi) * dot(grad_rho_i, A_G[count]));
+                A_Matrix[count] =
+                    paramsD.mu0 * -(0.5 / rhoi * A_L[count] - 0.5 / (rhoi * rhoi) * dot(grad_rho_i, A_G[count]));
 
-            rhs += paramsD.mu0 * (0.5 / rhoi * A_L[count] - 0.5 / (rhoi * rhoi) * dot(grad_rho_i, A_G[count])) *
-                   sortedVelMas[j];
+                rhs += paramsD.mu0 * (0.5 / rhoi * A_L[count] - 0.5 / (rhoi * rhoi) * dot(grad_rho_i, A_G[count])) *
+                       sortedVelMas[j];
+            }
+            A_Matrix[csrStartIdx] += 1 / dt;
+            b[i_idx] = rhs + sortedVelMas[i_idx] / dt  //forward euler term from lhs
+                       + paramsD.gravity;              // body force
         }
-        A_Matrix[csrStartIdx] += 1 / dt;
-        b[i_idx] = rhs + sortedVelMas[i_idx] / dt  //forward euler term from lhs
-                   + paramsD.gravity;              // body force
-
     } else if (Boundary_Marker) {
         Real h_i = sortedPosRad[i_idx].w;
         Real3 posRadA = mR3(sortedPosRad[i_idx]);
@@ -235,7 +239,7 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
         //        } else if (sortedRhoPreMu[i_idx].x < 0.99 * paramsD.rho0) {
         //            A_Matrix[csrStartIdx] = 1.0;
         //            Bi[i_idx] = 0.0;
-        if (i_idx == -1) {
+        if (sortedPosRad[i_idx].x > -paramsD.x_in) {
             A_Matrix[csrStartIdx] = 1.0;
             Bi[i_idx] = 0.0;
         } else {
@@ -273,9 +277,9 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
                 Bi[i_idx] = 1e3;            // * dot(paramsD.gravity, my_normal);
             }
         }
-
+        //        sortedPosRad[i_idx].x < paramsD.x_in
         //======================= Boundary Adami===========================
-    } else if (Boundary_Marker && paramsD.bceType == ADAMI) {
+    } else if ((Boundary_Marker) && paramsD.bceType == ADAMI) {
         Real h_i = sortedPosRad[i_idx].w;
         Real Vi = sumWij_inv[i_idx];
         Real3 posRadA = mR3(sortedPosRad[i_idx]);
@@ -314,7 +318,7 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
         }
     }
 
-    //    q_old[i_idx] = sortedRhoPreMu[i_idx].y;
+    q_old[i_idx] = sortedRhoPreMu[i_idx].y;
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
@@ -354,7 +358,7 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
     }
     if (sortedRhoPreMu[i_idx].w == -1.0)
         r0 /= (csrEndIdx - csrStartIdx - 1);
-    shift_r = 0.5 * r0 * r0 * length(MaxVel) * paramsD.dT / mi_bar * inner_sum;
+    shift_r = 2.0 * r0 * r0 * length(MaxVel) * paramsD.dT / mi_bar * inner_sum;
 
     Real3 V_new = Vstar[i_idx] - paramsD.dT / sortedRhoPreMu[i_idx].x * grad_q_i;
 
@@ -720,7 +724,7 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Pressure_Equation");
 
     if (paramsH->USE_LinearSolver) {
-        ChFsiLinearSolver myLS(paramsH->LinearSolver, paramsH->LinearSolver_Abs_Tol, paramsH->LinearSolver_Abs_Tol,
+        ChFsiLinearSolver myLS(paramsH->LinearSolver, 0.0, paramsH->LinearSolver_Abs_Tol,
                                paramsH->LinearSolver_Max_Iter, paramsH->Verbose_monitoring);
         if (paramsH->PPE_Solution_type != FORM_SPARSE_MATRIX) {
             printf(

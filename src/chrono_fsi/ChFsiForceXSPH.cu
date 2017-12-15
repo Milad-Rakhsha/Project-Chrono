@@ -330,10 +330,13 @@ void ChFsiForceXSPH::ForceSPH(SphMarkerDataD* otherSphMarkersD,
             fsiGeneralData->referenceArray[haveGhost + haveHelper + 1 + numObjectsH->numRigidBodies].y,
             fsiGeneralData->referenceArray[haveGhost + haveHelper + 1 + numObjectsH->numRigidBodies + numFlexbodies].y);
 
-    thrust::device_vector<Real3> V_star_new(numAllMarkers);
-    thrust::device_vector<Real3> V_star_old(numAllMarkers);
-    thrust::fill(V_star_old.begin(), V_star_old.end(), mR3(0.0));
-    thrust::fill(V_star_new.begin(), V_star_new.end(), mR3(0.0));
+    thrust::device_vector<Real3> V_HalfStep(numAllMarkers);
+    thrust::device_vector<Real4> X_HalfStep(numAllMarkers);
+    thrust::device_vector<Real4> RPMT_HalfStep(numAllMarkers);
+
+    thrust::fill(V_HalfStep.begin(), V_HalfStep.end(), mR3(0.0));
+    thrust::fill(X_HalfStep.begin(), X_HalfStep.end(), mR4(0.0));
+    thrust::fill(RPMT_HalfStep.begin(), RPMT_HalfStep.end(), mR4(0.0));
 
     //============================================================================================================
 
@@ -355,8 +358,9 @@ void ChFsiForceXSPH::ForceSPH(SphMarkerDataD* otherSphMarkersD,
     L_i.clear();
     csrValLaplacian.clear();
     csrValGradient.clear();
-    V_star_old.clear();
-    V_star_new.clear();
+    V_HalfStep.clear();
+    X_HalfStep.clear();
+    RPMT_HalfStep.clear();
 
 }  // namespace fsi
 
