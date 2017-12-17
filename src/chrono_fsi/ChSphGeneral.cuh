@@ -35,7 +35,14 @@ namespace fsi {
 __constant__ SimParams paramsD;
 __constant__ NumberOfObjects numObjectsD;
 void CopyParams_NumberOfObjects(SimParams* paramsH, NumberOfObjects* numObjectsH);
-
+#define W3 W3_Spline
+//#define W2 W2_Spline
+#define GradW GradW_Spline
+//
+//#define W3h W3H_KERNEL
+//#define GradWh W3H_GRADW
+#define W3h W3h_Spline
+#define GradWh GradWh_Spline
 //--------------------------------------------------------------------------------------------------------------------------------
 // 3D SPH kernel function, W3_SplineA
 __device__ inline Real W3_Spline(Real d) {  // d is positive. h is the sph particle radius (i.e. h in
@@ -63,6 +70,39 @@ __device__ inline Real W3h_Spline(Real d, Real h) {  // d is positive. h is the 
     }
     return 0;
 }
+
+//// 3D SPH kernel function, W3_SplineA
+__device__ inline Real W3H_KERNEL(Real d, Real h) {  // d is positive. h is the sph particle radius (i.e. h in
+                                                     // the document) d is the distance of 2 particles
+    Real q = fabs(d) / h;
+    if (q < 1) {
+        return (3.0 / (359 * PI * h * h * h) *
+                (pow(3 - q, Real(5)) - 6 * pow(2 - q, Real(5)) + 15 * pow(1 - q, Real(5))));
+    }
+    if (q < 2) {
+        return (3.0 / (359 * PI * h * h * h) * (pow(3 - q, Real(5)) - 6 * pow(2 - q, Real(5))));
+    }
+    if (q < 3) {
+        return (3.0 / (359 * PI * h * h * h) * (pow(3 - q, Real(5))));
+    }
+    return 0;
+}
+__device__ inline Real3 W3H_GRADW(Real3 d, Real h) {  // d is positive. h is the sph particle radius (i.e. h in
+                                                      // the document) d is the distance of 2 particles
+    Real q = length(d) / h;
+    if (q < 1) {
+        return (-15.0 / (359 * PI * h * h * h * h * h) * d *
+                (pow(3 - q, Real(4)) - 6 * pow(2 - q, Real(4)) + 15 * pow(1 - q, Real(4))));
+    }
+    if (q < 2) {
+        return (-15.0 / (359 * PI * h * h * h * h * h) * d * (pow(3 - q, Real(4)) - 6 * pow(2 - q, Real(4))));
+    }
+    if (q < 3) {
+        return (-15.0 / (359 * PI * h * h * h * h * h) * d * (pow(3 - q, Real(4))));
+    }
+    return mR3(0);
+}
+
 ////--------------------------------------------------------------------------------------------------------------------------------
 ////2D SPH kernel function, W2_SplineA
 //__device__ inline Real W2_Spline(Real d) { // d is positive. h is the sph
@@ -150,12 +190,6 @@ __device__ inline Real3 GradWh_Spline(Real3 d, Real h) {  // d is positive. r is
 //	return mR3(0);
 //}
 //--------------------------------------------------------------------------------------------------------------------------------
-#define W3 W3_Spline
-#define W3h W3h_Spline
-
-//#define W2 W2_Spline
-#define GradW GradW_Spline
-#define GradWh GradWh_Spline
 
 //--------------------------------------------------------------------------------------------------------------------------------
 // Eos is also defined in SDKCollisionSystem.cu

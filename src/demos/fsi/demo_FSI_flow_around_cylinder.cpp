@@ -338,7 +338,7 @@ int main(int argc, char* argv[]) {
             }
         }
         if (!removeThis) {
-            myFsiSystem.GetDataManager()->AddSphMarker(p, chrono::fsi::mR3(paramsH->V_in, 0.0, 0.0),
+            myFsiSystem.GetDataManager()->AddSphMarker(p, paramsH->V_in,
                                                        chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -1.0));
         } else
             numremove++;
@@ -356,7 +356,7 @@ int main(int argc, char* argv[]) {
             }
         }
         if (!removeThis) {
-            myFsiSystem.GetDataManager()->AddSphMarker(p, chrono::fsi::mR3(paramsH->V_in, 0.0, 0.0),
+            myFsiSystem.GetDataManager()->AddSphMarker(p, paramsH->V_in,
                                                        chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -1));
         } else
             numremove++;

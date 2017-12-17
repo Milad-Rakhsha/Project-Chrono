@@ -52,14 +52,13 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
     paramsH->BASEPRES = 0.0;
     paramsH->LARGE_PRES = 0;
-    paramsH->deltaPress = mR3(100.0, 0, 0.0);
+    paramsH->deltaPress = mR3(0.0, 0, 0.0);
     paramsH->multViscosity_FSI = 1;
-    paramsH->gravity = mR3(0.01, 0, 0.0);
-    paramsH->V_in = 0.1;
+    paramsH->gravity = mR3(0.0, 0, 0.0);
+    paramsH->V_in = mR3(0.1, 0, 0.0);
     paramsH->x_in = -bxDim / 2 + 3 * initSpace;
 
-    paramsH->dT = 5e-3;
-
+    paramsH->dT = 2e-3;
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
@@ -73,10 +72,10 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
     paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
     paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
-    paramsH->LinearSolver_Rel_Tol = 1e-5;   ///< relative res, is used in the matrix free solver and linear solvers
-    paramsH->LinearSolver_Abs_Tol = 1e-3;   ///< absolute error, applied when linear solvers are used
+    paramsH->LinearSolver_Rel_Tol = 1e-8;   ///< relative res, is used in the matrix free solver and linear solvers
+    paramsH->LinearSolver_Abs_Tol = 1e-8;   ///< absolute error, applied when linear solvers are used
     paramsH->LinearSolver_Max_Iter = 1000;  ///< max number of iteration for linear solvers
-    paramsH->PPE_relaxation = 0.8;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
+    paramsH->PPE_relaxation = 0.95;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
     /// Experimental parameters
     paramsH->Max_Pressure = 1e5;
     paramsH->IncompressibilityFactor = 1;     ///< to tune the compression
@@ -97,9 +96,13 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->enableAggressiveTweak = 0;
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
-    paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
-    paramsH->cMin = mR3(-bxDim / 2 - initSpace / 2, -byDim / 2 - initSpace / 2, -bzDim * 4);
-    paramsH->cMax = mR3(bxDim / 2 + initSpace / 2, byDim / 2 + initSpace / 2, bzDim * 2);
+    paramsH->bceType = mORIGINAL;  // ADAMI, mORIGINAL
+    paramsH->cMin = mR3(-bxDim / 2 - initSpace / 2, -byDim / 2 - initSpace / 2, -bzDim - initSpace * 5);
+    paramsH->cMax = mR3(bxDim / 2 + initSpace / 2, byDim / 2 + initSpace / 2, bzDim + initSpace * 5);
+
+    paramsH->ApplyInFlowOutFlow = true;
+    paramsH->outflow = paramsH->cMax - mR3(initSpace * 25);
+    paramsH->inflow = paramsH->cMin + mR3(initSpace * 25);
 
     //****************************************************************************************
     // note that neighbor search should be performed via the largest characteristic length for now

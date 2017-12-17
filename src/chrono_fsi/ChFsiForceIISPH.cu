@@ -29,11 +29,11 @@ ChFsiForceIISPH::ChFsiForceIISPH(
     NumberOfObjects* otherNumObjects      ///< Pointer to number of objects, fluid and boundary markers, etc.
     )
     : ChFsiForce(otherBceWorker,
-                         otherSortedSphMarkersD,
-                         otherMarkersProximityD,
-                         otherFsiGeneralData,
-                         otherParamsH,
-                         otherNumObjects) {}
+                 otherSortedSphMarkersD,
+                 otherMarkersProximityD,
+                 otherFsiGeneralData,
+                 otherParamsH,
+                 otherNumObjects) {}
 //--------------------------------------------------------------------------------------------------------------------------------
 ChFsiForceIISPH::~ChFsiForceIISPH() {}
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -1850,11 +1850,11 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     //        throw std::runtime_error("Error! program crashed in Calc_Split_and_Merges!\n");
     //    }
     //
-    thrust::device_vector<Real> mcontac(numAllMarkers);
-    thrust::fill(mcontac.begin(), mcontac.end(), 0);
+    thrust::device_vector<Real> Contact_i(numAllMarkers);
+    thrust::fill(Contact_i.begin(), Contact_i.end(), 0);
     calcRho_kernel<<<numBlocks, numThreads>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),
-        U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), U1CAST(mcontac), numAllMarkers,
+        U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), U1CAST(Contact_i), numAllMarkers,
         isErrorD);
     cudaThreadSynchronize();
     cudaCheckError();
@@ -1863,10 +1863,19 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
         throw std::runtime_error("Error! program crashed after calcRho_kernel!\n");
     }
 
-    calcNormalizedRho_kernel<<<numBlocks, numThreads>>>(
+    uint LastVal = Contact_i[numAllMarkers - 1];
+    thrust::exclusive_scan(Contact_i.begin(), Contact_i.end(), Contact_i.begin());
+    Contact_i.push_back(LastVal + Contact_i[numAllMarkers - 1]);
+    int NNZ = Contact_i[numAllMarkers];
+    thrust::device_vector<uint> csrColInd(NNZ, 0);
+    thrust::device_vector<Real3> Normals(numAllMarkers);
+
+    calcNormalizedRho_Gi_fillInMatrixIndices<<<numBlocks, numThreads>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
-        mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv), R1CAST(G_i), R1CAST(_sumWij_inv), R1CAST(Color),
-        U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
+        mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv), R1CAST(G_i), mR3CAST(Normals), U1CAST(csrColInd),
+        U1CAST(Contact_i), U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers,
+        isErrorD);
+
     cudaThreadSynchronize();
     cudaCheckError();
     cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
@@ -1877,8 +1886,7 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
 
     calc_A_tensor<<<numBlocks, numThreads>>>(R1CAST(A_i), R1CAST(G_i), mR4CAST(sortedSphMarkersD->posRadD),
                                              mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),
-                                             U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD),
-                                             numAllMarkers, isErrorD);
+                                             U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, isErrorD);
 
     cudaThreadSynchronize();
     cudaCheckError();
@@ -1889,8 +1897,7 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
 
     calc_L_tensor<<<numBlocks, numThreads>>>(R1CAST(A_i), R1CAST(L_i), R1CAST(G_i), mR4CAST(sortedSphMarkersD->posRadD),
                                              mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),
-                                             U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD),
-                                             numAllMarkers, isErrorD);
+                                             U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, isErrorD);
     cudaThreadSynchronize();
     cudaCheckError();
     cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
@@ -1907,7 +1914,7 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     //  std::cout << "dT in ForceSPH after calcPressure: " << paramsH->dT << "\n";
     double CalcForcesClock = clock();
 
-    thrust::fill(vel_IISPH_Sorted_D.begin(), vel_IISPH_Sorted_D.end(), mR3(0.0));
+    thrust::fill(vel_vis_Sorted_D.begin(), vel_vis_Sorted_D.end(), mR3(0.0));
     thrust::fill(derivVelRhoD_Sorted_D.begin(), derivVelRhoD_Sorted_D.end(), mR4(0.0));
     thrust::fill(vel_XSPH_Sorted_D.begin(), vel_XSPH_Sorted_D.end(), mR3(0.0));
     thrust::device_vector<Real3> dr_shift(numAllMarkers);
@@ -1983,7 +1990,7 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     }
 
     UpdateDensity<<<numBlocks, numThreads>>>(
-        mR3CAST(vel_IISPH_Sorted_D), mR3CAST(vel_XSPH_Sorted_D), mR4CAST(sortedSphMarkersD->posRadD),
+        mR3CAST(vel_vis_Sorted_D), mR3CAST(vel_XSPH_Sorted_D), mR4CAST(sortedSphMarkersD->posRadD),
         mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv), U1CAST(markersProximityD->cellStartD),
         U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
 
@@ -1996,7 +2003,7 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     }
     CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vel_XSPH_D, vel_XSPH_Sorted_D,
                                         markersProximityD->gridMarkerIndexD);
-    CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vel_IISPH_D, vel_IISPH_Sorted_D,
+    CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vis_vel_SPH_D, vel_vis_Sorted_D,
                                         markersProximityD->gridMarkerIndexD);
     CopySortedToOriginal_NonInvasive_R4(sphMarkersD->posRadD, sortedSphMarkersD->posRadD,
                                         markersProximityD->gridMarkerIndexD);

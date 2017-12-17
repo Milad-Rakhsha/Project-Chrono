@@ -420,7 +420,7 @@ void ChFsiForce::Finalize() {
     cudaMemcpyToSymbolAsync(numObjectsD, numObjectsH, sizeof(NumberOfObjects));
     printf("in finalize forcesystem numAllMarkers=%d\n", numObjectsH->numAllMarkers);
     vel_XSPH_Sorted_D.resize(numObjectsH->numAllMarkers);
-    vel_IISPH_Sorted_D.resize(numObjectsH->numAllMarkers);
+    vel_vis_Sorted_D.resize(numObjectsH->numAllMarkers);
     derivVelRhoD_Sorted_D.resize(numObjectsH->numAllMarkers);
     fsiCollisionSystem->Finalize();
 }

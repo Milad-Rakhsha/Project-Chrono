@@ -7,8 +7,8 @@
 
 #ifndef CHPARAMS_CUH_
 #define CHPARAMS_CUH_
-#include "chrono_fsi/custom_math.h"
 #include "chrono_fsi/ChFsiLinearSolver.h"
+#include "chrono_fsi/custom_math.h"
 
 namespace chrono {
 namespace fsi {
@@ -48,7 +48,7 @@ struct SimParams {
     Real3
         deltaPress; /* Change in Pressure. This is needed for periodic BC. The change in pressure of a particle when it
    moves from end boundary to beginning.  */
-    Real V_in;      /* Inlet Velocity. This is needed for inlet BC.  */
+    Real3 V_in;     /* Inlet Velocity. This is needed for inlet BC.  */
     Real x_in;
 
     int nPeriod;      /* Only used in snake channel simulation. Tells you how long the channel will be. */
@@ -82,6 +82,11 @@ struct SimParams {
      tolerance zone. */
     Real3 cMax; /* Upper right most part of the space shown in a simulation frame. This point is usually outside the
      tolerance zone.*/
+
+    bool ApplyInFlowOutFlow;
+    Real3 inflow;
+    Real3 outflow;
+
     Real3 cMinInit; /* */             // Arman : note, this need to be added to check point
     Real3 cMaxInit; /* */             // Arman : note, this need to be added to check point
     Real3 straightChannelBoundaryMin; /* Origin of the coordinate system (Point (0,0,0)). In this case (straigh channel)

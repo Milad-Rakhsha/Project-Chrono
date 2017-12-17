@@ -68,7 +68,7 @@ Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 Real bxDim = 2.0;
 Real byDim = 0.05;
-Real bzDim = 0.40;
+Real bzDim = 0.4;
 
 Real fxDim = bxDim;
 Real fyDim = byDim;
@@ -238,7 +238,7 @@ int main(int argc, char* argv[]) {
     //    auto mbody = std::make_shared<ChBody>();
     //    mbody->SetBodyFixed(true);
     //
-    cyl_pos = ChVector<>(boxCenter1.x - fxDim / 3, boxCenter1.y, boxCenter1.z);
+    cyl_pos = ChVector<>(boxCenter1.x - 0.0 * fxDim / 3, boxCenter1.y, boxCenter1.z);
     //    mbody->SetPos(cyl_pos);
     //
     //    cyl_pos = ChVector<>(-initSpace1 / 2, 0, 0.2 - initSpace1 / 2);
@@ -312,7 +312,7 @@ int main(int argc, char* argv[]) {
             }
         }
         if (!removeThis) {
-            myFsiSystem.GetDataManager()->AddSphMarker(p, chrono::fsi::mR3(paramsH->V_in, 0.0, 0.0),
+            myFsiSystem.GetDataManager()->AddSphMarker(p, paramsH->V_in * 0.1,
                                                        chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -1.0));
         } else
             numremove++;
@@ -425,7 +425,7 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
 
     if (save_output && std::abs(mTime - (next_frame)*frame_time) < 0.00001) {
         fsi::utils::PrintToFile(myFsiSystem.GetDataManager()->sphMarkersD2.posRadD,
-                                myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
+                                myFsiSystem.GetDataManager()->fsiGeneralData.vis_vel_SPH_D,
                                 myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
                                 myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
                                 myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, demo_dir, true);

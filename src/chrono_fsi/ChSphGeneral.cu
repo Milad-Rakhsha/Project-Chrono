@@ -30,8 +30,8 @@ __global__ void calc_A_tensor(Real* A_tensor,
                               Real4* sortedPosRad,
                               Real4* sortedRhoPreMu,
                               Real* sumWij_inv,
-                              uint* cellStart,
-                              uint* cellEnd,
+                              uint* csrColInd,
+                              uint* numContacts,
                               const int numAllMarkers,
                               volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -41,6 +41,9 @@ __global__ void calc_A_tensor(Real* A_tensor,
 
     // Remember : we want to solve 6x6 system Bi*l=-[1 0 0 1 0 1]'
     // elements of matrix B depends on tensor A
+
+    uint csrStartIdx = numContacts[i_idx];
+    uint csrEndIdx = numContacts[i_idx + 1];
     Real3 posRadA = mR3(sortedPosRad[i_idx]);
     Real h_i = sortedPosRad[i_idx].w;
     Real m_i = pow(h_i * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
@@ -54,61 +57,49 @@ __global__ void calc_A_tensor(Real* A_tensor,
     // get address in grid
     int3 gridPos = calcGridPos(posRadA);
 
-    for (int z = -1; z <= 1; z++) {
-        for (int y = -1; y <= 1; y++) {
-            for (int x = -1; x <= 1; x++) {
-                int3 neighbourPos = gridPos + mI3(x, y, z);
-                uint gridHash = calcGridHash(neighbourPos);
-                // get start of bucket for this cell
-                uint startIndex = cellStart[gridHash];
-                if (startIndex != 0xffffffff) {
-                    uint endIndex = cellEnd[gridHash];
-                    for (uint j = startIndex; j < endIndex; j++) {
-                        Real3 posRadB = mR3(sortedPosRad[j]);
-                        Real3 rij = Distance(posRadA, posRadB);
-                        Real d = length(rij);
-                        if (d > RESOLUTION_LENGTH_MULT * h_i || sortedRhoPreMu[j].w <= -2)
-                            continue;
-                        Real h_j = sortedPosRad[j].w;
-                        Real m_j = pow(h_j * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
-                        Real h_ij = 0.5 * (h_j + h_i);
-                        Real3 grad_ij = GradWh(rij, h_ij);
-                        Real V_j = sumWij_inv[j];
-                        Real com_part = 0;
-                        com_part = (Gi[0] * grad_ij.x + Gi[1] * grad_ij.y + Gi[2] * grad_ij.z) * V_j;
-                        A_ijk[0] += rij.x * rij.x * com_part;  // 111
-                        A_ijk[1] += rij.x * rij.y * com_part;  // 112
-                        A_ijk[2] += rij.x * rij.z * com_part;  // 113
-                        A_ijk[3] += rij.y * rij.x * com_part;  // 121
-                        A_ijk[4] += rij.y * rij.y * com_part;  // 122
-                        A_ijk[5] += rij.y * rij.z * com_part;  // 123
-                        A_ijk[6] += rij.z * rij.x * com_part;  // 131
-                        A_ijk[7] += rij.z * rij.y * com_part;  // 132
-                        A_ijk[8] += rij.z * rij.z * com_part;  // 133
-                        com_part = (Gi[3] * grad_ij.x + Gi[4] * grad_ij.y + Gi[5] * grad_ij.z) * V_j;
-                        A_ijk[9] += rij.x * rij.x * com_part;   // 211
-                        A_ijk[10] += rij.x * rij.y * com_part;  // 212
-                        A_ijk[11] += rij.x * rij.z * com_part;  // 213
-                        A_ijk[12] += rij.y * rij.x * com_part;  // 221
-                        A_ijk[13] += rij.y * rij.y * com_part;  // 222
-                        A_ijk[14] += rij.y * rij.z * com_part;  // 223
-                        A_ijk[15] += rij.z * rij.x * com_part;  // 231
-                        A_ijk[16] += rij.z * rij.y * com_part;  // 232
-                        A_ijk[17] += rij.z * rij.z * com_part;  // 233
-                        com_part = (Gi[6] * grad_ij.x + Gi[7] * grad_ij.y + Gi[8] * grad_ij.z) * V_j;
-                        A_ijk[18] += rij.x * rij.x * com_part;  // 311
-                        A_ijk[19] += rij.x * rij.y * com_part;  // 312
-                        A_ijk[20] += rij.x * rij.z * com_part;  // 313
-                        A_ijk[21] += rij.y * rij.x * com_part;  // 321
-                        A_ijk[22] += rij.y * rij.y * com_part;  // 322
-                        A_ijk[23] += rij.y * rij.z * com_part;  // 323
-                        A_ijk[24] += rij.z * rij.x * com_part;  // 331
-                        A_ijk[25] += rij.z * rij.y * com_part;  // 332
-                        A_ijk[26] += rij.z * rij.z * com_part;  // 333
-                    }
-                }
-            }
-        }
+    for (int count = csrStartIdx; count < csrEndIdx; count++) {
+        int j = csrColInd[count];
+        Real3 posRadB = mR3(sortedPosRad[j]);
+        Real3 rij = Distance(posRadA, posRadB);
+        Real d = length(rij);
+        if (d > RESOLUTION_LENGTH_MULT * h_i || sortedRhoPreMu[j].w <= -2)
+            continue;
+        Real h_j = sortedPosRad[j].w;
+        Real m_j = pow(h_j * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
+        Real h_ij = 0.5 * (h_j + h_i);
+        Real3 grad_ij = GradWh(rij, h_ij);
+        Real V_j = sumWij_inv[j];
+        Real com_part = 0;
+        com_part = (Gi[0] * grad_ij.x + Gi[1] * grad_ij.y + Gi[2] * grad_ij.z) * V_j;
+        A_ijk[0] += rij.x * rij.x * com_part;  // 111
+        A_ijk[1] += rij.x * rij.y * com_part;  // 112
+        A_ijk[2] += rij.x * rij.z * com_part;  // 113
+        A_ijk[3] += rij.y * rij.x * com_part;  // 121
+        A_ijk[4] += rij.y * rij.y * com_part;  // 122
+        A_ijk[5] += rij.y * rij.z * com_part;  // 123
+        A_ijk[6] += rij.z * rij.x * com_part;  // 131
+        A_ijk[7] += rij.z * rij.y * com_part;  // 132
+        A_ijk[8] += rij.z * rij.z * com_part;  // 133
+        com_part = (Gi[3] * grad_ij.x + Gi[4] * grad_ij.y + Gi[5] * grad_ij.z) * V_j;
+        A_ijk[9] += rij.x * rij.x * com_part;   // 211
+        A_ijk[10] += rij.x * rij.y * com_part;  // 212
+        A_ijk[11] += rij.x * rij.z * com_part;  // 213
+        A_ijk[12] += rij.y * rij.x * com_part;  // 221
+        A_ijk[13] += rij.y * rij.y * com_part;  // 222
+        A_ijk[14] += rij.y * rij.z * com_part;  // 223
+        A_ijk[15] += rij.z * rij.x * com_part;  // 231
+        A_ijk[16] += rij.z * rij.y * com_part;  // 232
+        A_ijk[17] += rij.z * rij.z * com_part;  // 233
+        com_part = (Gi[6] * grad_ij.x + Gi[7] * grad_ij.y + Gi[8] * grad_ij.z) * V_j;
+        A_ijk[18] += rij.x * rij.x * com_part;  // 311
+        A_ijk[19] += rij.x * rij.y * com_part;  // 312
+        A_ijk[20] += rij.x * rij.z * com_part;  // 313
+        A_ijk[21] += rij.y * rij.x * com_part;  // 321
+        A_ijk[22] += rij.y * rij.y * com_part;  // 322
+        A_ijk[23] += rij.y * rij.z * com_part;  // 323
+        A_ijk[24] += rij.z * rij.x * com_part;  // 331
+        A_ijk[25] += rij.z * rij.y * com_part;  // 332
+        A_ijk[26] += rij.z * rij.z * com_part;  // 333
     }
 
     for (int i = 0; i < 27; i++)
@@ -128,8 +119,8 @@ __global__ void calc_L_tensor(Real* A_tensor,
                               Real4* sortedPosRad,
                               Real4* sortedRhoPreMu,
                               Real* sumWij_inv,
-                              uint* cellStart,
-                              uint* cellEnd,
+                              uint* csrColInd,
+                              uint* numContacts,
                               const int numAllMarkers,
                               volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -143,6 +134,9 @@ __global__ void calc_L_tensor(Real* A_tensor,
 
     // Remember : we want to solve 6x6 system Bi*l=-[1 0 0 1 0 1]'
     // elements of matrix B depends on tensor A
+
+    uint csrStartIdx = numContacts[i_idx];
+    uint csrEndIdx = numContacts[i_idx + 1];
     Real3 posRadA = mR3(sortedPosRad[i_idx]);
     Real h_i = sortedPosRad[i_idx].w;
     Real m_i = pow(h_i * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
@@ -159,93 +153,81 @@ __global__ void calc_L_tensor(Real* A_tensor,
     // get address in grid
     int3 gridPos = calcGridPos(posRadA);
 
-    for (int z = -1; z <= 1; z++) {
-        for (int y = -1; y <= 1; y++) {
-            for (int x = -1; x <= 1; x++) {
-                int3 neighbourPos = gridPos + mI3(x, y, z);
-                uint gridHash = calcGridHash(neighbourPos);
-                // get start of bucket for this cell
-                uint startIndex = cellStart[gridHash];
-                if (startIndex != 0xffffffff) {  // cell is not empty
-                    uint endIndex = cellEnd[gridHash];
-                    for (uint j = startIndex; j < endIndex; j++) {
-                        Real3 posRadB = mR3(sortedPosRad[j]);
-                        Real3 rij = Distance(posRadA, posRadB);
-                        Real d = length(rij);
-                        if (d > RESOLUTION_LENGTH_MULT * h_i || sortedRhoPreMu[j].w <= -2)
-                            continue;
-                        Real3 eij = rij / d;
+    for (int count = csrStartIdx; count < csrEndIdx; count++) {
+        int j = csrColInd[count];
+        Real3 posRadB = mR3(sortedPosRad[j]);
+        Real3 rij = Distance(posRadA, posRadB);
+        Real d = length(rij);
+        if (d > RESOLUTION_LENGTH_MULT * h_i || sortedRhoPreMu[j].w <= -2)
+            continue;
+        Real3 eij = rij / d;
 
-                        Real h_j = sortedPosRad[j].w;
-                        Real m_j = pow(h_j * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
-                        Real h_ij = 0.5 * (h_j + h_i);
-                        Real3 grad_ij = GradWh(rij, h_ij);
-                        Real V_j = sumWij_inv[j];
-                        Real com_part = 0;
-                        // mn=11
+        Real h_j = sortedPosRad[j].w;
+        Real m_j = pow(h_j * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
+        Real h_ij = 0.5 * (h_j + h_i);
+        Real3 grad_ij = GradWh(rij, h_ij);
+        Real V_j = sumWij_inv[j];
+        Real com_part = 0;
+        // mn=11
 
-                        Real XX = (eij.x * grad_ij.x);
-                        Real XY = (eij.x * grad_ij.y + eij.y * grad_ij.x);
-                        Real XZ = (eij.x * grad_ij.z + eij.z * grad_ij.x);
-                        Real YY = (eij.y * grad_ij.y);
-                        Real YZ = (eij.y * grad_ij.z + eij.z * grad_ij.y);
-                        Real ZZ = (eij.z * grad_ij.z);
+        Real XX = (eij.x * grad_ij.x);
+        Real XY = (eij.x * grad_ij.y + eij.y * grad_ij.x);
+        Real XZ = (eij.x * grad_ij.z + eij.z * grad_ij.x);
+        Real YY = (eij.y * grad_ij.y);
+        Real YZ = (eij.y * grad_ij.z + eij.z * grad_ij.y);
+        Real ZZ = (eij.z * grad_ij.z);
 
-                        com_part = (A_ijk[0] * eij.x + A_ijk[9] * eij.y + A_ijk[18] * eij.z + rij.x * eij.x) * V_j;
-                        B[6 * 0 + 0] += com_part * XX;  // 11
-                        B[6 * 0 + 1] += com_part * XY;  // 12
-                        B[6 * 0 + 2] += com_part * XZ;  // 13
-                        B[6 * 0 + 3] += com_part * YY;  // 14
-                        B[6 * 0 + 4] += com_part * YZ;  // 15
-                        B[6 * 0 + 5] += com_part * ZZ;  // 15
-                        // mn=12
-                        com_part = (A_ijk[1] * eij.x + A_ijk[10] * eij.y + A_ijk[19] * eij.z + rij.x * eij.y) * V_j;
-                        B[6 * 1 + 0] += com_part * XX;  // 21
-                        B[6 * 1 + 1] += com_part * XY;  // 22
-                        B[6 * 1 + 2] += com_part * XZ;  // 23
-                        B[6 * 1 + 3] += com_part * YY;  // 24
-                        B[6 * 1 + 4] += com_part * YZ;  // 25
-                        B[6 * 1 + 5] += com_part * ZZ;  // 25
+        com_part = (A_ijk[0] * eij.x + A_ijk[9] * eij.y + A_ijk[18] * eij.z + rij.x * eij.x) * V_j;
+        B[6 * 0 + 0] += com_part * XX;  // 11
+        B[6 * 0 + 1] += com_part * XY;  // 12
+        B[6 * 0 + 2] += com_part * XZ;  // 13
+        B[6 * 0 + 3] += com_part * YY;  // 14
+        B[6 * 0 + 4] += com_part * YZ;  // 15
+        B[6 * 0 + 5] += com_part * ZZ;  // 15
+        // mn=12
+        com_part = (A_ijk[1] * eij.x + A_ijk[10] * eij.y + A_ijk[19] * eij.z + rij.x * eij.y) * V_j;
+        B[6 * 1 + 0] += com_part * XX;  // 21
+        B[6 * 1 + 1] += com_part * XY;  // 22
+        B[6 * 1 + 2] += com_part * XZ;  // 23
+        B[6 * 1 + 3] += com_part * YY;  // 24
+        B[6 * 1 + 4] += com_part * YZ;  // 25
+        B[6 * 1 + 5] += com_part * ZZ;  // 25
 
-                        // mn=13
-                        com_part = (A_ijk[2] * eij.x + A_ijk[11] * eij.y + A_ijk[20] * eij.z + rij.x * eij.z) * V_j;
-                        B[6 * 2 + 0] += com_part * XX;  // 31
-                        B[6 * 2 + 1] += com_part * XY;  // 32
-                        B[6 * 2 + 2] += com_part * XZ;  // 33
-                        B[6 * 2 + 3] += com_part * YY;  // 34
-                        B[6 * 2 + 4] += com_part * YZ;  // 35
-                        B[6 * 2 + 5] += com_part * ZZ;  // 36
+        // mn=13
+        com_part = (A_ijk[2] * eij.x + A_ijk[11] * eij.y + A_ijk[20] * eij.z + rij.x * eij.z) * V_j;
+        B[6 * 2 + 0] += com_part * XX;  // 31
+        B[6 * 2 + 1] += com_part * XY;  // 32
+        B[6 * 2 + 2] += com_part * XZ;  // 33
+        B[6 * 2 + 3] += com_part * YY;  // 34
+        B[6 * 2 + 4] += com_part * YZ;  // 35
+        B[6 * 2 + 5] += com_part * ZZ;  // 36
 
-                        // Note that we skip mn=21 since it is similar to mn=12
-                        // mn=22
-                        com_part = (A_ijk[4] * eij.x + A_ijk[13] * eij.y + A_ijk[22] * eij.z + rij.y * eij.y) * V_j;
-                        B[6 * 3 + 0] += com_part * XX;  // 41
-                        B[6 * 3 + 1] += com_part * XY;  // 42
-                        B[6 * 3 + 2] += com_part * XZ;  // 43
-                        B[6 * 3 + 3] += com_part * YY;  // 44
-                        B[6 * 3 + 4] += com_part * YZ;  // 45
-                        B[6 * 3 + 5] += com_part * ZZ;  // 46
+        // Note that we skip mn=21 since it is similar to mn=12
+        // mn=22
+        com_part = (A_ijk[4] * eij.x + A_ijk[13] * eij.y + A_ijk[22] * eij.z + rij.y * eij.y) * V_j;
+        B[6 * 3 + 0] += com_part * XX;  // 41
+        B[6 * 3 + 1] += com_part * XY;  // 42
+        B[6 * 3 + 2] += com_part * XZ;  // 43
+        B[6 * 3 + 3] += com_part * YY;  // 44
+        B[6 * 3 + 4] += com_part * YZ;  // 45
+        B[6 * 3 + 5] += com_part * ZZ;  // 46
 
-                        // mn=23
-                        com_part = (A_ijk[5] * eij.x + A_ijk[14] * eij.y + A_ijk[23] * eij.z + rij.y * eij.z) * V_j;
-                        B[6 * 4 + 0] += com_part * XX;  // 51
-                        B[6 * 4 + 1] += com_part * XY;  // 52
-                        B[6 * 4 + 2] += com_part * XZ;  // 53
-                        B[6 * 4 + 3] += com_part * YY;  // 54
-                        B[6 * 4 + 4] += com_part * YZ;  // 55
-                        B[6 * 4 + 5] += com_part * ZZ;  // 56
-                        // mn=33
-                        com_part = (A_ijk[8] * eij.x + A_ijk[17] * eij.y + A_ijk[26] * eij.z + rij.z * eij.z) * V_j;
-                        B[6 * 5 + 0] += com_part * XX;  // 61
-                        B[6 * 5 + 1] += com_part * XY;  // 62
-                        B[6 * 5 + 2] += com_part * XZ;  // 63
-                        B[6 * 5 + 3] += com_part * YY;  // 64
-                        B[6 * 5 + 4] += com_part * YZ;  // 65
-                        B[6 * 5 + 5] += com_part * ZZ;  // 66
-                    }
-                }
-            }
-        }
+        // mn=23
+        com_part = (A_ijk[5] * eij.x + A_ijk[14] * eij.y + A_ijk[23] * eij.z + rij.y * eij.z) * V_j;
+        B[6 * 4 + 0] += com_part * XX;  // 51
+        B[6 * 4 + 1] += com_part * XY;  // 52
+        B[6 * 4 + 2] += com_part * XZ;  // 53
+        B[6 * 4 + 3] += com_part * YY;  // 54
+        B[6 * 4 + 4] += com_part * YZ;  // 55
+        B[6 * 4 + 5] += com_part * ZZ;  // 56
+        // mn=33
+        com_part = (A_ijk[8] * eij.x + A_ijk[17] * eij.y + A_ijk[26] * eij.z + rij.z * eij.z) * V_j;
+        B[6 * 5 + 0] += com_part * XX;  // 61
+        B[6 * 5 + 1] += com_part * XY;  // 62
+        B[6 * 5 + 2] += com_part * XZ;  // 63
+        B[6 * 5 + 3] += com_part * YY;  // 64
+        B[6 * 5 + 4] += com_part * YZ;  // 65
+        B[6 * 5 + 5] += com_part * ZZ;  // 66
     }
 
     inv6xdelta_mn(B, &L_tensor[6 * i_idx]);
@@ -565,6 +547,8 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
     //               sortedPosRad[i_idx].z, normals[i_idx].x, normals[i_idx].y, normals[i_idx].z);
 
     //    sortedVelMas[i_idx] = normals[i_idx];
+    //    if (sortedRhoPreMu[i_idx].w == 1.0)
+    //        printf("n=(%f,%f,%f)\t", normals[i_idx].x, normals[i_idx].y, normals[i_idx].z);
 
     Real Det = (mGi[0] * mGi[4] * mGi[8] - mGi[0] * mGi[5] * mGi[7] - mGi[1] * mGi[3] * mGi[8] +
                 mGi[1] * mGi[5] * mGi[6] + mGi[2] * mGi[3] * mGi[7] - mGi[2] * mGi[4] * mGi[6]);

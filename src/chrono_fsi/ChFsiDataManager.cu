@@ -499,7 +499,7 @@ void ChFsiDataManager::ResizeDataManager(int numNodes) {
 
     fsiGeneralData.derivVelRhoD.resize(numObjects.numAllMarkers);
     fsiGeneralData.vel_XSPH_D.resize(numObjects.numAllMarkers);
-    fsiGeneralData.vel_IISPH_D.resize(numObjects.numAllMarkers);
+    fsiGeneralData.vis_vel_SPH_D.resize(numObjects.numAllMarkers, mR3(1e-20));
 
     printf("fsiData->ResizeDataManager (sphMarkersH)...\n");
 

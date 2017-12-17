@@ -54,7 +54,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->deltaPress = mR3(0.0, 0, 0.0);
     paramsH->multViscosity_FSI = 1;
     paramsH->gravity = mR3(0.01, 0, 0.0);
-    paramsH->V_in = 0.01;
+    paramsH->V_in = mR3(0.1, 0, 0.0);
     paramsH->x_in = -bxDim / 2 + 3 * paramsH->HSML;
 
     paramsH->dT = 5e-3;

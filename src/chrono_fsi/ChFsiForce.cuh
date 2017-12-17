@@ -127,7 +127,7 @@ class CH_FSI_API ChFsiForce : public ChFsiGeneral {
     SimParams* paramsH;            ///< pointer to simulation parameters
     NumberOfObjects* numObjectsH;  ///< pointer to number of objects, fluid and boundary markers
 
-    thrust::device_vector<Real3> vel_IISPH_Sorted_D;     ///< sorted iisph velocity data
+    thrust::device_vector<Real3> vel_vis_Sorted_D;       ///< sorted visualization velocity data
     thrust::device_vector<Real3> vel_XSPH_Sorted_D;      ///< sorted xsph velocity data
     thrust::device_vector<Real4> derivVelRhoD_Sorted_D;  ///< sorted derivVelRhoD
     /// Function to calculate the force terms for SPH markers.
