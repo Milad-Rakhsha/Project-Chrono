@@ -125,6 +125,7 @@ SET(ChronoEngine_FSI_SOURCES
     ChFsiForceXSPH.cu
     ChFsiForceIISPH.cu
     ChFsiForceI2SPH.cu
+    ChFsiForceiSPH.cu
     ChFsiForce.cu
 #    ChSphKernels.cu   
     ChFsiGeneral.cu
@@ -146,6 +147,7 @@ SET(ChronoEngine_FSI_HEADERS
     ChFsiForceXSPH.cuh
     ChFsiForceIISPH.cuh
     ChFsiForceI2SPH.cuh
+    ChFsiForceiSPH.cuh
     ChFsiForce.cuh 
     ChFsiGeneral.cuh
     ChSphGeneral.cuh  

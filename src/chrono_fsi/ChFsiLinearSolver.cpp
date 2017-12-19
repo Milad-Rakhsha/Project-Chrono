@@ -196,11 +196,11 @@ void ChFsiLinearSolver::BiCGStab(int SIZE, int NNZ, double* A, uint* ArowIdx, ui
         // alpha=rho/(rh'*AMp)
         cublasDdot(cublasHandle, SIZE, rh, 1, AMp, 1, &temp);
         cudaThreadSynchronize();
-        if (abs(temp) < 1e-8) {
-            residual = nrmr;
-            solver_status = 0;
-            break;
-        }
+        //        if (abs(temp) < 1e-8) {
+        //            residual = nrmr;
+        //            solver_status = 0;
+        //            break;
+        //        }
         alpha = rho / temp;
         negalpha = -(alpha);
         cublasDnrm2(cublasHandle, SIZE, Mp, 1, &nrmr);

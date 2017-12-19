@@ -61,19 +61,19 @@ const std::string out_dir = GetChronoOutputPath() + "FSI_FLOW_AROUND_CYLINDER_SI
 const std::string demo_dir = out_dir + "/FlowAroundCylinder_single_res";
 bool save_output = true;
 
-int out_fps = 20;
+int out_fps = 10;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
-Real bxDim = 2.0;
-Real byDim = 0.05;
+Real bxDim = 1.0;
+Real byDim = 0.06;
 Real bzDim = 0.4;
 
 Real fxDim = bxDim;
 Real fyDim = byDim;
 Real fzDim = bzDim;
-double cyl_length = 0.06;
+double cyl_length = 0.07;
 double cyl_radius = .05;
 ChVector<> cyl_pos = ChVector<>(0.0);
 
@@ -218,7 +218,7 @@ int main(int argc, char* argv[]) {
 #endif
     // ************* Create Fluid *************************
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::iSPH);
     chrono::ChVector<> CameraLocation = chrono::ChVector<>(0, -10, 0);
     chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
 
@@ -312,7 +312,7 @@ int main(int argc, char* argv[]) {
             }
         }
         if (!removeThis) {
-            myFsiSystem.GetDataManager()->AddSphMarker(p, paramsH->V_in * 0.1,
+            myFsiSystem.GetDataManager()->AddSphMarker(p, paramsH->V_in,
                                                        chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -1.0));
         } else
             numremove++;

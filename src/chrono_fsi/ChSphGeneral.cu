@@ -307,11 +307,9 @@ __global__ void calcRho_kernel(Real4* sortedPosRad,  // input: sorted positionsm
     mynumContact[i_idx] = mcon;
     // Adding neighbor contribution is done!
     sumWij_inv[i_idx] = m_i / sum_mW;
+    //    printf("%f, ", m_i / sum_mW);
     sortedRhoPreMu[i_idx].x = sum_mW;
 
-    //
-    //    //    sortedRhoPreMu[i_idx].x = sum_mW;
-    //
     if ((sortedRhoPreMu[i_idx].x > 2 * paramsD.rho0 || sortedRhoPreMu[i_idx].x < 0) && sortedRhoPreMu[i_idx].w == -1)
         printf("(calcRho_kernel)too large/small density marker %d, rho=%f\n", i_idx, sortedRhoPreMu[i_idx].x);
 }
@@ -447,6 +445,7 @@ __global__ void calcNormalizedRho_kernel(Real4* sortedPosRad,  // input: sorted 
     //    sortedRhoPreMu[i_idx].x = RHO_0;
     //  }
 }
+
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  // input: sorted positions
                                                          Real3* sortedVelMas,
@@ -665,7 +664,80 @@ __global__ void Function_Gradient_Laplacian_Operator(Real4* sortedPosRad,  // in
     }
 
 }  // namespace fsi
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void Jacobi_SOR_Iter(Real4* sortedRhoPreMu,
+                                Real* A_Matrix,
+                                Real3* V_old,
+                                Real3* V_new,
+                                Real3* b3vec,
+                                Real* q_old,  // q=p^(n+1)-p^n
+                                Real* q_new,  // q=p^(n+1)-p^n
+                                Real* b1vec,
+                                const uint* csrColInd,
+                                const uint* numContacts,
+                                int numAllMarkers,
+                                bool _3dvector,
+                                volatile bool* isErrorD) {
+    uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i_idx >= numAllMarkers) {
+        return;
+    }
+    uint startIdx = numContacts[i_idx] + 1;  // Reserve the starting index for the A_ii
+    uint endIdx = numContacts[i_idx + 1];
 
+    if (_3dvector) {
+        Real3 aij_vj = mR3(0.0);
+        for (int myIdx = startIdx; myIdx < endIdx; myIdx++) {
+            aij_vj += A_Matrix[myIdx] * V_old[csrColInd[myIdx]];
+        }
+        if (abs(A_Matrix[startIdx - 1]) < EPSILON)
+            printf(" %d A_Matrix[startIdx - 1]= %f, type=%f \n", i_idx, A_Matrix[startIdx - 1],
+                   sortedRhoPreMu[i_idx].w);
+        V_new[i_idx] = (b3vec[i_idx] - aij_vj) / A_Matrix[startIdx - 1];
+    } else {
+        Real aij_pj = 0.0;
+        for (int myIdx = startIdx; myIdx < endIdx; myIdx++) {
+            aij_pj += A_Matrix[myIdx] * q_old[csrColInd[myIdx]];
+        }
+        if (A_Matrix[startIdx - 1] == 0.0)
+            printf(" %d A_Matrix[startIdx - 1]= %f, type=%f \n", i_idx, A_Matrix[startIdx - 1],
+                   sortedRhoPreMu[i_idx].w);
+
+        q_new[i_idx] = (b1vec[i_idx] - aij_pj) / A_Matrix[startIdx - 1];
+    }
+}
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void Update_AND_Calc_Res(Real4* sortedRhoPreMu,
+                                    Real3* V_old,
+                                    Real3* V_new,
+                                    Real* q_old,
+                                    Real* q_new,
+                                    Real* Residuals,
+                                    const int numAllMarkers,
+                                    bool _3dvector,
+                                    volatile bool* isErrorD) {
+    uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i_idx >= numAllMarkers) {
+        return;
+    }
+    Real omega = paramsD.PPE_relaxation;
+    Real res = 0;
+    if (_3dvector) {
+        V_new[i_idx] = (1 - omega) * V_old[i_idx] + omega * V_new[i_idx];
+        res = length(V_old[i_idx] - V_new[i_idx]);
+        V_old[i_idx] = V_new[i_idx];
+        if (!(isfinite(V_old[i_idx].x) && isfinite(V_old[i_idx].y) && isfinite(V_old[i_idx].z)))
+            printf(" %d vel= %f,%f,%f\n", i_idx, V_old[i_idx].x, V_old[i_idx].y, V_old[i_idx].z);
+
+    } else {
+        q_new[i_idx] = (1 - omega) * q_old[i_idx] + omega * q_new[i_idx];
+        res = abs(q_old[i_idx] - q_new[i_idx]);
+        q_old[i_idx] = q_new[i_idx];
+        if (!(isfinite(q_old[i_idx])))
+            printf(" %d q= %f\n", i_idx, q_old[i_idx]);
+    }
+    Residuals[i_idx] = res;
+}
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Initialize_Variables(Real4* sortedRhoPreMu,
                                      Real* p_old,

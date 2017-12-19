@@ -137,7 +137,7 @@ int main(int argc, char* argv[]) {
     mHaveFluid = true;
 #endif
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::iSPH);
 
     chrono::fsi::SimParams* paramsH = myFsiSystem.GetSimParams();
 

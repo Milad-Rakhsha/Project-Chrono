@@ -28,6 +28,7 @@
 #include "chrono_fsi/ChFsiForceI2SPH.cuh"
 #include "chrono_fsi/ChFsiForceIISPH.cuh"
 #include "chrono_fsi/ChFsiForceXSPH.cuh"
+#include "chrono_fsi/ChFsiForceiSPH.cuh"
 
 #include "chrono_fsi/ChFsiDataManager.cuh"
 
@@ -53,6 +54,8 @@ class CH_FSI_API ChFluidDynamics : public ChFsiGeneral {
         XSPH,
         IISPH,
         I2SPH,
+        iSPH,
+
     };
     /// Fluid dynamics class constructor.
     ///

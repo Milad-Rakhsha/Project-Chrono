@@ -456,6 +456,13 @@ ChFluidDynamics::ChFluidDynamics(ChBce* otherBceWorker,
             printf("Created an IISPH frame work.\n");
             break;
 
+        case ChFluidDynamics::Integrator::iSPH:
+            forceSystem =
+                new ChFsiForceiSPH(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
+                                   &(fsiData->fsiGeneralData), paramsH, numObjectsH);
+            printf("Created an IISPH frame work.\n");
+            break;
+
         case ChFluidDynamics::Integrator::XSPH:
             forceSystem =
                 new ChFsiForceXSPH(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),

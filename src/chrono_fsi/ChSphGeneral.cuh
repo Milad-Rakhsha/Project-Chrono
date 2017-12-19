@@ -655,6 +655,30 @@ __global__ void Function_Gradient_Laplacian_Operator(Real4* sortedPosRad,  // in
                                                      const int numAllMarkers,
                                                      volatile bool* isErrorD);
 //--------------------------------------------------------------------------------------------------------------------------------
+__global__ void Jacobi_SOR_Iter(Real4* sortedRhoPreMu,
+                                Real* A_Matrix,
+                                Real3* V_old,
+                                Real3* V_new,
+                                Real3* b3vec,
+                                Real* q_old,  // q=p^(n+1)-p^n
+                                Real* q_new,  // q=p^(n+1)-p^n
+                                Real* b1vec,
+                                const uint* csrColInd,
+                                const uint* numContacts,
+                                int numAllMarkers,
+                                bool _3dvector,
+                                volatile bool* isErrorD);
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void Update_AND_Calc_Res(Real4* sortedRhoPreMu,
+                                    Real3* V_old,
+                                    Real3* V_new,
+                                    Real* q_old,
+                                    Real* q_new,
+                                    Real* Residuals,
+                                    const int numAllMarkers,
+                                    bool _3dvector,
+                                    volatile bool* isErrorD);
+//--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Initialize_Variables(Real4* sortedRhoPreMu,
                                      Real* p_old,
                                      Real3* sortedVelMas,
