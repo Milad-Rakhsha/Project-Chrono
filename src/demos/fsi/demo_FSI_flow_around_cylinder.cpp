@@ -220,7 +220,7 @@ int main(int argc, char* argv[]) {
 #endif
     // ************* Create Fluid *************************
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::XSPH);
     chrono::ChVector<> CameraLocation = chrono::ChVector<>(0, -10, 0);
     chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
 

@@ -65,7 +65,7 @@ Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 // Dimension of the domain
 Real bxDim = 3.5;
-Real byDim = 0.4;
+Real byDim = 0.2;
 Real bzDim = 1.8;
 
 // Dimension of the fluid domain

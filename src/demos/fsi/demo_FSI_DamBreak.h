@@ -35,8 +35,8 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;
-    paramsH->HSML = 0.05 / 1.0;
-    paramsH->MULT_INITSPACE = 1.0;
+    paramsH->HSML = 0.05 / 0.8;
+    paramsH->MULT_INITSPACE = 0.8;
     paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
@@ -46,13 +46,13 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->gravity = mR3(0, 0, -1);
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
-    paramsH->BASEPRES = 5e3;
+    paramsH->BASEPRES = 5e2;
 
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
     paramsH->mu0 = 0.1;
     paramsH->kappa = 0.001;
 
-    paramsH->v_Max = 1000;
+    paramsH->v_Max = 200;
     paramsH->EPS_XSPH = .5f;
 
     paramsH->USE_LinearSolver = true;  ///< IISPH parameter: whether or not use linear solvers
@@ -73,7 +73,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->dT_Max = 0.001;  ///< This is problem dependent should set by the user based on characteristic time step
     paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 
-    paramsH->dT = 1e-4;
+    paramsH->dT = 1e-3;
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;
