@@ -64,7 +64,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
     paramsH->mu0 = 0.1;
     paramsH->kappa = 0.000;  ///< surface tension parameter, experimental
-    paramsH->v_Max = 0.0;    // Arman, I changed it to 0.1 for vehicle. Check this
+    paramsH->v_Max = 100.0;  // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
     paramsH->USE_LinearSolver = true;  ///< IISPH parameter: whether or not use linear solvers

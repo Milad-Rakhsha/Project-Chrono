@@ -193,7 +193,7 @@ int main(int argc, char* argv[]) {
     struct tm* timeinfo;
 
     //(void) cudaSetDevice(0);
-    cudaSetDevice(0);
+    cudaSetDevice(1);
 
     time(&rawtime);
     timeinfo = localtime(&rawtime);
@@ -478,7 +478,7 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
 
     if (save_output && std::abs(mTime - (next_frame)*frame_time) < 0.00001) {
         fsi::utils::PrintToFile(myFsiSystem.GetDataManager()->sphMarkersD2.posRadD,
-                                myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
+                                myFsiSystem.GetDataManager()->fsiGeneralData.vel_XSPH_D,
                                 myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
                                 myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
                                 myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, demo_dir, true);
