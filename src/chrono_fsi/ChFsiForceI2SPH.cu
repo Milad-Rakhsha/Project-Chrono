@@ -271,10 +271,9 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
         //            Bi[i_idx] = 0.0;
         //        }
         for (int count = csrStartIdx; count < csrEndIdx; count++) {
-            A_Matrix[count] =
-                1.0 / rhoi_star * A_L[count] - 1.0 / (rhoi_star * rhoi_star) * dot(grad_rho_i, A_G[count]);
+            A_Matrix[count] = 1.0 / rhoi * A_L[count] - 1.0 / (rhoi * rhoi) * dot(grad_rho_i, A_G[count]);
         }
-        Bi[i_idx] = 1.0 * div_vi_star / dt + 0.0 * (paramsD.rho0 - rhoi_star) / paramsD.rho0 / (dt * dt);
+        Bi[i_idx] = 1.0 * div_vi_star / dt;
         //======================== Inflow/outflow =====================
         if (paramsD.ApplyInFlowOutFlow) {
             //            if (sortedPosRad[i_idx].x <= paramsD.inflow.x &&
@@ -403,7 +402,7 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
     if (sortedRhoPreMu[i_idx].w == -1.0)
         r0 /= (csrEndIdx - csrStartIdx - 1);
 
-    shift_r = 5.0 * r0 * r0 * length(MaxVel) * paramsD.dT / mi_bar * inner_sum;
+    shift_r = 1.0 * r0 * r0 * length(MaxVel) * paramsD.dT / mi_bar * inner_sum;
 
     Real3 V_new = Vstar[i_idx] - paramsD.dT / sortedRhoPreMu[i_idx].x * grad_q_i;
 

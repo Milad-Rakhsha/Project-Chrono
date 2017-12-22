@@ -61,7 +61,7 @@ const std::string out_dir = GetChronoOutputPath() + "FSI_FLOW_AROUND_CYLINDER_SI
 const std::string demo_dir = out_dir + "/FlowAroundCylinder_single_res";
 bool save_output = true;
 
-int out_fps = 10;
+int out_fps = 20;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD

@@ -1850,7 +1850,7 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     //        throw std::runtime_error("Error! program crashed in Calc_Split_and_Merges!\n");
     //    }
     //
-    thrust::device_vector<Real> Contact_i(numAllMarkers);
+    thrust::device_vector<uint> Contact_i(numAllMarkers);
     thrust::fill(Contact_i.begin(), Contact_i.end(), 0);
     calcRho_kernel<<<numBlocks, numThreads>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),
@@ -1867,7 +1867,8 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     thrust::exclusive_scan(Contact_i.begin(), Contact_i.end(), Contact_i.begin());
     Contact_i.push_back(LastVal + Contact_i[numAllMarkers - 1]);
     int NNZ = Contact_i[numAllMarkers];
-    thrust::device_vector<uint> csrColInd(NNZ, 0);
+
+    thrust::device_vector<uint> csrColInd(NNZ);
     thrust::device_vector<Real3> Normals(numAllMarkers);
 
     calcNormalizedRho_Gi_fillInMatrixIndices<<<numBlocks, numThreads>>>(
@@ -1875,14 +1876,12 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
         mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv), R1CAST(G_i), mR3CAST(Normals), U1CAST(csrColInd),
         U1CAST(Contact_i), U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers,
         isErrorD);
-
     cudaThreadSynchronize();
     cudaCheckError();
     cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
     if (*isErrorH == true) {
         throw std::runtime_error("Error! program crashed after calcNormalizedRho_kernel!\n");
     }
-    //
 
     calc_A_tensor<<<numBlocks, numThreads>>>(R1CAST(A_i), R1CAST(G_i), mR4CAST(sortedSphMarkersD->posRadD),
                                              mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),

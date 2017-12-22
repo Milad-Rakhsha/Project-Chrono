@@ -10,6 +10,7 @@ demo_FSI_DamBreak
 demo_FSI_Compressibility
 demo_FSI_Poiseuille_flow
 demo_FSI_Cavity
+demo_FSI_backward_facing_step
 )
 
 # List all FSI demos that use chrono-parallel

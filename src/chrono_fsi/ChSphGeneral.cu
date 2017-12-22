@@ -552,7 +552,7 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
     Real Det = (mGi[0] * mGi[4] * mGi[8] - mGi[0] * mGi[5] * mGi[7] - mGi[1] * mGi[3] * mGi[8] +
                 mGi[1] * mGi[5] * mGi[6] + mGi[2] * mGi[3] * mGi[7] - mGi[2] * mGi[4] * mGi[6]);
     if (abs(Det) < 1e-8) {
-        //        printf("Gi,");
+        printf("Gi,");
         for (int i = 0; i < 9; i++)
             G_i[i_idx * 9 + i] = 0.0;
         G_i[i_idx * 9 + 0] = 1;

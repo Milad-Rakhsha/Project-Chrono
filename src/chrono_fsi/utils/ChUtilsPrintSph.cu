@@ -15,12 +15,12 @@
 // Utility function to print the save fluid, bce, and boundary data into file
 // =============================================================================
 
-#include <fstream>
-#include <sstream>
+#include <thrust/device_vector.h>
+#include <thrust/reduce.h>
 #include <cstdio>
 #include <cstring>
-#include <thrust/reduce.h>
-#include <thrust/device_vector.h>
+#include <fstream>
+#include <sstream>
 #include "chrono_fsi/utils/ChUtilsPrintSph.cuh"
 
 namespace chrono {
@@ -94,7 +94,7 @@ void PrintToFile(const thrust::device_vector<Real4>& posRadD,
     fileNameFluidParticles.close();
     //*****************************************************
     const std::string nameFluidBoundaries =
-        out_dir + std::string("/fluid_boundary") + std::string(fileCounter) + std::string(".csv");
+        out_dir + std::string("/boundary") + std::string(fileCounter) + std::string(".csv");
 
     std::ofstream fileNameFluidBoundaries;
     fileNameFluidBoundaries.open(nameFluidBoundaries);
@@ -103,7 +103,7 @@ void PrintToFile(const thrust::device_vector<Real4>& posRadD,
         ssFluidBoundaryParticles << "x,y,z,h,v_x,v_y,v_z,|U|,rho(rpx),p(rpy),mu(rpz),type(rpw)\n";
 
     //		ssFluidBoundaryParticles.precision(20);
-    for (int i = referenceArray[0].x; i < referenceArray[haveHelper + haveGhost + 1].y; i++) {
+    for (int i = referenceArray[haveHelper + haveGhost + 1].x; i < referenceArray[haveHelper + haveGhost + 1].y; i++) {
         Real4 rP = rhoPresMuH[i];
         if (rP.w <= -2)
             continue;

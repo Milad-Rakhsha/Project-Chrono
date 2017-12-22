@@ -19,7 +19,6 @@
 #include "chrono/utils/ChUtilsGenerators.h"
 #include "chrono/utils/ChUtilsGeometry.h"
 
-
 #include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFsiTypeConvert.h"
 #include "chrono_fsi/custom_math.h"
@@ -844,7 +843,7 @@ void CreateBoxFSI(ChFsiDataManager* fsiData,
                   ChSystem& mphysicalSystem,
                   std::vector<std::shared_ptr<ChBody>>* fsiBodeisPtr,
                   SimParams* paramsH,
-                  std::shared_ptr<ChMaterialSurfaceNSC> mat_prop,
+                  std::shared_ptr<ChMaterialSurface> mat_prop,
                   Real density,
                   ChVector<> pos,
                   ChQuaternion<> rot,

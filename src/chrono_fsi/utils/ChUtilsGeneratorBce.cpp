@@ -176,6 +176,8 @@ void CreateBCE_On_Box(thrust::host_vector<Real4>& posRadBCE, const Real3& hsize,
         case -23:
             iBound = mI2(-nFX, -nFX + paramsH->NUM_BOUNDARY_LAYERS - 1);
             break;
+        case 123:
+            break;
         default:
             printf("wrong argument box bce initialization\n");
             break;
