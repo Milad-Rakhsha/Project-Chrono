@@ -122,12 +122,12 @@ __global__ void V_star(Real4* sortedPosRad,  // input: sorted positions
         Real3 rhs = mR3(0.0);
         for (int count = csrStartIdx; count < csrEndIdx; count++) {
             int j = csrColInd[count];
-            A_Matrix[count] = -CN * paramsD.mu0 / rhoi * A_L[count];
-            rhs += (1 - CN) * paramsD.mu0 / rhoi * A_L[count] * sortedVelMas[j];  // viscous term;
+            A_Matrix[count] = -delta_t * CN * paramsD.mu0 / rhoi * A_L[count];
+            rhs += delta_t * (1 - CN) * paramsD.mu0 / rhoi * A_L[count] * sortedVelMas[j];  // viscous term;
         }
-        A_Matrix[csrStartIdx] += 1 / delta_t;
-        Bi[i_idx] = rhs + sortedVelMas[i_idx] / delta_t  //forward euler term from lhs
-                    + paramsD.gravity;                   // body force
+        A_Matrix[csrStartIdx] += 1;
+        Bi[i_idx] = rhs + sortedVelMas[i_idx]     //forward euler term from lhs
+                    + paramsD.gravity * delta_t;  // body force
     } else if (Boundary_Marker) {
         //======================== Boundary ===========================
         Real h_i = sortedPosRad[i_idx].w;

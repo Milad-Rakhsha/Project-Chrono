@@ -157,7 +157,7 @@ void ChSystemFsi::DoStepDynamics_FSI_Implicit() {
 
     bceWorker->UpdateRigidMarkersPositionVelocity(&(fsiData->sphMarkersD2), &(fsiData->fsiBodiesD2));
     bceWorker->UpdateFlexMarkersPositionVelocity(&(fsiData->sphMarkersD2), &(fsiData->fsiMeshD));
-    printf("============================================================\n");
+    printf("=================================================================================================\n");
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 void ChSystemFsi::DoStepDynamics_ChronoRK2() {

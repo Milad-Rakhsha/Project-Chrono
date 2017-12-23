@@ -61,14 +61,14 @@ const std::string out_dir = GetChronoOutputPath() + "backward_facing_step";
 const std::string demo_dir = out_dir + "/backward_facing_step";
 bool save_output = true;
 
-int out_fps = 100;
+int out_fps = 10;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 Real SCALE = 1.0;
 Real bxDim = 2 * SCALE * 8;
-Real byDim = 0.25;
+Real byDim = 0.3;
 Real bzDim = SCALE;
 Real step_length = 2 * SCALE * 2;
 Real step_ehight = SCALE / 2;
@@ -110,11 +110,11 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
 
     // Step Geometry
-    ChVector<> size_middle(step_length / 2, byDim / 2, bzDim / 2 - 3 * initSpace0);
-    ChVector<> pos_middle(0, 0, 5 * initSpace0);
+    ChVector<> size_middle(step_length / 2, byDim / 2, bzDim / 4 - initSpace0);
+    ChVector<> pos_middle(0, 0, 7 * initSpace0);
     // Bottom wall
-    ChVector<> sizeBottom(bxDim / 2, byDim / 2 + 0 * initSpace0, 2 * initSpace0);
-    ChVector<> posBottom(0, 0, -3 * initSpace0);
+    ChVector<> sizeBottom(bxDim / 2, byDim / 2 - 0 * initSpace0, 2 * initSpace0);
+    ChVector<> posBottom(0, 0, 0.0);
     ChVector<> posTop(0, 0, bzDim + 1 * initSpace0);
 
     // left and right Wall
@@ -192,7 +192,7 @@ int main(int argc, char* argv[]) {
 #endif
     // ************* Create Fluid *************************
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::IISPH);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
     chrono::ChVector<> CameraLocation = chrono::ChVector<>(0, -10, 0);
     chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
 
@@ -207,7 +207,7 @@ int main(int argc, char* argv[]) {
     utils::GridSampler<> sampler1(initSpace1);
 
     chrono::fsi::Real3 boxCenter1 = chrono::fsi::mR3(-bxDim / 2 + fxDim / 2, 0, fzDim * 0.5);
-    chrono::fsi::Real3 boxHalfDim1 = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
+    chrono::fsi::Real3 boxHalfDim1 = chrono::fsi::mR3(fxDim / 2, fyDim / 2 + 0.00001, fzDim / 2);
 
     int numhelperMarkers = myFsiSystem.GetDataManager()->sphMarkersH.posRadH.size();
 
@@ -336,6 +336,10 @@ int main(int argc, char* argv[]) {
     const std::string copyInitials =
         (std::string("cp ") + demo_dir + std::string("/boundary0.csv") + std::string(" ./BCE.csv "));
     system(copyInitials.c_str());
+    if (argc <= 1) {
+        printf("now please run with an input argument\n");
+        return 0;
+    }
 
     Real time = 0;
     Real Global_max_dT = paramsH->dT_Max;

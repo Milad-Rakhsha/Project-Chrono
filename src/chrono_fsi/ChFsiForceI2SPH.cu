@@ -96,6 +96,7 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
     if (i_idx >= numAllMarkers) {
         return;
     }
+    Real CN = 1.0;
 
     uint csrStartIdx = numContacts[i_idx];
     uint csrEndIdx = numContacts[i_idx + 1];
@@ -124,13 +125,13 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
         Real3 rhs = mR3(0.0);
         for (int count = csrStartIdx; count < csrEndIdx; count++) {
             int j = csrColInd[count];
-            A_Matrix[count] = -0.5 * paramsD.mu0 / rhoi * A_L[count];
-            rhs += -1 / rhoi * A_G[count] * sortedRhoPreMu[j].y +            // Pressure Gradient
-                   0.5 * paramsD.mu0 / rhoi * A_L[count] * sortedVelMas[j];  // viscous term;
+            A_Matrix[count] = -dt * CN * paramsD.mu0 / rhoi * A_L[count];
+            rhs += -1 / rhoi * A_G[count] * sortedRhoPreMu[j].y +                 // Pressure Gradient
+                   (1 - CN) * paramsD.mu0 / rhoi * A_L[count] * sortedVelMas[j];  // viscous term;
         }
-        A_Matrix[csrStartIdx] += 1 / dt;
-        Bi[i_idx] = rhs + sortedVelMas[i_idx] / dt  //forward euler term from lhs
-                    + paramsD.gravity;              // body force
+        A_Matrix[csrStartIdx] += 1;
+        Bi[i_idx] = rhs * dt + sortedVelMas[i_idx]                     //forward euler term from lhs
+                    + paramsD.gravity * dt + paramsD.bodyForce3 * dt;  // body force
 
         //======================== Inflow/outflow =====================
         if (paramsD.ApplyInFlowOutFlow) {
@@ -248,7 +249,7 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
         return;
     }
 
-    Real3 gravity = paramsD.gravity;
+    Real3 gravity = paramsD.gravity + paramsD.bodyForce3;
     Real dt = paramsD.dT;
     Real3 grad_rho_i = mR3(0.0);
     Real div_vi_star = 0;
@@ -261,8 +262,8 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
     }
 
     Real rhoi = sortedRhoPreMu[i_idx].x;
-    //    Real rhoi_star = rhoi - rhoi * div_vi_star * dt;
-    Real rhoi_star = rhoi + dot(grad_rho_i, Vstar[i_idx] * dt);
+    Real rhoi_star = rhoi - rhoi * div_vi_star * dt;
+    //    Real rhoi_star = rhoi + dot(grad_rho_i, Vstar[i_idx] * dt);
 
     //======================== Interior ===========================
     if (Fluid_Marker) {
@@ -271,9 +272,9 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
         //            Bi[i_idx] = 0.0;
         //        }
         for (int count = csrStartIdx; count < csrEndIdx; count++) {
-            A_Matrix[count] = 1.0 / rhoi * A_L[count] - 1.0 / (rhoi * rhoi) * dot(grad_rho_i, A_G[count]);
+            A_Matrix[count] = rhoi_star * A_L[count] - (rhoi_star * rhoi_star) * dot(grad_rho_i, A_G[count]);
         }
-        Bi[i_idx] = 1.0 * div_vi_star / dt;
+        Bi[i_idx] = div_vi_star / dt;
         //======================== Inflow/outflow =====================
         if (paramsD.ApplyInFlowOutFlow) {
             //            if (sortedPosRad[i_idx].x <= paramsD.inflow.x &&
@@ -402,7 +403,7 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
     if (sortedRhoPreMu[i_idx].w == -1.0)
         r0 /= (csrEndIdx - csrStartIdx - 1);
 
-    shift_r = 1.0 * r0 * r0 * length(MaxVel) * paramsD.dT / mi_bar * inner_sum;
+    shift_r = 2.0 * r0 * r0 * length(MaxVel) * paramsD.dT / mi_bar * inner_sum;
 
     Real3 V_new = Vstar[i_idx] - paramsD.dT / sortedRhoPreMu[i_idx].x * grad_q_i;
 
@@ -444,13 +445,13 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
 
     Real3 vis_vel = mR3(0.0);
 
-    for (int count = csrStartIdx + 1; count < csrEndIdx; count++) {
+    for (int count = csrStartIdx; count < csrEndIdx; count++) {
         uint j = csrColInd[count];
         vis_vel += A_f[count] * (sortedVelMas[j]);
     }
     sortedVisVel[i_idx] = vis_vel;
 
-    //    sortedVelMas[i_idx] += paramsD.EPS_XSPH * vis_vel;
+    sortedVelMas[i_idx] = paramsD.EPS_XSPH * vis_vel + (1 - paramsD.EPS_XSPH) * sortedVelMas[i_idx];
 
     if (!(isfinite(sortedPosRad[i_idx].x) && isfinite(sortedPosRad[i_idx].y) && isfinite(sortedPosRad[i_idx].z))) {
         printf("Error! particle %d position is NAN: thrown from Velocity_Correction_and_update  %f,%f,%f,%f\n", i_idx,
@@ -519,7 +520,6 @@ void ChFsiForceI2SPH::Finalize() {
 void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
                                        FsiBodiesDataD* otherFsiBodiesD,
                                        FsiMeshDataD* otherFsiMeshD) {
-    std::cout << "dT in ForceImplicitSPH: " << paramsH->dT << "\n";
     CopyParams_NumberOfObjects(paramsH, numObjectsH);
     sphMarkersD = otherSphMarkersD;
     int numAllMarkers = numObjectsH->numAllMarkers;
@@ -542,6 +542,24 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     thrust::fill(A_i.begin(), A_i.end(), 0);
     thrust::fill(L_i.begin(), L_i.end(), 0);
     thrust::fill(G_i.begin(), G_i.end(), 0);
+
+    thrust::device_vector<Real3>::iterator iter =
+        thrust::max_element(sortedSphMarkersD->velMasD.begin(), sortedSphMarkersD->velMasD.end(), compare_Real3_mag());
+    Real MaxVel = length(*iter);
+
+    if (paramsH->Adaptive_time_stepping) {
+        Real dt_CFL = paramsH->Co_number * paramsH->HSML / MaxVel;
+        Real dt_nu = 0.125 * paramsH->HSML * paramsH->HSML / (paramsH->mu0 / paramsH->rho0);
+        Real dt_body = 0.25 * std::sqrt(paramsH->HSML / length(paramsH->bodyForce3 + paramsH->gravity));
+        Real dt = std::min(dt_body, std::min(dt_CFL, dt_nu));
+        if (dt / paramsH->dT_Max > 0.7 && dt / paramsH->dT_Max < 1)
+            paramsH->dT = paramsH->dT_Max * 0.5;
+        else
+            paramsH->dT = std::min(dt, paramsH->dT_Max);
+
+        printf(" time step=%.3e, dt_Max=%.3e, dt_CFL=%.3e (CFL=%.2g), dt_nu=%.3e, dt_body=%.3e\n", paramsH->dT,
+               paramsH->dT_Max, dt_CFL, paramsH->Co_number, dt_nu, dt_body);
+    }
 
     //============================================================================================================
     *isErrorH = false;
@@ -645,12 +663,12 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
         if (paramsH->Verbose_monitoring)
             printf("Iter= %.4d, Res= %.4e\n", Iteration, MaxRes);
     }
-
-    thrust::device_vector<Real3>::iterator iter =
-        thrust::max_element(V_star_new.begin(), V_star_new.end(), compare_Real3_mag());
-    unsigned int position = iter - V_star_new.begin();
-    Real MaxVel = length(*iter);
-
+    //
+    //    thrust::device_vector<Real3>::iterator iter =
+    //        thrust::max_element(V_star_new.begin(), V_star_new.end(), compare_Real3_mag());
+    //    unsigned int position = iter - V_star_new.begin();
+    //    Real MaxVel = length(*iter);
+    //
     uint FixedMarker = 0;
     //    Real temp = 0;
     //    for (int i = 0; i < numAllMarkers; i++) {
@@ -704,13 +722,15 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
         myLS.Solve(numAllMarkers, NNZ, R1CAST(AMatrix), U1CAST(Contact_i), U1CAST(csrColInd), (double*)R1CAST(q_new),
                    R1CAST(b1Vector));
         cudaCheckError();
-        if (myLS.GetSolverStatus()) {
-            std::cout << " Linear solver converged to " << myLS.GetResidual() << " tolerance";
-            std::cout << " after " << myLS.GetNumIterations() << " iterations" << std::endl;
-        } else {
-            std::cout << "Failed to converge after " << myLS.GetNumIterations() << " iterations";
-            std::cout << " (" << myLS.GetResidual() << " final residual)" << std::endl;
-        }
+        MaxRes = myLS.GetResidual();
+        Iteration = myLS.GetNumIterations();
+        //        if (myLS.GetSolverStatus()) {
+        //            std::cout << " Linear solver converged to " << myLS.GetResidual() << " tolerance";
+        //            std::cout << " after " << myLS.GetNumIterations() << " iterations" << std::endl;
+        //        } else {
+        //            std::cout << "Failed to converge after " << myLS.GetNumIterations() << " iterations";
+        //            std::cout << " (" << myLS.GetResidual() << " final residual)" << std::endl;
+        //        }
     } else {
         thrust::fill(Residuals.begin(), Residuals.end(), 0.0);
         while ((MaxRes > paramsH->LinearSolver_Abs_Tol || Iteration < 3) &&
@@ -734,6 +754,7 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
                 printf("Iter= %.4d, Res= %.4e\n", Iteration, MaxRes);
         }
     }
+
     double Pressure_Computation = (clock() - LinearSystemClock_p) / (double)CLOCKS_PER_SEC;
     printf(" Pressure Poisson Equation: %f (sec) - Final Residual=%.3e - #Iter=%d\n", Pressure_Computation, MaxRes,
            Iteration);
@@ -747,7 +768,8 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
         isErrorD);
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Velocity_Correction_and_update");
     double updateComputation = (clock() - updateClock) / (double)CLOCKS_PER_SEC;
-    printf(" Pressure Poisson Equation: %f (sec)\n", updateComputation);
+    printf(" Velocity_Correction_and_update: %f (sec)\n", updateComputation);
+
     //============================================================================================================
     CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vis_vel_SPH_D, vel_vis_Sorted_D,
                                         markersProximityD->gridMarkerIndexD);

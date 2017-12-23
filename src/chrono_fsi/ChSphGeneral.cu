@@ -479,6 +479,10 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
     if (sortedRhoPreMu[i_idx].w <= -2)
         return;
 
+    Real theta_i = sortedRhoPreMu[i_idx].w + 1;
+    if (theta_i > 1)
+        theta_i = 1;
+
     Real3 mynormals = mR3(0.0);
     // This is the elements of inverse of G
     Real mGi[9] = {0.0};
@@ -502,12 +506,6 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
                         Real h_j = sortedPosRad[j].w;
                         Real m_j = pow(h_j * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
 
-                        if (sortedRhoPreMu[i_idx].w == sortedRhoPreMu[j].w && d < RESOLUTION_LENGTH_MULT * h_i) {
-                            mynormals += dist3;
-                        } else if (sortedRhoPreMu[i_idx].w > -1.0 && sortedRhoPreMu[i_idx].w != sortedRhoPreMu[j].w) {
-                            mynormals -= dist3 * 10;
-                        }
-
                         if (d > RESOLUTION_LENGTH_MULT * h_i || sortedRhoPreMu[j].w <= -2)
                             continue;
                         //                        if (i_idx != j && ((sortedRhoPreMu[i_idx].w == -1.0) ||
@@ -521,7 +519,14 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
 
                         Real3 grad_i_wij = GradWh(dist3, h_ij);
                         Real V_j = sumWij_inv[j];
+
+                        Real theta_j = sortedRhoPreMu[j].w + 1;
+                        if (theta_j > 1)
+                            theta_j = 1;
+                        mynormals += (theta_j - theta_i) * grad_i_wij * V_j;
+
                         mGi[0] -= dist3.x * grad_i_wij.x * V_j;
+
                         mGi[1] -= dist3.x * grad_i_wij.y * V_j;
                         mGi[2] -= dist3.x * grad_i_wij.z * V_j;
                         mGi[3] -= dist3.y * grad_i_wij.x * V_j;
@@ -539,20 +544,19 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
         }
     }
 
-    normals[i_idx] = normalize(mynormals);
-    //    if (sortedRhoPreMu[i_idx].w == 0 && sortedPosRad[i_idx].x < 1.0 && sortedPosRad[i_idx].z < 1.2 &&
+    normals[i_idx] = mynormals;
+    if (length(mynormals) > EPSILON)
+        normals[i_idx] = mynormals / length(mynormals);
+
+    //    if (sortedRhoPreMu[i_idx].w == 0 && sortedPosRad[i_idx].x > 1.5 && sortedPosRad[i_idx].z > 0.09 &&
     //        abs(sortedPosRad[i_idx].y) < 0.2)
     //        printf("position=%f,%f,%f normals= %f,%f,%f\n", sortedPosRad[i_idx].x, sortedPosRad[i_idx].y,
     //               sortedPosRad[i_idx].z, normals[i_idx].x, normals[i_idx].y, normals[i_idx].z);
 
-    //    sortedVelMas[i_idx] = normals[i_idx];
-    //    if (sortedRhoPreMu[i_idx].w == 1.0)
-    //        printf("n=(%f,%f,%f)\t", normals[i_idx].x, normals[i_idx].y, normals[i_idx].z);
-
     Real Det = (mGi[0] * mGi[4] * mGi[8] - mGi[0] * mGi[5] * mGi[7] - mGi[1] * mGi[3] * mGi[8] +
                 mGi[1] * mGi[5] * mGi[6] + mGi[2] * mGi[3] * mGi[7] - mGi[2] * mGi[4] * mGi[6]);
     if (abs(Det) < 1e-8) {
-        printf("Gi,");
+        //        printf("Gi,");
         for (int i = 0; i < 9; i++)
             G_i[i_idx * 9 + i] = 0.0;
         G_i[i_idx * 9 + 0] = 1;
