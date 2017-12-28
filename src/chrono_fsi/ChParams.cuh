@@ -60,7 +60,9 @@ struct SimParams {
     Real mu0;         /* Viscosity */
     Real kappa;       /* surface tension parameter */
     Real v_Max; /* Max velocity of fluid used in equation of state. Run simulation once to be able to determine it. */
-    Real EPS_XSPH;          /* Method to modify particle velocity. */
+    Real EPS_XSPH;      /* Method to modify particle velocity. */
+    Real beta_shifting; /* this is the beta coefficient in the shifting vector formula. */
+
     Real multViscosity_FSI; /* Multiplier that helps determine the viscosity for boundary particles. For example, if the
      value is 5 then the boundary particles will be 5 times more viscous than the fluid
      particles. Boundary particles should be more viscuous becayse they are supposed to slow

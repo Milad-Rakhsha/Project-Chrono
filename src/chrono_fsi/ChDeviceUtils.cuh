@@ -87,6 +87,7 @@ typedef unsigned int uint;
 #define EPSILON 1e-8
 
 #define RESOLUTION_LENGTH_MULT 2.0
+//#define RESOLUTION_LENGTH_MULT 3.0
 
 // ----------------------------------------------------------------------------
 // cutilSafeCall

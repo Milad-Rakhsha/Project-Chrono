@@ -26,7 +26,13 @@ namespace chrono {
 namespace fsi {
 // extern __constant__ SimParams paramsD;
 // extern __constant__ NumberOfObjects numObjectsD;
-
+struct Real4_x {
+    const float rest_val;
+    Real4_x(Real _a) : rest_val(_a) {}
+    __host__ __device__ Real operator()(const Real4& input) const {
+        return (input.w != -1.0) ? 0.0 : abs(input.x - rest_val);
+    }
+};
 struct compare_Real3_mag {
     __host__ __device__ bool operator()(Real3 lhs, Real3 rhs) { return length(lhs) < length(rhs); }
 };
@@ -91,12 +97,14 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
                                  uint* gridMarkerIndexD,
 
                                  int numAllMarkers,
+                                 Real dt,
+
                                  volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (i_idx >= numAllMarkers) {
         return;
     }
-    Real CN = 1.0;
+    Real CN = 0.5;
 
     uint csrStartIdx = numContacts[i_idx];
     uint csrEndIdx = numContacts[i_idx + 1];
@@ -111,7 +119,6 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
     }
 
     Real rho0 = paramsD.rho0;
-    Real dt = paramsD.dT;
     Real rhoi = sortedRhoPreMu[i_idx].x;
     Real3 grad_rho_i = mR3(0.0);
 
@@ -231,6 +238,7 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
                                   uint* gridMarkerIndexD,
                                   int numAllMarkers,
                                   int FixedMarker,
+                                  Real dt,
                                   volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (i_idx >= numAllMarkers) {
@@ -250,7 +258,6 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
     }
 
     Real3 gravity = paramsD.gravity + paramsD.bodyForce3;
-    Real dt = paramsD.dT;
     Real3 grad_rho_i = mR3(0.0);
     Real div_vi_star = 0;
 
@@ -274,7 +281,7 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
         for (int count = csrStartIdx; count < csrEndIdx; count++) {
             A_Matrix[count] = rhoi_star * A_L[count] - (rhoi_star * rhoi_star) * dot(grad_rho_i, A_G[count]);
         }
-        Bi[i_idx] = div_vi_star / dt;
+        Bi[i_idx] = div_vi_star / dt + 0.0000 / (dt * dt) * (paramsD.rho0 - rhoi_star) / paramsD.rho0;
         //======================== Inflow/outflow =====================
         if (paramsD.ApplyInFlowOutFlow) {
             //            if (sortedPosRad[i_idx].x <= paramsD.inflow.x &&
@@ -375,6 +382,7 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
                                                const uint* numContacts,
                                                int numAllMarkers,
                                                const Real MaxVel,
+                                               Real delta_t,
                                                volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (i_idx >= numAllMarkers) {
@@ -403,11 +411,11 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
     if (sortedRhoPreMu[i_idx].w == -1.0)
         r0 /= (csrEndIdx - csrStartIdx - 1);
 
-    shift_r = 2.0 * r0 * r0 * length(MaxVel) * paramsD.dT / mi_bar * inner_sum;
+    shift_r = paramsD.beta_shifting * r0 * r0 * length(MaxVel) * delta_t / mi_bar * inner_sum;
 
-    Real3 V_new = Vstar[i_idx] - paramsD.dT / sortedRhoPreMu[i_idx].x * grad_q_i;
+    Real3 V_new = Vstar[i_idx] - delta_t / sortedRhoPreMu[i_idx].x * grad_q_i;
 
-    Real4 x_new = sortedPosRad[i_idx] + mR4(paramsD.dT / 2 * (V_new + sortedVelMas[i_idx]), 0.0);
+    Real4 x_new = sortedPosRad[i_idx] + mR4(delta_t / 2 * (V_new + sortedVelMas[i_idx]), 0.0);
 
     sortedVelMas[i_idx] = V_new;
 
@@ -449,8 +457,8 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
         uint j = csrColInd[count];
         vis_vel += A_f[count] * (sortedVelMas[j]);
     }
-    sortedVisVel[i_idx] = vis_vel;
 
+    sortedVisVel[i_idx] = sortedVelMas[i_idx];
     sortedVelMas[i_idx] = paramsD.EPS_XSPH * vis_vel + (1 - paramsD.EPS_XSPH) * sortedVelMas[i_idx];
 
     if (!(isfinite(sortedPosRad[i_idx].x) && isfinite(sortedPosRad[i_idx].y) && isfinite(sortedPosRad[i_idx].z))) {
@@ -557,6 +565,8 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
         else
             paramsH->dT = std::min(dt, paramsH->dT_Max);
 
+        CopyParams_NumberOfObjects(paramsH, numObjectsH);
+
         printf(" time step=%.3e, dt_Max=%.3e, dt_CFL=%.3e (CFL=%.2g), dt_nu=%.3e, dt_body=%.3e\n", paramsH->dT,
                paramsH->dT_Max, dt_CFL, paramsH->Co_number, dt_nu, dt_body);
     }
@@ -641,7 +651,7 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
 
         numObjectsH->numFlexBodies1D, U2CAST(fsiGeneralData->CableElementsNodes),
         U4CAST(fsiGeneralData->ShellElementsNodes), updatePortion, U1CAST(markersProximityD->gridMarkerIndexD),
-        numAllMarkers, isErrorD);
+        numAllMarkers, paramsH->dT, isErrorD);
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "V_star_Predictor");
 
     int Iteration = 0;
@@ -706,7 +716,7 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
 
         numObjectsH->numFlexBodies1D, U2CAST(fsiGeneralData->CableElementsNodes),
         U4CAST(fsiGeneralData->ShellElementsNodes), updatePortion, U1CAST(markersProximityD->gridMarkerIndexD),
-        numAllMarkers, FixedMarker, isErrorD);
+        numAllMarkers, FixedMarker, paramsH->dT, isErrorD);
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Pressure_Equation");
 
     if (paramsH->USE_LinearSolver) {
@@ -765,10 +775,15 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
         mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(vel_vis_Sorted_D), mR3CAST(V_star_new), R1CAST(q_new),
         R1CAST(csrValFunciton), mR3CAST(csrValGradient), U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, MaxVel,
-        isErrorD);
+        paramsH->dT, isErrorD);
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Velocity_Correction_and_update");
+    Real4_x unary_op(paramsH->rho0);
+    thrust::plus<Real> binary_op;
+    Real Ave_density = thrust::transform_reduce(sphMarkersD->rhoPresMuD.begin(), sphMarkersD->rhoPresMuD.end(),
+                                                unary_op, 0.0, binary_op) /
+                       (numObjectsH->numFluidMarkers * paramsH->rho0);
     double updateComputation = (clock() - updateClock) / (double)CLOCKS_PER_SEC;
-    printf(" Velocity_Correction_and_update: %f (sec)\n", updateComputation);
+    printf(" Velocity_Correction_and_update: %f (sec), Ave_density_Err=%.3e\n", updateComputation, Ave_density);
 
     //============================================================================================================
     CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vis_vel_SPH_D, vel_vis_Sorted_D,

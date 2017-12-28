@@ -268,7 +268,9 @@ __global__ void calcRho_kernel(Real4* sortedPosRad,  // input: sorted positionsm
 
     Real3 posRadA = mR3(sortedPosRad[i_idx]);
     Real h_i = sortedPosRad[i_idx].w;
-    Real m_i = pow(h_i * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
+    Real m_i = pow((h_i * paramsD.MULT_INITSPACE), 3) * paramsD.rho0;
+    //    printf("paramsD.MULT_INITSPACE=%f, h_i,m_i ", paramsD.MULT_INITSPACE, h_i, m_i);
+
     Real sum_mW = 0;
     Real sum_W = 0.0;
     uint mcon = 1;
@@ -311,7 +313,8 @@ __global__ void calcRho_kernel(Real4* sortedPosRad,  // input: sorted positionsm
     sortedRhoPreMu[i_idx].x = sum_mW;
 
     if ((sortedRhoPreMu[i_idx].x > 2 * paramsD.rho0 || sortedRhoPreMu[i_idx].x < 0) && sortedRhoPreMu[i_idx].w == -1)
-        printf("(calcRho_kernel)too large/small density marker %d, rho=%f\n", i_idx, sortedRhoPreMu[i_idx].x);
+        printf("(calcRho_kernel)too large/small density marker %d, rho=%f, sum_W=%f, m_i=%f\n", i_idx,
+               sortedRhoPreMu[i_idx].x, sum_W, m_i);
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------

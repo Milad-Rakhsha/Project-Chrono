@@ -27,16 +27,16 @@
 namespace chrono {
 namespace fsi {
 
+struct compare_Real3_mag {
+    __host__ __device__ bool operator()(Real3 lhs, Real3 rhs) { return length(lhs) < length(rhs); }
+};
+
 struct Real4_x {
     const float rest_val;
     Real4_x(Real _a) : rest_val(_a) {}
     __host__ __device__ Real operator()(const Real4& input) const {
         return (input.w != -1.0) ? 0.0 : abs(input.x - rest_val);
     }
-};
-
-struct compare_Real3_mag {
-    __host__ __device__ bool operator()(Real3 lhs, Real3 rhs) { return length(lhs) < length(rhs); }
 };
 
 __device__ inline void clearRow(uint i_idx, uint csrStartIdx, uint csrEndIdx, Real* A_Matrix, Real* Bi) {
@@ -126,8 +126,8 @@ __global__ void V_star(Real4* sortedPosRad,  // input: sorted positions
             rhs += delta_t * (1 - CN) * paramsD.mu0 / rhoi * A_L[count] * sortedVelMas[j];  // viscous term;
         }
         A_Matrix[csrStartIdx] += 1;
-        Bi[i_idx] = rhs + sortedVelMas[i_idx]     //forward euler term from lhs
-                    + paramsD.gravity * delta_t;  // body force
+        Bi[i_idx] = rhs + sortedVelMas[i_idx]                                    //forward euler term from lhs
+                    + paramsD.gravity * delta_t + paramsD.bodyForce3 * delta_t;  // body force
     } else if (Boundary_Marker) {
         //======================== Boundary ===========================
         Real h_i = sortedPosRad[i_idx].w;
@@ -324,6 +324,7 @@ __global__ void Velocity_Correction(Real4* sortedPosRad,
                                     const uint* numContacts,
                                     int numAllMarkers,
                                     const Real MaxVel,
+                                    const Real delta_t,
                                     volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (i_idx >= numAllMarkers) {
@@ -355,9 +356,9 @@ __global__ void Velocity_Correction(Real4* sortedPosRad,
     if (sortedRhoPreMu[i_idx].w == -1.0)
         r0 /= (csrEndIdx - csrStartIdx - 1);
 
-    shift_r = 1.0 * r0 * r0 * length(MaxVel) * paramsD.dT / mi_bar * inner_sum;
+    shift_r = paramsD.beta_shifting * r0 * r0 * length(MaxVel) * delta_t / mi_bar * inner_sum;
 
-    Real3 V_new = Vstar[i_idx] - paramsD.dT / sortedRhoPreMu[i_idx].x / 2 * grad_q_i;
+    Real3 V_new = Vstar[i_idx] - delta_t / sortedRhoPreMu[i_idx].x / 2 * grad_q_i;
 
     sortedVelMas[i_idx] = V_new;
     sortedRhoPreMu[i_idx].y = q_i[i_idx];
@@ -386,6 +387,19 @@ __global__ void Velocity_Correction(Real4* sortedPosRad,
         sortedVelMas[i_idx].y += dot(shift_r, grad_uy);
         sortedVelMas[i_idx].z += dot(shift_r, grad_uz);
     }
+
+    Real3 vis_vel = mR3(0.0);
+    Real div_V = 0.0;
+
+    for (int count = csrStartIdx; count < csrEndIdx; count++) {
+        uint j = csrColInd[count];
+        vis_vel += A_f[count] * (sortedVelMas[j]);
+        div_V += dot(A_G[count], sortedVelMas[j]);
+    }
+
+    //    sortedRhoPreMu[i_idx].x += -sortedRhoPreMu[i_idx].x * div_V;
+    sortedVisVel[i_idx] = sortedVelMas[i_idx];
+    sortedVelMas[i_idx] = paramsD.EPS_XSPH * vis_vel + (1 - paramsD.EPS_XSPH) * sortedVelMas[i_idx];
 }
 
 //==========================================================================================================================================
@@ -450,6 +464,24 @@ void ChFsiForceiSPH::PreProcessor(SphMarkerDataD* sortedSphMarkersD, bool print)
     thrust::fill(A_i.begin(), A_i.end(), 0);
     thrust::fill(L_i.begin(), L_i.end(), 0);
     thrust::fill(G_i.begin(), G_i.end(), 0);
+
+    thrust::device_vector<Real3>::iterator iter =
+        thrust::max_element(sortedSphMarkersD->velMasD.begin(), sortedSphMarkersD->velMasD.end(), compare_Real3_mag());
+    Real MaxVel = length(*iter);
+
+    if (paramsH->Adaptive_time_stepping) {
+        Real dt_CFL = paramsH->Co_number * paramsH->HSML / MaxVel;
+        Real dt_nu = 0.125 * paramsH->HSML * paramsH->HSML / (paramsH->mu0 / paramsH->rho0);
+        Real dt_body = 0.25 * std::sqrt(paramsH->HSML / length(paramsH->bodyForce3 + paramsH->gravity));
+        Real dt = std::min(dt_body, std::min(dt_CFL, dt_nu));
+        if (dt / paramsH->dT_Max > 0.7 && dt / paramsH->dT_Max < 1)
+            paramsH->dT = paramsH->dT_Max * 0.5;
+        else
+            paramsH->dT = std::min(dt, paramsH->dT_Max);
+
+        printf(" time step=%.3e, dt_Max=%.3e, dt_CFL=%.3e (CFL=%.2g), dt_nu=%.3e, dt_body=%.3e\n", paramsH->dT,
+               paramsH->dT_Max, dt_CFL, paramsH->Co_number, dt_nu, dt_body);
+    }
     //============================================================================================================
     *isErrorH = false;
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
@@ -829,7 +861,7 @@ void ChFsiForceiSPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
         mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(vel_vis_Sorted_D), mR3CAST(V_star_new), R1CAST(q_new),
         R1CAST(csrValFunciton), mR3CAST(csrValGradient), U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, MaxVel,
-        isErrorD);
+        paramsH->dT, isErrorD);
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Velocity_Correction_and_update");
     double updateComputation = (clock() - updateClock) / (double)CLOCKS_PER_SEC;
     printf(" Update computation: %f (sec)\n", updateComputation);
