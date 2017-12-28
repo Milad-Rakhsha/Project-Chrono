@@ -155,18 +155,30 @@ __global__ void Shifting_r(Real4* sortedPosRad,  // output to sortedPosRad
     if (Fluid_Marker) {
         Real3 inner_sum = mR3(0.0), shift_r = mR3(0.0);
         Real mi_bar = 0.0, r0 = 0.0;
+        Real3 posRadA = mR3(sortedPosRad[i_idx]);
+        Real h_i = sortedPosRad[i_idx].w;
+        Real3 grad_i_wij = mR3(0.0);
+        Real summation = 0.0;
 
         for (int count = csrStartIdx + 1; count < csrEndIdx; count++) {
             uint j = csrColInd[count];
-            Real3 rij = Distance(mR3(sortedPosRad[i_idx]), mR3(sortedPosRad[j]));
+            Real3 posRadB = mR3(sortedPosRad[j]);
+            Real h_j = sortedPosRad[j].w;
+            Real h_ij = 0.5 * (h_j + h_i);
+            Real3 rij = Distance(posRadA, posRadB);
             Real d = length(rij);
             Real m_j = pow(sortedPosRad[j].w * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
             mi_bar += m_j;
             r0 += d;
             inner_sum += m_j * rij / (d * d * d);
+
+            Real3 grad_i_wij = GradWh(rij, h_ij);
+            summation += m_j * dot((sortedVelMas[i_idx] - sortedVelMas[j]), grad_i_wij);
         }
         r0 /= (csrEndIdx - csrStartIdx - 1);
         shift_r = 0.5 * r0 * r0 * length(MaxVel) * paramsD.dT / mi_bar * inner_sum;
+        sortedRhoPreMu[i_idx].x += paramsD.dT * summation;
+        sortedRhoPreMu[i_idx].y = Eos(sortedRhoPreMu[i_idx].x, sortedRhoPreMu[i_idx].w);
 
         Real3 grad_p = mR3(0.0);
         Real3 grad_rho = mR3(0.0);
@@ -234,10 +246,10 @@ __global__ void Boundary_Conditions(Real4* sortedPosRad,
     Real3 posRadA = mR3(sortedPosRad[i_idx]);
     Real3 myAcc = mR3(0);
     Real3 V_prescribed = mR3(0);
-    //    BCE_Vel_Acc(i_idx, myAcc, V_prescribed, sortedPosRad, updatePortion, gridMarkerIndexD,
-    //    velMassRigid_fsiBodies_D,
-    //                accRigid_fsiBodies_D, rigidIdentifierD, pos_fsi_fea_D, vel_fsi_fea_D, acc_fsi_fea_D,
-    //                FlexIdentifierD, numFlex1D, CableElementsNodes, ShellelementsNodes);
+       BCE_Vel_Acc(i_idx, myAcc, V_prescribed, sortedPosRad, updatePortion, gridMarkerIndexD,
+       velMassRigid_fsiBodies_D,
+                   accRigid_fsiBodies_D, rigidIdentifierD, pos_fsi_fea_D, vel_fsi_fea_D, acc_fsi_fea_D,
+                   FlexIdentifierD, numFlex1D, CableElementsNodes, ShellelementsNodes);
     Real pRHS1 = 0.0;
     Real pRHS2 = 0.0;
 
@@ -267,39 +279,7 @@ __global__ void Boundary_Conditions(Real4* sortedPosRad,
         sortedRhoPreMu[i_idx].y = paramsD.BASEPRES;
     }
 }
-// //==========================================================================================================================================
-// inline __device__ void calculate_deltaV(int i_idx,
-//                                         Real4* sortedPosRad,
-//                                         Real4* sortedRhoPreMu,
-//                                         Real3* sortedVelMas,
-//                                         Real3* deltaV,
-//
-//                                         const uint* csrColInd,
-//                                         const uint* numContacts) {
-//
-//     if (i_idx >= numAllMarkers) {
-//         return;
-//     }
-//     Real3 posRadA = mR3(sortedPosRad[i_idx]);
-//     Real h_i = sortedPosRad[i_idx].w;
-//
-//     uint csrStartIdx = numContacts[i_idx];
-//     uint csrEndIdx = numContacts[i_idx + 1];
-//
-//     for (int count = csrStartIdx + 1; count < csrEndIdx; count++) {
-//         uint j = csrColInd[count];
-//         if (sortedRhoPreMu[j].w != -1.0)
-//             continue;
-//         Real3 posRadB = mR3(sortedPosRad[j]);
-//         Real3 rij = Distance(posRadA, posRadB);
-//         Real h_j = sortedPosRad[j].w;
-//         Real h_ij = 0.5 * (h_j + h_i);
-//         Real W3 = W3h(length(rij), h_ij);
-//         deltaV += paramsD.markerMass * (sortedVelMas[j] - sortedVelMas[i_idx]) * W3
-//                   * 2.0f / (sortedRhoPreMu[i_idx].x + sortedRhoPreMu[j].x);
-//     }
-//
-// }
+
 //==========================================================================================================================================
 __global__ void Update_Vel_XSPH(Real4* sortedPosRad,
                                 Real4* sortedRhoPreMu,
@@ -457,7 +437,7 @@ void ChFsiForceXSPH::ForceSPH(SphMarkerDataD* otherSphMarkersD,
         mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv), R1CAST(G_i), mR3CAST(Normals), U1CAST(csrColInd),
         U1CAST(Contact_i), U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers,
         isErrorD);
-    ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "calcNormalizedRho_Gi_fillInMatrixIndices   here");
+    ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "calcNormalizedRho_Gi_fillInMatrixIndices");
 
     //============================================================================================================
     double A_L_Tensor_GradLaplacian = clock();
@@ -492,12 +472,13 @@ void ChFsiForceXSPH::ForceSPH(SphMarkerDataD* otherSphMarkersD,
             fsiGeneralData->referenceArray[haveGhost + haveHelper + 1 + numObjectsH->numRigidBodies + numFlexbodies].y);
     //============================================================================================================
     calculate_pressure<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->rhoPresMuD), numAllMarkers, isErrorD);
-    ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "calculate_pressure");
+    ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "calculate_pressure-1");
     //============================================================================================================
     Update_Vel_XSPH<<<numBlocks, numThreads>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
         mR3CAST(sortedSphMarkersD->velMasD), U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, isErrorD);
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Update_Vel_XSPH-1");
+
     // consider boundary condition
     //============================================================================================================
     Boundary_Conditions<<<numBlocks, numThreads>>>(
@@ -514,14 +495,13 @@ void ChFsiForceXSPH::ForceSPH(SphMarkerDataD* otherSphMarkersD,
         numObjectsH->numFlexBodies1D, U2CAST(fsiGeneralData->CableElementsNodes),
         U4CAST(fsiGeneralData->ShellElementsNodes), updatePortion, U1CAST(markersProximityD->gridMarkerIndexD),
         numAllMarkers, isErrorD);
-    ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Boundary_Conditions");
+    ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Boundary_Conditions-1");
     //============================================================================================================
     NS_RHS_Predictor<<<numBlocks, numThreads>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
         mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(ft), mR3CAST(csrValGradient), R1CAST(csrValLaplacian),
         U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, isErrorD);
-    ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "NS_RHS_Predictor");
-
+    ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "NS_RHS_Predictor-1");
     // 2nd call to calc f and v,x from predicted v and x
     CopySortedToOriginal_NonInvasive_R3(otherSphMarkersD->velMasD, sortedSphMarkersD->velMasD,
                                         markersProximityD->gridMarkerIndexD);
@@ -577,16 +557,15 @@ void ChFsiForceXSPH::ForceSPH(SphMarkerDataD* otherSphMarkersD,
         mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv), R1CAST(G_i), R1CAST(L_i), R1CAST(csrValLaplacian),
         mR3CAST(csrValGradient), R1CAST(csrValFunciton), U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, isErrorD);
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Gradient_Laplacian_Operator-2");
-
-    //============================================================================================================
-    // consider boundary condition
-    calculate_pressure<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->rhoPresMuD), numAllMarkers, isErrorD);
-    ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "calculate_pressure-2");
+    // //============================================================================================================
+    // calculate_pressure<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->rhoPresMuD), numAllMarkers, isErrorD);
+    // ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "calculate_pressure-2");
     //============================================================================================================
     Update_Vel_XSPH<<<numBlocks, numThreads>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
         mR3CAST(sortedSphMarkersD->velMasD), U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, isErrorD);
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Update_Vel_XSPH-2");
+    // consider boundary condition
     //============================================================================================================
     Boundary_Conditions<<<numBlocks, numThreads>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
@@ -609,7 +588,7 @@ void ChFsiForceXSPH::ForceSPH(SphMarkerDataD* otherSphMarkersD,
         mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(ft), mR3CAST(csrValGradient), R1CAST(csrValLaplacian),
         U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, isErrorD);
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "NS_RHS_Predictor-2");
-
+    //============================================================================================================
     thrust::device_vector<Real3> ft_unsorted(numAllMarkers);
     thrust::fill(ft_unsorted.begin(), ft_unsorted.end(), mR3(0.0));
 
@@ -633,12 +612,13 @@ void ChFsiForceXSPH::ForceSPH(SphMarkerDataD* otherSphMarkersD,
     Real MaxVel = length(*iter);
 
     fsiCollisionSystem->ArrangeData(otherSphMarkersD);
+    //3rd call
     //============================================================================================================
     calcRho_kernel<<<numBlocks, numThreads>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),
         U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), U1CAST(Contact_i), numAllMarkers,
         isErrorD);
-    ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "calcRho_kernel-2");
+    ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "calcRho_kernel-3");
     LastVal = Contact_i[numAllMarkers - 1];
     thrust::exclusive_scan(Contact_i.begin(), Contact_i.end(), Contact_i.begin());
     Contact_i.push_back(LastVal + Contact_i[numAllMarkers - 1]);
