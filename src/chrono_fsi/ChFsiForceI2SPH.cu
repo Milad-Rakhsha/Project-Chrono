@@ -97,14 +97,14 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
                                  uint* gridMarkerIndexD,
 
                                  int numAllMarkers,
-                                 Real dt,
+                                 Real delta_t,
 
                                  volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (i_idx >= numAllMarkers) {
         return;
     }
-    Real CN = 0.5;
+    Real CN = 1.0;
 
     uint csrStartIdx = numContacts[i_idx];
     uint csrEndIdx = numContacts[i_idx + 1];
@@ -132,13 +132,13 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
         Real3 rhs = mR3(0.0);
         for (int count = csrStartIdx; count < csrEndIdx; count++) {
             int j = csrColInd[count];
-            A_Matrix[count] = -dt * CN * paramsD.mu0 / rhoi * A_L[count];
+            A_Matrix[count] = -CN * paramsD.mu0 / rhoi * A_L[count];
             rhs += -1 / rhoi * A_G[count] * sortedRhoPreMu[j].y +                 // Pressure Gradient
                    (1 - CN) * paramsD.mu0 / rhoi * A_L[count] * sortedVelMas[j];  // viscous term;
         }
-        A_Matrix[csrStartIdx] += 1;
-        Bi[i_idx] = rhs * dt + sortedVelMas[i_idx]                     //forward euler term from lhs
-                    + paramsD.gravity * dt + paramsD.bodyForce3 * dt;  // body force
+        A_Matrix[csrStartIdx] += 1 / delta_t;
+        Bi[i_idx] = rhs + sortedVelMas[i_idx] / delta_t      //forward euler term from lhs
+                    + paramsD.gravity + paramsD.bodyForce3;  // body force
 
         //======================== Inflow/outflow =====================
         if (paramsD.ApplyInFlowOutFlow) {
@@ -238,7 +238,7 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
                                   uint* gridMarkerIndexD,
                                   int numAllMarkers,
                                   int FixedMarker,
-                                  Real dt,
+                                  Real delta_t,
                                   volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (i_idx >= numAllMarkers) {
@@ -269,8 +269,8 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
     }
 
     Real rhoi = sortedRhoPreMu[i_idx].x;
-    Real rhoi_star = rhoi - rhoi * div_vi_star * dt;
-    //    Real rhoi_star = rhoi + dot(grad_rho_i, Vstar[i_idx] * dt);
+    Real rhoi_star = rhoi - rhoi * div_vi_star * delta_t;
+    //    Real rhoi_star = rhoi + dot(grad_rho_i, Vstar[i_idx] * delta_t);
 
     //======================== Interior ===========================
     if (Fluid_Marker) {
@@ -279,9 +279,9 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
         //            Bi[i_idx] = 0.0;
         //        }
         for (int count = csrStartIdx; count < csrEndIdx; count++) {
-            A_Matrix[count] = rhoi_star * A_L[count] - (rhoi_star * rhoi_star) * dot(grad_rho_i, A_G[count]);
+            A_Matrix[count] = 1 / rhoi * A_L[count] - 1.0 / (rhoi * rhoi) * dot(grad_rho_i, A_G[count]);
         }
-        Bi[i_idx] = div_vi_star / dt + 0.0000 / (dt * dt) * (paramsD.rho0 - rhoi_star) / paramsD.rho0;
+        Bi[i_idx] = div_vi_star / delta_t;
         //======================== Inflow/outflow =====================
         if (paramsD.ApplyInFlowOutFlow) {
             //            if (sortedPosRad[i_idx].x <= paramsD.inflow.x &&
@@ -316,15 +316,22 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
         bool haveFluid = false;
         for (int count = csrStartIdx + 1; count < csrEndIdx; count++) {
             uint j = csrColInd[count];
-            if (sortedRhoPreMu[j].w == -1.0) {
+            if (sortedRhoPreMu[j].w == -1.0 || dot(my_normal, mR3(sortedPosRad[i_idx] - sortedPosRad[j])) > 0) {
                 A_Matrix[count] = -dot(A_G[count], my_normal);
                 A_Matrix[csrStartIdx] += +dot(A_G[count], my_normal);
             }
         }
         Bi[i_idx] = 0;
-        if (abs(A_Matrix[csrStartIdx]) < EPSILON) {
+        if (abs(A_Matrix[csrStartIdx]) < 1e-12) {
             clearRow(i_idx, csrStartIdx, csrEndIdx, A_Matrix, Bi);
-            A_Matrix[csrStartIdx] = 1;
+
+            //            A_Matrix[csrStartIdx] = 1;
+            //            Bi[i_idx] = 0.0;
+            for (int count = csrStartIdx + 1; count < csrEndIdx; count++) {
+                uint j = csrColInd[count];
+                A_Matrix[count] = A_f[count];
+            }
+            A_Matrix[csrStartIdx] -= 1.0;
             Bi[i_idx] = 0.0;
         }
         //======================= Boundary Adami===========================
@@ -393,11 +400,13 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
     uint csrEndIdx = numContacts[i_idx + 1];
     Real3 grad_q_i = mR3(0.0);
     Real3 grad_p_nPlus1 = mR3(0.0);
+    Real divV_star = 0;
     Real3 inner_sum = mR3(0.0), shift_r = mR3(0.0);
     Real mi_bar = 0.0, r0 = 0.0;
     for (int count = csrStartIdx; count < csrEndIdx; count++) {
         uint j = csrColInd[count];
         grad_q_i += A_G[count] * q_i[j];
+        divV_star += dot(A_G[count], Vstar[j]);
         grad_p_nPlus1 += A_G[count] * (sortedRhoPreMu[j].y + q_i[j]);
         Real3 rij = Distance(mR3(sortedPosRad[i_idx]), mR3(sortedPosRad[j]));
         Real d = length(rij);
@@ -408,10 +417,13 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
         r0 += d;
         inner_sum += m_j * rij / (d * d * d);
     }
-    if (sortedRhoPreMu[i_idx].w == -1.0)
-        r0 /= (csrEndIdx - csrStartIdx - 1);
 
-    shift_r = paramsD.beta_shifting * r0 * r0 * length(MaxVel) * delta_t / mi_bar * inner_sum;
+    if (sortedRhoPreMu[i_idx].w == -1.0) {
+        r0 /= (csrEndIdx - csrStartIdx);
+        mi_bar /= (csrEndIdx - csrStartIdx);
+    }
+
+    shift_r = paramsD.beta_shifting * r0 * r0 * length(MaxVel) * delta_t * inner_sum / mi_bar;
 
     Real3 V_new = Vstar[i_idx] - delta_t / sortedRhoPreMu[i_idx].x * grad_q_i;
 
@@ -442,7 +454,7 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
         grad_uz += A_G[count] * sortedVelMas[i_idx].z;
     }
 
-    if (true && sortedRhoPreMu[i_idx].w == -1.0) {
+    if (sortedRhoPreMu[i_idx].w == -1.0) {
         sortedPosRad[i_idx] += mR4(shift_r, 0.0);
         sortedRhoPreMu[i_idx].y += dot(shift_r, grad_p);
         sortedRhoPreMu[i_idx].x += dot(shift_r, grad_rho);
@@ -458,23 +470,8 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
         vis_vel += A_f[count] * (sortedVelMas[j]);
     }
 
-    sortedVisVel[i_idx] = sortedVelMas[i_idx];
+    sortedVisVel[i_idx] = vis_vel;
     sortedVelMas[i_idx] = paramsD.EPS_XSPH * vis_vel + (1 - paramsD.EPS_XSPH) * sortedVelMas[i_idx];
-
-    if (!(isfinite(sortedPosRad[i_idx].x) && isfinite(sortedPosRad[i_idx].y) && isfinite(sortedPosRad[i_idx].z))) {
-        printf("Error! particle %d position is NAN: thrown from Velocity_Correction_and_update  %f,%f,%f,%f\n", i_idx,
-               sortedPosRad[i_idx].x, sortedPosRad[i_idx].y, sortedPosRad[i_idx].z, sortedPosRad[i_idx].w);
-    }
-    if (!(isfinite(sortedRhoPreMu[i_idx].x) && isfinite(sortedRhoPreMu[i_idx].y) &&
-          isfinite(sortedRhoPreMu[i_idx].z))) {
-        printf("Error! particle %d rhoPreMu is NAN: thrown from Velocity_Correction_and_update ! %f,%f,%f,%f\n", i_idx,
-               sortedRhoPreMu[i_idx].x, sortedRhoPreMu[i_idx].y, sortedRhoPreMu[i_idx].z, sortedRhoPreMu[i_idx].w);
-    }
-
-    if (!(isfinite(sortedVelMas[i_idx].x) && isfinite(sortedVelMas[i_idx].y) && isfinite(sortedVelMas[i_idx].z))) {
-        printf("Error! particle %d velocity is NAN: thrown from Velocity_Correction_and_update !%f,%f,%f\n", i_idx,
-               sortedVelMas[i_idx].x, sortedVelMas[i_idx].y, sortedVelMas[i_idx].z);
-    }
 }
 
 //==========================================================================================================================================
