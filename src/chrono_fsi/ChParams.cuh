@@ -134,6 +134,7 @@ struct SimParams {
     Real Co_number;
     Real dT_Max;
     bool Apply_BC_U;
+    Real L_Characteristic;
 };
 
 }  // end namespace fsi

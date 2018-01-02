@@ -577,7 +577,7 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
         G_i[i_idx * 9 + 8] = (mGi[0] * mGi[4] - mGi[1] * mGi[3]) / Det;
     }
     //    sortedRhoPreMu[i_idx].x = sum_mW / sum_W_sumWij_inv;
-    //    sortedRhoPreMu[i_idx].x = sum_mW;
+    sortedRhoPreMu[i_idx].x = sum_mW;
 
     if ((sortedRhoPreMu[i_idx].x > 5 * RHO_0 || sortedRhoPreMu[i_idx].x < RHO_0 / 5) && sortedRhoPreMu[i_idx].w > -2)
         printf(
@@ -646,6 +646,27 @@ __global__ void Function_Gradient_Laplacian_Operator(Real4* sortedPosRad,  // in
         A_G[csrStartIdx].z -= V_j * (grad_i_wij.x * mGi[6] + grad_i_wij.y * mGi[7] + grad_i_wij.z * mGi[8]);
     }
 
+    Real Det = (Li[0] * Li[4] * Li[8] - Li[0] * Li[5] * Li[7] - Li[1] * Li[3] * Li[8] + Li[1] * Li[5] * Li[6] +
+                Li[2] * Li[3] * Li[7] - Li[2] * Li[4] * Li[6]);
+
+    //    if (0)
+    //        for (int count = csrStartIdx; count < csrEndIdx; count++) {
+    //            int j = csrColInd[count];
+    //            Real3 posRadB = mR3(sortedPosRad[j]);
+    //            Real3 rij = Distance(posRadA, posRadB);
+    //            Real d = length(rij);
+    //            Real3 eij = rij / d;
+    //            Real h_j = sortedPosRad[j].w;
+    //            Real h_ij = 0.5 * (h_j + h_i);
+    //            Real W3 = W3h(d, h_ij);
+    //            Real3 grad_ij = GradWh(rij, h_ij);
+    //            Real m_j = pow(h_j * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
+    //            Real muNumerator = 2 * m_j / sortedRhoPreMu[j].x * dot(rij, grad_ij);
+    //            Real muDenominator = (d * d + h_ij * h_ij * paramsD.epsMinMarkersDis);
+    //            A_L[count] = -muNumerator / muDenominator;        // j
+    //            A_L[csrStartIdx] += muNumerator / muDenominator;  // i
+    //        }
+    //    else
     for (int count = csrStartIdx; count < csrEndIdx; count++) {
         int j = csrColInd[count];
         Real3 posRadB = mR3(sortedPosRad[j]);
@@ -669,8 +690,7 @@ __global__ void Function_Gradient_Laplacian_Operator(Real4* sortedPosRad,  // in
             A_L[csrStartIdx] += commonterm * dot(A_G[csrStartIdx], eij);  // i
         }
     }
-
-}  // namespace fsi
+}
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Jacobi_SOR_Iter(Real4* sortedRhoPreMu,
                                 Real* A_Matrix,

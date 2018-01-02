@@ -44,8 +44,8 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.01 / 1.0;
-    paramsH->MULT_INITSPACE = 1.0;
+    paramsH->HSML = 0.01 / 0.85;
+    paramsH->MULT_INITSPACE = 0.85;
     Real initSpace = paramsH->MULT_INITSPACE * paramsH->HSML;
     paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
@@ -54,19 +54,26 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->LARGE_PRES = 0;
     paramsH->deltaPress = mR3(0.0, 0, 0.0);
     paramsH->multViscosity_FSI = 1;
-    paramsH->gravity = mR3(0.01, 0, 0.0);
+    paramsH->gravity = mR3(0.0, 0, 0.0);
+    paramsH->bodyForce3 = mR3(0.005, 0, 0);
+
     paramsH->V_in = mR3(0.00, 0, 0.0);
     paramsH->x_in = -bxDim / 2 + 3 * initSpace;
 
-    paramsH->dT = 5e-3;
-    paramsH->bodyForce3 = mR3(0, 0, 0);
+    paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
+    paramsH->dT = 1e-3;
+    paramsH->dT_Max = 0.2;
+    paramsH->Co_number = 0.2;  ///< 0.2 works well for most cases
+    paramsH->EPS_XSPH = 0.5;   // Note that increasing this coefficient stabilizes the simulation but adds dissipation
+    paramsH->beta_shifting = 0.1;  // increasing this factor decreases the Lagrangian nature of the model
+
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
     paramsH->mu0 = 0.1;
     paramsH->kappa = 0.000;  ///< surface tension parameter, experimental
     paramsH->v_Max = 0.0;    // Arman, I changed it to 0.1 for vehicle. Check this
-    paramsH->EPS_XSPH = .5f;
 
+    paramsH->L_Characteristic = bzDim;
     paramsH->USE_LinearSolver = false;  ///< IISPH parameter: whether or not use linear solvers
     paramsH->USE_Iterative_solver = true;
     paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
@@ -78,11 +85,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->PPE_relaxation = 0.98;        ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
     /// Experimental parameters
     paramsH->Max_Pressure = 1e5;
-    paramsH->IncompressibilityFactor = 1;     ///< to tune the compression
-    paramsH->ClampPressure = false;           ///< If the negative pressure should be clamped to zero or not
-    paramsH->Adaptive_time_stepping = false;  ///< This let you use large time steps when possible
-    paramsH->Co_number = 1.0;                 ///< 0.2 works well for most cases
-    paramsH->dT_Max = 0.01;  ///< This is problem dependent should set by the user based on characteristic time step
+    paramsH->IncompressibilityFactor = 1;  ///< to tune the compression
+    paramsH->ClampPressure = false;        ///< If the negative pressure should be clamped to zero or not
     paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 
     paramsH->tFinal = 2;

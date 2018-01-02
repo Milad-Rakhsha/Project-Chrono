@@ -44,7 +44,7 @@
 #include "chrono_fsi/utils/ChUtilsPrintSph.cuh"
 
 // FSI Interface Includes
-#include "demos/fsi/demo_FSI_flow_around_cylinder_singleRes.h"  //SetupParamsH()
+#include "demos/fsi/demo_FSI_flow_around_cylinder_singleRes.h"
 
 #define haveFluid 1
 #define AddCylinder 1
@@ -218,7 +218,7 @@ int main(int argc, char* argv[]) {
 #endif
     // ************* Create Fluid *************************
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::iSPH);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
     chrono::ChVector<> CameraLocation = chrono::ChVector<>(0, -10, 0);
     chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
 
@@ -371,7 +371,10 @@ int main(int argc, char* argv[]) {
     const std::string copyInitials =
         (std::string("cp ") + demo_dir + std::string("/BCE0.csv") + std::string(" ./BCE.csv "));
     system(copyInitials.c_str());
-
+    if (argc <= 1) {
+        printf("now please run with an input argument\n");
+        return 0;
+    }
     Real time = 0;
     Real Global_max_dT = paramsH->dT_Max;
     for (int tStep = 0; tStep < stepEnd + 1; tStep++) {

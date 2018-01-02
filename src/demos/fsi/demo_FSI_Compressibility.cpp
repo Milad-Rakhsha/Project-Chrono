@@ -371,10 +371,11 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
     //    printf("mTime= %f\n", mTime - (next_frame)*frame_time);
 
     if (save_output && std::abs(mTime - (next_frame)*frame_time) < 0.00001) {
-        chrono::fsi::utils::PrintToFile(
-            myFsiSystem.GetDataManager()->sphMarkersD2.posRadD, myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
-            myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
-            myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray, thrust::host_vector<int4>(), demo_dir, true);
+        chrono::fsi::utils::PrintToFile(myFsiSystem.GetDataManager()->sphMarkersD2.posRadD,
+                                        myFsiSystem.GetDataManager()->fsiGeneralData.vis_vel_SPH_D,
+                                        myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
+                                        myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
+                                        thrust::host_vector<int4>(), demo_dir, true);
 
 #ifdef AddCylinder
         char SaveAsRigidObjVTK[256];  // The filename buffer.

@@ -45,10 +45,13 @@ class CH_FSI_API ChFsiForceI2SPH : public ChFsiForce {
     thrust::device_vector<Real> b1Vector;
     thrust::device_vector<Real3> b3Vector;
     thrust::device_vector<Real> Residuals;
-
+    bool *isErrorH, *isErrorD, *isErrorD2;
+    int numAllMarkers;
+    int NNZ;
     void ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
                           FsiBodiesDataD* otherFsiBodiesD,
                           FsiMeshDataD* otherFsiMeshD) override;
+    void PreProcessor(SphMarkerDataD* otherSphMarkersD, bool print = true, bool calcLaplacianOperator = true);
 
   public:
     ChFsiForceI2SPH(
