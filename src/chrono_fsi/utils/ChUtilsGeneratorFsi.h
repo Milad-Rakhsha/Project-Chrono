@@ -18,10 +18,22 @@
 #ifndef CH_UTILSGENERATORFSI_CUH
 #define CH_UTILSGENERATORFSI_CUH
 
+#include "chrono/ChConfig.h"
 #include "chrono_fsi/ChFsiDataManager.cuh"
 #include "chrono_fsi/utils/ChUtilsGeneratorBce.h"
 
 namespace chrono {
+
+#ifdef CHRONO_FEA
+// Forward declaration
+namespace fea {
+class ChElementCableANCF;
+class ChElementShellANCF;
+class ChNodeFEAxyzD;
+class ChMesh;
+}  // namespace fea
+#endif
+
 namespace fsi {
 namespace utils {
 
@@ -119,6 +131,8 @@ CH_FSI_API void CreateBoxFSI(ChFsiDataManager* fsiData,
                              chrono::ChQuaternion<> rot,
                              const chrono::ChVector<>& hsize);
 
+#ifdef CHRONO_FEA
+
 void AddBCE_ShellANCF(ChFsiDataManager* fsiData,
                       SimParams* paramsH,
                       std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* fsiShellsPtr,
@@ -153,6 +167,8 @@ void AddBCE_FromMesh(ChFsiDataManager* fsiData,
                      bool removeMiddleLayer,
                      int SIDE,
                      int SIDE2D = 2);
+
+#endif
 
 }  // end namespace utils
 }  // end namespace fsi

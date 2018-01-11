@@ -35,32 +35,35 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;
-    paramsH->HSML = 0.05;
-    paramsH->MULT_INITSPACE = 1.0;
-    paramsH->epsMinMarkersDis = .01;
+    paramsH->HSML = 0.05 / 0.9;
+    paramsH->MULT_INITSPACE = 0.9;
+    paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
     paramsH->LARGE_PRES = 1e-10;
     paramsH->deltaPress;
     paramsH->multViscosity_FSI = 1;
-    paramsH->gravity = mR3(0, 0, -0.1);
+    paramsH->gravity = mR3(0, 0, -1);
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->BASEPRES = paramsH->rho0 * length(paramsH->gravity) * fzDim;
 
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 0.000;
+    paramsH->mu0 = 0.0001;
     paramsH->kappa = 0.001;
 
+    paramsH->ApplyInFlowOutFlow = false;
     paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
     paramsH->dT = 1e-3;
-    paramsH->dT_Max = 0.05;
+    paramsH->dT_Max = 0.002;
     paramsH->Co_number = 0.2;  ///< 0.2 works well for most cases
     paramsH->EPS_XSPH = 0.5;   // Note that increasing this coefficient stabilizes the simulation but adds dissipation
-    paramsH->beta_shifting = 0.2;  // increasing this factor decreases the Lagrangian nature of the model
+    paramsH->beta_shifting = 0.0001;  // increasing this factor decreases the Lagrangian nature of the model
     paramsH->v_Max = 1.0;
     paramsH->L_Characteristic = fzDim;
 
+    paramsH->Conservative_Form = true;
+    paramsH->USE_NonIncrementalProjection = false;
     paramsH->USE_LinearSolver = false;  ///< IISPH parameter: whether or not use linear solvers
     paramsH->USE_Iterative_solver = true;
     paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg

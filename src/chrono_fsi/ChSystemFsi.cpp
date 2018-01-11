@@ -18,17 +18,29 @@
 
 #include "chrono_fsi/ChSystemFsi.h"
 
+#ifdef CHRONO_FEA
+#include "chrono_fea/ChElementCableANCF.h"
+#include "chrono_fea/ChElementShellANCF.h"
+#include "chrono_fea/ChMesh.h"
+#include "chrono_fea/ChNodeFEAxyzD.h"
+#endif
+
 namespace chrono {
 namespace fsi {
 
 //--------------------------------------------------------------------------------------------------------------------------------
 
-ChSystemFsi::ChSystemFsi(ChSystem* other_physicalSystem,
-                         bool other_haveFluid,
-                         ChFluidDynamics::Integrator type = ChFluidDynamics::Integrator::IISPH)
+ChSystemFsi::ChSystemFsi(ChSystem* other_physicalSystem, bool other_haveFluid, ChFluidDynamics::Integrator type)
     : mphysicalSystem(other_physicalSystem), haveFluid(other_haveFluid), mTime(0) {
     fsiData = new ChFsiDataManager();
     paramsH = new SimParams;
+    numObjectsH = &(fsiData->numObjects);
+    fluidIntegrator = type;
+    bceWorker = new ChBce(&(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD), &(fsiData->fsiGeneralData),
+                          paramsH, numObjectsH);
+    fluidDynamics = new ChFluidDynamics(bceWorker, fsiData, paramsH, numObjectsH, fluidIntegrator);
+
+#ifdef CHRONO_FEA
     fsi_mesh = std::make_shared<fea::ChMesh>();
     printf("fsi_mesh.sizeElements()=%d\n", fsi_mesh->GetNelements());
     printf("fsi_mesh.sizeNodes()..\n", fsi_mesh->GetNnodes());
@@ -36,18 +48,19 @@ ChSystemFsi::ChSystemFsi(ChSystem* other_physicalSystem,
     fsiShellsPtr.resize(0);
     fsiCablesPtr.resize(0);
     fsiNodesPtr.resize(0);
-    numObjectsH = &(fsiData->numObjects);
-
-    bceWorker = new ChBce(&(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD), &(fsiData->fsiGeneralData),
-                          paramsH, numObjectsH);
-    fluidIntegrator = type;
-    fluidDynamics = new ChFluidDynamics(bceWorker, fsiData, paramsH, numObjectsH, fluidIntegrator);
     fsiInterface = new ChFsiInterface(
         &(fsiData->fsiBodiesH), &(fsiData->fsiMeshH), mphysicalSystem, &fsiBodeisPtr, &fsiNodesPtr, &fsiCablesPtr,
         &fsiShellsPtr, fsi_mesh, &(fsiData->fsiGeneralData.CableElementsNodesH),
         &(fsiData->fsiGeneralData.CableElementsNodes), &(fsiData->fsiGeneralData.ShellElementsNodesH),
         &(fsiData->fsiGeneralData.ShellElementsNodes), &(fsiData->fsiGeneralData.rigid_FSI_ForcesD),
         &(fsiData->fsiGeneralData.rigid_FSI_TorquesD), &(fsiData->fsiGeneralData.Flex_FSI_ForcesD));
+#else
+    fsiInterface = new ChFsiInterface(
+        &(fsiData->fsiBodiesH), mphysicalSystem, &fsiBodeisPtr, &(fsiData->fsiGeneralData.CableElementsNodesH),
+        &(fsiData->fsiGeneralData.CableElementsNodes), &(fsiData->fsiGeneralData.ShellElementsNodesH),
+        &(fsiData->fsiGeneralData.ShellElementsNodes), &(fsiData->fsiGeneralData.rigid_FSI_ForcesD),
+        &(fsiData->fsiGeneralData.rigid_FSI_TorquesD), &(fsiData->fsiGeneralData.Flex_FSI_ForcesD));
+#endif
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -131,14 +144,14 @@ void ChSystemFsi::DoStepDynamics_FSI_Implicit() {
     fluidDynamics->IntegrateIISPH(&(fsiData->sphMarkersD2), &(fsiData->fsiBodiesD2), &(fsiData->fsiMeshD));
     printf("Calc nodal forces\n");
     bceWorker->Rigid_Forces_Torques(&(fsiData->sphMarkersD2), &(fsiData->fsiBodiesD2));
+#ifdef CHRONO_FEA
     bceWorker->Flex_Forces(&(fsiData->sphMarkersD2), &(fsiData->fsiMeshD));
     printf("DataTransfer...(Nodal force from device to host)\n");
-
-    //  if (paramsH->dT <= paramsH->dT_Flex)
-    fsiInterface->Add_Rigid_ForceTorques_To_ChSystem();
     // Note that because of applying forces to the nodal coordinates using SetForce() no other external forces can be
     // applied, or if any thing has been applied will be rewritten by Add_Flex_Forces_To_ChSystem();
     fsiInterface->Add_Flex_Forces_To_ChSystem();
+#endif
+    fsiInterface->Add_Rigid_ForceTorques_To_ChSystem();
 
     mTime += 1 * paramsH->dT;
     if (paramsH->dT_Flex == 0)
@@ -150,13 +163,19 @@ void ChSystemFsi::DoStepDynamics_FSI_Implicit() {
     for (int t = 0; t < sync; t++) {
         mphysicalSystem->DoStepDynamics(paramsH->dT_Flex);
     }
+#ifdef CHRONO_FEA
     printf("DataTransfer...(Flexible pos-vel-acc from host to device)\n");
     fsiInterface->Copy_fsiNodes_ChSystem_to_FluidSystem(&(fsiData->fsiMeshD));
+#endif
     fsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem(&(fsiData->fsiBodiesD2));
     printf("Update Marker\n");
 
     bceWorker->UpdateRigidMarkersPositionVelocity(&(fsiData->sphMarkersD2), &(fsiData->fsiBodiesD2));
+
+#ifdef CHRONO_FEA
     bceWorker->UpdateFlexMarkersPositionVelocity(&(fsiData->sphMarkersD2), &(fsiData->fsiMeshD));
+#endif
+
     printf("=================================================================================================\n");
 }
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -177,19 +196,26 @@ void SetIntegratorType(ChFluidDynamics::Integrator type) {}
 void ChSystemFsi::FinalizeData() {
     printf("\n\nfsiInterface->ResizeChronoBodiesData()\n");
     fsiInterface->ResizeChronoBodiesData();
+    int fea_node = 0;
+#ifdef CHRONO_FEA
     fsiInterface->ResizeChronoCablesData(CableElementsNodes, &(fsiData->fsiGeneralData.CableElementsNodesH));
     fsiInterface->ResizeChronoShellsData(ShellElementsNodes, &(fsiData->fsiGeneralData.ShellElementsNodesH));
     fsiInterface->ResizeChronoFEANodesData();
-    //  printf("passing %d to ResizeDataManager..\n", fsi_mesh->GetNnodes());
     printf("\nfsiData->ResizeDataManager...\n");
-    fsiData->ResizeDataManager(fsi_mesh->GetNnodes());
+    fea_node = fsi_mesh->GetNnodes();
+
+#endif
+    fsiData->ResizeDataManager(fea_node);
 
     printf("\n\nfsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem()\n");
     fsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem(&(fsiData->fsiBodiesD1));  //(1)
+
+#ifdef CHRONO_FEA
     fsiInterface->Copy_fsiNodes_ChSystem_to_FluidSystem(&(fsiData->fsiMeshD));
+#endif
+
     std::cout << "referenceArraySize in FinalizeData " << GetDataManager()->fsiGeneralData.referenceArray.size()
               << "\n";
-
     fsiData->fsiBodiesD2 = fsiData->fsiBodiesD1;  //(2) construct midpoint rigid data
 }
 //--------------------------------------------------------------------------------------------------------------------------------

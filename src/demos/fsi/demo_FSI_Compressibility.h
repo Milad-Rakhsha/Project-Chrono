@@ -61,6 +61,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->L_Characteristic = bzDim;
 
+    paramsH->ApplyInFlowOutFlow = false;
+
     paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
     paramsH->dT = 1e-3;
     paramsH->dT_Max = 0.2;

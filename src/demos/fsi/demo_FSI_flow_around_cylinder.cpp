@@ -61,19 +61,22 @@ const std::string out_dir = GetChronoOutputPath() + "FSI_FLOW_AROUND_CYLINDER";
 const std::string demo_dir = out_dir + "/FlowAroundCylinder";
 bool save_output = true;
 
-int out_fps = 50;
+int out_fps = 5;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 Real bxDim = 1.0;
-Real byDim = 0.05;
+Real byDim = 0.06;
 Real bzDim = 0.40;
 
 Real fxDim = bxDim;
 Real fyDim = byDim;
 Real fzDim = bzDim;
-double cyl_length = 0.11;
+double cyl_length = 0.07;  // 0.11;
+
+// double cyl_length = 0.11;
+
 double cyl_radius = .05;
 ChVector<> cyl_pos = ChVector<>(0.0);
 
@@ -109,21 +112,24 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
     ground->SetCollide(true);
     ground->SetMaterialSurface(mysurfmaterial);
     ground->GetCollisionModel()->ClearModel();
+    Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
 
     // Bottom wall
-    ChVector<> sizeBottom(bxDim / 2, byDim / 2 + 3 * paramsH->HSML, 2 * paramsH->HSML);
-    ChVector<> posBottom(0, 0, -2 * paramsH->HSML);
-    ChVector<> posTop(0, 0, bzDim + 2 * paramsH->HSML);
+    ChVector<> sizeBottom(bxDim / 2, byDim / 2, 2 * initSpace0);
+
+    //    ChVector<> sizeBottom(bxDim / 2, byDim / 2 + 3 * initSpace0, 2 * initSpace0);
+    ChVector<> posBottom(0, 0, -2 * initSpace0);
+    ChVector<> posTop(0, 0, bzDim + 2 * initSpace0);
 
     // left and right Wall
-    ChVector<> size_YZ(2 * paramsH->HSML, byDim / 2 + 3 * paramsH->HSML, bzDim / 2);
-    ChVector<> pos_xp(bxDim / 2 + paramsH->HSML, 0.0, bzDim / 2 + 1 * paramsH->HSML);
-    ChVector<> pos_xn(-bxDim / 2 - 3 * paramsH->HSML, 0.0, bzDim / 2 + 1 * paramsH->HSML);
+    ChVector<> size_YZ(2 * initSpace0, byDim / 2 + 3 * initSpace0, bzDim / 2);
+    ChVector<> pos_xp(bxDim / 2 + initSpace0, 0.0, bzDim / 2 + 1 * initSpace0);
+    ChVector<> pos_xn(-bxDim / 2 - 3 * initSpace0, 0.0, bzDim / 2 + 1 * initSpace0);
 
     // Front and back Wall
-    ChVector<> size_XZ(bxDim / 2, 2 * paramsH->HSML, bzDim / 2);
-    ChVector<> pos_yp(0, byDim / 2 + paramsH->HSML, bzDim / 2 + 1 * paramsH->HSML);
-    ChVector<> pos_yn(0, -byDim / 2 - 3 * paramsH->HSML, bzDim / 2 + 1 * paramsH->HSML);
+    ChVector<> size_XZ(bxDim / 2, 2 * initSpace0, bzDim / 2);
+    ChVector<> pos_yp(0, byDim / 2 + initSpace0, bzDim / 2 + 1 * initSpace0);
+    ChVector<> pos_yn(0, -byDim / 2 - 3 * initSpace0, bzDim / 2 + 1 * initSpace0);
 
     chrono::utils::AddBoxGeometry(ground.get(), sizeBottom, posBottom, chrono::QUNIT, true);
     //    chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xp, chrono::QUNIT, true);
@@ -138,8 +144,8 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
 
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posBottom, chrono::QUNIT, sizeBottom);
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT, sizeBottom);
-    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yp, chrono::QUNIT, size_XZ, 13);
-    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT, size_XZ, 13);
+//    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yp, chrono::QUNIT, size_XZ, 13);
+//    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT, size_XZ, 13);
 #endif
 
     // Add falling cylinder
@@ -151,8 +157,9 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
     body->SetBodyFixed(true);
     body->SetCollide(true);
     body->SetMaterialSurface(mysurfmaterial);
+    //    ChVector<> cyl_pos = ChVector<>(0.0, paramsH->HSML / 4, 0.0);
 
-    body->SetPos(cyl_pos);
+    body->SetPos(cyl_pos + ChVector<>(0.0, paramsH->HSML / 4, 0.0));
 
     double sphereRad = 0.3;
     double volume = utils::CalcSphereVolume(sphereRad);
@@ -170,7 +177,7 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
     std::vector<std::shared_ptr<ChBody>>* fsiBodeisPtr = myFsiSystem.GetFsiBodiesPtr();
     fsiBodeisPtr->push_back(body);
     chrono::fsi::utils::AddCylinderBce(myFsiSystem.GetDataManager(), paramsH, body, ChVector<>(0, 0, 0),
-                                       ChQuaternion<>(1, 0, 0, 0), cyl_radius, cyl_length, paramsH->HSML, false);
+                                       ChQuaternion<>(1, 0, 0, 0), cyl_radius, cyl_length, paramsH->HSML / 2, false);
 }
 
 //------------------------------------------------------------------
@@ -231,37 +238,41 @@ int main(int argc, char* argv[]) {
 #if haveFluid
 
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
-    Real initSpace1 = initSpace0;
+    Real initSpace1 = initSpace0 / 2;
     Real initSpace2 = initSpace0;
     utils::GridSampler<> sampler1(initSpace1);
     utils::GridSampler<> sampler2(initSpace2);
 
-    chrono::fsi::Real3 boxCenter1 = chrono::fsi::mR3(-bxDim / 2 + fxDim / 2 - paramsH->HSML / 3, +paramsH->HSML / 12,
-                                                     fzDim * 0.5 - paramsH->HSML / 3);
+    chrono::fsi::Real3 boxCenter1 = chrono::fsi::mR3(-bxDim / 2 + fxDim / 2 - paramsH->HSML / 3, +paramsH->HSML / 4 * 0,
+                                                     fzDim * 0.5 - paramsH->HSML / 3 + paramsH->HSML);
 
-    chrono::fsi::Real3 boxCenter2 =
-        chrono::fsi::mR3(-bxDim / 2 + fxDim / 2, 0 * paramsH->HSML, fzDim * 0.5 + 1 * paramsH->HSML);
+    chrono::fsi::Real3 boxCenter2 = chrono::fsi::mR3(-bxDim / 2 + fxDim / 2, 0 * paramsH->HSML,
+                                                     fzDim * 0.5 + 1 * paramsH->HSML - paramsH->HSML / 8);
 
     chrono::fsi::Real3 boxHalfDim1 = chrono::fsi::mR3(fxDim / 6, fyDim / 3, fzDim / 6);
     chrono::fsi::Real3 boxHalfDim2 = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
     auto mbody = std::make_shared<ChBody>();
     mbody->SetBodyFixed(true);
 
-    cyl_pos = ChVector<>(-paramsH->HSML / 2, paramsH->HSML, 0.2 - paramsH->HSML / 2);
+    cyl_pos = ChVector<>(boxCenter1.x, boxCenter1.y, boxCenter1.z);
     mbody->SetPos(cyl_pos);
 
     // Here we add a particle to the surface of the cylinder for merging purposes
-    chrono::fsi::utils::AddCylinderSurfaceBce(myFsiSystem.GetDataManager(), paramsH, mbody, ChVector<>(0, 0, 0),
-                                              ChQuaternion<>(1, 0, 0, 0), 0.12, 0.20, paramsH->HSML * sqrt(6));
+    chrono::fsi::utils::AddCylinderSurfaceBce(myFsiSystem.GetDataManager(), paramsH, mbody,
+                                              ChVector<>(0, +paramsH->HSML / 2, 0), ChQuaternion<>(1, 0, 0, 0), 0.12,
+                                              byDim + paramsH->HSML, paramsH->HSML);
+
+    //    chrono::fsi::utils::AddCylinderSurfaceBce(myFsiSystem.GetDataManager(), paramsH, mbody, ChVector<>(0, 0, 0),
+    //                                              ChQuaternion<>(1, 0, 0, 0), 0.12, 0.12, paramsH->HSML);
     //    chrono::fsi::utils::AddSphereSurfaceBce(myFsiSystem.GetDataManager(), paramsH, mbody, ChVector<>(0, 0, 0),
     //                                            ChQuaternion<>(1, 0, 0, 0), 0.07, paramsH->HSML);
 
-    cyl_pos = ChVector<>(-paramsH->HSML / 2, 0, 0.2 - paramsH->HSML / 2);
+    //    cyl_pos = ChVector<>(-paramsH->HSML / 2, 0, 0.2 - paramsH->HSML / 2);
     mbody->SetPos(cyl_pos);
     int numhelperMarkers = myFsiSystem.GetDataManager()->sphMarkersH.posRadH.size();
 
     // Ghost particles for Variable Resolution SPH
-    int numGhostMarkers = 1000;
+    int numGhostMarkers = 10000;
     for (int i = 0; i < numGhostMarkers; i++) {
         myFsiSystem.GetDataManager()->AddSphMarker(chrono::fsi::mR4(0.0, 0.0, -0.4, 0.0),
                                                    chrono::fsi::mR3(1e-10, 0.0, 0.0),
@@ -269,10 +280,8 @@ int main(int argc, char* argv[]) {
     }
 
     // Fluid markers
-    utils::Generator::PointVector points1;
-    //    utils::Generator::PointVector points1 =
-    //    sampler1.SampleCylinderY(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter1),
-    //                                                                     0.12, byDim / 2 + paramsH->HSML / 2);
+    utils::Generator::PointVector points1 = sampler1.SampleCylinderY(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter1),
+                                                                     0.12, byDim / 2 + paramsH->HSML / 4);
 
     utils::Generator::PointVector points2 = sampler2.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter2),
                                                                fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim2));
@@ -328,11 +337,11 @@ int main(int argc, char* argv[]) {
     int numremove = 0;
     for (int i = 0; i < numPart1; i++) {
         bool removeThis = false;
-        Real h = initSpace1;
+        Real h = paramsH->HSML / 2;
         fsi::Real4 p = fsi::mR4(points1[i].x(), points1[i].y(), points1[i].z(), h);
         for (int remove = 0; remove < BCE_RIGID_SIZE; remove++) {
             double dist = length(particles_position[remove] - mR3(p));
-            if (dist < 0.98 * initSpace1) {
+            if (dist < 1.00 * initSpace1) {
                 removeThis = true;
                 break;
             }
@@ -346,11 +355,11 @@ int main(int argc, char* argv[]) {
 
     for (int i = 0; i < numPart2; i++) {
         bool removeThis = false;
-        Real h = initSpace2;
+        Real h = paramsH->HSML;
         fsi::Real4 p = fsi::mR4(points2[i].x(), points2[i].y(), points2[i].z(), h);
         for (int remove = 0; remove < particles_position.size(); remove++) {
             double dist = length(particles_position[remove] - mR3(p));
-            if (dist < 0.98 * initSpace1) {
+            if (dist < 0.5 * initSpace2) {
                 removeThis = true;
                 break;
             }
@@ -481,7 +490,8 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
 
     if (save_output && std::abs(mTime - (next_frame)*frame_time) < 0.00001) {
         fsi::utils::PrintToFile(myFsiSystem.GetDataManager()->sphMarkersD2.posRadD,
-                                myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
+                                myFsiSystem.GetDataManager()->fsiGeneralData.vis_vel_SPH_D,
+
                                 myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
                                 myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
                                 myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, demo_dir, true);

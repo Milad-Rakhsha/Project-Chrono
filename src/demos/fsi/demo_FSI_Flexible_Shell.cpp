@@ -15,23 +15,26 @@
 // =============================================================================
 // General Includes
 #include <assert.h>
+#include <limits.h>
+#include <stdlib.h>  // system
 #include <ctime>
 #include <fstream>
 #include <iostream>
-#include <limits.h>
-#include <stdlib.h>  // system
 #include <string>
 #include <vector>
 
 // Chrono Parallel Includes
 #include "chrono/physics/ChSystemSMC.h"
 
-//#include "chrono_utils/ChUtilsVehicle.h"
+#ifdef CHRONO_MKL
+#include "chrono_mkl/ChSolverMKL.h"
+#endif
+
+#include "chrono/solver/ChSolverMINRES.h"
 #include "chrono/utils/ChUtilsCreators.h"
 #include "chrono/utils/ChUtilsGenerators.h"
 #include "chrono/utils/ChUtilsGeometry.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
-#include "chrono/solver/ChSolverMINRES.h"
 
 // Chrono general utils
 #include "chrono/core/ChFileutils.h"
@@ -42,7 +45,7 @@
 #include "chrono_fsi/ChFsiTypeConvert.h"
 #include "chrono_fsi/ChSystemFsi.h"
 #include "chrono_fsi/utils/ChUtilsGeneratorFsi.h"
-#include "chrono_fsi/utils/ChUtilsPrintSph.h"
+#include "chrono_fsi/utils/ChUtilsPrintSph.cuh"
 
 // Chrono fea includes
 
@@ -140,9 +143,7 @@ int main(int argc, char* argv[]) {
 #endif
     // ******************************* Create Fluid region ***********************************
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid);
-    chrono::ChVector<> CameraLocation = chrono::ChVector<>(0, -10, 0);
-    chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::IISPH);
 
     chrono::fsi::SimParams* paramsH = myFsiSystem.GetSimParams();
 
@@ -158,7 +159,7 @@ int main(int argc, char* argv[]) {
     int numPart = points.size();
     for (int i = 0; i < numPart; i++) {
         myFsiSystem.GetDataManager()->AddSphMarker(
-            chrono::fsi::mR3(points[i].x(), points[i].y(), points[i].z()), chrono::fsi::mR3(1e-10),
+            chrono::fsi::mR4(points[i].x(), points[i].y(), points[i].z(), paramsH->HSML), chrono::fsi::mR3(1e-10),
             chrono::fsi::mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, -1.0));
     }
 
@@ -196,18 +197,28 @@ int main(int argc, char* argv[]) {
 
     mphysicalSystem.SetupInitial();
 
+#ifdef CHRONO_MKL
+    auto mkl_solver = std::make_shared<ChSolverMKL<>>();
+    mkl_solver->SetSparsityPatternLock(true);
+    mphysicalSystem.SetSolver(mkl_solver);
+#else
     mphysicalSystem.SetSolverType(ChSolver::Type::MINRES);
     mphysicalSystem.SetSolverWarmStarting(true);
     mphysicalSystem.SetMaxItersSolverSpeed(10000);
     mphysicalSystem.SetTolForce(1e-10);
+#endif
 
     mphysicalSystem.SetTimestepperType(ChTimestepper::Type::HHT);
     auto mystepper = std::static_pointer_cast<ChTimestepperHHT>(mphysicalSystem.GetTimestepper());
     mystepper->SetAlpha(-0.2);
-    mystepper->SetMaxiters(100);
+    mystepper->SetMaxiters(1000);
     mystepper->SetAbsTolerances(1e-5);
     mystepper->SetMode(ChTimestepperHHT::POSITION);
     mystepper->SetScaling(true);
+
+    //
+    //    // Set up integrator
+    //    mphysicalSystem.SetTimestepperType(ChTimestepper::Type::EULER_IMPLICIT);
 
     int stepEnd = int(paramsH->tFinal / paramsH->dT);
     stepEnd = 1000000;
@@ -350,8 +361,8 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
     // Create an isotropic material.
     // All layers for all elements share the same material.
-    double rho = 5000;
-    double E = 2e6;
+    double rho = 1000;
+    double E = 5e6;
     double nu = 0.3;
     auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
     // Create the elements
@@ -383,7 +394,7 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, mat);
 
         // Set other element properties
-        element->SetAlphaDamp(0.05);   // Structural damping for this element
+        element->SetAlphaDamp(0.1);    // Structural damping for this element
         element->SetGravityOn(false);  // turn internal gravitational force calculation off
 
         // Add element to mesh

@@ -580,8 +580,9 @@ void ChBce::Finalize(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD, Fs
 
     // Populate local position of BCE markers
     Populate_RigidSPH_MeshPos_LRF(sphMarkersD, fsiBodiesD);
-
+#ifdef CHRONO_FEA
     Populate_FlexSPH_MeshPos_LRF(sphMarkersD, fsiMeshD);
+#endif
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 ChBce::~ChBce() {

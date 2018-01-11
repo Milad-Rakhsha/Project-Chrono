@@ -25,7 +25,6 @@
 
 #include <thrust/tuple.h>
 
-#include "chrono_fea/ChElementShellANCF.h"
 #include "chrono_fsi/ChApiFsi.h"
 #include "chrono_fsi/ChParams.cuh"
 #include "chrono_fsi/custom_math.h"
@@ -375,7 +374,7 @@ class CH_FSI_API ChFsiDataManager {
     ~ChFsiDataManager();
 
     void AddSphMarker(Real4 pos, Real3 vel, Real4 rhoPresMu);
-    void ResizeDataManager(int numNodes);
+    void ResizeDataManager(int numNode = 0);
 
     NumberOfObjects numObjects;
 

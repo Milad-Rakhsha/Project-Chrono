@@ -58,7 +58,7 @@ const std::string demo_dir = out_dir + "/DamBreak";
 // Save data as csv files, turn it on to be able to see the results off-line using paraview
 bool save_output = true;
 // Frequency of the save output
-int out_fps = 5;
+int out_fps = 20;
 typedef fsi::Real Real;
 
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD

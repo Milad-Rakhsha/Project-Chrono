@@ -505,8 +505,11 @@ void ChFluidDynamics::IntegrateSPH(SphMarkerDataD* sphMarkersD2,
 
 void ChFluidDynamics::IntegrateIISPH(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD, FsiMeshDataD* fsiMeshD) {
     forceSystem->ForceImplicitSPH(sphMarkersD, fsiBodiesD, fsiMeshD);
+    //    return;
+
     if (myIntegrator == ChFluidDynamics::Integrator::IISPH)
         this->UpdateFluid_Implicit(sphMarkersD);
+
     this->ApplyBoundarySPH_Markers(sphMarkersD);
     //    this->ApplyModifiedBoundarySPH_Markers(sphMarkersD);
     //    Real3 n = mR3(sphMarkersD->velMasD.back());

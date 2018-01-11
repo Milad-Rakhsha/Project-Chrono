@@ -60,6 +60,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->V_in = mR3(0.00, 0, 0.0);
     paramsH->x_in = -bxDim / 2 + 3 * initSpace;
 
+    paramsH->Conservative_Form = false;
+    paramsH->USE_NonIncrementalProjection = false;
     paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
     paramsH->dT = 1e-3;
     paramsH->dT_Max = 0.2;
@@ -100,7 +102,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->enableAggressiveTweak = 0;
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
-    paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
+    paramsH->bceType = mORIGINAL;  // ADAMI, mORIGINAL
     paramsH->cMin = mR3(-bxDim / 2 - initSpace / 2, -byDim / 2 - initSpace / 2, 0.0 - 5.0 * initSpace);
     paramsH->cMax = mR3(bxDim / 2 + initSpace / 2, byDim / 2 + initSpace / 2, bzDim + 5.0 * initSpace);
 

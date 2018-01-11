@@ -47,7 +47,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->HSML = 0.05 / 0.9;
     paramsH->MULT_INITSPACE = 0.9;
     Real initSpace = paramsH->MULT_INITSPACE * paramsH->HSML;
-    paramsH->epsMinMarkersDis = .001;
+    paramsH->epsMinMarkersDis = 1e-10;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
     paramsH->BASEPRES = 0.0;
@@ -55,7 +55,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->deltaPress = mR3(0.0, 0, 0.0);
     paramsH->multViscosity_FSI = 1;
     paramsH->gravity = mR3(0.0, 0, 0.0);
-    paramsH->bodyForce3 = mR3(0.1, 0, 0);
+    paramsH->bodyForce3 = mR3(0.005, 0, 0);
     paramsH->V_in = mR3(0.0, 0, 0.0);
     paramsH->x_in = -bxDim / 2 + 3 * initSpace;
 
@@ -67,10 +67,12 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->mu0 = 0.002;
     paramsH->kappa = 0.0;     ///< surface tension parameter, experimental
     paramsH->v_Max = 0.0;     // Arman, I changed it to 0.1 for vehicle. Check this
-    paramsH->EPS_XSPH = 0.5;  // Note that increasing this coefficient stabilizes the simulation but adds dissipation
+    paramsH->EPS_XSPH = 0.0;  // Note that increasing this coefficient stabilizes the simulation but adds dissipation
     paramsH->beta_shifting = 0.1;  // increasing this factor decreases the Lagrangian nature of the model
     paramsH->L_Characteristic = bzDim;
 
+    paramsH->Conservative_Form = false;
+    paramsH->USE_NonIncrementalProjection = false;
     paramsH->USE_LinearSolver = false;  ///< IISPH parameter: whether or not use linear solvers
     paramsH->USE_Iterative_solver = true;
     paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
@@ -79,7 +81,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->LinearSolver_Rel_Tol = 1e-8;  ///< relative res, is used in the matrix free solver and linear solvers
     paramsH->LinearSolver_Abs_Tol = 1e-8;  ///< absolute error, applied when linear solvers are used
     paramsH->LinearSolver_Max_Iter = 500;  ///< max number of iteration for linear solvers
-    paramsH->PPE_relaxation = 0.90;        ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
+    paramsH->PPE_relaxation = 0.99;        ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
     /// Experimental parameters
     paramsH->Max_Pressure = 1e5;
     paramsH->IncompressibilityFactor = 1;    ///< to tune the compression

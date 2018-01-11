@@ -61,7 +61,7 @@ const std::string out_dir = GetChronoOutputPath() + "backward_facing_step";
 const std::string demo_dir = out_dir + "/backward_facing_step";
 bool save_output = true;
 
-int out_fps = 10;
+int out_fps = 5;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD

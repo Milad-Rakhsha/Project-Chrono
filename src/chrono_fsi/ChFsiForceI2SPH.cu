@@ -104,7 +104,7 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
     if (i_idx >= numAllMarkers) {
         return;
     }
-    Real CN = 1.0;
+    Real CN = 0.5;
 
     uint csrStartIdx = numContacts[i_idx];
     uint csrEndIdx = numContacts[i_idx + 1];
@@ -133,7 +133,8 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
         for (int count = csrStartIdx; count < csrEndIdx; count++) {
             int j = csrColInd[count];
             A_Matrix[count] = -CN * paramsD.mu0 / rhoi * A_L[count];
-            rhs += -1 / rhoi * A_G[count] * sortedRhoPreMu[j].y +                 // Pressure Gradient
+            rhs += -1 / rhoi * A_G[count] * sortedRhoPreMu[j].y *
+                       !paramsD.USE_NonIncrementalProjection +                    // Pressure Gradient
                    (1 - CN) * paramsD.mu0 / rhoi * A_L[count] * sortedVelMas[j];  // viscous term;
         }
         A_Matrix[csrStartIdx] += 1 / delta_t;
@@ -174,6 +175,8 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
         Real h_i = sortedPosRad[i_idx].w;
         Real3 posRadA = mR3(sortedPosRad[i_idx]);
         Real den = 0.0;
+        Real3 gradp = mR3(0);
+
         for (uint count = csrStartIdx + 1; count < csrEndIdx; count++) {
             uint j = csrColInd[count];
             if (sortedRhoPreMu[j].w != -1)
@@ -186,10 +189,12 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
             A_Matrix[count] = W3;
             // A_Matrix[count] = A_f[count];
             den = den + W3;
+            gradp += A_G[count] * sortedPosRad[j].y;
         }
 
         Real3 myAcc = mR3(0);
         Real3 V_prescribed = mR3(0);
+
         BCE_Vel_Acc(i_idx, myAcc, V_prescribed, sortedPosRad, updatePortion, gridMarkerIndexD, velMassRigid_fsiBodies_D,
                     accRigid_fsiBodies_D, rigidIdentifierD, pos_fsi_fea_D, vel_fsi_fea_D, acc_fsi_fea_D,
                     FlexIdentifierD, numFlex1D, CableElementsNodes, ShellelementsNodes);
@@ -199,12 +204,17 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
             Bi[i_idx] = V_prescribed;
         } else {
             A_Matrix[csrStartIdx] = den;
-            Bi[i_idx] = 2 * V_prescribed * den;
+            Bi[i_idx] = 2 * V_prescribed * den +
+                        gradp / sortedRhoPreMu[i_idx].x * delta_t * paramsD.USE_NonIncrementalProjection;
         }
     }
 
     v_old[i_idx] = sortedVelMas[i_idx];
-}  // namespace fsi
+
+    if (abs(A_Matrix[csrStartIdx]) < EPSILON)
+        printf("V_star_Predictor %d A_Matrix[csrStartIdx]= %f, type=%f \n", i_idx, A_Matrix[csrStartIdx],
+               sortedRhoPreMu[i_idx].w);
+}
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positions
                                   Real3* sortedVelMas,
@@ -257,6 +267,8 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
         return;
     }
 
+    Real rho0 = paramsD.rho0;
+
     Real3 gravity = paramsD.gravity + paramsD.bodyForce3;
     Real3 grad_rho_i = mR3(0.0);
     Real div_vi_star = 0;
@@ -277,17 +289,18 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
         for (int count = csrStartIdx; count < csrEndIdx; count++) {
             A_Matrix[count] = 1 / rhoi * A_L[count] - 1.0 / (rhoi * rhoi) * dot(grad_rho_i, A_G[count]);
         }
+
         Bi[i_idx] = div_vi_star / delta_t;
 
         //======================== Free-Surface =====================
-        //        if (sortedRhoPreMu[i_idx].x < 0.99 * paramsD.rho0) {
+        //        if (sortedRhoPreMu[i_idx].x < 0.95 * paramsD.rho0) {
         //            clearRow(i_idx, csrStartIdx, csrEndIdx, A_Matrix, Bi);
-        //            for (int count = csrStartIdx + 1; count < csrEndIdx; count++) {
-        //                uint j = csrColInd[count];
-        //                A_Matrix[count] = A_f[count];
-        //            }
-        //            A_Matrix[csrStartIdx] -= 1.0;
-        //            Bi[i_idx] = -sortedRhoPreMu[i_idx].y;
+        //            //            for (int count = csrStartIdx; count < csrEndIdx; count++) {
+        //            //                uint j = csrColInd[count];
+        //            //                A_Matrix[count] = A_f[count];
+        //            //            }
+        //            A_Matrix[csrStartIdx] += 1.0;
+        //            Bi[i_idx] = -sortedRhoPreMu[i_idx].y * !paramsD.USE_NonIncrementalProjection;
         //        }
 
         //======================== Inflow/outflow =====================
@@ -322,7 +335,7 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
     } else if (Boundary_Marker && paramsD.bceType != ADAMI) {
         Real3 my_normal = Normals[i_idx];
         bool haveFluid = false;
-        for (int count = csrStartIdx + 1; count < csrEndIdx; count++) {
+        for (int count = csrStartIdx; count < csrEndIdx; count++) {
             uint j = csrColInd[count];
             if (sortedRhoPreMu[j].w == -1.0 || dot(my_normal, mR3(sortedPosRad[i_idx] - sortedPosRad[j])) > 0) {
                 A_Matrix[count] = -dot(A_G[count], my_normal);
@@ -330,20 +343,16 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
             }
         }
         Bi[i_idx] = 0;
-        if (abs(A_Matrix[csrStartIdx]) < 1e-12) {
+        if (abs(A_Matrix[csrStartIdx]) < 1e-6) {
             clearRow(i_idx, csrStartIdx, csrEndIdx, A_Matrix, Bi);
-
-            //            A_Matrix[csrStartIdx] = 1;
-            //            Bi[i_idx] = 0.0;
-            for (int count = csrStartIdx + 1; count < csrEndIdx; count++) {
-                uint j = csrColInd[count];
+            for (int count = csrStartIdx; count < csrEndIdx; count++)
                 A_Matrix[count] = A_f[count];
-            }
             A_Matrix[csrStartIdx] -= 1.0;
             Bi[i_idx] = 0.0;
         }
+
         //======================= Boundary Adami===========================
-    } else if ((Boundary_Marker) && paramsD.bceType == ADAMI) {
+    } else if ((Boundary_Marker) && paramsD.bceType == ADAMI && paramsD.USE_NonIncrementalProjection) {
         Real h_i = sortedPosRad[i_idx].w;
         Real Vi = sumWij_inv[i_idx];
         Real3 posRadA = mR3(sortedPosRad[i_idx]);
@@ -382,7 +391,12 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
         }
     }
 
-    //    q_old[i_idx] = sortedRhoPreMu[i_idx].y;
+    if (paramsD.USE_NonIncrementalProjection)
+        q_old[i_idx] = sortedRhoPreMu[i_idx].y;
+
+    if (abs(A_Matrix[csrStartIdx]) < EPSILON)
+        printf("Pressure_Equation %d A_Matrix[csrStartIdx]= %f, type=%f \n", i_idx, A_Matrix[csrStartIdx],
+               sortedRhoPreMu[i_idx].w);
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
@@ -409,29 +423,29 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
     Real3 grad_q_i = mR3(0.0);
     Real3 grad_p_nPlus1 = mR3(0.0);
     Real divV_star = 0;
-    //    Real3 inner_sum = mR3(0.0), shift_r = mR3(0.0);
-    //    Real mi_bar = 0.0, r0 = 0.0;
+    Real3 inner_sum = mR3(0.0), shift_r = mR3(0.0);
+    Real mi_bar = 0.0, r0 = 0.0;
     for (int count = csrStartIdx; count < csrEndIdx; count++) {
         uint j = csrColInd[count];
         grad_q_i += A_G[count] * q_i[j];
         divV_star += dot(A_G[count], Vstar[j]);
         grad_p_nPlus1 += A_G[count] * (sortedRhoPreMu[j].y + q_i[j]);
-        //        Real3 rij = Distance(mR3(sortedPosRad[i_idx]), mR3(sortedPosRad[j]));
-        //        Real d = length(rij);
-        //        if (count == csrStartIdx)
-        //            continue;
-        //        Real m_j = pow(sortedPosRad[j].w * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
-        //        mi_bar += m_j;
-        //        r0 += d;
-        //        inner_sum += m_j * rij / (d * d * d);
+        Real3 rij = Distance(mR3(sortedPosRad[i_idx]), mR3(sortedPosRad[j]));
+        Real d = length(rij);
+        if (count == csrStartIdx)
+            continue;
+        Real m_j = pow(sortedPosRad[j].w * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
+        mi_bar += m_j;
+        r0 += d;
+        inner_sum += m_j * rij / (d * d * d);
     }
 
-    //    if (sortedRhoPreMu[i_idx].w == -1.0) {
-    //        r0 /= (csrEndIdx - csrStartIdx);
-    //        mi_bar /= (csrEndIdx - csrStartIdx);
-    //    }
-    //
-    //    shift_r = paramsD.beta_shifting * r0 * r0 * length(MaxVel) * delta_t * inner_sum / mi_bar;
+    if (sortedRhoPreMu[i_idx].w == -1.0) {
+        r0 /= (csrEndIdx - csrStartIdx);
+        mi_bar /= (csrEndIdx - csrStartIdx);
+    }
+
+    shift_r = paramsD.beta_shifting * r0 * r0 * length(MaxVel) * delta_t * inner_sum / mi_bar;
 
     Real3 V_new = Vstar[i_idx] - delta_t / sortedRhoPreMu[i_idx].x * grad_q_i;
 
@@ -439,9 +453,10 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
 
     sortedVelMas[i_idx] = V_new;
 
-    sortedRhoPreMu[i_idx].y += q_i[i_idx] + dot(grad_p_nPlus1, mR3(x_new - sortedPosRad[i_idx]));
-
-    //    sortedRhoPreMu[i_idx].y = q_i[i_idx];
+    if (paramsD.USE_NonIncrementalProjection)
+        sortedRhoPreMu[i_idx].y += q_i[i_idx];
+    else
+        sortedRhoPreMu[i_idx].y += q_i[i_idx] + dot(grad_p_nPlus1, mR3(x_new - sortedPosRad[i_idx]));
 
     if (sortedRhoPreMu[i_idx].w == -1.0) {
         sortedPosRad[i_idx] = x_new;
@@ -477,7 +492,7 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
     //        uint j = csrColInd[count];
     //        vis_vel += A_f[count] * (sortedVelMas[j]);
     //    }
-    //
+
     //    sortedVisVel[i_idx] = vis_vel;
     //    sortedVelMas[i_idx] = paramsD.EPS_XSPH * vis_vel + (1 - paramsD.EPS_XSPH) * sortedVelMas[i_idx];
 }
@@ -515,6 +530,7 @@ __global__ void Shifting(Real4* sortedPosRad,
         Real m_j = pow(sortedPosRad[j].w * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
         mi_bar += m_j;
         r0 += d;
+        //        inner_sum += rij / (d * d * d);
         inner_sum += m_j * rij / (d * d * d);
     }
 
@@ -524,6 +540,7 @@ __global__ void Shifting(Real4* sortedPosRad,
     }
 
     shift_r = paramsD.beta_shifting * r0 * r0 * length(MaxVel) * delta_t * inner_sum / mi_bar;
+    //    shift_r = paramsD.beta_shifting * r0 * r0 * length(MaxVel) * delta_t * inner_sum;
 
     Real3 grad_p = mR3(0.0);
     Real3 grad_rho = mR3(0.0);
@@ -553,8 +570,8 @@ __global__ void Shifting(Real4* sortedPosRad,
 
     for (int count = csrStartIdx; count < csrEndIdx; count++) {
         uint j = csrColInd[count];
-        //        if (sortedRhoPreMu[j].w == -1.0)
-        vis_vel += A_f[count] * (sortedVelMas[j]);
+        if (sortedRhoPreMu[j].w == -1.0)
+            vis_vel += A_f[count] * (sortedVelMas[j]);
     }
 
     sortedVisVel[i_idx] = vis_vel;
@@ -726,6 +743,8 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
 
     //=====calcRho_kernel=== calc_A_tensor==calc_L_tensor==Function_Gradient_Laplacian_Operator=================
     ChFsiForceI2SPH::PreProcessor(sortedSphMarkersD);
+    //    return;
+
     //==========================================================================================================
     uint numThreads, numBlocks;
     computeGridSize(numAllMarkers, 256, numBlocks, numThreads);
@@ -875,8 +894,52 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
         mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(vel_vis_Sorted_D), mR3CAST(V_star_new), R1CAST(q_new),
         R1CAST(csrValFunciton), mR3CAST(csrValGradient), U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, MaxVel,
         paramsH->dT, isErrorD);
-
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Velocity_Correction_and_update");
+
+    thrust::device_vector<uint> SplitMe(numAllMarkers);
+    thrust::device_vector<uint> MergeMe(numAllMarkers);
+    thrust::device_vector<uint> myType(numAllMarkers);
+    thrust::device_vector<Real3> helpers_normal(numHelperMarkers);
+    //
+    thrust::fill(SplitMe.begin(), SplitMe.end(), 0);
+    thrust::fill(MergeMe.begin(), MergeMe.end(), 0);
+    thrust::fill(myType.begin(), myType.end(), 0);
+    thrust::fill(helpers_normal.begin(), helpers_normal.end(), mR3(0));
+    cudaThreadSynchronize();
+
+    double SPLIT_MERGE = clock();
+
+    //    Calc_HelperMarkers_normals<<<numBlocks, numThreads>>>(
+    //        mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(helpers_normal),
+    //        I1CAST(myType), U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD),
+    //        U1CAST(markersProximityD->gridMarkerIndexD), numAllMarkers, isErrorD2);
+    //    ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Calc_HelperMarkers_normals");
+    //
+    //    double CalcSplitMerge = clock();
+    //
+    //    int limit = numObjectsH->numFluidMarkers + numObjectsH->numGhostMarkers + numObjectsH->numHelperMarkers;
+    //
+    //    Calc_Splits_and_Merges<<<numBlocks, numThreads>>>(
+    //        mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
+    //        mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(helpers_normal), R1CAST(csrValLaplacian),
+    //        mR3CAST(csrValGradient), R1CAST(csrValFunciton), U1CAST(csrColInd), U1CAST(Contact_i), U1CAST(SplitMe),
+    //        U1CAST(MergeMe), I1CAST(myType), U1CAST(markersProximityD->gridMarkerIndexD), paramsH->HSML / 2.0,
+    //        paramsH->HSML, numAllMarkers, limit, isErrorD2);
+    //    ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Calc_Splits_and_Merges");
+    //    printf(" Merging and ");
+    //    CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vis_vel_SPH_D, sortedSphMarkersD->velMasD,
+    //                                        markersProximityD->gridMarkerIndexD);
+    //    return;
+
+    //    Split<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
+    //                                     mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(Normals),
+    //                                     R1CAST(csrValLaplacian), mR3CAST(csrValGradient), R1CAST(csrValFunciton),
+    //                                     U1CAST(csrColInd), U1CAST(Contact_i), U1CAST(SplitMe), U1CAST(MergeMe),
+    //                                     I1CAST(myType), U1CAST(markersProximityD->gridMarkerIndexD), paramsH->HSML
+    //                                     / 2.0, paramsH->HSML, numAllMarkers, limit, isErrorD2);
+    //    ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Split");
+    printf("Spliting : %f \n", (clock() - SPLIT_MERGE) / (double)CLOCKS_PER_SEC);
+    //
     CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vis_vel_SPH_D, vel_vis_Sorted_D,
                                         markersProximityD->gridMarkerIndexD);
     CopySortedToOriginal_NonInvasive_R3(sphMarkersD->velMasD, sortedSphMarkersD->velMasD,
@@ -885,6 +948,7 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
                                         markersProximityD->gridMarkerIndexD);
     CopySortedToOriginal_NonInvasive_R4(sphMarkersD->posRadD, sortedSphMarkersD->posRadD,
                                         markersProximityD->gridMarkerIndexD);
+
     fsiCollisionSystem->ArrangeData(sphMarkersD);
     ChFsiForceI2SPH::PreProcessor(sortedSphMarkersD, false, false);
     Shifting<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
@@ -911,6 +975,7 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
                                         markersProximityD->gridMarkerIndexD);
     CopySortedToOriginal_NonInvasive_R4(sphMarkersD->posRadD, sortedSphMarkersD->posRadD,
                                         markersProximityD->gridMarkerIndexD);
+
     csrValGradient.clear();
     csrValLaplacian.clear();
     csrValFunciton.clear();

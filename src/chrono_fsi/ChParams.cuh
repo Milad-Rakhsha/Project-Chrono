@@ -115,6 +115,9 @@ struct SimParams {
     Real tweakMultRho;  /* maximum allowed density change in one time step: tweakMultRho * rho0 */
     BceVersion bceType; /* maximum allowed density change in one time step: tweakMultRho * rho0 */
 
+    bool Conservative_Form;
+    bool USE_NonIncrementalProjection;
+
     bool USE_LinearSolver;
     bool USE_Iterative_solver;
     solverType LinearSolver;

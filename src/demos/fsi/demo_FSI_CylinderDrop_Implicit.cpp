@@ -14,16 +14,16 @@
 
 // General Includes
 #include <cassert>
+#include <climits>
+#include <cstdlib>  // system
 #include <ctime>
 #include <fstream>
 #include <iostream>
-#include <climits>
-#include <cstdlib>  // system
 #include <string>
 #include <vector>
 
 // Chrono Parallel Includes
-#include "chrono_parallel/physics/ChSystemParallel.h"
+#include "chrono/physics/ChSystemSMC.h"
 
 //#include "chrono_utils/ChUtilsVehicle.h"
 #include "chrono/utils/ChUtilsCreators.h"
@@ -40,7 +40,7 @@
 #include "chrono_fsi/ChFsiTypeConvert.h"
 #include "chrono_fsi/ChSystemFsi.h"
 #include "chrono_fsi/utils/ChUtilsGeneratorFsi.h"
-#include "chrono_fsi/utils/ChUtilsPrintSph.h"
+#include "chrono_fsi/utils/ChUtilsPrintSph.cuh"
 
 // FSI Interface Includes
 #include "demos/fsi/demo_FSI_CylinderDrop_Implicit.h"  //SetupParamsH()
@@ -74,22 +74,13 @@ Real fxDim = bxDim;
 Real fyDim = byDim;
 Real fzDim = 1;
 
-double cyl_length = 0.12;
+double cyl_length = 0.15001;
 double cyl_radius = .12;
 
 void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
-void SetArgumentsForMbdFromInput(int argc,
-                                 char* argv[],
-                                 int& threads,
-                                 int& max_iteration_sliding,
-                                 int& max_iteration_bilateral,
-                                 int& max_iteration_normal,
-                                 int& max_iteration_spinning);
-
-void InitializeMbdPhysicalSystem(ChSystemParallelNSC& mphysicalSystem, ChVector<> gravity, int argc, char* argv[]);
 
 void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
-                       ChSystemParallelNSC& mphysicalSystem,
+                       ChSystemSMC& mphysicalSystem,
                        chrono::fsi::SimParams* paramsH,
                        int tStep,
                        double mTime,
@@ -100,23 +91,25 @@ void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
 // bce representation are created and added to the systems
 //------------------------------------------------------------------
 
-void CreateMbdPhysicalSystemObjects(ChSystemParallelNSC& mphysicalSystem,
+void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
                                     fsi::ChSystemFsi& myFsiSystem,
                                     chrono::fsi::SimParams* paramsH) {
-    std::shared_ptr<ChMaterialSurfaceNSC> mat_g(new ChMaterialSurfaceNSC);
+    ChVector<> gravity = ChVector<>(paramsH->gravity.x, paramsH->gravity.y, paramsH->gravity.z);
+    mphysicalSystem.Set_G_acc(gravity);
+    auto mysurfmaterial = std::make_shared<ChMaterialSurfaceSMC>();
+
     // Set common material Properties
-    mat_g->SetFriction(0.8);
-    mat_g->SetCohesion(0);
-    mat_g->SetCompliance(0.0);
-    mat_g->SetComplianceT(0.0);
-    mat_g->SetDampingF(0.2);
+    mysurfmaterial->SetYoungModulus(6e6);
+    mysurfmaterial->SetFriction(0.3f);
+    mysurfmaterial->SetRestitution(0.2f);
+    mysurfmaterial->SetAdhesion(0);
 
     // Ground body
-    auto ground = std::make_shared<ChBody>(std::make_shared<collision::ChCollisionModelParallel>());
+    auto ground = std::make_shared<ChBody>();
+    ground->SetPos(ChVector<>(0, 0, 0.0));
     ground->SetIdentifier(-1);
     ground->SetBodyFixed(true);
-    ground->SetCollide(true);
-    ground->SetMaterialSurface(mat_g);
+    ground->SetMaterialSurface(mysurfmaterial);
     ground->GetCollisionModel()->ClearModel();
 
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
@@ -135,9 +128,11 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelNSC& mphysicalSystem,
     ChVector<> size_XZ(bxDim / 2, 2 * initSpace0, bzDim / 2);
     ChVector<> pos_yp(0, byDim / 2 + initSpace0, bzDim / 2 + 1 * initSpace0);
     ChVector<> pos_yn(0, -byDim / 2 - 3 * initSpace0, bzDim / 2 + 1 * initSpace0);
+    chrono::utils::AddBoxGeometry(ground.get(), sizeBottom, posTop, chrono::QUNIT, true);
+    chrono::utils::AddBoxGeometry(ground.get(), sizeBottom, posBottom, chrono::QUNIT, true);
 
-    chrono::utils::AddBoxGeometry(ground.get(), sizeBottom, posBottom + ChVector<>(0, 0, 1 * initSpace0), chrono::QUNIT,
-                                  true);
+    printf("POSITUION OF GR= %f,%f,%f\n\\n\n\n", posBottom.x(), posBottom.y(), posBottom.z());
+
     chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xp + ChVector<>(3 * initSpace0, 0, 0), chrono::QUNIT,
                                   true);
     chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xn + ChVector<>(1 * initSpace0, 0, 0), chrono::QUNIT,
@@ -148,9 +143,13 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelNSC& mphysicalSystem,
                                   true);
 
     ground->GetCollisionModel()->BuildModel();
-    mphysicalSystem.AddBody(ground);
+    ChVector<> bbmin, bbmax;
+    ground->GetCollisionModel()->GetAABB(bbmin, bbmax);
+    printf("bbmin  GR= %f,%f,%f,bbmax  GR= %f,%f,%f\n\\n\n\n", bbmin.x(), bbmin.y(), bbmin.z(), bbmax.x(), bbmax.y(),
+           bbmax.z());
 
-#if haveFluid
+    ground->SetCollide(true);
+    mphysicalSystem.AddBody(ground);
 
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posBottom, chrono::QUNIT, sizeBottom);
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT, sizeBottom);
@@ -164,37 +163,35 @@ void CreateMbdPhysicalSystemObjects(ChSystemParallelNSC& mphysicalSystem,
     // Add falling cylinder
     ChVector<> cyl_pos = ChVector<>(0, 0, fzDim + cyl_radius + 2 * initSpace0);
     ChQuaternion<> cyl_rot = chrono::QUNIT;
-    std::vector<std::shared_ptr<ChBody>>* FSI_Bodies = myFsiSystem.GetFsiBodiesPtr();
 
-#endif
-
-    auto body = std::make_shared<ChBody>(std::make_shared<collision::ChCollisionModelParallel>());
-    // body->SetIdentifier(-1);
+    auto body = std::make_shared<ChBody>();
+    body->SetIdentifier(0);
     body->SetBodyFixed(false);
     body->SetCollide(true);
-    body->SetMaterialSurface(mat_g);
-    body->SetPos(ChVector<>(5, 0, 2));
-    body->SetRot(chrono::Q_from_AngAxis(CH_C_PI / 3, VECT_Y) * chrono::Q_from_AngAxis(CH_C_PI / 6, VECT_X) *
-                 chrono::Q_from_AngAxis(CH_C_PI / 6, VECT_Z));
+    body->SetMaterialSurface(mysurfmaterial);
+    body->SetPos(cyl_pos);
 
-    double sphereRad = 0.3;
-    double volume = utils::CalcSphereVolume(sphereRad);
-    ChVector<> gyration = utils::CalcSphereGyration(sphereRad).Get_Diag();
-    double density = paramsH->rho0;
+    double volume = utils::CalcCylinderVolume(cyl_radius, cyl_length);
+    ChVector<> gyration = utils::CalcCylinderGyration(cyl_radius, cyl_length).Get_Diag();
+    double density = paramsH->rho0 * 10;
     double mass = density * volume;
     body->SetMass(mass);
     body->SetInertiaXX(mass * gyration);
     body->GetCollisionModel()->ClearModel();
-    utils::AddSphereGeometry(body.get(), sphereRad);
+    body->GetCollisionModel()->SetSafeMargin(0.2);
+    body->SetCollide(true);
+    utils::AddCylinderGeometry(body.get(), cyl_radius, cyl_length, cyl_pos, ChQuaternion<>(1, 0, 0, 0));
     body->GetCollisionModel()->BuildModel();
+    body->GetCollisionModel()->GetAABB(bbmin, bbmax);
 
     int numRigidObjects = mphysicalSystem.Get_bodylist()->size();
     mphysicalSystem.AddBody(body);
-
+    printf("size of system %d, bbmin  GR= %f,%f,%f,bbmax  GR= %f,%f,%f\n\\n\n\n", numRigidObjects, bbmin.x(), bbmin.y(),
+           bbmin.z(), bbmax.x(), bbmax.y(), bbmax.z());
     std::vector<std::shared_ptr<ChBody>>* fsiBodeisPtr = myFsiSystem.GetFsiBodiesPtr();
     fsiBodeisPtr->push_back(body);
     chrono::fsi::utils::AddCylinderBce(myFsiSystem.GetDataManager(), paramsH, body, ChVector<>(0, 0, 0),
-                                       ChQuaternion<>(1, 0, 0, 0), cyl_radius, cyl_length);
+                                       ChQuaternion<>(1, 0, 0, 0), cyl_radius, cyl_length, paramsH->HSML, false);
 }
 
 //------------------------------------------------------------------
@@ -216,7 +213,7 @@ int main(int argc, char* argv[]) {
     time_t rawtime;
     struct tm* timeinfo;
 
-    //(void) cudaSetDevice(0);
+    cudaSetDevice(1);
     const std::string CUDA_VISIBLE_DEVICE = (std::string("echo $CUDA_VISIBLE_DEVICE"));
     int GPU_NUM = system(CUDA_VISIBLE_DEVICE.c_str());
     printf("picked up GPU %d", GPU_NUM);
@@ -252,7 +249,7 @@ int main(int argc, char* argv[]) {
     mHaveFluid = true;
 #endif
     // ************* Create Fluid *************************
-    ChSystemParallelNSC mphysicalSystem;
+    ChSystemSMC mphysicalSystem;
     fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid);
     chrono::ChVector<> CameraLocation = chrono::ChVector<>(0, -10, 0);
     chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
@@ -267,12 +264,12 @@ int main(int argc, char* argv[]) {
 
     chrono::fsi::Real3 boxCenter =
         chrono::fsi::mR3(0, 0 * initSpace0, fzDim / 2 + 1 * initSpace0);  // This is very badly hardcoded
-    chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
+    chrono::fsi::Real3 boxHalfDim = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2) / 4;
     utils::Generator::PointVector points = sampler.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter),
                                                              fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim));
     int numPart = points.size();
     for (int i = 0; i < numPart; i++) {
-        myFsiSystem.GetDataManager()->AddSphMarker(fsi::mR3(points[i].x(), points[i].y(), points[i].z()),
+        myFsiSystem.GetDataManager()->AddSphMarker(fsi::mR4(points[i].x(), points[i].y(), points[i].z(), paramsH->HSML),
                                                    fsi::mR3(1e-10),
                                                    fsi::mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, -1));
     }
@@ -297,12 +294,7 @@ int main(int argc, char* argv[]) {
 
     // ******************************* Create MBD or FE model ******************************
 
-    ChVector<> gravity = ChVector<>(paramsH->gravity.x, paramsH->gravity.y, paramsH->gravity.z);
-
-    InitializeMbdPhysicalSystem(mphysicalSystem, gravity, argc, argv);
-
     CreateMbdPhysicalSystemObjects(mphysicalSystem, myFsiSystem, paramsH);
-
     myFsiSystem.Finalize();
 
     printf("\n\n sphMarkersH end%d, numAllMarkers is %d \n\n\n",
@@ -334,10 +326,11 @@ int main(int argc, char* argv[]) {
     std::shared_ptr<ChBody> Cylinder;
 #endif
 
-    SaveParaViewFiles(myFsiSystem, mphysicalSystem, paramsH, 0, 0, Cylinder);
+    mphysicalSystem.SetTimestepperType(ChTimestepper::Type::EULER_IMPLICIT);
 
     const std::string rmCmd = (std::string("rm ") + pv_dir + std::string("/*"));
     system(rmCmd.c_str());
+    SaveParaViewFiles(myFsiSystem, mphysicalSystem, paramsH, 0, 0, Cylinder);
 
     Real time = 0;
     Real Global_max_dT = paramsH->dT_Max;
@@ -352,11 +345,7 @@ int main(int argc, char* argv[]) {
         else
             paramsH->dT_Max = Global_max_dT;
 
-#if haveFluid
         myFsiSystem.DoStepDynamics_FSI_Implicit();
-#else
-        myFsiSystem.DoStepDynamics_ChronoRK2();
-#endif
         time += paramsH->dT;
         SaveParaViewFiles(myFsiSystem, mphysicalSystem, paramsH, next_frame, time, Cylinder);
 
@@ -372,7 +361,7 @@ int main(int argc, char* argv[]) {
 //------------------------------------------------------------------
 
 void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
-                       ChSystemParallelNSC& mphysicalSystem,
+                       ChSystemSMC& mphysicalSystem,
                        chrono::fsi::SimParams* paramsH,
                        int next_frame,
                        double mTime,
@@ -391,7 +380,7 @@ void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
         // **** out fluid
 
         chrono::fsi::utils::PrintToFile(myFsiSystem.GetDataManager()->sphMarkersD2.posRadD,
-                                        myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
+                                        myFsiSystem.GetDataManager()->fsiGeneralData.vel_XSPH_D,
                                         myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
                                         myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
                                         myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, pv_dir, true);
@@ -424,109 +413,6 @@ void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
 
         out_frame++;
     }
-}
-//------------------------------------------------------------------
-// function to set some simulation settings from command line
-//------------------------------------------------------------------
-void SetArgumentsForMbdFromInput(int argc,
-                                 char* argv[],
-                                 int& threads,
-                                 int& max_iteration_sliding,
-                                 int& max_iteration_bilateral,
-                                 int& max_iteration_normal,
-                                 int& max_iteration_spinning) {
-    if (argc > 1) {
-        const char* text = argv[1];
-        threads = atoi(text);
-    }
-    if (argc > 2) {
-        const char* text = argv[2];
-        max_iteration_sliding = atoi(text);
-    }
-    if (argc > 3) {
-        const char* text = argv[3];
-        max_iteration_bilateral = atoi(text);
-    }
-    if (argc > 4) {
-        const char* text = argv[4];
-        max_iteration_normal = atoi(text);
-    }
-    if (argc > 5) {
-        const char* text = argv[5];
-        max_iteration_spinning = atoi(text);
-    }
-}
-
-//------------------------------------------------------------------
-// function to set the solver setting for the
-//------------------------------------------------------------------
-
-void InitializeMbdPhysicalSystem(ChSystemParallelNSC& mphysicalSystem, ChVector<> gravity, int argc, char* argv[]) {
-    // Desired number of OpenMP threads (will be clamped to maximum available)
-    int threads = 1;
-    // Perform dynamic tuning of number of threads?
-    bool thread_tuning = true;
-
-    //	uint max_iteration = 20;//10000;
-    int max_iteration_normal = 0;
-    int max_iteration_sliding = 200;
-    int max_iteration_spinning = 0;
-    int max_iteration_bilateral = 100;
-
-    // ----------------------
-    // Set params from input
-    // ----------------------
-
-    SetArgumentsForMbdFromInput(argc, argv, threads, max_iteration_sliding, max_iteration_bilateral,
-                                max_iteration_normal, max_iteration_spinning);
-
-    // ----------------------
-    // Set number of threads.
-    // ----------------------
-
-    //  omp_get_num_procs();
-    int max_threads = omp_get_num_procs();
-    if (threads > max_threads)
-        threads = max_threads;
-    mphysicalSystem.SetParallelThreadNumber(threads);
-    omp_set_num_threads(threads);
-    cout << "Using " << threads << " threads" << endl;
-
-    mphysicalSystem.GetSettings()->perform_thread_tuning = thread_tuning;
-    mphysicalSystem.GetSettings()->min_threads = std::max(1, threads / 2);
-    mphysicalSystem.GetSettings()->max_threads = int(3.0 * threads / 2);
-
-    // ---------------------
-    // Print the rest of parameters
-    // ---------------------
-
-    simParams << endl
-              << " number of threads: " << threads << endl
-              << " max_iteration_normal: " << max_iteration_normal << endl
-              << " max_iteration_sliding: " << max_iteration_sliding << endl
-              << " max_iteration_spinning: " << max_iteration_spinning << endl
-              << " max_iteration_bilateral: " << max_iteration_bilateral << endl
-              << endl;
-
-    // ---------------------
-    // Edit mphysicalSystem settings.
-    // ---------------------
-
-    double tolerance = 0.1;  // 1e-3;  // Arman, move it to paramsH
-    // double collisionEnvelop = 0.04 * paramsH->HSML;
-    mphysicalSystem.Set_G_acc(gravity);
-
-    mphysicalSystem.GetSettings()->solver.solver_mode = SolverMode::SLIDING;                  // NORMAL, SPINNING
-    mphysicalSystem.GetSettings()->solver.max_iteration_normal = max_iteration_normal;        // max_iteration / 3
-    mphysicalSystem.GetSettings()->solver.max_iteration_sliding = max_iteration_sliding;      // max_iteration / 3
-    mphysicalSystem.GetSettings()->solver.max_iteration_spinning = max_iteration_spinning;    // 0
-    mphysicalSystem.GetSettings()->solver.max_iteration_bilateral = max_iteration_bilateral;  // max_iteration / 3
-    mphysicalSystem.GetSettings()->solver.use_full_inertia_tensor = true;
-    mphysicalSystem.GetSettings()->solver.tolerance = tolerance;
-    mphysicalSystem.GetSettings()->solver.alpha = 0;
-    mphysicalSystem.GetSettings()->solver.contact_recovery_speed = contact_recovery_speed;
-    mphysicalSystem.ChangeSolverType(SolverType::APGD);
-    mphysicalSystem.GetSettings()->collision.bins_per_axis = vec3(40, 40, 40);
 }
 
 void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]) {

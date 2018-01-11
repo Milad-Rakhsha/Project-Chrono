@@ -18,11 +18,15 @@
 #include <sstream>  // std::stringstream
 
 #include "chrono/core/ChMathematics.h"  // for CH_C_PI
+
+#include "chrono_fsi/ChDeviceUtils.cuh"
+#include "chrono_fsi/utils/ChUtilsGeneratorBce.h"
+
+#ifdef CHRONO_FEA
 #include "chrono_fea/ChElementCableANCF.h"
 #include "chrono_fea/ChElementShellANCF.h"
 #include "chrono_fea/ChNodeFEAxyzD.h"
-#include "chrono_fsi/ChDeviceUtils.cuh"
-#include "chrono_fsi/utils/ChUtilsGeneratorBce.h"
+#endif
 
 namespace chrono {
 namespace fsi {
@@ -129,7 +133,7 @@ void CreateBCE_On_surface_of_Cylinder(thrust::host_vector<Real4>& posRadBCE,
             for (Real t = 0.0; t < numTheta; t++) {
                 Real teta = t * 2 * 3.1415 / numTheta;
                 Real3 BCE_Pos_local = mR3(r * cos(teta), 0, r * sin(teta)) + centerPointLF;
-                if (si == 0 || si == num_layers - 1 || ir == numr - 1) {
+                if (/*si == 0 || si == num_layers - 1 ||*/ ir == numr - 1) {
                     posRadBCE.push_back(mR4(BCE_Pos_local, spacing));
                 }
             }
@@ -199,6 +203,38 @@ void CreateBCE_On_Box(thrust::host_vector<Real4>& posRadBCE, const Real3& hsize,
     }
 }
 // =============================================================================
+
+void LoadBCE_fromFile(thrust::host_vector<Real4>& posRadBCE,  // do not set the
+                                                              // size here since
+                                                              // you are using
+                                                              // push back later
+                      std::string fileName) {
+    std::string ddSt;
+    char buff[256];
+    int numBce = 0;
+    const int cols = 3;
+    std::cout << "  reading BCE data from: " << fileName << " ...\n";
+    std::ifstream inMarker;
+    inMarker.open(fileName);
+    if (!inMarker) {
+        std::cout << "   Error! Unable to open file: " << fileName << std::endl;
+    }
+    getline(inMarker, ddSt);
+    Real q[cols];
+    while (getline(inMarker, ddSt)) {
+        std::stringstream linestream(ddSt);
+        for (int i = 0; i < cols; i++) {
+            linestream.getline(buff, 50, ',');
+            q[i] = atof(buff);
+        }
+        posRadBCE.push_back(mR4(q[0], q[1], q[2], q[3]));
+        numBce++;
+    }
+
+    std::cout << "  Loaded BCE data from: " << fileName << std::endl;
+}
+
+#ifdef CHRONO_FEA
 
 void CreateBCE_On_shell(thrust::host_vector<Real4>& posRadBCE,
                         SimParams* paramsH,
@@ -401,36 +437,7 @@ void CreateBCE_On_ChElementShellANCF(thrust::host_vector<Real4>& posRadBCE,
     }
 }
 // =============================================================================
-
-void LoadBCE_fromFile(thrust::host_vector<Real4>& posRadBCE,  // do not set the
-                                                              // size here since
-                                                              // you are using
-                                                              // push back later
-                      std::string fileName) {
-    std::string ddSt;
-    char buff[256];
-    int numBce = 0;
-    const int cols = 3;
-    std::cout << "  reading BCE data from: " << fileName << " ...\n";
-    std::ifstream inMarker;
-    inMarker.open(fileName);
-    if (!inMarker) {
-        std::cout << "   Error! Unable to open file: " << fileName << std::endl;
-    }
-    getline(inMarker, ddSt);
-    Real q[cols];
-    while (getline(inMarker, ddSt)) {
-        std::stringstream linestream(ddSt);
-        for (int i = 0; i < cols; i++) {
-            linestream.getline(buff, 50, ',');
-            q[i] = atof(buff);
-        }
-        posRadBCE.push_back(mR4(q[0], q[1], q[2], q[3]));
-        numBce++;
-    }
-
-    std::cout << "  Loaded BCE data from: " << fileName << std::endl;
-}
+#endif
 
 }  // namespace utils
 }  // namespace fsi
