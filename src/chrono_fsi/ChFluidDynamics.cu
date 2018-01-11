@@ -555,15 +555,14 @@ void ChFluidDynamics::UpdateFluid(SphMarkerDataD* sphMarkersD, Real dT) {
 void ChFluidDynamics::UpdateFluid_Implicit(SphMarkerDataD* sphMarkersD) {
     uint numThreads, numBlocks;
     computeGridSize(numObjectsH->numAllMarkers, 256, numBlocks, numThreads);
-    std::cout << "dT in UpdateFluid_Implicit: " << paramsH->dT << "\n";
 
     int haveGhost = (numObjectsH->numGhostMarkers > 0) ? 1 : 0;
     int haveHelper = (numObjectsH->numHelperMarkers > 0) ? 1 : 0;
 
     int4 updatePortion = mI4(fsiData->fsiGeneralData.referenceArray[haveHelper].x,
                              fsiData->fsiGeneralData.referenceArray[haveHelper + haveGhost].y, 0, 0);
-    std::cout << "Skipping the markers greater than "
-              << fsiData->fsiGeneralData.referenceArray[haveHelper + haveGhost].y << " in position update\n";
+    //    std::cout << "Skipping the markers greater than "
+    //              << fsiData->fsiGeneralData.referenceArray[haveHelper + haveGhost].y << " in position update\n";
 
     bool *isErrorH, *isErrorD;
     isErrorH = (bool*)malloc(sizeof(bool));

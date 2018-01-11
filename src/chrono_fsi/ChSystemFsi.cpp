@@ -161,7 +161,7 @@ void ChSystemFsi::DoStepDynamics_FSI_Implicit() {
         sync = 1;
     printf("%d * DoStepChronoSystem with dt= %f\n", sync, paramsH->dT_Flex);
     for (int t = 0; t < sync; t++) {
-        mphysicalSystem->DoStepDynamics(paramsH->dT_Flex);
+        mphysicalSystem->DoStepDynamics(paramsH->dT / sync);
     }
 #ifdef CHRONO_FEA
     printf("DataTransfer...(Flexible pos-vel-acc from host to device)\n");

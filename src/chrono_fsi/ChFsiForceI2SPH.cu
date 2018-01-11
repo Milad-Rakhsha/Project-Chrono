@@ -26,16 +26,6 @@ namespace chrono {
 namespace fsi {
 // extern __constant__ SimParams paramsD;
 // extern __constant__ NumberOfObjects numObjectsD;
-struct Real4_x {
-    const float rest_val;
-    Real4_x(Real _a) : rest_val(_a) {}
-    __host__ __device__ Real operator()(const Real4& input) const {
-        return (input.w != -1.0) ? 0.0 : abs(input.x - rest_val);
-    }
-};
-struct compare_Real3_mag {
-    __host__ __device__ bool operator()(Real3 lhs, Real3 rhs) { return length(lhs) < length(rhs); }
-};
 
 // double precision atomic add function
 __device__ inline double datomicAdd(double* address, double val) {

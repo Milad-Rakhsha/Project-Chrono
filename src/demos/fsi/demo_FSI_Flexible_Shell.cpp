@@ -77,7 +77,7 @@ bool pv_output = true;
 
 std::vector<std::vector<int>> NodeNeighborElementMesh;
 
-int out_fps = 50;
+int out_fps = 20;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
