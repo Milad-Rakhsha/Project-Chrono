@@ -1752,6 +1752,8 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
         else
             paramsH->dT = std::min(dt, paramsH->dT_Max);
 
+        if (paramsH->dT < 5e-4)
+            paramsH->dT = 5e-4;
         CopyParams_NumberOfObjects(paramsH, numObjectsH);
 
         printf(" time step=%.3e, dt_Max=%.3e, dt_CFL=%.3e (CFL=%.2g), dt_nu=%.3e, dt_body=%.3e\n", paramsH->dT,
@@ -1896,26 +1898,27 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
         throw std::runtime_error("Error! program crashed after calcNormalizedRho_kernel!\n");
     }
 
-    calc_A_tensor<<<numBlocks, numThreads>>>(R1CAST(A_i), R1CAST(G_i), mR4CAST(sortedSphMarkersD->posRadD),
-                                             mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),
-                                             U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, isErrorD);
+    //    calc_A_tensor<<<numBlocks, numThreads>>>(R1CAST(A_i), R1CAST(G_i), mR4CAST(sortedSphMarkersD->posRadD),
+    //                                             mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),
+    //                                             U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, isErrorD);
+    //
+    //    cudaThreadSynchronize();
+    //    cudaCheckError();
+    //    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+    //    if (*isErrorH == true) {
+    //        throw std::runtime_error("Error! program crashed after calcRho_kernel!\n");
+    //    }
 
-    cudaThreadSynchronize();
-    cudaCheckError();
-    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
-    if (*isErrorH == true) {
-        throw std::runtime_error("Error! program crashed after calcRho_kernel!\n");
-    }
-
-    calc_L_tensor<<<numBlocks, numThreads>>>(R1CAST(A_i), R1CAST(L_i), R1CAST(G_i), mR4CAST(sortedSphMarkersD->posRadD),
-                                             mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),
-                                             U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, isErrorD);
-    cudaThreadSynchronize();
-    cudaCheckError();
-    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
-    if (*isErrorH == true) {
-        throw std::runtime_error("Error! program crashed after calcRho_kernel!\n");
-    }
+    //    calc_L_tensor<<<numBlocks, numThreads>>>(R1CAST(A_i), R1CAST(L_i), R1CAST(G_i),
+    //    mR4CAST(sortedSphMarkersD->posRadD),
+    //                                             mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),
+    //                                             U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, isErrorD);
+    //    cudaThreadSynchronize();
+    //    cudaCheckError();
+    //    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+    //    if (*isErrorH == true) {
+    //        throw std::runtime_error("Error! program crashed after calcRho_kernel!\n");
+    //    }
 
     calcPressureIISPH(otherFsiBodiesD->velMassRigid_fsiBodies_D, otherFsiBodiesD->accRigid_fsiBodies_D,
                       otherFsiMeshD->pos_fsi_fea_D, otherFsiMeshD->vel_fsi_fea_D, otherFsiMeshD->acc_fsi_fea_D,

@@ -208,17 +208,17 @@ int main(int argc, char* argv[]) {
     mphysicalSystem.SetTolForce(1e-10);
 #endif
 
-    mphysicalSystem.SetTimestepperType(ChTimestepper::Type::HHT);
-    auto mystepper = std::static_pointer_cast<ChTimestepperHHT>(mphysicalSystem.GetTimestepper());
-    mystepper->SetAlpha(-0.2);
-    mystepper->SetMaxiters(1000);
-    mystepper->SetAbsTolerances(1e-5);
-    mystepper->SetMode(ChTimestepperHHT::POSITION);
-    mystepper->SetScaling(true);
+    //    mphysicalSystem.SetTimestepperType(ChTimestepper::Type::HHT);
+    //    auto mystepper = std::static_pointer_cast<ChTimestepperHHT>(mphysicalSystem.GetTimestepper());
+    //    mystepper->SetAlpha(-0.2);
+    //    mystepper->SetMaxiters(1000);
+    //    mystepper->SetAbsTolerances(1e-5);
+    //    mystepper->SetMode(ChTimestepperHHT::POSITION);
+    //    mystepper->SetScaling(true);
 
     //
     //    // Set up integrator
-    //    mphysicalSystem.SetTimestepperType(ChTimestepper::Type::EULER_IMPLICIT);
+    mphysicalSystem.SetTimestepperType(ChTimestepper::Type::EULER_IMPLICIT);
 
     int stepEnd = int(paramsH->tFinal / paramsH->dT);
     stepEnd = 1000000;
@@ -313,7 +313,7 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // Geometry of the plate
     double plate_lenght_x = initSpace0 * 16;
     double plate_lenght_y = byDim;
-    double plate_lenght_z = 0.02;
+    double plate_lenght_z = 0.025;
     // Specification of the mesh
     int numDiv_x = 8;
     int numDiv_y = 4;
@@ -362,7 +362,7 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // Create an isotropic material.
     // All layers for all elements share the same material.
     double rho = 1000;
-    double E = 5e6;
+    double E = 2e6;
     double nu = 0.3;
     auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
     // Create the elements
@@ -394,7 +394,7 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, mat);
 
         // Set other element properties
-        element->SetAlphaDamp(0.1);    // Structural damping for this element
+        element->SetAlphaDamp(0.2);    // Structural damping for this element
         element->SetGravityOn(false);  // turn internal gravitational force calculation off
 
         // Add element to mesh

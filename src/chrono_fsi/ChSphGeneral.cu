@@ -885,8 +885,11 @@ __global__ void UpdateDensity(Real3* vis_vel,
             }
         }
     }
-    if (normalizedV_d > EPSILON && sortedRhoPreMu[i_idx].w == -1)
+    if (normalizedV_d > 1e-5 && sortedRhoPreMu[i_idx].w == -1) {
         vis_vel[i_idx] = normalizedV_n / normalizedV_d;
+        new_vel[i_idx] = paramsD.EPS_XSPH * vis_vel[i_idx] + (1 - paramsD.EPS_XSPH) * new_vel[i_idx];
+    }
+
     sortedRhoPreMu[i_idx].x += rho_plus * dT;
     if ((sortedRhoPreMu[i_idx].x > 2 * paramsD.rho0 || sortedRhoPreMu[i_idx].x < 0) && sortedRhoPreMu[i_idx].w < 0)
         printf("(UpdateDensity-1)too large/small density marker %d, type=%f\n", i_idx, sortedRhoPreMu[i_idx].w);
