@@ -371,9 +371,9 @@ void CreateBCE_On_ChElementShellANCF(thrust::host_vector<Real4>& posRadBCE,
                                      bool removeMiddleLayer,
                                      int SIDE) {
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
-
     double dx = shell->GetLengthX() / 2;
     double dy = shell->GetLengthY() / 2;
+    printf("CreateBCE_On_ChElementShellANCF: dx,dy=%f,%f\n", dx, dy);
 
     double nX = dx / (initSpace0)-floor(dx / (initSpace0));
     double nY = dy / (initSpace0)-floor(dy / (initSpace0));
@@ -388,7 +388,7 @@ void CreateBCE_On_ChElementShellANCF(thrust::host_vector<Real4>& posRadBCE,
 
     Real initSpaceX = dx / nFX;
     Real initSpaceY = dy / nFY;
-    Real initSpaceZ = paramsH->HSML * paramsH->MULT_INITSPACE_Shells;
+    Real initSpaceZ = initSpace0;
 
     int2 iBound = mI2(-nFX, nFX);
     int2 jBound = mI2(-nFY, nFY);
@@ -431,7 +431,7 @@ void CreateBCE_On_ChElementShellANCF(thrust::host_vector<Real4>& posRadBCE,
                 if (con1 || con2 || con3 || con4)
                     continue;
 
-                posRadBCE.push_back(mR4(relMarkerPos, initSpace0));
+                posRadBCE.push_back(mR4(relMarkerPos, paramsH->HSML));
             }
         }
     }

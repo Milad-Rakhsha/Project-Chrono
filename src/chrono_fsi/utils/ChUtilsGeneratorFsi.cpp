@@ -390,7 +390,7 @@ void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
     fsiData->fsiGeneralData.referenceArray_FEA.push_back(
         mI4(last.y, last.y + numBce, type, fsiData->numObjects.numFlexBodies2D));  // 2: for Shell
 
-    printf(" push_back Index %d. ", fsiData->fsiGeneralData.referenceArray.size() - 1);
+    printf(" referenceArray size %d. ", fsiData->fsiGeneralData.referenceArray.size());
     int4 test = fsiData->fsiGeneralData.referenceArray[fsiData->fsiGeneralData.referenceArray.size() - 1];
     printf(" x=%d, y=%d, z=%d, w=%d\n", test.x, test.y, test.z, test.w);
 

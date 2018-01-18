@@ -16,27 +16,27 @@
 
 // General Includes
 #include <assert.h>
+#include <limits.h>
+#include <stdlib.h>  // system
 #include <ctime>
 #include <fstream>
 #include <iostream>
-#include <limits.h>
-#include <stdlib.h>  // system
 #include <string>
 #include <vector>
 
 // Chrono Parallel Includes
-#include "chrono/physics/ChSystemDEM.h"
+#include "chrono/physics/ChSystemSMC.h"
 // Solver
 #include "chrono/ChConfig.h"
 
 //#include "chrono_utils/ChUtilsVehicle.h"
+#include "chrono/motion_functions/ChFunction.h"
+#include "chrono/solver/ChSolverMINRES.h"
 #include "chrono/utils/ChUtilsCreators.h"
 #include "chrono/utils/ChUtilsGenerators.h"
 #include "chrono/utils/ChUtilsGeometry.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
-#include "chrono/solver/ChSolverMINRES.h"
 #include "chrono_mkl/ChSolverMKL.h"
-#include "chrono/motion_functions/ChFunction.h"
 
 // Chrono general utils
 
@@ -47,30 +47,30 @@
 #include "chrono_fsi/ChFsiTypeConvert.h"
 #include "chrono_fsi/ChSystemFsi.h"
 
-#include "chrono_fsi/utils/ChUtilsGeneratorFsi.h"
-#include "chrono_fsi/utils/ChUtilsPrintSph.h"
-#include "chrono_fsi/custom_math.h"
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
+#include "chrono_fsi/custom_math.h"
+#include "chrono_fsi/utils/ChUtilsGeneratorFsi.h"
+#include "chrono_fsi/utils/ChUtilsPrintSph.cuh"
 
 // Chrono fea includes
 
+#include "chrono/physics/ChBodyEasy.h"
 #include "chrono/physics/ChForce.h"
 #include "chrono/physics/ChLoadContainer.h"
 #include "chrono/physics/ChLoaderUV.h"
-#include "chrono/physics/ChBodyEasy.h"
 
-#include "chrono_fea/ChElementCableANCF.h"
 #include "chrono_fea/ChBuilderBeam.h"
+#include "chrono_fea/ChElementCableANCF.h"
 #include "chrono_fea/ChElementShellANCF.h"
 #include "chrono_fea/ChLinkDirFrame.h"
 
-#include "chrono_fea/ChLinkPointFrameGeneral.h"
-#include "chrono_fea/ChLinkPointFrame.h"
-#include "chrono_fea/ChLinkPointPoint.h"
-#include "chrono_fea/ChNodeFEAxyzD.h"
-#include "chrono_fea/ChMesh.h"
 #include "chrono_fea/ChContactSurfaceMesh.h"
+#include "chrono_fea/ChLinkPointFrame.h"
+#include "chrono_fea/ChLinkPointFrameGeneral.h"
+#include "chrono_fea/ChLinkPointPoint.h"
+#include "chrono_fea/ChMesh.h"
+#include "chrono_fea/ChNodeFEAxyzD.h"
 
 // FSI Interface Includes
 #include "demos/fsi/demo_indentation.h"  //SetupParamsH()

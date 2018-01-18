@@ -27,19 +27,6 @@
 namespace chrono {
 namespace fsi {
 
-__device__ inline void clearRow(uint i_idx, uint csrStartIdx, uint csrEndIdx, Real* A_Matrix, Real* Bi) {
-    for (int count = csrStartIdx; count < csrEndIdx; count++) {
-        A_Matrix[count] = 0;
-        Bi[i_idx] = 0;
-    }
-}
-__device__ inline void clearRow3(uint i_idx, uint csrStartIdx, uint csrEndIdx, Real* A_Matrix, Real3* Bi) {
-    for (int count = csrStartIdx; count < csrEndIdx; count++) {
-        A_Matrix[count] = 0;
-        Bi[i_idx] = mR3(0.0);
-    }
-}
-
 // Note that this function may be used for different cases depending on delta_t
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void V_star(Real4* sortedPosRad,  // input: sorted positions

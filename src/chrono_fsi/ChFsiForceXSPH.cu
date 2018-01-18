@@ -24,22 +24,7 @@
 //==========================================================================================================================================
 namespace chrono {
 namespace fsi {
-// extern __constant__ SimParams paramsD;
-// extern __constant__ NumberOfObjects numObjectsD;
 
-// double precision atomic add function
-__device__ inline double datomicAdd(double* address, double val) {
-    unsigned long long int* address_as_ull = (unsigned long long int*)address;
-
-    unsigned long long int old = *address_as_ull, assumed;
-
-    do {
-        assumed = old;
-        old = atomicCAS(address_as_ull, assumed, __double_as_longlong(val + __longlong_as_double(assumed)));
-    } while (assumed != old);
-
-    return __longlong_as_double(old);
-}
 //==========================================================================================================================================
 __global__ void NS_RHS_Predictor(Real4* sortedPosRad_tn,
                                  Real4* sortedPosRad,

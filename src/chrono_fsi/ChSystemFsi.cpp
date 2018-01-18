@@ -43,7 +43,7 @@ ChSystemFsi::ChSystemFsi(ChSystem* other_physicalSystem, bool other_haveFluid, C
 #ifdef CHRONO_FEA
     fsi_mesh = std::make_shared<fea::ChMesh>();
     printf("fsi_mesh.sizeElements()=%d\n", fsi_mesh->GetNelements());
-    printf("fsi_mesh.sizeNodes()..\n", fsi_mesh->GetNnodes());
+    printf("fsi_mesh.sizeNodes()=%d\n", fsi_mesh->GetNnodes());
     fsiBodeisPtr.resize(0);
     fsiShellsPtr.resize(0);
     fsiCablesPtr.resize(0);
@@ -153,29 +153,30 @@ void ChSystemFsi::DoStepDynamics_FSI_Implicit() {
 #endif
     fsiInterface->Add_Rigid_ForceTorques_To_ChSystem();
 
+    paramsH->dT_Flex = paramsH->dT;
+
     mTime += 1 * paramsH->dT;
     if (paramsH->dT_Flex == 0)
         paramsH->dT_Flex = paramsH->dT;
     int sync = (paramsH->dT / paramsH->dT_Flex);
     if (sync < 1)
         sync = 1;
-    printf("%d * DoStepChronoSystem with dt= %f\n", sync, paramsH->dT_Flex);
+    printf("%d * DoStepChronoSystem with dt= %f\n", sync, paramsH->dT / sync);
     for (int t = 0; t < sync; t++) {
         mphysicalSystem->DoStepDynamics(paramsH->dT / sync);
     }
-#ifdef CHRONO_FEA
-    printf("DataTransfer...(Flexible pos-vel-acc from host to device)\n");
-    fsiInterface->Copy_fsiNodes_ChSystem_to_FluidSystem(&(fsiData->fsiMeshD));
-#endif
-    fsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem(&(fsiData->fsiBodiesD2));
-    printf("Update Marker\n");
 
+    printf("DataTransfer...(Rigid pos-vel-acc from host to device)\n");
+    fsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem(&(fsiData->fsiBodiesD2));
+    printf("Update Rigid Marker\n");
     bceWorker->UpdateRigidMarkersPositionVelocity(&(fsiData->sphMarkersD2), &(fsiData->fsiBodiesD2));
 
 #ifdef CHRONO_FEA
+    printf("DataTransfer...(Flexible pos-vel-acc from host to device)\n");
+    fsiInterface->Copy_fsiNodes_ChSystem_to_FluidSystem(&(fsiData->fsiMeshD));
+    printf("Update Flexible Marker\n");
     bceWorker->UpdateFlexMarkersPositionVelocity(&(fsiData->sphMarkersD2), &(fsiData->fsiMeshD));
 #endif
-
     printf("=================================================================================================\n");
 }
 //--------------------------------------------------------------------------------------------------------------------------------

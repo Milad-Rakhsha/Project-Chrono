@@ -21,13 +21,14 @@ demo_FSI_CylinderDrop_Implicit
 
 #add fluid demos + chrono_fea here
 SET(FSI_FEA_DEMOS 
-#demo_FSI_Flexible_Shell
+demo_FSI_Validation
 )
 
 #add fluid demos + chrono_fea + chrono_mkl here
 SET(FSI_FEA_MKL_DEMOS 
 demo_AC_model
 demo_FSI_Flexible_Shell
+demo_FSI_Flexible_fin
 )
 
 

@@ -19,12 +19,17 @@
 #ifndef CH_FSI_FORCEPARALLEL_H_
 #define CH_FSI_FORCEPARALLEL_H_
 
+#include <cstdio>
+#include <cstring>
+#include <fstream>
+#include <sstream>
 #include "chrono_fsi/ChBce.cuh"
 #include "chrono_fsi/ChCollisionSystemFsi.cuh"
 #include "chrono_fsi/ChSphGeneral.cuh"
 
 namespace chrono {
 namespace fsi {
+
 struct compare_Real3_mag {
     __host__ __device__ bool operator()(Real3 lhs, Real3 rhs) { return length(lhs) < length(rhs); }
 };
@@ -35,6 +40,19 @@ struct Real4_x {
         return (input.w != -1.0) ? 0.0 : abs(input.x - rest_val);
     }
 };
+
+__device__ inline void clearRow(uint i_idx, uint csrStartIdx, uint csrEndIdx, Real* A_Matrix, Real* Bi) {
+    for (int count = csrStartIdx; count < csrEndIdx; count++) {
+        A_Matrix[count] = 0;
+        Bi[i_idx] = 0;
+    }
+}
+__device__ inline void clearRow3(uint i_idx, uint csrStartIdx, uint csrEndIdx, Real* A_Matrix, Real3* Bi) {
+    for (int count = csrStartIdx; count < csrEndIdx; count++) {
+        A_Matrix[count] = 0;
+        Bi[i_idx] = mR3(0.0);
+    }
+}
 /// @addtogroup fsi_physics
 /// @{
 

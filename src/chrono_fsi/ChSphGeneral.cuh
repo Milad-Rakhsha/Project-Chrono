@@ -451,6 +451,9 @@ inline __device__ void BCE_Vel_Acc(int i_idx,
             V_prescribed =
                 NA * vel_fsi_fea_D_nA + NB * vel_fsi_fea_D_nB + NC * vel_fsi_fea_D_nC + ND * vel_fsi_fea_D_nD;
             myAcc = NA * acc_fsi_fea_D_nA + NB * acc_fsi_fea_D_nB + NC * acc_fsi_fea_D_nC + ND * acc_fsi_fea_D_nD;
+            //            printf("i_idx=%d, myAcc:(%f,%f,%f) V_prescribed:(%f,%f,%f) \n", i_idx, myAcc.x, myAcc.y,
+            //            myAcc.z,
+            //                   V_prescribed.x, V_prescribed.y, V_prescribed.z);
         }
     } else {
         printf("i_idx=%d, Original_idx:%d was not found \n\n", i_idx, Original_idx);
@@ -621,7 +624,7 @@ __global__ void calcNormalizedRho_kernel(Real4* sortedPosRad,  // input: sorted 
                                          Real4* sortedRhoPreMu,
                                          Real* sumWij_inv,
                                          Real* G_i,
-                                         Real* dxi_over_Vi,
+                                         Real3* normals,
                                          Real* Color,
                                          uint* cellStart,
                                          uint* cellEnd,

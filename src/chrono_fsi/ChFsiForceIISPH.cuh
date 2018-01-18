@@ -49,7 +49,8 @@ class CH_FSI_API ChFsiForceIISPH : public ChFsiForce {
                            thrust::device_vector<Real3> pos_fsi_fea_D,
                            thrust::device_vector<Real3> vel_fsi_fea_D,
                            thrust::device_vector<Real3> acc_fsi_fea_D,
-                           thrust::device_vector<Real>& sumWij_inv,
+                           thrust::device_vector<Real> sumWij_inv,
+                           thrust::device_vector<Real3> Normals,
                            thrust::device_vector<Real>& G_i,
                            thrust::device_vector<Real>& L_i,
                            thrust::device_vector<Real>& Color);

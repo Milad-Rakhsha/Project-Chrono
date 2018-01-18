@@ -24,35 +24,6 @@
 //==========================================================================================================================================
 namespace chrono {
 namespace fsi {
-// extern __constant__ SimParams paramsD;
-// extern __constant__ NumberOfObjects numObjectsD;
-
-// double precision atomic add function
-__device__ inline double datomicAdd(double* address, double val) {
-    unsigned long long int* address_as_ull = (unsigned long long int*)address;
-
-    unsigned long long int old = *address_as_ull, assumed;
-
-    do {
-        assumed = old;
-        old = atomicCAS(address_as_ull, assumed, __double_as_longlong(val + __longlong_as_double(assumed)));
-    } while (assumed != old);
-
-    return __longlong_as_double(old);
-}
-
-__device__ inline void clearRow(uint i_idx, uint csrStartIdx, uint csrEndIdx, Real* A_Matrix, Real* Bi) {
-    for (int count = csrStartIdx; count < csrEndIdx; count++) {
-        A_Matrix[count] = 0;
-        Bi[i_idx] = 0;
-    }
-}
-__device__ inline void clearRow3(uint i_idx, uint csrStartIdx, uint csrEndIdx, Real* A_Matrix, Real3* Bi) {
-    for (int count = csrStartIdx; count < csrEndIdx; count++) {
-        A_Matrix[count] = 0;
-        Bi[i_idx] = mR3(0.0);
-    }
-}
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted positions
                                  Real3* sortedVelMas,

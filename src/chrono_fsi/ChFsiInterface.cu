@@ -300,7 +300,7 @@ void ChFsiInterface::Add_Flex_Forces_To_ChSystem() {
         // if (mforce.Length() != 0.0)
         auto node = std::dynamic_pointer_cast<fea::ChNodeFEAxyzD>(fsi_mesh->GetNode(i));
         //    ChVector<> OldForce = node->GetForce();
-        node->SetForce(-mforce);
+        //        node->SetForce(-mforce);
 
         total_force += mforce;
     }

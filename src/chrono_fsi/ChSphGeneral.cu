@@ -324,7 +324,7 @@ __global__ void calcNormalizedRho_kernel(Real4* sortedPosRad,  // input: sorted 
                                          Real4* sortedRhoPreMu,
                                          Real* sumWij_inv,
                                          Real* G_i,
-                                         Real* dxi_over_Vi,
+                                         Real3* normals,
                                          Real* Color,
                                          uint* cellStart,
                                          uint* cellEnd,
@@ -338,7 +338,8 @@ __global__ void calcNormalizedRho_kernel(Real4* sortedPosRad,  // input: sorted 
     Real RHO_0 = paramsD.rho0;
     Real IncompressibilityFactor = paramsD.IncompressibilityFactor;
     //    dxi_over_Vi[i_idx] = 1e10;
-
+    if (sortedRhoPreMu[i_idx].w == -2)
+        return;
     Real3 posRadA = mR3(sortedPosRad[i_idx]);
     Real h_i = sortedPosRad[i_idx].w;
     //    Real m_i = pow(h_i * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
@@ -350,6 +351,10 @@ __global__ void calcNormalizedRho_kernel(Real4* sortedPosRad,  // input: sorted 
 
     // This is the elements of inverse of G
     Real mGi[9] = {0.0};
+    Real theta_i = sortedRhoPreMu[i_idx].w + 1;
+    if (theta_i > 1)
+        theta_i = 1;
+    Real3 mynormals = mR3(0.0);
 
     //  /// if (gridPos.x == paramsD.gridSize.x-1) printf("****aha %d %d\n", gridPos.x, paramsD.gridSize.x);
     //
@@ -373,21 +378,23 @@ __global__ void calcNormalizedRho_kernel(Real4* sortedPosRad,  // input: sorted 
                         Real h_j = sortedPosRad[j].w;
                         Real m_j = pow(h_j * 1, 3) * paramsD.rho0;
                         C += m_j * Color[i_idx] / sortedRhoPreMu[i_idx].x * W3h(d, 0.5 * (h_j + h_i));
-                        //                        Real particle_particle_n_CFL = abs(dot(dv3, dist3)) / d;
-                        //                        Real particle_particle = length(dv3);
-                        //                        Real particle_n_CFL = abs(dot(sortedVelMas[i_idx], dist3)) / d;
-                        //                        Real particle_CFL = length(sortedVelMas[i_idx]);
-
-                        //                        if (i_idx != j)
-                        //                            dxi_over_Vi[i_idx] = fminf(d / particle_CFL,
-                        //                            dxi_over_Vi[i_idx]);
 
                         if (d > RESOLUTION_LENGTH_MULT * h_i || sortedRhoPreMu[j].w <= -2)
                             continue;
+                        Real V_j = sumWij_inv[j];
+
                         Real h_ij = 0.5 * (h_j + h_i);
                         Real W3 = W3h(d, h_ij);
                         Real3 grad_i_wij = GradWh(dist3, h_ij);
-                        Real V_j = sumWij_inv[j];
+                        Real theta_j = sortedRhoPreMu[j].w + 1;
+                        if (theta_j > 1)
+                            theta_j = 1;
+
+                        if (sortedRhoPreMu[i_idx].w == -3 && sortedRhoPreMu[j].w == -3)
+                            mynormals += grad_i_wij * V_j;
+                        if (sortedRhoPreMu[i_idx].w != -3)
+                            mynormals += (theta_j - theta_i) * grad_i_wij * V_j;
+
                         mGi[0] -= dist3.x * grad_i_wij.x * V_j;
                         mGi[1] -= dist3.x * grad_i_wij.y * V_j;
                         mGi[2] -= dist3.x * grad_i_wij.z * V_j;
@@ -404,6 +411,11 @@ __global__ void calcNormalizedRho_kernel(Real4* sortedPosRad,  // input: sorted 
             }
         }
     }
+
+    normals[i_idx] = mynormals;
+
+    if (length(mynormals) > EPSILON)
+        normals[i_idx] = mynormals / length(mynormals);
 
     Real Det = (mGi[0] * mGi[4] * mGi[8] - mGi[0] * mGi[5] * mGi[7] - mGi[1] * mGi[3] * mGi[8] +
                 mGi[1] * mGi[5] * mGi[6] + mGi[2] * mGi[3] * mGi[7] - mGi[2] * mGi[4] * mGi[6]);
@@ -587,7 +599,7 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
         G_i[i_idx * 9 + 8] = (mGi[0] * mGi[4] - mGi[1] * mGi[3]) / Det;
     }
     //    sortedRhoPreMu[i_idx].x = sum_mW / sum_W_sumWij_inv;
-    //    sortedRhoPreMu[i_idx].x = sum_mW;
+    sortedRhoPreMu[i_idx].x = sum_mW;
 
     if ((sortedRhoPreMu[i_idx].x > 5 * RHO_0 || sortedRhoPreMu[i_idx].x < RHO_0 / 5) && sortedRhoPreMu[i_idx].w > -2)
         printf(
@@ -885,7 +897,7 @@ __global__ void UpdateDensity(Real3* vis_vel,
             }
         }
     }
-    if (normalizedV_d > 1e-5 && sortedRhoPreMu[i_idx].w == -1) {
+    if (abs(normalizedV_d) > 1e-5) {
         vis_vel[i_idx] = normalizedV_n / normalizedV_d;
         new_vel[i_idx] = paramsD.EPS_XSPH * vis_vel[i_idx] + (1 - paramsD.EPS_XSPH) * new_vel[i_idx];
     }
