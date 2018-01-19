@@ -151,7 +151,7 @@ SET(ChronoEngine_FSI_HEADERS
     ChFsiForce.cuh 
     ChFsiGeneral.cuh
     ChSphGeneral.cuh  
-    solver6x6.cuh
+    ExactLinearSolvers.cuh
     ChFsiLinearSolver.h
     ChFsiInterface.cuh
     ChSystemFsi.h

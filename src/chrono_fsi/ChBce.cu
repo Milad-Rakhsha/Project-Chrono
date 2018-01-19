@@ -111,40 +111,64 @@ __global__ void Populate_FlexSPH_MeshPos_LRF_kernel(Real3* FlexSPH_MeshPos_LRF_D
         uint4 shellNodes = ShellElementsNodes[FlexIndex - numFlex1D];
         //    printf("FlexIndex=%d, ShellElementsNodes[FlexIndex]=%d,%d,%d,%d\n", FlexIndex, shellNodes.x, shellNodes.y,
         //           shellNodes.z, shellNodes.w);
-
         Real3 pos_fsi_fea_D_nA = pos_fsi_fea_D[shellNodes.x];
         Real3 pos_fsi_fea_D_nB = pos_fsi_fea_D[shellNodes.y];
         Real3 pos_fsi_fea_D_nC = pos_fsi_fea_D[shellNodes.z];
         Real3 pos_fsi_fea_D_nD = pos_fsi_fea_D[shellNodes.w];
-        //    printf(" %d shellNodes %d %d %d %d\n", FlexIndex, shellNodes.x, shellNodes.y, shellNodes.z, shellNodes.w);
+
         Real3 Shell_center = 0.25 * (pos_fsi_fea_D_nA + pos_fsi_fea_D_nB + pos_fsi_fea_D_nC + pos_fsi_fea_D_nD);
-
         Real3 dist3 = mR3(posRadD[FlexMarkerIndex]) - Shell_center;
-        Real Shell_x =
-            0.25 * (length(pos_fsi_fea_D_nB - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nC));
+        Real3 n1 = normalize(cross(pos_fsi_fea_D_nB - pos_fsi_fea_D_nA, pos_fsi_fea_D_nC - pos_fsi_fea_D_nB));
+        Real3 n2 = normalize(cross(pos_fsi_fea_D_nC - pos_fsi_fea_D_nB, pos_fsi_fea_D_nD - pos_fsi_fea_D_nC));
+        Real3 n3 = normalize(cross(pos_fsi_fea_D_nD - pos_fsi_fea_D_nC, pos_fsi_fea_D_nA - pos_fsi_fea_D_nD));
+        Real3 n4 = normalize(cross(pos_fsi_fea_D_nA - pos_fsi_fea_D_nD, pos_fsi_fea_D_nB - pos_fsi_fea_D_nA));
+        Real3 Normal = normalize(n1 + n2 + n3 + n4);
+        Real zSide = dot(Normal, dist3) / Spacing;
 
-        Real Shell_y =
-            0.25 * (length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nC - pos_fsi_fea_D_nB));
+        Real3 inPlanePoint = mR3(posRadD[FlexMarkerIndex]) - dot(Normal, dist3) * Normal;
 
-        Real3 x_dir = (pos_fsi_fea_D_nB - pos_fsi_fea_D_nA) + (pos_fsi_fea_D_nC - pos_fsi_fea_D_nD);
+        dist3 = inPlanePoint - Shell_center;
 
-        Real3 y_dir = (pos_fsi_fea_D_nD - pos_fsi_fea_D_nA) + (pos_fsi_fea_D_nC - pos_fsi_fea_D_nB);
+        Real Shell_x = 0.25 * length(pos_fsi_fea_D_nB - pos_fsi_fea_D_nA + pos_fsi_fea_D_nC - pos_fsi_fea_D_nD);
+        Real Shell_y = 0.25 * length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nA + pos_fsi_fea_D_nC - pos_fsi_fea_D_nB);
+        Real3 x_dir = normalize((pos_fsi_fea_D_nB - pos_fsi_fea_D_nA) + (pos_fsi_fea_D_nC - pos_fsi_fea_D_nD));
+        Real3 y_dir = normalize((pos_fsi_fea_D_nD - pos_fsi_fea_D_nA) + (pos_fsi_fea_D_nC - pos_fsi_fea_D_nB));
+        //        Real3 Normal = normalize(cross(x_dir, y_dir));
+        //        Real3 y_dir = cross(Normal, x_dir);
 
-        Real3 Normal = normalize(cross(x_dir, y_dir));
-        Real zSide;
+        Real3 physic_to_natural = mR3(1 / Shell_x, 1 / Shell_y, 1);
+        Real3 pos_physical = dist3;
+        Real3 pos_natural = mR3(pos_physical.x * physic_to_natural.x, pos_physical.y * physic_to_natural.y,
+                                pos_physical.z * physic_to_natural.z);
 
-        zSide = dot(Normal, dist3) / Spacing;
+        //        Real4 N_shell = Shells_ShapeFunctions(pos_natural.x, pos_natural.y);
 
-        Real dx = dot(dist3, x_dir) / length(x_dir);
-        Real dy = dot(dist3, y_dir) / length(y_dir);
-        //        Real dx = 2 * Shell_x;
-        //        Real dy = 2 * Shell_y;
+        //        Real dx = dot(dist3, x_dir);
+        //        Real dy = dot(dist3, y_dir);
+        //        Real2 eta = mR2(0.), zeta = mR2(0.);
+        //        Real2 p = mR2(dx, dy);
+        //        Real2 p1 = mR2(dot(pos_fsi_fea_D_nA - Shell_center, x_dir), dot(pos_fsi_fea_D_nA - Shell_center,
+        //        y_dir)); Real2 p2 = mR2(dot(pos_fsi_fea_D_nB - Shell_center, x_dir), dot(pos_fsi_fea_D_nB -
+        //        Shell_center, y_dir)); Real2 p3 = mR2(dot(pos_fsi_fea_D_nC - Shell_center, x_dir),
+        //        dot(pos_fsi_fea_D_nC - Shell_center, y_dir)); Real2 p4 = mR2(dot(pos_fsi_fea_D_nD - Shell_center,
+        //        x_dir), dot(pos_fsi_fea_D_nD - Shell_center, y_dir)); solver2x2(p1, p2, p3, p4, p, eta, zeta);
 
-        //        printf(" FlexMarkerIndex:%d dist3=%f,%f,%f, normal= %f,%f,%f, zside= %f\n", FlexMarkerIndex, dist3.x,
-        //        dist3.y,
-        //               dist3.z, Normal.x, Normal.y, Normal.z, zSide);
+        //        printf(" FlexIndex=%d FlexMarkerIndex:%d center=%f,%f,%f x_dir=%f,%f,%f, y_dir= %f,%f,%f\n",
+        //        FlexIndex,
+        //               FlexMarkerIndex, Shell_center.x, Shell_center.y, Shell_center.z, x_dir.x, x_dir.y, x_dir.z,
+        //               y_dir.x, y_dir.y, y_dir.z);
 
-        FlexSPH_MeshPos_LRF_D[index] = mR3(dx / Shell_x, dy / Shell_y, zSide);
+        //        printf(" FlexMarkerIndex:%d center=%f,%f,%f dist3=%f,%f,%f, normal= %f,%f,%f, zside= %f\n",
+        //        FlexMarkerIndex,
+        //               Shell_center.x, Shell_center.y, Shell_center.z, dist3.x, dist3.y, dist3.z, Normal.x, Normal.y,
+        //               Normal.z, zSide);
+
+        //        FlexSPH_MeshPos_LRF_D[index] = mR3(dx / Shell_x, dy / Shell_y, zSide);
+        //        FlexSPH_MeshPos_LRF_D[index] = mR3(eta.x, zeta.y, zSide);
+        FlexSPH_MeshPos_LRF_D[index] = mR3(pos_natural.x, pos_natural.y, zSide);
+
+        printf("FlexIndex=%d FlexMarkerIndex:%d FlexSPH_MeshPos_LRF_D[index]=%f,%f,%f\n", FlexIndex, FlexMarkerIndex,
+               FlexSPH_MeshPos_LRF_D[index].x, FlexSPH_MeshPos_LRF_D[index].y, FlexSPH_MeshPos_LRF_D[index].z);
     }
 }
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -469,15 +493,31 @@ __global__ void UpdateFlexMarkersPositionVelocityAccD(Real4* posRadD,
 
         Real3 Shell_center = 0.25 * (pos_fsi_fea_D_nA + pos_fsi_fea_D_nB + pos_fsi_fea_D_nC + pos_fsi_fea_D_nD);
 
+        Real3 dist3 = mR3(posRadD[FlexMarkerIndex]) - Shell_center;
         //        Real3 dist3 = FlexSPH_MeshPos_LRF_D[index] - Shell_center;
         //  printf(" %d dist3= %f,%f,%f center= %f,%f,%f\n", FlexMarkerIndex, dist3.x, dist3.y, dist3.z, Shell_center.x,
         //         Shell_center.y, Shell_center.z);
 
         Real3 x_dir = ((pos_fsi_fea_D_nB - pos_fsi_fea_D_nA) + (pos_fsi_fea_D_nC - pos_fsi_fea_D_nD));
 
-        Real3 y_dir = ((pos_fsi_fea_D_nD - pos_fsi_fea_D_nA) + (pos_fsi_fea_D_nC - pos_fsi_fea_D_nB));
+        //        Real3 y_dir = ((pos_fsi_fea_D_nD - pos_fsi_fea_D_nA) + (pos_fsi_fea_D_nC - pos_fsi_fea_D_nB));
+        //
+        //        Real3 Normal = normalize(cross(x_dir, y_dir));
 
-        Real3 Normal = normalize(cross(x_dir, y_dir));
+        Real3 n1 = normalize(cross(pos_fsi_fea_D_nB - pos_fsi_fea_D_nA, pos_fsi_fea_D_nC - pos_fsi_fea_D_nB));
+        Real3 n2 = normalize(cross(pos_fsi_fea_D_nC - pos_fsi_fea_D_nB, pos_fsi_fea_D_nD - pos_fsi_fea_D_nC));
+        Real3 n3 = normalize(cross(pos_fsi_fea_D_nD - pos_fsi_fea_D_nC, pos_fsi_fea_D_nA - pos_fsi_fea_D_nD));
+        Real3 n4 = normalize(cross(pos_fsi_fea_D_nA - pos_fsi_fea_D_nD, pos_fsi_fea_D_nB - pos_fsi_fea_D_nA));
+        Real3 Normal = normalize(n1 + n2 + n3 + n4);
+        Real3 y_dir = cross(Normal, x_dir);
+
+        //        Real Shell_x = 0.25 * length(pos_fsi_fea_D_nB - pos_fsi_fea_D_nA + pos_fsi_fea_D_nC -
+        //        pos_fsi_fea_D_nD); Real Shell_y = 0.25 * length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nA + pos_fsi_fea_D_nC
+        //        - pos_fsi_fea_D_nB); Real3 physic_to_natural = mR3(1 / Shell_x, 1 / Shell_y, 1); Real3 pos_physical =
+        //        dist3; Real3 pos_natural = mR3(pos_physical.x * physic_to_natural.x, pos_physical.y *
+        //        physic_to_natural.y,
+        //                                pos_physical.z * physic_to_natural.z);
+
         //  printf(" %d Shell (x,y)= %f,%f\n", FlexMarkerIndex, Shell_x, Shell_y);
         //
         //  Real2 FlexSPH_MeshPos_Natural = mR2(dist3.x / length(x_dir) / 4.0, dist3.y / length(y_dir) / 4.0);
@@ -485,7 +525,10 @@ __global__ void UpdateFlexMarkersPositionVelocityAccD(Real4* posRadD,
         //  printf(" %d FlexSPH_MeshPos_Natural= %f,%f,%f\n", FlexMarkerIndex, FlexSPH_MeshPos_Natural.x,
         //         FlexSPH_MeshPos_Natural.y, FlexSPH_MeshPos_LRF_D[index].z);
 
+        //        Real4 N_shell = Shells_ShapeFunctions(pos_natural.x, pos_natural.y);
+
         Real4 N_shell = Shells_ShapeFunctions(FlexSPH_MeshPos_LRF_D[index].x, FlexSPH_MeshPos_LRF_D[index].y);
+
         Real NA = N_shell.x;
         Real NB = N_shell.y;
         Real NC = N_shell.z;
@@ -509,6 +552,10 @@ __global__ void UpdateFlexMarkersPositionVelocityAccD(Real4* posRadD,
 
         velMasD[FlexMarkerIndex] =
             NA * vel_fsi_fea_D_nA + NB * vel_fsi_fea_D_nB + NC * vel_fsi_fea_D_nC + ND * vel_fsi_fea_D_nD;
+
+        //        printf(" FlexMarkerIndex:%d center=%f,%f,%f x_dir=%f,%f,%f, y_dir= %f,%f,%f\n", FlexMarkerIndex,
+        //        Shell_center.x,
+        //               Shell_center.y, Shell_center.z, x_dir.x, x_dir.y, x_dir.z, y_dir.x, y_dir.y, y_dir.z);
     }
 }
 

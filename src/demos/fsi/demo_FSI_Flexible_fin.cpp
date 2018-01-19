@@ -91,14 +91,15 @@ typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 // Dimension of the domain
-Real bxDim = 1.0;
-Real byDim = 1;
-Real bzDim = 1;
+Real bxDim = 3.0;
+Real byDim = 0.5;
+Real bzDim = 1.0;
 
 // Dimension of the fluid domain
 Real fxDim = bxDim;
 Real fyDim = byDim;
-Real fzDim = 0.2;
+Real fzDim = 0.4;
+
 std::vector<std::shared_ptr<ChLinkPointFrame>> rigidLinks;
 
 // Forward declarations
@@ -126,7 +127,7 @@ int main(int argc, char* argv[]) {
     timeinfo = localtime(&rawtime);
     // You can set your cuda device, if you have multiple of them
     // If not this should be set to 0 or not specified at all
-    cudaSetDevice(0);
+    cudaSetDevice(1);
 
     if (ChFileutils::MakeDirectory(out_dir.c_str()) < 0) {
         cout << "Error creating directory " << out_dir << endl;
@@ -232,7 +233,7 @@ int main(int argc, char* argv[]) {
     mphysicalSystem.SetTimestepperType(ChTimestepper::Type::EULER_IMPLICIT);
 
     int stepEnd = int(paramsH->tFinal / paramsH->dT);
-    stepEnd = 1000000;
+    stepEnd = 200000;
     SaveParaViewFiles(myFsiSystem, mphysicalSystem, my_mesh, NodeNeighborElementMesh, paramsH, 0, mTime);
 
     Real time = 0;
@@ -267,7 +268,7 @@ int main(int argc, char* argv[]) {
 // bce representation are created and added to the systems
 //------------------------------------------------------------------
 void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, chrono::fsi::SimParams* paramsH) {
-    mphysicalSystem.Set_G_acc(ChVector<>(0, 0, -1.0));
+    mphysicalSystem.Set_G_acc(ChVector<>(0, 0, -0.001));
     auto mysurfmaterial = std::make_shared<ChMaterialSurfaceSMC>();
 
     // Set common material Properties
@@ -321,11 +322,33 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // ******************************* Flexible bodies ***********************************
     // Create a mesh, that is a container for groups of elements and their referenced nodes.
     auto joint = std::make_shared<ChBodyEasySphere>(0.01, 1000);
-    ChVector<> CENTER_JOINT(0.0, 0.0, fzDim + initSpace0 * 5);
-    Real RADIUS = initSpace0 * 4 * 0;
-    Real THETA_MAX = 3.1415 / 6;
+    ChVector<> CENTER_JOINT(-fxDim / 2 + initSpace0 * 5, 0.0, bzDim / 2 + initSpace0 * 9);
+    Real RADIUS = 0.1;
+    Real cyl_length = initSpace0 * 20;
+    Real THETA_MAX = 3.1415 / 2;
     joint->SetPos(CENTER_JOINT);
     joint->SetMaterialSurface(mysurfmaterial);
+
+    joint->SetBodyFixed(false);
+    joint->SetCollide(true);
+
+    double volume = utils::CalcCylinderVolume(RADIUS, cyl_length);
+    ChVector<> gyration = utils::CalcCylinderGyration(RADIUS, cyl_length).Get_Diag();
+    double density = paramsH->rho0 * 10;
+    double mass = density * volume;
+    joint->SetMass(mass);
+    joint->SetInertiaXX(mass * gyration);
+    joint->GetCollisionModel()->ClearModel();
+    joint->GetCollisionModel()->SetSafeMargin(0.2);
+    joint->SetCollide(true);
+    utils::AddCylinderGeometry(joint.get(), RADIUS, cyl_length, CENTER_JOINT, Q_from_AngX(CH_C_PI / 2));
+
+    joint->GetCollisionModel()->BuildModel();
+    int numRigidObjects = mphysicalSystem.Get_bodylist()->size();
+    std::vector<std::shared_ptr<ChBody>>* fsiBodeisPtr = myFsiSystem.GetFsiBodiesPtr();
+    fsiBodeisPtr->push_back(joint);
+    chrono::fsi::utils::AddCylinderBce(myFsiSystem.GetDataManager(), paramsH, joint, ChVector<>(0, 0, 0),
+                                       Q_from_AngX(CH_C_PI / 2), RADIUS, cyl_length, paramsH->HSML, false);
     mphysicalSystem.Add(joint);
 
     auto MarkerGround = std::make_shared<ChMarker>();
@@ -337,18 +360,18 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     my_link->Initialize(MarkerIndentor, MarkerGround);
     mphysicalSystem.AddLink(my_link);
     //
-    //    impose_motion(my_link, CENTER_JOINT, 0.5, 0.1, 0);
+    impose_motion(my_link, CENTER_JOINT, 0.1, 10.0, 0);
 
     auto my_mesh = std::make_shared<fea::ChMesh>();
 
     int numFlexBody = 1;
     // Geometry of the plate
-    double plate_lenght_x = 0.4;
-    double plate_lenght_y = 0.2;
+    double plate_lenght_x = 0.32;
+    double plate_lenght_y = 0.12;
     double plate_lenght_z = 0.005;
     // Specification of the mesh
-    int numDiv_x = 10;
-    int numDiv_y = 5;
+    int numDiv_x = 8;
+    int numDiv_y = 3;
     int numDiv_z = 1;
     int N_x = numDiv_x + 1;
     int N_y = numDiv_y + 1;
@@ -368,12 +391,13 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // Create and add the nodes
     for (int i = 0; i < TotalNumNodes; i++) {
         // Node location
-        double loc_x = (i % (numDiv_x + 1)) * dx + CENTER_JOINT.x() - plate_lenght_x / 2 - RADIUS;
+        double loc_x = (i % (numDiv_x + 1)) * dx + CENTER_JOINT.x();
         double loc_y = (i / (numDiv_x + 1)) % (numDiv_y + 1) * dy + CENTER_JOINT.y() - plate_lenght_y / 2;
-        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + CENTER_JOINT.z() - plate_lenght_z / 2;
+        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + CENTER_JOINT.z() - plate_lenght_z / 2 -
+                       cyl_length / 2 + initSpace0;
         double theta_x = loc_y / plate_lenght_y * THETA_MAX;
         loc_x += (RADIUS)*cos(theta_x);
-        loc_y += (RADIUS / 4) * sin(loc_x / plate_lenght_x * theta_x);
+        loc_y += (RADIUS / 2) * (loc_x - CENTER_JOINT.x()) / plate_lenght_x * theta_x;
 
         // Node direction
         double dir_x = 0;
@@ -387,24 +411,22 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         // Fix all nodes along the axis X=0
 
         if (i % (numDiv_x + 1) == 0) {
-            node->SetFixed(true);
+            //            node->SetFixed(true);
 
-            //            auto NodePos = std::make_shared<ChLinkPointFrame>();
-            //            auto NodeDir = std::make_shared<ChLinkDirFrame>();
-            //            printf("indentation is applied to node %d pos=(%f, %f, %f)\n", i, node->GetPos().x(),
-            //            node->GetPos().y(),
-            //                   node->GetPos().z());
-            //
-            //            NodePos->Initialize(node, joint);
-            //            mphysicalSystem.Add(NodePos);
-            //
-            //            NodeDir->Initialize(node, joint);
-            //            NodeDir->SetDirectionInAbsoluteCoords(node->D);
-            //            mphysicalSystem.Add(NodeDir);
-            //
-            //            std::cout << node->GetIndex() << delim << 2 << delim << node->GetPos().x() << delim <<
-            //            node->GetPos().y()
-            //                      << delim << node->GetPos().z() << std::endl;
+            auto NodePos = std::make_shared<ChLinkPointFrame>();
+            auto NodeDir = std::make_shared<ChLinkDirFrame>();
+            printf("indentation is applied to node %d pos=(%f, %f, %f)\n", i, node->GetPos().x(), node->GetPos().y(),
+                   node->GetPos().z());
+
+            NodePos->Initialize(node, joint);
+            mphysicalSystem.Add(NodePos);
+
+            NodeDir->Initialize(node, joint);
+            NodeDir->SetDirectionInAbsoluteCoords(node->D);
+            mphysicalSystem.Add(NodeDir);
+
+            std::cout << node->GetIndex() << delim << 2 << delim << node->GetPos().x() << delim << node->GetPos().y()
+                      << delim << node->GetPos().z() << std::endl;
         }
         // Add node to mesh
         my_mesh->AddNode(node);
@@ -415,7 +437,7 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // Create an isotropic material.
     // All layers for all elements share the same material.
     double rho = 1000;
-    double E = 5e5;
+    double E = 5e6;
     double nu = 0.3;
     auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
     // Create the elements
@@ -593,7 +615,8 @@ void impose_motion(std::shared_ptr<ChLinkLockLock> my_link,
 
         virtual double Get_y(double x) const override {
             double y;
-            y = R * cos(omega * x + theta0) + x0;
+            //            y = 2 * R * (1 - cos(omega * x + theta0)) + x0;
+            y = (omega / 5 * x) + x0;
 
             return (y);
         }
@@ -614,7 +637,7 @@ void impose_motion(std::shared_ptr<ChLinkLockLock> my_link,
 
         virtual double Get_y(double x) const override {
             double y;
-            y = R * sin(omega * x + theta0) + z0;
+            y = -R * (1 - cos(omega * x + theta0)) + z0;
 
             return (y);
         }
@@ -626,11 +649,9 @@ void impose_motion(std::shared_ptr<ChLinkLockLock> my_link,
     std::shared_ptr<x_motion> mymotion_x = std::make_shared<x_motion>(center.x(), Rin, omegain, theta0in);
     std::shared_ptr<z_motion> mymotion_z = std::make_shared<z_motion>(center.z(), Rin, omegain, theta0in);
 
-    // printf("test function(1)= %f", mymotion->Get_y(1));
-
-    my_link->SetMotion_X(std::make_shared<ChFunction_Const>(0));
+    my_link->SetMotion_X(mymotion_x);
     my_link->SetMotion_Y(std::make_shared<ChFunction_Const>(0));
-    my_link->SetMotion_Z(std::make_shared<ChFunction_Const>(0));
+    my_link->SetMotion_Z(mymotion_z);
 }
 
 //------------------------------------------------------------------

@@ -1,8 +1,7 @@
 /*
  * SPHCudaUtils.h
  *
- *  Created on: Mar 2, 2015
- *      Author: Arman Pazouki
+ *      Author: Arman Pazouki, Milad Rakhsha
  */
 // ****************************************************************************
 // This file contains miscellaneous macros and utilities used in the SPH code.

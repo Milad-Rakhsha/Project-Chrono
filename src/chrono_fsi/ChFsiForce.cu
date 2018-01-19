@@ -18,7 +18,7 @@
 #include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFsiForce.cuh"
 #include "chrono_fsi/ChSphGeneral.cuh"
-#include "chrono_fsi/solver6x6.cuh"
+#include "chrono_fsi/ExactLinearSolvers.cuh"
 
 #include <thrust/extrema.h>
 #include <thrust/sort.h>

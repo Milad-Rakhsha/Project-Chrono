@@ -25,7 +25,7 @@
 #include "chrono_fsi/ChParams.cuh"
 #include "chrono_fsi/ChSphKernels.cu"
 #include "chrono_fsi/custom_math.h"
-#include "chrono_fsi/solver6x6.cuh"
+#include "chrono_fsi/ExactLinearSolvers.cuh"
 
 // #include <cstdio>
 
