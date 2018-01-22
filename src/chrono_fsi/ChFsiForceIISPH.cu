@@ -2131,6 +2131,13 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     _sumWij_inv.clear();
     helpers_normal.clear();
     Color.clear();
+    SplitMe.clear();
+    MergeMe.clear();
+    helpers_normal.clear();
+    myType.clear();
+    dr_shift.clear();
+    Contact_i.clear();
+
     //
 }
 

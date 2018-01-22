@@ -91,18 +91,21 @@ typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 // Dimension of the domain
-Real bxDim = 3.0;
-Real byDim = 0.5;
+Real bxDim = 5.0;
+Real byDim = 2.0;
 Real bzDim = 1.0;
 
 // Dimension of the fluid domain
 Real fxDim = bxDim;
 Real fyDim = byDim;
 Real fzDim = 0.4;
+Real cyl_length;
+Real RADIUS = 0.1;
 
 std::vector<std::shared_ptr<ChLinkPointFrame>> rigidLinks;
 
 // Forward declarations
+void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
 void writeMesh(std::shared_ptr<ChMesh> my_mesh, std::string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement);
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[256],
@@ -111,6 +114,7 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
 void impose_motion(std::shared_ptr<ChLinkLockLock> my_link, ChVector<> center, double R, double omega, double theta0);
 void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
                        ChSystemSMC& mphysicalSystem,
+                       std::shared_ptr<ChBody> Cylinder,
                        std::shared_ptr<fea::ChMesh> my_mesh,
                        std::vector<std::vector<int>> NodeNeighborElementMesh,
                        chrono::fsi::SimParams* paramsH,
@@ -234,7 +238,9 @@ int main(int argc, char* argv[]) {
 
     int stepEnd = int(paramsH->tFinal / paramsH->dT);
     stepEnd = 200000;
-    SaveParaViewFiles(myFsiSystem, mphysicalSystem, my_mesh, NodeNeighborElementMesh, paramsH, 0, mTime);
+    std::vector<std::shared_ptr<ChBody>>* FSI_Bodies = (myFsiSystem.GetFsiBodiesPtr());
+    auto Cylinder = ((*FSI_Bodies)[0]);
+    SaveParaViewFiles(myFsiSystem, mphysicalSystem, Cylinder, my_mesh, NodeNeighborElementMesh, paramsH, 0, mTime);
 
     Real time = 0;
     Real Global_max_dT = paramsH->dT_Max;
@@ -257,7 +263,8 @@ int main(int argc, char* argv[]) {
         myFsiSystem.DoStepDynamics_ChronoRK2();
 #endif
         time += paramsH->dT;
-        SaveParaViewFiles(myFsiSystem, mphysicalSystem, my_mesh, NodeNeighborElementMesh, paramsH, next_frame, time);
+        SaveParaViewFiles(myFsiSystem, mphysicalSystem, Cylinder, my_mesh, NodeNeighborElementMesh, paramsH, next_frame,
+                          time);
     }
 
     return 0;
@@ -323,9 +330,9 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // Create a mesh, that is a container for groups of elements and their referenced nodes.
     auto joint = std::make_shared<ChBodyEasySphere>(0.01, 1000);
     ChVector<> CENTER_JOINT(-fxDim / 2 + initSpace0 * 5, 0.0, bzDim / 2 + initSpace0 * 9);
-    Real RADIUS = 0.1;
-    Real cyl_length = initSpace0 * 20;
     Real THETA_MAX = 3.1415 / 2;
+    cyl_length = initSpace0 * 20;
+
     joint->SetPos(CENTER_JOINT);
     joint->SetMaterialSurface(mysurfmaterial);
 
@@ -513,6 +520,7 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 //------------------------------------------------------------------
 void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
                        ChSystemSMC& mphysicalSystem,
+                       std::shared_ptr<ChBody> Cylinder,
                        std::shared_ptr<fea::ChMesh> my_mesh,
                        std::vector<std::vector<int>> NodeNeighborElementMesh,
                        chrono::fsi::SimParams* paramsH,
@@ -532,6 +540,14 @@ void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
                                         myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
                                         myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, data_folder,
                                         true);
+
+        char SaveAsRigidObjVTK[256];  // The filename buffer.
+        static int RigidCounter = 0;
+
+        snprintf(SaveAsRigidObjVTK, sizeof(char) * 256, (data_folder + "/Cylinder.%d.vtk").c_str(), RigidCounter);
+        WriteCylinderVTK(Cylinder, RADIUS, cyl_length, 100, SaveAsRigidObjVTK);
+
+        RigidCounter++;
 
         cout << "             Sim frame:      " << next_frame << endl;
         cout << "             Time:           " << mTime << endl;
@@ -821,4 +837,68 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
     }
 
     output.close();
+}
+
+void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]) {
+    std::ofstream output;
+    output.open(SaveAsBuffer, std::ios::app);
+    output << "# vtk DataFile Version 1.0\nUnstructured Grid Example\nASCII\n\n" << std::endl;
+    output << "DATASET UNSTRUCTURED_GRID\nPOINTS " << 2 * res << " float\n";
+
+    ChVector<> center = Body->GetPos();
+    ChMatrix33<> Rotation = Body->GetRot();
+    ChVector<double> vertex;
+    for (int i = 0; i < res; i++) {
+        ChVector<double> thisNode;
+        thisNode.x() = radius * cos(2 * i * 3.1415 / res);
+        thisNode.y() = -1 * length / 2;
+        thisNode.z() = radius * sin(2 * i * 3.1415 / res);
+        vertex = Rotation * thisNode + center;  // rotate/scale, if needed
+        output << vertex.x() << " " << vertex.y() << " " << vertex.z() << "\n";
+    }
+
+    for (int i = 0; i < res; i++) {
+        ChVector<double> thisNode;
+        thisNode.x() = radius * cos(2 * i * 3.1415 / res);
+        thisNode.y() = +1 * length / 2;
+        thisNode.z() = radius * sin(2 * i * 3.1415 / res);
+        vertex = Rotation * thisNode + center;  // rotate/scale, if needed
+        output << vertex.x() << " " << vertex.y() << " " << vertex.z() << "\n";
+    }
+
+    output << "\n\nCELLS " << (unsigned int)res + res << "\t" << (unsigned int)5 * (res + res) << "\n";
+
+    for (int i = 0; i < res - 1; i++) {
+        output << "4 " << i << " " << i + 1 << " " << i + res + 1 << " " << i + res << "\n";
+    }
+    output << "4 " << res - 1 << " " << 0 << " " << res << " " << 2 * res - 1 << "\n";
+
+    for (int i = 0; i < res / 4; i++) {
+        output << "4 " << i << " " << i + 1 << " " << +res / 2 - i - 1 << " " << +res / 2 - i << "\n";
+    }
+
+    for (int i = 0; i < res / 4; i++) {
+        output << "4 " << i + res << " " << i + 1 + res << " " << +res / 2 - i - 1 + res << " " << +res / 2 - i + res
+               << "\n";
+    }
+
+    output << "4 " << +res / 2 << " " << 1 + res / 2 << " " << +res - 1 << " " << 0 << "\n";
+
+    for (int i = 1; i < res / 4; i++) {
+        output << "4 " << i + res / 2 << " " << i + 1 + res / 2 << " " << +res / 2 - i - 1 + res / 2 << " "
+               << +res / 2 - i + res / 2 << "\n";
+    }
+
+    output << "4 " << 3 * res / 2 << " " << 1 + 3 * res / 2 << " " << +2 * res - 1 << " " << +res << "\n";
+
+    for (int i = 1; i < res / 4; i++) {
+        output << "4 " << i + 3 * res / 2 << " " << i + 1 + 3 * res / 2 << " " << +2 * res - i - 1 << " "
+               << +2 * res - i << "\n";
+    }
+
+    output << "\nCELL_TYPES " << res + res << "\n";
+
+    for (int iele = 0; iele < (res + res); iele++) {
+        output << "9\n";
+    }
 }

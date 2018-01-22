@@ -679,7 +679,7 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     if (paramsH->Adaptive_time_stepping) {
         Real dt_CFL = paramsH->Co_number * paramsH->HSML / MaxVel;
         Real dt_nu = 0.125 * paramsH->HSML * paramsH->HSML / (paramsH->mu0 / paramsH->rho0);
-        Real dt_body = 0.25 * std::sqrt(paramsH->HSML / length(paramsH->bodyForce3 + paramsH->gravity));
+        Real dt_body = 0.125 * std::sqrt(paramsH->HSML / length(paramsH->bodyForce3 + paramsH->gravity));
         Real dt = std::min(dt_body, std::min(dt_CFL, dt_nu));
         if (dt / paramsH->dT_Max > 0.7 && dt / paramsH->dT_Max < 1)
             paramsH->dT = paramsH->dT_Max * 0.5;

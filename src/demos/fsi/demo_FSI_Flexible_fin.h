@@ -45,7 +45,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->LARGE_PRES = 0;
     paramsH->deltaPress;
     paramsH->multViscosity_FSI = 1;
-    paramsH->gravity = mR3(0, 0, -1);
+    paramsH->gravity = mR3(0, 0, -9.8);
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
@@ -55,7 +55,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->EPS_XSPH = 0.0;
     paramsH->beta_shifting = 0.000;  // increasing this factor decreases the Lagrangian nature of the model
 
-    paramsH->Conservative_Form = true;
+    paramsH->Conservative_Form = false;
     paramsH->USE_LinearSolver = true;                 ///< IISPH parameter: whether or not use linear solvers
     paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
     paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual

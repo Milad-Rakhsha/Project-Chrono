@@ -167,8 +167,10 @@ __global__ void Populate_FlexSPH_MeshPos_LRF_kernel(Real3* FlexSPH_MeshPos_LRF_D
         //        FlexSPH_MeshPos_LRF_D[index] = mR3(eta.x, zeta.y, zSide);
         FlexSPH_MeshPos_LRF_D[index] = mR3(pos_natural.x, pos_natural.y, zSide);
 
-        printf("FlexIndex=%d FlexMarkerIndex:%d FlexSPH_MeshPos_LRF_D[index]=%f,%f,%f\n", FlexIndex, FlexMarkerIndex,
-               FlexSPH_MeshPos_LRF_D[index].x, FlexSPH_MeshPos_LRF_D[index].y, FlexSPH_MeshPos_LRF_D[index].z);
+        //        printf("FlexIndex=%d FlexMarkerIndex:%d FlexSPH_MeshPos_LRF_D[index]=%f,%f,%f\n", FlexIndex,
+        //        FlexMarkerIndex,
+        //               FlexSPH_MeshPos_LRF_D[index].x, FlexSPH_MeshPos_LRF_D[index].y,
+        //               FlexSPH_MeshPos_LRF_D[index].z);
     }
 }
 //--------------------------------------------------------------------------------------------------------------------------------
