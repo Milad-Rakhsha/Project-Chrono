@@ -51,6 +51,10 @@ void ChFsiLinearSolver::BiCGStab(int SIZE, int NNZ, double* A, uint* ArowIdx, ui
     cudaThreadSynchronize();
 
     //    cudaMemset((void*)x, 0, sizeof(double) * SIZE);
+
+    cudaMemset((void*)r, 0, sizeof(double) * SIZE);
+    cudaMemset((void*)r_old, 0, sizeof(double) * SIZE);
+    cudaMemset((void*)rh, 0, sizeof(double) * SIZE);
     cudaMemset((void*)p, 0, sizeof(double) * SIZE);
     cudaMemset((void*)Mp, 0, sizeof(double) * SIZE);
     cudaMemset((void*)AMp, 0, sizeof(double) * SIZE);
@@ -118,14 +122,14 @@ void ChFsiLinearSolver::BiCGStab(int SIZE, int NNZ, double* A, uint* ArowIdx, ui
     //    cudaThreadSynchronize();
 
     //===========================Solution=====================================================
-    double rho, rho_old, beta, alpha, negalpha, omega, negomega, temp, temp2;
+    double rho = 1, rho_old = 1, beta = 1, alpha = 1, negalpha = -1, omega = 1, negomega = -1, temp = 1, temp2 = 1;
     double nrmr, nrmr0;
     double zero = 0.0;
     double one = 1.0;
     double mone = -1.0;
-    rho = 1;
-    alpha = 1;
-    omega = 1;
+    //    rho = 1;
+    //    alpha = 1;
+    //    omega = 1;
 
     // compute initial residual r0=b-Ax0 (using initial guess in x)
     cusparseDcsrmv(cusparseHandle, CUSPARSE_OPERATION_NON_TRANSPOSE, SIZE, SIZE, NNZ, &mone, descrA, A, (int*)ArowIdx,
@@ -134,13 +138,17 @@ void ChFsiLinearSolver::BiCGStab(int SIZE, int NNZ, double* A, uint* ArowIdx, ui
     cublasDaxpy(cublasHandle, SIZE, &one, b, 1, r, 1);
     cudaThreadSynchronize();
     cublasDnrm2(cublasHandle, SIZE, r, 1, &nrmr0);
+    cudaThreadSynchronize();
     nrmr = nrmr0;
     // copy residual r into r^{\hat} and p
     cublasDcopy(cublasHandle, SIZE, r, 1, rh, 1);
+    cudaThreadSynchronize();
     cublasDcopy(cublasHandle, SIZE, r, 1, r_old, 1);
     cudaThreadSynchronize();
     cublasDdot(cublasHandle, SIZE, rh, 1, r, 1, &rho_old);
     cudaThreadSynchronize();
+
+    //    printf("nrmr0=%f\n", nrmr0);
 
     for (Iterations = 0; Iterations < max_iter; Iterations++) {
         cublasDdot(cublasHandle, SIZE, rh, 1, r_old, 1, &rho);
@@ -188,6 +196,11 @@ void ChFsiLinearSolver::BiCGStab(int SIZE, int NNZ, double* A, uint* ArowIdx, ui
         // alpha=rho/(rh'*AMp)
         cublasDdot(cublasHandle, SIZE, rh, 1, AMp, 1, &temp);
         cudaThreadSynchronize();
+        //        if (abs(temp) < 1e-8) {
+        //            residual = nrmr;
+        //            solver_status = 0;
+        //            break;
+        //        }
         alpha = rho / temp;
         negalpha = -(alpha);
         cublasDnrm2(cublasHandle, SIZE, Mp, 1, &nrmr);
@@ -202,6 +215,7 @@ void ChFsiLinearSolver::BiCGStab(int SIZE, int NNZ, double* A, uint* ArowIdx, ui
             solver_status = 1;
             break;
         }
+        //        printf("alpha=%.3e, temp=%.3e, beta=%.3e, rho_old=%.3e, rho=%.3e ", alpha, temp, beta, rho_old, rho);
 
         // s = r_old-alpha*AMp
         cublasDcopy(cublasHandle, SIZE, r_old, 1, s, 1);
@@ -235,16 +249,18 @@ void ChFsiLinearSolver::BiCGStab(int SIZE, int NNZ, double* A, uint* ArowIdx, ui
 
         // w_new
         cublasDdot(cublasHandle, SIZE, AMs, 1, Ms, 1, &temp);
+        cudaThreadSynchronize();
+
         cublasDdot(cublasHandle, SIZE, AMs, 1, AMs, 1, &temp2);
         cudaThreadSynchronize();
 
         omega = temp / temp2;
-        //        printf("alpha=%f, temp=%f, beta=%f, rho_old=%f, rho=%f ", alpha, temp, beta, rho_old, rho);
 
         // x_{j+1} = x_j + alpha*Mp + omega*Ms
         cublasDaxpy(cublasHandle, SIZE, &alpha, Mp, 1, x, 1);
         cudaThreadSynchronize();
         cublasDaxpy(cublasHandle, SIZE, &omega, Ms, 1, x, 1);
+        cudaThreadSynchronize();
 
         // r_{j+1} = s_j - omega*AMs
         negomega = -(omega);
@@ -253,12 +269,14 @@ void ChFsiLinearSolver::BiCGStab(int SIZE, int NNZ, double* A, uint* ArowIdx, ui
         cublasDaxpy(cublasHandle, SIZE, &negomega, AMs, 1, r, 1);
         cudaThreadSynchronize();
         cublasDnrm2(cublasHandle, SIZE, r, 1, &nrmr);
+        cudaThreadSynchronize();
 
         cublasDcopy(cublasHandle, SIZE, r, 1, r_old, 1);
+        cudaThreadSynchronize();
+
         rho_old = rho;
         residual = nrmr;
 
-        cudaThreadSynchronize();
         if (verbose)
             printf("Iterations=%d\t ||b-A*x||=%.4e\n", Iterations, nrmr);
     }

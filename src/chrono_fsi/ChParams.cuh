@@ -7,8 +7,8 @@
 
 #ifndef CHPARAMS_CUH_
 #define CHPARAMS_CUH_
-#include "chrono_fsi/custom_math.h"
 #include "chrono_fsi/ChFsiLinearSolver.h"
+#include "chrono_fsi/custom_math.h"
 
 namespace chrono {
 namespace fsi {
@@ -48,7 +48,7 @@ struct SimParams {
     Real3
         deltaPress; /* Change in Pressure. This is needed for periodic BC. The change in pressure of a particle when it
    moves from end boundary to beginning.  */
-    Real V_in;      /* Inlet Velocity. This is needed for inlet BC.  */
+    Real3 V_in;     /* Inlet Velocity. This is needed for inlet BC.  */
     Real x_in;
 
     int nPeriod;      /* Only used in snake channel simulation. Tells you how long the channel will be. */
@@ -60,7 +60,9 @@ struct SimParams {
     Real mu0;         /* Viscosity */
     Real kappa;       /* surface tension parameter */
     Real v_Max; /* Max velocity of fluid used in equation of state. Run simulation once to be able to determine it. */
-    Real EPS_XSPH;          /* Method to modify particle velocity. */
+    Real EPS_XSPH;      /* Method to modify particle velocity. */
+    Real beta_shifting; /* this is the beta coefficient in the shifting vector formula. */
+
     Real multViscosity_FSI; /* Multiplier that helps determine the viscosity for boundary particles. For example, if the
      value is 5 then the boundary particles will be 5 times more viscous than the fluid
      particles. Boundary particles should be more viscuous becayse they are supposed to slow
@@ -82,6 +84,11 @@ struct SimParams {
      tolerance zone. */
     Real3 cMax; /* Upper right most part of the space shown in a simulation frame. This point is usually outside the
      tolerance zone.*/
+
+    bool ApplyInFlowOutFlow;
+    Real3 inflow;
+    Real3 outflow;
+
     Real3 cMinInit; /* */             // Arman : note, this need to be added to check point
     Real3 cMaxInit; /* */             // Arman : note, this need to be added to check point
     Real3 straightChannelBoundaryMin; /* Origin of the coordinate system (Point (0,0,0)). In this case (straigh channel)
@@ -108,6 +115,9 @@ struct SimParams {
     Real tweakMultRho;  /* maximum allowed density change in one time step: tweakMultRho * rho0 */
     BceVersion bceType; /* maximum allowed density change in one time step: tweakMultRho * rho0 */
 
+    bool Conservative_Form;
+    bool USE_NonIncrementalProjection;
+
     bool USE_LinearSolver;
     bool USE_Iterative_solver;
     solverType LinearSolver;
@@ -127,7 +137,8 @@ struct SimParams {
     Real Co_number;
     Real dT_Max;
     bool Apply_BC_U;
-    Real eos_c; // Speed of sound in EOS
+    Real L_Characteristic;
+
 };
 
 }  // end namespace fsi

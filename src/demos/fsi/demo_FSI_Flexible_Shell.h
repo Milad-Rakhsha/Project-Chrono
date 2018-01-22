@@ -38,7 +38,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->HSML = 0.025;
     paramsH->MULT_INITSPACE = 1.0;
     paramsH->MULT_INITSPACE_Shells = 1.0;
-    paramsH->epsMinMarkersDis = .01;
+    paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
     paramsH->BASEPRES = 1e-10;
@@ -49,29 +49,32 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 0.01;   ///< viscosity
-    paramsH->kappa = 0.0;  ///<surface tension parameter
+    paramsH->mu0 = 0.05;   ///< viscosity
+    paramsH->kappa = 0.0;  ///< surface tension parameter
     paramsH->v_Max = 1;
-    paramsH->EPS_XSPH = .5f;
+    paramsH->EPS_XSPH = 0.0;
+    paramsH->beta_shifting = 0.001;  // increasing this factor decreases the Lagrangian nature of the model
 
+    paramsH->Conservative_Form = false;
     paramsH->USE_LinearSolver = true;                 ///< IISPH parameter: whether or not use linear solvers
     paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
     paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
     paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
-    paramsH->LinearSolver_Rel_Tol = 0;      ///< relative res, is used in the matrix free solver and linear solvers
-    paramsH->LinearSolver_Abs_Tol = 1e-5;   ///< absolute error, applied when linear solvers are used
-    paramsH->LinearSolver_Max_Iter = 1000;  ///< max number of iteration for linear solvers
-    paramsH->PPE_relaxation = 0.3;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
-    paramsH->dT = 2.5e-3;
-    paramsH->dT_Flex = 1e-3;
+    paramsH->LinearSolver_Rel_Tol = 0;     ///< relative res, is used in the matrix free solver and linear solvers
+    paramsH->LinearSolver_Abs_Tol = 1e-8;  ///< absolute error, applied when linear solvers are used
+    paramsH->LinearSolver_Max_Iter = 500;  ///< max number of iteration for linear solvers
+    paramsH->PPE_relaxation = 0.3;         ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
+    paramsH->dT = 5e-3;
+    paramsH->dT_Flex = 1e-4;
+    paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
+    paramsH->Co_number = 0.3;                ///< 0.2 works well for most cases
+    paramsH->dT_Max = 0.01;  ///< This is problem dependent should set by the user based on characteristic time step
 
     /// Experimental parameters
-    paramsH->Max_Pressure = 1e5;
-    paramsH->IncompressibilityFactor = 1;     ///< to tune the compression
-    paramsH->ClampPressure = true;            ///< If the negative pressure should be clamped to zero or not
-    paramsH->Adaptive_time_stepping = false;  ///< This let you use large time steps when possible
-    paramsH->Co_number = 0.8;                 ///< 0.2 works well for most cases
-    paramsH->dT_Max = 0.01;  ///< This is problem dependent should set by the user based on characteristic time step
+    paramsH->Max_Pressure = 1e10;
+    paramsH->IncompressibilityFactor = 1;  ///< to tune the compression
+    paramsH->ClampPressure = true;         ///< If the negative pressure should be clamped to zero or not
+
     paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 
     paramsH->tFinal = 2;

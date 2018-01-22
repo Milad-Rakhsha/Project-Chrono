@@ -16,24 +16,24 @@
 
 // General Includes
 #include <assert.h>
+#include <limits.h>
+#include <stdlib.h>  // system
 #include <ctime>
 #include <fstream>
 #include <iostream>
-#include <limits.h>
-#include <stdlib.h>  // system
 #include <string>
 #include <vector>
 
 // Chrono Parallel Includes
-#include "chrono/physics/ChSystemDEM.h"
+#include "chrono/physics/ChSystemSMC.h"
 // Solver
 
 //#include "chrono_utils/ChUtilsVehicle.h"
+#include "chrono/solver/ChSolverMINRES.h"
 #include "chrono/utils/ChUtilsCreators.h"
 #include "chrono/utils/ChUtilsGenerators.h"
 #include "chrono/utils/ChUtilsGeometry.h"
 #include "chrono/utils/ChUtilsInputOutput.h"
-#include "chrono/solver/ChSolverMINRES.h"
 
 // Chrono general utils
 #include "chrono/core/ChFileutils.h"
@@ -44,7 +44,7 @@
 #include "chrono_fsi/ChFsiTypeConvert.h"
 #include "chrono_fsi/ChSystemFsi.h"
 #include "chrono_fsi/utils/ChUtilsGeneratorFsi.h"
-#include "chrono_fsi/utils/ChUtilsPrintSph.h"
+#include "chrono_fsi/utils/ChUtilsPrintSph.cuh"
 
 // Chrono fea includes
 
@@ -71,12 +71,11 @@ std::ofstream simParams;
 //----------------------------
 // output directories and settings
 //----------------------------
-const std::string h_file = "/home/milad/CHRONO/Project-Chrono-Milad-IISPH/src/demos/fsi/demo_FSI_Validation.h";
-const std::string cpp_file = "/home/milad/CHRONO/Project-Chrono-Milad-IISPH/src/demos/fsi/demo_FSI_Validation.cpp";
-
-const std::string out_dir = "FSI_OUTPUT";  //"../FSI_OUTPUT";
-const std::string data_folder = out_dir + "/FSI_Validation/";
+const std::string out_dir = GetChronoOutputPath() + "FSI_Validation";
+const std::string data_folder = out_dir + "/Paraview/";
 std::string MESH_CONNECTIVITY = data_folder + "Flex_MESH.vtk";
+// Save data as csv files, turn it on to be able to see the results off-line using paraview
+bool pv_output = true;
 
 std::vector<std::vector<int>> NodeNeighborElementMesh;
 
@@ -98,32 +97,22 @@ Real fzDim = 0.14;
 // Real fyDim = byDim;
 // Real fzDim = 0.02;
 
-void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
 void writeMesh(std::shared_ptr<ChMesh> my_mesh, std::string SaveAs, std::vector<std::vector<int>>& NodeNeighborElement);
 void writeFrame(std::shared_ptr<ChMesh> my_mesh,
                 char SaveAsBuffer[256],
                 char MeshFileBuffer[256],
                 std::vector<std::vector<int>>& NodeNeighborElement);
 void saveInputFile(std::string inputFile, std::string outAddress);
-void SetArgumentsForMbdFromInput(int argc,
-                                 char* argv[],
-                                 int& threads,
-                                 int& max_iteration_sliding,
-                                 int& max_iteration_bilateral,
-                                 int& max_iteration_normal,
-                                 int& max_iteration_spinning);
-
-void InitializeMbdPhysicalSystem(ChSystemDEM& mphysicalSystem, ChVector<> gravity, int argc, char* argv[]);
 
 void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
-                       ChSystemDEM& mphysicalSystem,
+                       ChSystemSMC& mphysicalSystem,
                        std::shared_ptr<fea::ChMesh> my_mesh,
                        std::vector<std::vector<int>> NodeNeighborElementMesh,
                        chrono::fsi::SimParams* paramsH,
                        int next_frame,
                        double mTime);
 
-void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, chrono::fsi::SimParams* paramsH);
+void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, chrono::fsi::SimParams* paramsH);
 
 // =============================================================================
 
@@ -146,8 +135,7 @@ int main(int argc, char* argv[]) {
 
     const std::string rmCmd = (std::string("rm ") + data_folder + std::string("/*"));
     system(rmCmd.c_str());
-    saveInputFile(h_file, data_folder + "/hfile.h");
-    saveInputFile(cpp_file, data_folder + "/cppfile.cpp");
+
     //****************************************************************************************
     const std::string simulationParams = out_dir + "/simulation_specific_parameters.txt";
     simParams.open(simulationParams);
@@ -159,7 +147,7 @@ int main(int argc, char* argv[]) {
     mHaveFluid = true;
 #endif
     // ************* Create Fluid *************************
-    ChSystemDEM mphysicalSystem;
+    ChSystemSMC mphysicalSystem;
     fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid);
     chrono::ChVector<> CameraLocation = chrono::ChVector<>(0, -10, 0);
     chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
@@ -178,7 +166,7 @@ int main(int argc, char* argv[]) {
     int numPart = points.size();
     for (int i = 0; i < numPart; i++) {
         myFsiSystem.GetDataManager()->AddSphMarker(
-            chrono::fsi::mR3(points[i].x, points[i].y, points[i].z), chrono::fsi::mR3(0),
+            chrono::fsi::mR4(points[i].x(), points[i].y(), points[i].z(), paramsH->HSML), chrono::fsi::mR3(0),
             chrono::fsi::mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, -1));
     }
 
@@ -217,48 +205,34 @@ int main(int argc, char* argv[]) {
                myFsiSystem.GetDataManager()->numObjects.numAllMarkers);
         return -1;
     }
-    //*** Add sph data to the physics system
 
     cout << " -- ChSystem size : " << mphysicalSystem.Get_bodylist()->size() << endl;
 
     // ***************************** System Initialize
     // ********************************************
-    myFsiSystem.InitializeChronoGraphics(CameraLocation, CameraLookAt);
 
     int step_count = 0;
 
     double mTime = 0;
-#ifdef CHRONO_FSI_USE_DOUBLE
-    printf("Double Precision\n");
-#else
-    printf("Single Precision\n");
-#endif
-
-#ifdef USE_IRR
-    application.GetSystem()->Update();
-    //    application.SetPaused(true);
-    int AccuNoIterations = 0;
-    application.SetStepManage(true);
-#endif
 
     mphysicalSystem.SetupInitial();
 
-    mphysicalSystem.SetSolverType(ChSystem::SOLVER_MINRES);  // <- NEEDED because other solvers can't
-                                                             // handle stiffness matrices
-    chrono::ChSolverMINRES* msolver = (chrono::ChSolverMINRES*)mphysicalSystem.GetSolverSpeed();
-    msolver->SetDiagonalPreconditioning(true);
-    mphysicalSystem.SetMaxItersSolverSpeed(100000);
+    mphysicalSystem.SetSolverType(ChSolver::Type::MINRES);
+    mphysicalSystem.SetSolverWarmStarting(true);
+    mphysicalSystem.SetMaxItersSolverSpeed(10000);
     mphysicalSystem.SetTolForce(1e-10);
 
     // Set up integrator
-    mphysicalSystem.SetIntegrationType(ChSystem::INT_HHT);
+    mphysicalSystem.SetTimestepperType(ChTimestepper::Type::HHT);
     auto mystepper = std::static_pointer_cast<ChTimestepperHHT>(mphysicalSystem.GetTimestepper());
     mystepper->SetAlpha(-0.2);
-    mystepper->SetMaxiters(100);
-    mystepper->SetAbsTolerances(1e-5);
+    mystepper->SetMaxiters(1000);
+    mystepper->SetAbsTolerances(1e-6);
     mystepper->SetMode(ChTimestepperHHT::POSITION);
     mystepper->SetScaling(true);
-    // mphysicalSystem.SetIntegrationType(chrono::ChSystem::INT_EULER_IMPLICIT_LINEARIZED);
+
+    //    mphysicalSystem.SetTimestepperType(ChTimestepper::Type::EULER_IMPLICIT);
+
     SaveParaViewFiles(myFsiSystem, mphysicalSystem, my_mesh, NodeNeighborElementMesh, paramsH, 0, mTime);
 
     int stepEnd = 1000000;
@@ -303,15 +277,15 @@ int main(int argc, char* argv[]) {
 // Create the objects of the MBD system. Rigid bodies, and if fsi, their
 // bce representation are created and added to the systems
 //------------------------------------------------------------------
-void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, chrono::fsi::SimParams* paramsH) {
+void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, chrono::fsi::SimParams* paramsH) {
     mphysicalSystem.Set_G_acc(ChVector<>(0, 0, 0));
-    std::shared_ptr<chrono::ChMaterialSurface> mat_g(new chrono::ChMaterialSurface);
+    auto mysurfmaterial = std::make_shared<ChMaterialSurfaceSMC>();
+
     // Set common material Properties
-    mat_g->SetFriction(0.8);
-    mat_g->SetCohesion(0);
-    mat_g->SetCompliance(0.0);
-    mat_g->SetComplianceT(0.0);
-    mat_g->SetDampingF(0.2);
+    mysurfmaterial->SetYoungModulus(6e4);
+    mysurfmaterial->SetFriction(0.3f);
+    mysurfmaterial->SetRestitution(0.2f);
+    mysurfmaterial->SetAdhesion(0);
 
     auto ground = std::make_shared<ChBody>();
     ground->SetIdentifier(-1);
@@ -319,7 +293,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     ground->SetBodyFixed(true);
     ground->SetCollide(true);
 
-    ground->SetMaterialSurface(mat_g);
+    ground->SetMaterialSurface(mysurfmaterial);
 
     ground->GetCollisionModel()->ClearModel();
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
@@ -356,19 +330,19 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
     /*================== Walls =================*/
 
-    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posBottom, chrono::QUNIT, sizeBottom);
-    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT, sizeBottom);
+    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posBottom, chrono::QUNIT, sizeBottom,
+                                  12);
+    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT, sizeBottom, 12);
 
-    chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xp, chrono::QUNIT, size_YZ);
+    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_xp, chrono::QUNIT, size_YZ, 23);
 
-    chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_xn, chrono::QUNIT, size_YZ);
+    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_xn, chrono::QUNIT, size_YZ, 23);
+    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_DamWall, chrono::QUNIT,
+                                  size_DamWall, 23);
 
-    chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yp, chrono::QUNIT, size_XZ);
+    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yp, chrono::QUNIT, size_XZ, 13);
 
-    chrono::fsi::utils::AddBoxBceXZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT, size_XZ);
-
-    chrono::fsi::utils::AddBoxBceYZ(myFsiSystem.GetDataManager(), paramsH, ground, pos_DamWall, chrono::QUNIT,
-                                    size_DamWall);
+    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT, size_XZ, 13);
 
     /*================== Flexible-Body =================*/
 
@@ -432,7 +406,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
     // Create an orthotropic material.
     // All layers for all elements share the same material.
-    double rho = 1000;
+    double rho = 1100;
     double E = 5e6;
     double nu = 0.4;
     //    ChVector<> E(1e5, 1e5, 1e5);
@@ -478,7 +452,8 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         my_mesh->AddElement(element);
         ChVector<> center = 0.25 * (element->GetNodeA()->GetPos() + element->GetNodeB()->GetPos() +
                                     element->GetNodeC()->GetPos() + element->GetNodeD()->GetPos());
-        cout << "Adding element" << i << "  with center:  " << center.x << " " << center.y << " " << center.z << endl;
+        cout << "Adding element" << i << "  with center:  " << center.x() << " " << center.y() << " " << center.z()
+             << endl;
     }
 
     std::vector<std::shared_ptr<chrono::fea::ChElementCableANCF>>* FSI_Cables = myFsiSystem.GetFsiCablesPtr();
@@ -513,7 +488,7 @@ void Create_MB_FE(ChSystemDEM& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 // Function to save the povray files of the MBD
 //------------------------------------------------------------------
 void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
-                       ChSystemDEM& mphysicalSystem,
+                       ChSystemSMC& mphysicalSystem,
                        std::shared_ptr<fea::ChMesh> my_mesh,
                        std::vector<std::vector<int>> NodeNeighborElementMesh,
                        chrono::fsi::SimParams* paramsH,
@@ -531,12 +506,12 @@ void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
 
     if (povray_output && std::abs(mTime - (next_frame)*frame_time) < 0.00001) {
         // **** out fluid
-        chrono::fsi::utils::PrintToParaViewFile(
-            myFsiSystem.GetDataManager()->sphMarkersD2.posRadD, myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
-            myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
-            myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
-            myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, data_folder);
-
+        chrono::fsi::utils::PrintToFile(myFsiSystem.GetDataManager()->sphMarkersD2.posRadD,
+                                        myFsiSystem.GetDataManager()->fsiGeneralData.vis_vel_SPH_D,
+                                        myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
+                                        myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
+                                        myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, data_folder,
+                                        true);
 #ifdef AddCylinder
         char SaveAsRigidObjVTK[256];  // The filename buffer.
         static int RigidCounter = 0;
@@ -618,11 +593,13 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
     std::ofstream output;
     output.open(SaveAsBuffer, std::ios::app);
 
+    std::cout << "my_mesh->GetNnodes(): " << my_mesh->GetNnodes();
+
     output << "# vtk DataFile Version 1.0\nUnstructured Grid Example\nASCII\n\n" << std::endl;
     output << "DATASET UNSTRUCTURED_GRID\nPOINTS " << my_mesh->GetNnodes() << " float\n";
     for (int i = 0; i < my_mesh->GetNnodes(); i++) {
         auto node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(i));
-        output << node->GetPos().x << " " << node->GetPos().y << " " << node->GetPos().z << "\n";
+        output << node->GetPos().x() << " " << node->GetPos().y() << " " << node->GetPos().z() << "\n";
     }
     std::ifstream CopyFrom(MeshFileBuffer);
     output << CopyFrom.rdbuf();
@@ -643,9 +620,15 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             areaAve += scalar * dx * dy / NodeNeighborElement[i].size();
         }
 
-        output << areaAve / myarea << "\n";
+        output << areaAve / myarea + 1e-20 << "\n";
+    }
+    output << "\nVECTORS velocity float\n";
+    for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
+        ChVector<> vel = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(i))->GetPos_dt();
+        output << vel.x() << " " << vel.y() << " " << vel.z() << "\n";
     }
     std::vector<ChVector<>> MyResult;
+
     output << "\nVECTORS ep12_ratio float\n";
     for (unsigned int i = 0; i < my_mesh->GetNnodes(); i++) {
         double areaAve1 = 0, areaAve2 = 0, areaAve3 = 0;
@@ -658,9 +641,9 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
             myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve1 += MyResult[0].x * dx * dy / NodeNeighborElement[i].size();
-            areaAve2 += MyResult[0].y * dx * dy / NodeNeighborElement[i].size();
-            if (abs(MyResult[0].x) > 1e-3 && abs(MyResult[0].y) > 1e-3) {
+            areaAve1 += MyResult[0].x() * dx * dy / NodeNeighborElement[i].size();
+            areaAve2 += MyResult[0].y() * dx * dy / NodeNeighborElement[i].size();
+            if (abs(MyResult[0].x()) > 1e-3 && abs(MyResult[0].y()) > 1e-3) {
                 double ratio = abs(areaAve1 / areaAve2);
                 if (ratio > 10)
                     ratio = 10;
@@ -685,9 +668,9 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
             myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve1 += MyResult[1].x * dx * dy / NodeNeighborElement[i].size();
-            areaAve2 += MyResult[1].y * dx * dy / NodeNeighborElement[i].size();
-            areaAve3 += MyResult[1].z * dx * dy / NodeNeighborElement[i].size();
+            areaAve1 += MyResult[1].x() * dx * dy / NodeNeighborElement[i].size();
+            areaAve2 += MyResult[1].y() * dx * dy / NodeNeighborElement[i].size();
+            areaAve3 += MyResult[1].z() * dx * dy / NodeNeighborElement[i].size();
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
@@ -703,9 +686,9 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
             myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve1 += MyResult[2].x * dx * dy / NodeNeighborElement[i].size();
-            areaAve2 += MyResult[2].y * dx * dy / NodeNeighborElement[i].size();
-            areaAve3 += MyResult[2].z * dx * dy / NodeNeighborElement[i].size();
+            areaAve1 += MyResult[2].x() * dx * dy / NodeNeighborElement[i].size();
+            areaAve2 += MyResult[2].y() * dx * dy / NodeNeighborElement[i].size();
+            areaAve3 += MyResult[2].z() * dx * dy / NodeNeighborElement[i].size();
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
@@ -722,9 +705,9 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
             myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve1 += MyResult[0].x * dx * dy / NodeNeighborElement[i].size();
-            areaAve2 += MyResult[0].y * dx * dy / NodeNeighborElement[i].size();
-            areaAve3 += MyResult[0].z * dx * dy / NodeNeighborElement[i].size();
+            areaAve1 += MyResult[0].x() * dx * dy / NodeNeighborElement[i].size();
+            areaAve2 += MyResult[0].y() * dx * dy / NodeNeighborElement[i].size();
+            areaAve3 += MyResult[0].z() * dx * dy / NodeNeighborElement[i].size();
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
@@ -740,9 +723,9 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
             myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve1 += MyResult[1].x * dx * dy / NodeNeighborElement[i].size();
-            areaAve2 += MyResult[1].y * dx * dy / NodeNeighborElement[i].size();
-            areaAve3 += MyResult[1].z * dx * dy / NodeNeighborElement[i].size();
+            areaAve1 += MyResult[1].x() * dx * dy / NodeNeighborElement[i].size();
+            areaAve2 += MyResult[1].y() * dx * dy / NodeNeighborElement[i].size();
+            areaAve3 += MyResult[1].z() * dx * dy / NodeNeighborElement[i].size();
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }
@@ -759,9 +742,9 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             dx = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthX();
             dy = std::dynamic_pointer_cast<fea::ChElementShellANCF>(my_mesh->GetElement(myelemInx))->GetLengthY();
             myarea += dx * dy / NodeNeighborElement[i].size();
-            areaAve1 += MyResult[2].x * dx * dy / NodeNeighborElement[i].size();
-            areaAve2 += MyResult[2].y * dx * dy / NodeNeighborElement[i].size();
-            areaAve3 += MyResult[2].z * dx * dy / NodeNeighborElement[i].size();
+            areaAve1 += MyResult[2].x() * dx * dy / NodeNeighborElement[i].size();
+            areaAve2 += MyResult[2].y() * dx * dy / NodeNeighborElement[i].size();
+            areaAve3 += MyResult[2].z() * dx * dy / NodeNeighborElement[i].size();
         }
         output << areaAve1 / myarea << " " << areaAve2 / myarea << " " << areaAve3 / myarea << "\n";
     }

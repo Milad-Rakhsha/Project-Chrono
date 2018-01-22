@@ -61,15 +61,15 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->v_Max = 0.0;
     paramsH->EPS_XSPH = .5f;
 
-    paramsH->USE_LinearSolver = true;  ///< IISPH parameter: whether or not use linear solvers
+    paramsH->USE_LinearSolver = false;  ///< IISPH parameter: whether or not use linear solvers
     paramsH->USE_Iterative_solver = false;
     paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
     paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
     paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
-    paramsH->LinearSolver_Rel_Tol = 1e-8;  ///< relative res, is used in the matrix free solver and linear solvers
-    paramsH->LinearSolver_Abs_Tol = 1e-8;  ///< absolute error, applied when linear solvers are used
-    paramsH->LinearSolver_Max_Iter = 200;  ///< max number of iteration for linear solvers
-    paramsH->PPE_relaxation = 0.95;        ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
+    paramsH->LinearSolver_Rel_Tol = 1e-8;   ///< relative res, is used in the matrix free solver and linear solvers
+    paramsH->LinearSolver_Abs_Tol = 1e-8;   ///< absolute error, applied when linear solvers are used
+    paramsH->LinearSolver_Max_Iter = 3000;  ///< max number of iteration for linear solvers
+    paramsH->PPE_relaxation = 0.6;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
     /// Experimental parameters
     paramsH->Max_Pressure = 1e5;
     paramsH->IncompressibilityFactor = 1;     ///< to tune the compression
@@ -79,7 +79,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->dT_Max = 0.01;      ///< This is problem dependent should set by the user based on characteristic time step
     paramsH->Apply_BC_U = true;  ///< You should go to custom_math.h all the way to end of file and set your function
 
-    paramsH->dT = 2.5e-5;
+    paramsH->dT = 1e-4;
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;  // I don't know what is kdT

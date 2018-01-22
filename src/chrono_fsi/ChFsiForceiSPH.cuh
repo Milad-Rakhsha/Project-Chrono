@@ -12,8 +12,8 @@
 // Author: Milad Rakhsha
 // =============================================================================
 
-#ifndef CH_FSI_FORCEI2SPH_H_
-#define CH_FSI_FORCEI2SPH_H_
+#ifndef CH_FSI_FORCEiSPH_H_
+#define CH_FSI_FORCEiSPH_H_
 
 #include "chrono_fsi/ChApiFsi.h"
 #include "chrono_fsi/ChFsiForce.cuh"
@@ -25,7 +25,7 @@ namespace fsi {
 /// @{
 
 /// @brief Child class of ChForceParallel that implements the I2SPH method.
-class CH_FSI_API ChFsiForceI2SPH : public ChFsiForce {
+class CH_FSI_API ChFsiForceiSPH : public ChFsiForce {
   private:
     thrust::device_vector<Real> _sumWij_inv;
     thrust::device_vector<uint> Contact_i;
@@ -48,23 +48,24 @@ class CH_FSI_API ChFsiForceI2SPH : public ChFsiForce {
     bool *isErrorH, *isErrorD, *isErrorD2;
     int numAllMarkers;
     int NNZ;
+
     void ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
                           FsiBodiesDataD* otherFsiBodiesD,
                           FsiMeshDataD* otherFsiMeshD) override;
-    void PreProcessor(SphMarkerDataD* otherSphMarkersD, bool print = true, bool calcLaplacianOperator = true);
+
+    void PreProcessor(SphMarkerDataD* otherSphMarkersD, bool print = true);
 
   public:
-    ChFsiForceI2SPH(
-        ChBce* otherBceWorker,                   ///< Pointer to the ChBce object that handles BCE markers
-        SphMarkerDataD* otherSortedSphMarkersD,  ///< Information of markers in the sorted array on device
-        ProximityDataD*
-            otherMarkersProximityD,  ///< Pointer to the object that holds the proximity of the markers on device
-        FsiGeneralData* otherFsiGeneralData,  ///< Pointer to the sph general data
-        SimParams* otherParamsH,              ///< Pointer to the simulation parameters on host
-        NumberOfObjects* otherNumObjects      ///< Pointer to number of objects, fluid and boundary markers, etc.
+    ChFsiForceiSPH(ChBce* otherBceWorker,                   ///< Pointer to the ChBce object that handles BCE markers
+                   SphMarkerDataD* otherSortedSphMarkersD,  ///< Information of markers in the sorted array on device
+                   ProximityDataD* otherMarkersProximityD,  ///< Pointer to the object that holds the proximity of the
+                                                            ///< markers on device
+                   FsiGeneralData* otherFsiGeneralData,     ///< Pointer to the sph general data
+                   SimParams* otherParamsH,                 ///< Pointer to the simulation parameters on host
+                   NumberOfObjects* otherNumObjects  ///< Pointer to number of objects, fluid and boundary markers, etc.
     );
 
-    ~ChFsiForceI2SPH();
+    ~ChFsiForceiSPH();
     void Finalize() override;
 };
 

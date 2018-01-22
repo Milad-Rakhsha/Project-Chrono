@@ -56,6 +56,17 @@ void ChDeviceUtils::ResizeR4(thrust::device_vector<Real4>& mThrustVec, int size)
 void ChDeviceUtils::ResizeU1(thrust::device_vector<uint>& mThrustVec, int size) {
     mThrustVec.resize(size);
 }
+
+// template <class DATATYPE>
+// void ChDeviceUtils::CopyD2H(thrust::device_vector<DATATYPE>& DevVec, thrust::host_vector<DATATYPE>& HostVec) {
+//    thrust::copy(DevVec.begin(), DevVec.end(), HostVec.begin());
+//}
+
+void ChDeviceUtils::CopyD2H(thrust::device_vector<Real4>& DevVec, thrust::host_vector<Real4>& HostVec) {
+    thrust::copy(DevVec.begin(), DevVec.end(), HostVec.begin());
+    //    HostVec = DevVec;
+}
+
 void ChDeviceUtils::Sync_CheckError(bool* isErrorH, bool* isErrorD, std::string carshReport) {
     cudaThreadSynchronize();
     cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);

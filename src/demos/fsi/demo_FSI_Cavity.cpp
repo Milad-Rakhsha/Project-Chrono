@@ -13,8 +13,6 @@
 // =============================================================================
 
 // =============================================================================
-
-// General Includes
 // General Includes
 #include <assert.h>
 #include <limits.h>
@@ -71,7 +69,7 @@ typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 Real bxDim = 1.0;
-Real byDim = 0.1;
+Real byDim = 0.2;
 Real bzDim = 1.0;
 
 Real fxDim = bxDim;
@@ -206,7 +204,7 @@ int main(int argc, char* argv[]) {
 #endif
     // ************* Create Fluid *************************
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::iSPH);
 
     chrono::fsi::SimParams* paramsH = myFsiSystem.GetSimParams();
 

@@ -44,7 +44,7 @@
 #include "chrono_fsi/utils/ChUtilsPrintSph.cuh"
 
 // FSI Interface Includes
-#include "demos/fsi/demo_FSI_flow_around_cylinder.h"  //SetupParamsH()
+#include "demos/fsi/demo_FSI_backward_facing_step.h"  //SetupParamsH()
 
 #define haveFluid 1
 #define AddCylinder 1
@@ -57,8 +57,8 @@ using std::endl;
 std::ofstream simParams;
 // =============================================================================
 //----------------------------
-const std::string out_dir = GetChronoOutputPath() + "FSI_FLOW_AROUND_CYLINDER";
-const std::string demo_dir = out_dir + "/FlowAroundCylinder";
+const std::string out_dir = GetChronoOutputPath() + "backward_facing_step";
+const std::string demo_dir = out_dir + "/backward_facing_step";
 bool save_output = true;
 
 int out_fps = 5;
@@ -66,22 +66,17 @@ int out_fps = 5;
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
-Real bxDim = 1.0;
-Real byDim = 0.06;
-Real bzDim = 0.40;
+Real SCALE = 1.0;
+Real bxDim = 2 * SCALE * 8;
+Real byDim = 0.3;
+Real bzDim = SCALE;
+Real step_length = 2 * SCALE * 2;
+Real step_ehight = SCALE / 2;
 
 Real fxDim = bxDim;
 Real fyDim = byDim;
 Real fzDim = bzDim;
-double cyl_length = 0.07;  // 0.11;
 
-// double cyl_length = 0.11;
-
-double cyl_radius = .05;
-ChVector<> cyl_pos = ChVector<>(0.0);
-
-void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]);
-void InitializeMbdPhysicalSystem(ChSystemSMC& mphysicalSystem, ChVector<> gravity, int argc, char* argv[]);
 void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
                           ChSystemSMC& mphysicalSystem,
                           chrono::fsi::SimParams* paramsH,
@@ -114,12 +109,13 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
     ground->GetCollisionModel()->ClearModel();
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
 
+    // Step Geometry
+    ChVector<> size_middle(step_length / 2, byDim / 2, bzDim / 4 - initSpace0);
+    ChVector<> pos_middle(0, 0, 7 * initSpace0);
     // Bottom wall
-    ChVector<> sizeBottom(bxDim / 2, byDim / 2, 2 * initSpace0);
-
-    //    ChVector<> sizeBottom(bxDim / 2, byDim / 2 + 3 * initSpace0, 2 * initSpace0);
-    ChVector<> posBottom(0, 0, -2 * initSpace0);
-    ChVector<> posTop(0, 0, bzDim + 2 * initSpace0);
+    ChVector<> sizeBottom(bxDim / 2, byDim / 2 - 0 * initSpace0, 2 * initSpace0);
+    ChVector<> posBottom(0, 0, 0.0);
+    ChVector<> posTop(0, 0, bzDim + 1 * initSpace0);
 
     // left and right Wall
     ChVector<> size_YZ(2 * initSpace0, byDim / 2 + 3 * initSpace0, bzDim / 2);
@@ -140,44 +136,13 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
     mphysicalSystem.AddBody(ground);
 
 #if haveFluid
-    printf("Ref size=%d\n", myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.size());
-
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posBottom, chrono::QUNIT, sizeBottom);
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT, sizeBottom);
+    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_middle, chrono::QUNIT, size_middle,
+                                  123);
 //    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yp, chrono::QUNIT, size_XZ, 13);
 //    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT, size_XZ, 13);
 #endif
-
-    // Add falling cylinder
-    ChQuaternion<> cyl_rot = chrono::QUNIT;
-    std::vector<std::shared_ptr<ChBody>>* FSI_Bodies = myFsiSystem.GetFsiBodiesPtr();
-
-    auto body = std::make_shared<ChBody>();
-    // body->SetIdentifier(-1);
-    body->SetBodyFixed(true);
-    body->SetCollide(true);
-    body->SetMaterialSurface(mysurfmaterial);
-    //    ChVector<> cyl_pos = ChVector<>(0.0, paramsH->HSML / 4, 0.0);
-
-    body->SetPos(cyl_pos + ChVector<>(0.0, paramsH->HSML / 4, 0.0));
-
-    double sphereRad = 0.3;
-    double volume = utils::CalcSphereVolume(sphereRad);
-    ChVector<> gyration = utils::CalcSphereGyration(sphereRad).Get_Diag();
-    double density = paramsH->rho0;
-    double mass = density * volume;
-    body->SetMass(mass);
-    body->SetInertiaXX(mass * gyration);
-    body->GetCollisionModel()->ClearModel();
-    utils::AddSphereGeometry(body.get(), sphereRad);
-    body->GetCollisionModel()->BuildModel();
-    int numRigidObjects = mphysicalSystem.Get_bodylist()->size();
-    mphysicalSystem.AddBody(body);
-
-    std::vector<std::shared_ptr<ChBody>>* fsiBodeisPtr = myFsiSystem.GetFsiBodiesPtr();
-    fsiBodeisPtr->push_back(body);
-    chrono::fsi::utils::AddCylinderBce(myFsiSystem.GetDataManager(), paramsH, body, ChVector<>(0, 0, 0),
-                                       ChQuaternion<>(1, 0, 0, 0), cyl_radius, cyl_length, paramsH->HSML / 2, false);
 }
 
 //------------------------------------------------------------------
@@ -238,56 +203,22 @@ int main(int argc, char* argv[]) {
 #if haveFluid
 
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
-    Real initSpace1 = initSpace0 / 2;
-    Real initSpace2 = initSpace0;
+    Real initSpace1 = initSpace0;
     utils::GridSampler<> sampler1(initSpace1);
-    utils::GridSampler<> sampler2(initSpace2);
 
-    chrono::fsi::Real3 boxCenter1 = chrono::fsi::mR3(-bxDim / 2 + fxDim / 2 - paramsH->HSML / 3, +paramsH->HSML / 4 * 0,
-                                                     fzDim * 0.5 - paramsH->HSML / 3 + paramsH->HSML);
+    chrono::fsi::Real3 boxCenter1 = chrono::fsi::mR3(-bxDim / 2 + fxDim / 2, 0, fzDim * 0.5);
+    chrono::fsi::Real3 boxHalfDim1 = chrono::fsi::mR3(fxDim / 2, fyDim / 2 + 0.00001, fzDim / 2);
 
-    chrono::fsi::Real3 boxCenter2 = chrono::fsi::mR3(-bxDim / 2 + fxDim / 2, 0 * paramsH->HSML,
-                                                     fzDim * 0.5 + 1 * paramsH->HSML - paramsH->HSML / 8);
-
-    chrono::fsi::Real3 boxHalfDim1 = chrono::fsi::mR3(fxDim / 6, fyDim / 3, fzDim / 6);
-    chrono::fsi::Real3 boxHalfDim2 = chrono::fsi::mR3(fxDim / 2, fyDim / 2, fzDim / 2);
-    auto mbody = std::make_shared<ChBody>();
-    mbody->SetBodyFixed(true);
-
-    cyl_pos = ChVector<>(boxCenter1.x, boxCenter1.y, boxCenter1.z);
-    mbody->SetPos(cyl_pos);
-
-    // Here we add a particle to the surface of the cylinder for merging purposes
-    chrono::fsi::utils::AddCylinderSurfaceBce(myFsiSystem.GetDataManager(), paramsH, mbody,
-                                              ChVector<>(0, +paramsH->HSML / 2, 0), ChQuaternion<>(1, 0, 0, 0), 0.12,
-                                              byDim + paramsH->HSML, paramsH->HSML);
-
-    //    chrono::fsi::utils::AddCylinderSurfaceBce(myFsiSystem.GetDataManager(), paramsH, mbody, ChVector<>(0, 0, 0),
-    //                                              ChQuaternion<>(1, 0, 0, 0), 0.12, 0.12, paramsH->HSML);
-    //    chrono::fsi::utils::AddSphereSurfaceBce(myFsiSystem.GetDataManager(), paramsH, mbody, ChVector<>(0, 0, 0),
-    //                                            ChQuaternion<>(1, 0, 0, 0), 0.07, paramsH->HSML);
-
-    //    cyl_pos = ChVector<>(-paramsH->HSML / 2, 0, 0.2 - paramsH->HSML / 2);
-    mbody->SetPos(cyl_pos);
     int numhelperMarkers = myFsiSystem.GetDataManager()->sphMarkersH.posRadH.size();
 
     // Ghost particles for Variable Resolution SPH
-    int numGhostMarkers = 10000;
-    for (int i = 0; i < numGhostMarkers; i++) {
-        myFsiSystem.GetDataManager()->AddSphMarker(chrono::fsi::mR4(0.0, 0.0, -0.4, 0.0),
-                                                   chrono::fsi::mR3(1e-10, 0.0, 0.0),
-                                                   chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -2.0));
-    }
+    int numGhostMarkers = 0;
 
     // Fluid markers
-    utils::Generator::PointVector points1 = sampler1.SampleCylinderY(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter1),
-                                                                     0.12, byDim / 2 + paramsH->HSML / 4);
-
-    utils::Generator::PointVector points2 = sampler2.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter2),
-                                                               fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim2));
+    utils::Generator::PointVector points1 = sampler1.SampleBox(fsi::ChFsiTypeConvert::Real3ToChVector(boxCenter1),
+                                                               fsi::ChFsiTypeConvert::Real3ToChVector(boxHalfDim1));
 
     int numPart1 = points1.size();
-    int numPart2 = points2.size();
 
     // This section is important to remove the fluid particles that overlap the BCE particles.
     // In order to use this future, two things needs to be done;
@@ -296,7 +227,6 @@ int main(int argc, char* argv[]) {
     // 2- run the actual simulation with a command line argument such as ./bin/demo_ 2, which will go over
     // the BCE.csv file and use those information to remove overlap of fluid and BCE markers
 
-    std::cout << "Initial fluid size:" << numPart1 + numPart2 << std::endl;
     std::vector<fsi::Real3> particles_position;
     if (argc > 1) {
         fsi::Real3 this_particle;
@@ -337,11 +267,11 @@ int main(int argc, char* argv[]) {
     int numremove = 0;
     for (int i = 0; i < numPart1; i++) {
         bool removeThis = false;
-        Real h = paramsH->HSML / 2;
+        Real h = paramsH->HSML;
         fsi::Real4 p = fsi::mR4(points1[i].x(), points1[i].y(), points1[i].z(), h);
         for (int remove = 0; remove < BCE_RIGID_SIZE; remove++) {
             double dist = length(particles_position[remove] - mR3(p));
-            if (dist < 1.00 * initSpace1) {
+            if (dist < 0.9 * initSpace1) {
                 removeThis = true;
                 break;
             }
@@ -353,41 +283,15 @@ int main(int argc, char* argv[]) {
             numremove++;
     }
 
-    for (int i = 0; i < numPart2; i++) {
-        bool removeThis = false;
-        Real h = paramsH->HSML;
-        fsi::Real4 p = fsi::mR4(points2[i].x(), points2[i].y(), points2[i].z(), h);
-        for (int remove = 0; remove < particles_position.size(); remove++) {
-            double dist = length(particles_position[remove] - mR3(p));
-            if (dist < 0.5 * initSpace2) {
-                removeThis = true;
-                break;
-            }
-        }
-        if (!removeThis) {
-            myFsiSystem.GetDataManager()->AddSphMarker(p, paramsH->V_in,
-                                                       chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -1));
-        } else
-            numremove++;
-    }
-
     std::cout << "Removed " << numremove << " Fluid particles from the simulation" << std::endl;
 
     particles_position.clear();
-
-    //    int numPart = points.size();
-    //    for (int i = 0; i < numPart; i++) {
-    //        myFsiSystem.GetDataManager()->AddSphMarker(fsi::mR3(points[i].x(), points[i].y(), points[i].z()),
-    //                                                   fsi::mR3(1e-10),
-    //                                                   fsi::mR4(paramsH->rho0, paramsH->BASEPRES, paramsH->mu0, -1));
-    //    }
 
     int numPhases = myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.size();
 
     int numFluidPart = myFsiSystem.GetDataManager()->sphMarkersH.posRadH.size();
     std::cout << "Final fluid size:" << numFluidPart << std::endl;
 
-    myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(mI4(0, numGhostMarkers, -2, -1));
     myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(
         mI4(numhelperMarkers + numGhostMarkers, numFluidPart, -1, -1));
     //        myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(mI4(numFluidPart, numFluidPart,
@@ -419,8 +323,7 @@ int main(int argc, char* argv[]) {
 
     cout << " -- ChSystem size : " << mphysicalSystem.Get_bodylist()->size() << endl;
 
-    // ***************************** System Initialize
-    // ********************************************
+    // **************** System Initialize ***************************
 
     double mTime = 0;
     int stepEnd = int(paramsH->tFinal / paramsH->dT);
@@ -431,12 +334,13 @@ int main(int argc, char* argv[]) {
     system(rmCmd.c_str());
     SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, 0, mTime);
     const std::string copyInitials =
-        (std::string("cp ") + demo_dir + std::string("/BCE0.csv") + std::string(" ./BCE.csv "));
+        (std::string("cp ") + demo_dir + std::string("/boundary0.csv") + std::string(" ./BCE.csv "));
     system(copyInitials.c_str());
     if (argc <= 1) {
         printf("now please run with an input argument\n");
         return 0;
     }
+
     Real time = 0;
     Real Global_max_dT = paramsH->dT_Max;
     for (int tStep = 0; tStep < stepEnd + 1; tStep++) {
@@ -491,7 +395,6 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
     if (save_output && std::abs(mTime - (next_frame)*frame_time) < 0.00001) {
         fsi::utils::PrintToFile(myFsiSystem.GetDataManager()->sphMarkersD2.posRadD,
                                 myFsiSystem.GetDataManager()->fsiGeneralData.vis_vel_SPH_D,
-
                                 myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
                                 myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
                                 myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, demo_dir, true);
@@ -509,69 +412,5 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
         cout << "\n----------------------------\n" << endl;
 
         out_frame++;
-    }
-}
-
-void WriteCylinderVTK(std::shared_ptr<ChBody> Body, double radius, double length, int res, char SaveAsBuffer[256]) {
-    std::ofstream output;
-    output.open(SaveAsBuffer, std::ios::app);
-    output << "# vtk DataFile Version 1.0\nUnstructured Grid Example\nASCII\n\n" << std::endl;
-    output << "DATASET UNSTRUCTURED_GRID\nPOINTS " << 2 * res << " float\n";
-
-    ChVector<> center = Body->GetPos();
-    ChMatrix33<> Rotation = Body->GetRot();
-    ChVector<double> vertex;
-    for (int i = 0; i < res; i++) {
-        ChVector<double> thisNode;
-        thisNode.x() = radius * cos(2 * i * 3.1415 / res);
-        thisNode.y() = -1 * length / 2;
-        thisNode.z() = radius * sin(2 * i * 3.1415 / res);
-        vertex = Rotation * thisNode + center;  // rotate/scale, if needed
-        output << vertex.x() << " " << vertex.y() << " " << vertex.z() << "\n";
-    }
-
-    for (int i = 0; i < res; i++) {
-        ChVector<double> thisNode;
-        thisNode.x() = radius * cos(2 * i * 3.1415 / res);
-        thisNode.y() = +1 * length / 2;
-        thisNode.z() = radius * sin(2 * i * 3.1415 / res);
-        vertex = Rotation * thisNode + center;  // rotate/scale, if needed
-        output << vertex.x() << " " << vertex.y() << " " << vertex.z() << "\n";
-    }
-
-    output << "\n\nCELLS " << (unsigned int)res + res << "\t" << (unsigned int)5 * (res + res) << "\n";
-
-    for (int i = 0; i < res - 1; i++) {
-        output << "4 " << i << " " << i + 1 << " " << i + res + 1 << " " << i + res << "\n";
-    }
-    output << "4 " << res - 1 << " " << 0 << " " << res << " " << 2 * res - 1 << "\n";
-
-    for (int i = 0; i < res / 4; i++) {
-        output << "4 " << i << " " << i + 1 << " " << +res / 2 - i - 1 << " " << +res / 2 - i << "\n";
-    }
-
-    for (int i = 0; i < res / 4; i++) {
-        output << "4 " << i + res << " " << i + 1 + res << " " << +res / 2 - i - 1 + res << " " << +res / 2 - i + res
-               << "\n";
-    }
-
-    output << "4 " << +res / 2 << " " << 1 + res / 2 << " " << +res - 1 << " " << 0 << "\n";
-
-    for (int i = 1; i < res / 4; i++) {
-        output << "4 " << i + res / 2 << " " << i + 1 + res / 2 << " " << +res / 2 - i - 1 + res / 2 << " "
-               << +res / 2 - i + res / 2 << "\n";
-    }
-
-    output << "4 " << 3 * res / 2 << " " << 1 + 3 * res / 2 << " " << +2 * res - 1 << " " << +res << "\n";
-
-    for (int i = 1; i < res / 4; i++) {
-        output << "4 " << i + 3 * res / 2 << " " << i + 1 + 3 * res / 2 << " " << +2 * res - i - 1 << " "
-               << +2 * res - i << "\n";
-    }
-
-    output << "\nCELL_TYPES " << res + res << "\n";
-
-    for (int iele = 0; iele < (res + res); iele++) {
-        output << "9\n";
     }
 }

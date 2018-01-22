@@ -19,6 +19,10 @@
 #ifndef CH_FSI_FORCEPARALLEL_H_
 #define CH_FSI_FORCEPARALLEL_H_
 
+#include <cstdio>
+#include <cstring>
+#include <fstream>
+#include <sstream>
 #include "chrono_fsi/ChBce.cuh"
 #include "chrono_fsi/ChCollisionSystemFsi.cuh"
 #include "chrono_fsi/ChSphGeneral.cuh"
@@ -26,6 +30,29 @@
 namespace chrono {
 namespace fsi {
 
+struct compare_Real3_mag {
+    __host__ __device__ bool operator()(Real3 lhs, Real3 rhs) { return length(lhs) < length(rhs); }
+};
+struct Real4_x {
+    const float rest_val;
+    Real4_x(Real _a) : rest_val(_a) {}
+    __host__ __device__ Real operator()(const Real4& input) const {
+        return (input.w != -1.0) ? 0.0 : abs(input.x - rest_val);
+    }
+};
+
+__device__ inline void clearRow(uint i_idx, uint csrStartIdx, uint csrEndIdx, Real* A_Matrix, Real* Bi) {
+    for (int count = csrStartIdx; count < csrEndIdx; count++) {
+        A_Matrix[count] = 0;
+        Bi[i_idx] = 0;
+    }
+}
+__device__ inline void clearRow3(uint i_idx, uint csrStartIdx, uint csrEndIdx, Real* A_Matrix, Real3* Bi) {
+    for (int count = csrStartIdx; count < csrEndIdx; count++) {
+        A_Matrix[count] = 0;
+        Bi[i_idx] = mR3(0.0);
+    }
+}
 /// @addtogroup fsi_physics
 /// @{
 
@@ -127,7 +154,7 @@ class CH_FSI_API ChFsiForce : public ChFsiGeneral {
     SimParams* paramsH;            ///< pointer to simulation parameters
     NumberOfObjects* numObjectsH;  ///< pointer to number of objects, fluid and boundary markers
 
-    thrust::device_vector<Real3> vel_IISPH_Sorted_D;     ///< sorted iisph velocity data
+    thrust::device_vector<Real3> vel_vis_Sorted_D;       ///< sorted visualization velocity data
     thrust::device_vector<Real3> vel_XSPH_Sorted_D;      ///< sorted xsph velocity data
     thrust::device_vector<Real4> derivVelRhoD_Sorted_D;  ///< sorted derivVelRhoD
     /// Function to calculate the force terms for SPH markers.

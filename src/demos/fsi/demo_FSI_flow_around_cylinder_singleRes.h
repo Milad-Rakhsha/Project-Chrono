@@ -44,27 +44,26 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.0005;
-    paramsH->MULT_INITSPACE = 1.0;
-    paramsH->MULT_INITSPACE_Shells = 1;
-    paramsH->epsMinMarkersDis = .01;
+    paramsH->HSML = 0.01 / 0.85;
+    paramsH->MULT_INITSPACE = 0.85;
+    Real initSpace = paramsH->MULT_INITSPACE * paramsH->HSML;
+    paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
-    paramsH->BASEPRES = 0;
+    paramsH->BASEPRES = 0.0;
     paramsH->LARGE_PRES = 0;
-    paramsH->deltaPress;
+    paramsH->deltaPress = mR3(0.0, 0, 0.0);
     paramsH->multViscosity_FSI = 1;
-    paramsH->gravity = mR3(0, 0, 0);
-    paramsH->bodyForce3 = mR3(0, 0, 0);
-    paramsH->rho0 = 1000;
-    paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 0.5;
-    paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
-    paramsH->EPS_XSPH = .5f;
+    paramsH->gravity = mR3(0.0, 0, 0.0);
+    paramsH->bodyForce3 = mR3(0.005, 0, 0);
 
+    paramsH->V_in = mR3(0.00, 0, 0.0);
+    paramsH->x_in = -bxDim / 2 + 3 * initSpace;
+
+    paramsH->Conservative_Form = false;
+    paramsH->USE_NonIncrementalProjection = false;
     paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
-    paramsH->dT = 5e-4;
-    paramsH->dT_Flex = paramsH->dT / 5;
+    paramsH->dT = 1e-3;
     paramsH->dT_Max = 0.2;
     paramsH->Co_number = 0.2;  ///< 0.2 works well for most cases
     paramsH->EPS_XSPH = 0.5;   // Note that increasing this coefficient stabilizes the simulation but adds dissipation
@@ -103,17 +102,20 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->enableAggressiveTweak = 0;
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
-    paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
-    paramsH->cMin = mR3(-bxDim / 2, -byDim / 2, -bzDim - paramsH->HSML * 30) - 0.5 * paramsH->HSML;
-    paramsH->cMax = mR3(bxDim / 2, byDim / 2, bzDim + paramsH->HSML * 30) + 0.5 * paramsH->HSML;
+    paramsH->bceType = mORIGINAL;  // ADAMI, mORIGINAL
+    paramsH->cMin = mR3(-bxDim / 2 - initSpace / 2, -byDim / 2 - initSpace / 2, 0.0 - 5.0 * initSpace);
+    paramsH->cMax = mR3(bxDim / 2 + initSpace / 2, byDim / 2 + initSpace / 2, bzDim + 5.0 * initSpace);
+
+    paramsH->ApplyInFlowOutFlow = false;
+    paramsH->outflow = paramsH->cMax - mR3(initSpace * 25);
+    paramsH->inflow = paramsH->cMin + mR3(initSpace * 25);
 
     //****************************************************************************************
-    // printf("a1  paramsH->cMax.x, y, z %f %f %f,  binSize %f\n",
-    // paramsH->cMax.x, paramsH->cMax.y, paramsH->cMax.z, 2 *
-    // paramsH->HSML);
+    // note that neighbor search should be performed via the largest characteristic length for now
     int3 side0 = mI3(floor((paramsH->cMax.x - paramsH->cMin.x) / (2 * paramsH->HSML)),
                      floor((paramsH->cMax.y - paramsH->cMin.y) / (2 * paramsH->HSML)),
                      floor((paramsH->cMax.z - paramsH->cMin.z) / (2 * paramsH->HSML)));
+
     Real3 binSize3 = mR3((paramsH->cMax.x - paramsH->cMin.x) / side0.x, (paramsH->cMax.y - paramsH->cMin.y) / side0.y,
                          (paramsH->cMax.z - paramsH->cMin.z) / side0.z);
     paramsH->binSize0 = (binSize3.x > binSize3.y) ? binSize3.x : binSize3.y;
@@ -149,7 +151,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     //**********************************************************************************************************
     paramsH->gridSize = SIDE;
     // paramsH->numCells = SIDE.x * SIDE.y * SIDE.z;
-    paramsH->worldOrigin = paramsH->cMin;
+    paramsH->worldOrigin = paramsH->cMin - 0 * mR3(paramsH->HSML);
+
     paramsH->cellSize = mR3(mBinSize, mBinSize, mBinSize);
 
     std::cout << "******************** paramsH Content" << std::endl;

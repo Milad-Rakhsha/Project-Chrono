@@ -35,8 +35,13 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;
+<<<<<<< HEAD
     paramsH->HSML = 0.05;
     paramsH->MULT_INITSPACE = 1.0;
+=======
+    paramsH->HSML = 0.05 / 0.9;
+    paramsH->MULT_INITSPACE = 0.9;
+>>>>>>> chrono-dev/sandbox/fsi-VRS
     paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
@@ -46,6 +51,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->gravity = mR3(0, 0, -1);
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
+<<<<<<< HEAD
     paramsH->BASEPRES = 5e2;
 
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
@@ -54,26 +60,45 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
 
     paramsH->v_Max = 100;
     paramsH->EPS_XSPH = .5f;
+=======
+    paramsH->BASEPRES = paramsH->rho0 * length(paramsH->gravity) * fzDim;
 
-    paramsH->USE_LinearSolver = true;  ///< IISPH parameter: whether or not use linear solvers
+    paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
+    paramsH->mu0 = 0.0001;
+    paramsH->kappa = 0.001;
+
+    paramsH->ApplyInFlowOutFlow = false;
+    paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
+    paramsH->dT = 1e-3;
+    paramsH->dT_Max = 0.002;
+    paramsH->Co_number = 0.2;  ///< 0.2 works well for most cases
+    paramsH->EPS_XSPH = 0.5;   // Note that increasing this coefficient stabilizes the simulation but adds dissipation
+    paramsH->beta_shifting = 0.0001;  // increasing this factor decreases the Lagrangian nature of the model
+    paramsH->v_Max = 1.0;
+    paramsH->L_Characteristic = fzDim;
+>>>>>>> chrono-dev/sandbox/fsi-VRS
+
+    paramsH->Conservative_Form = true;
+    paramsH->USE_NonIncrementalProjection = false;
+    paramsH->USE_LinearSolver = false;  ///< IISPH parameter: whether or not use linear solvers
     paramsH->USE_Iterative_solver = true;
     paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
     paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
     paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
     paramsH->LinearSolver_Rel_Tol = 1e-6;   ///< relative res, is used in the matrix free solver and linear solvers
-    paramsH->LinearSolver_Abs_Tol = 1e-8;   ///< absolute error, applied when linear solvers are used
-    paramsH->LinearSolver_Max_Iter = 5000;  ///< max number of iteration for linear solvers
-    paramsH->PPE_relaxation = 0.4;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
+    paramsH->LinearSolver_Abs_Tol = 1e-5;   ///< absolute error, applied when linear solvers are used
+    paramsH->LinearSolver_Max_Iter = 1000;  ///< max number of iteration for linear solvers
+    paramsH->PPE_relaxation = 0.99;
     /// Experimental parameters
     paramsH->Max_Pressure = 1e5;
-    paramsH->IncompressibilityFactor = 1;     ///< to tune the compression
-    paramsH->ClampPressure = false;           ///< If the negative pressure should be clamped to zero or not
-    paramsH->Adaptive_time_stepping = false;  ///< This let you use large time steps when possible
-    paramsH->Co_number = 0.8;                 ///< 0.2 works well for most cases
-    paramsH->dT_Max = 0.001;  ///< This is problem dependent should set by the user based on characteristic time step
+    paramsH->IncompressibilityFactor = 1;  ///< to tune the compression
+    paramsH->ClampPressure = false;        ///< If the negative pressure should be clamped to zero or not
     paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 
+<<<<<<< HEAD
     paramsH->dT = 5e-3;
+=======
+>>>>>>> chrono-dev/sandbox/fsi-VRS
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;
@@ -86,7 +111,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->enableAggressiveTweak = 0;
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .00;
-    paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
+    paramsH->bceType = mORIGINAL;  // ADAMI, mORIGINAL
+
     paramsH->cMin = mR3(-bxDim * 2, -byDim * 2, -2 * bzDim) - 3 * mR3(paramsH->HSML);
     paramsH->cMax = mR3(bxDim * 2, byDim * 2, 2 * bzDim) + 3 * mR3(paramsH->HSML);
 

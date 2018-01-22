@@ -14,7 +14,7 @@ ENDIF()
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
 
 find_package(CUDA)
-SET (ENABLE_MODULE_FEA TRUE)
+#SET (ENABLE_MODULE_FEA TRUE)
 
 message(STATUS "==== Chrono FSI module ====")
 mark_as_advanced(CLEAR CUDA_USE_STATIC_CUDA_RUNTIME)
@@ -125,6 +125,7 @@ SET(ChronoEngine_FSI_SOURCES
     ChFsiForceXSPH.cu
     ChFsiForceIISPH.cu
     ChFsiForceI2SPH.cu
+    ChFsiForceiSPH.cu
     ChFsiForce.cu
 #    ChSphKernels.cu   
     ChFsiGeneral.cu
@@ -146,10 +147,11 @@ SET(ChronoEngine_FSI_HEADERS
     ChFsiForceXSPH.cuh
     ChFsiForceIISPH.cuh
     ChFsiForceI2SPH.cuh
+    ChFsiForceiSPH.cuh
     ChFsiForce.cuh 
     ChFsiGeneral.cuh
     ChSphGeneral.cuh  
-    solver6x6.cuh
+    ExactLinearSolvers.cuh
     ChFsiLinearSolver.h
     ChFsiInterface.cuh
     ChSystemFsi.h

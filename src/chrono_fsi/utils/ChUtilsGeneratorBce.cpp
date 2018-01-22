@@ -18,11 +18,15 @@
 #include <sstream>  // std::stringstream
 
 #include "chrono/core/ChMathematics.h"  // for CH_C_PI
+
+#include "chrono_fsi/ChDeviceUtils.cuh"
+#include "chrono_fsi/utils/ChUtilsGeneratorBce.h"
+
+#ifdef CHRONO_FEA
 #include "chrono_fea/ChElementCableANCF.h"
 #include "chrono_fea/ChElementShellANCF.h"
 #include "chrono_fea/ChNodeFEAxyzD.h"
-#include "chrono_fsi/ChDeviceUtils.cuh"
-#include "chrono_fsi/utils/ChUtilsGeneratorBce.h"
+#endif
 
 namespace chrono {
 namespace fsi {
@@ -70,24 +74,26 @@ void CreateBCE_On_Cylinder(thrust::host_vector<Real4>& posRadBCE,
                            SimParams* paramsH,
                            Real kernel_h,
                            bool cartesian) {
-    int num_layers = floor(cyl_h / kernel_h);
+    Real spacing = kernel_h * paramsH->MULT_INITSPACE;
+    int num_layers = floor(cyl_h / spacing);
     for (int si = 0; si < num_layers; si++) {
         Real s = -0.5 * cyl_h + (cyl_h / num_layers) * si;
         if (cartesian)
-            for (Real x = -cyl_rad; x <= cyl_rad; x += kernel_h) {
-                for (Real y = -cyl_rad; y <= cyl_rad; y += kernel_h) {
+            for (Real x = -cyl_rad; x <= cyl_rad; x += spacing) {
+                for (Real y = -cyl_rad; y <= cyl_rad; y += spacing) {
                     if (x * x + y * y <= cyl_rad * cyl_rad)
                         posRadBCE.push_back(mR4(x, s, y, kernel_h));
                 }
             }
         else {
             Real3 centerPointLF = mR3(0, s, 0);
+            posRadBCE.push_back(mR4(0, s, 0, kernel_h));
             printf("creating markers on the surface of the cylinder at layer at y=%f\n", s);
-            Real numr = floor(cyl_rad / kernel_h);
+            Real numr = floor(cyl_rad / spacing);
             for (int ir = 0; ir < numr; ir++) {
-                Real r = kernel_h + ir * cyl_rad / numr;
+                Real r = spacing + ir * cyl_rad / numr;
                 //                Real deltaTeta = 2 * spacing / r;
-                int numTheta = std::floor(2 * 3.1415 * r / kernel_h);
+                int numTheta = std::floor(2 * 3.1415 * r / spacing);
                 for (Real t = 0.0; t < numTheta; t++) {
                     Real teta = t * 2 * 3.1415 / numTheta;
                     Real3 BCE_Pos_local = mR3(r * cos(teta), 0, r * sin(teta)) + centerPointLF;
@@ -127,7 +133,7 @@ void CreateBCE_On_surface_of_Cylinder(thrust::host_vector<Real4>& posRadBCE,
             for (Real t = 0.0; t < numTheta; t++) {
                 Real teta = t * 2 * 3.1415 / numTheta;
                 Real3 BCE_Pos_local = mR3(r * cos(teta), 0, r * sin(teta)) + centerPointLF;
-                if (si == 0 || si == num_layers - 1 || ir == numr - 1) {
+                if (/*si == 0 || si == num_layers - 1 ||*/ ir == numr - 1) {
                     posRadBCE.push_back(mR4(BCE_Pos_local, spacing));
                 }
             }
@@ -174,6 +180,8 @@ void CreateBCE_On_Box(thrust::host_vector<Real4>& posRadBCE, const Real3& hsize,
         case -23:
             iBound = mI2(-nFX, -nFX + paramsH->NUM_BOUNDARY_LAYERS - 1);
             break;
+        case 123:
+            break;
         default:
             printf("wrong argument box bce initialization\n");
             break;
@@ -195,6 +203,38 @@ void CreateBCE_On_Box(thrust::host_vector<Real4>& posRadBCE, const Real3& hsize,
     }
 }
 // =============================================================================
+
+void LoadBCE_fromFile(thrust::host_vector<Real4>& posRadBCE,  // do not set the
+                                                              // size here since
+                                                              // you are using
+                                                              // push back later
+                      std::string fileName) {
+    std::string ddSt;
+    char buff[256];
+    int numBce = 0;
+    const int cols = 3;
+    std::cout << "  reading BCE data from: " << fileName << " ...\n";
+    std::ifstream inMarker;
+    inMarker.open(fileName);
+    if (!inMarker) {
+        std::cout << "   Error! Unable to open file: " << fileName << std::endl;
+    }
+    getline(inMarker, ddSt);
+    Real q[cols];
+    while (getline(inMarker, ddSt)) {
+        std::stringstream linestream(ddSt);
+        for (int i = 0; i < cols; i++) {
+            linestream.getline(buff, 50, ',');
+            q[i] = atof(buff);
+        }
+        posRadBCE.push_back(mR4(q[0], q[1], q[2], q[3]));
+        numBce++;
+    }
+
+    std::cout << "  Loaded BCE data from: " << fileName << std::endl;
+}
+
+#ifdef CHRONO_FEA
 
 void CreateBCE_On_shell(thrust::host_vector<Real4>& posRadBCE,
                         SimParams* paramsH,
@@ -331,9 +371,9 @@ void CreateBCE_On_ChElementShellANCF(thrust::host_vector<Real4>& posRadBCE,
                                      bool removeMiddleLayer,
                                      int SIDE) {
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
-
     double dx = shell->GetLengthX() / 2;
     double dy = shell->GetLengthY() / 2;
+    printf("CreateBCE_On_ChElementShellANCF: dx,dy=%f,%f\n", dx, dy);
 
     double nX = dx / (initSpace0)-floor(dx / (initSpace0));
     double nY = dy / (initSpace0)-floor(dy / (initSpace0));
@@ -348,7 +388,7 @@ void CreateBCE_On_ChElementShellANCF(thrust::host_vector<Real4>& posRadBCE,
 
     Real initSpaceX = dx / nFX;
     Real initSpaceY = dy / nFY;
-    Real initSpaceZ = paramsH->HSML * paramsH->MULT_INITSPACE_Shells;
+    Real initSpaceZ = initSpace0;
 
     int2 iBound = mI2(-nFX, nFX);
     int2 jBound = mI2(-nFY, nFY);
@@ -391,42 +431,13 @@ void CreateBCE_On_ChElementShellANCF(thrust::host_vector<Real4>& posRadBCE,
                 if (con1 || con2 || con3 || con4)
                     continue;
 
-                posRadBCE.push_back(mR4(relMarkerPos, initSpace0));
+                posRadBCE.push_back(mR4(relMarkerPos, paramsH->HSML));
             }
         }
     }
 }
 // =============================================================================
-
-void LoadBCE_fromFile(thrust::host_vector<Real4>& posRadBCE,  // do not set the
-                                                              // size here since
-                                                              // you are using
-                                                              // push back later
-                      std::string fileName) {
-    std::string ddSt;
-    char buff[256];
-    int numBce = 0;
-    const int cols = 3;
-    std::cout << "  reading BCE data from: " << fileName << " ...\n";
-    std::ifstream inMarker;
-    inMarker.open(fileName);
-    if (!inMarker) {
-        std::cout << "   Error! Unable to open file: " << fileName << std::endl;
-    }
-    getline(inMarker, ddSt);
-    Real q[cols];
-    while (getline(inMarker, ddSt)) {
-        std::stringstream linestream(ddSt);
-        for (int i = 0; i < cols; i++) {
-            linestream.getline(buff, 50, ',');
-            q[i] = atof(buff);
-        }
-        posRadBCE.push_back(mR4(q[0], q[1], q[2], q[3]));
-        numBce++;
-    }
-
-    std::cout << "  Loaded BCE data from: " << fileName << std::endl;
-}
+#endif
 
 }  // namespace utils
 }  // namespace fsi

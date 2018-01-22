@@ -60,7 +60,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->mu0 = 0.1;
     paramsH->v_Max = 1;
     paramsH->x_in = -bxDim / 2 + 3 * paramsH->HSML;
-    paramsH->V_in = 0.01;
+    paramsH->V_in = mR3(0.01, 0, 0.0);
 
     paramsH->EPS_XSPH = .5f;
 

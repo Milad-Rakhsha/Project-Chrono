@@ -47,7 +47,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->HSML = 0.0025;
     paramsH->MULT_INITSPACE = 1.0;
     paramsH->MULT_INITSPACE_Shells = 1.0;
-    paramsH->epsMinMarkersDis = .01;
+    paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
     paramsH->BASEPRES = 0;
@@ -58,29 +58,30 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 0.01;
+    paramsH->mu0 = 0.001;
     paramsH->v_Max = 1;
     paramsH->EPS_XSPH = .5f;
 
-    paramsH->USE_CUSP = true;                           // Experimentally,don't use if for now
-    paramsH->Cusp_solver = bicgstab;                    // gmres, cr, bicgstab, cg
-    paramsH->Verbose_monitoring = false;                // If you want cusp to print out the iterations-residual
-    paramsH->PPE_Solution_type = SPARSE_MATRIX_JACOBI;  // SPARSE_MATRIX_JACOBI;IterativeJacobi
-    paramsH->PPE_res = 0;          // This is the relative res, is used in the iterative solver and  cusp solvers
-    paramsH->PPE_Abs_res = 1e-10;  // This is the absolute error used when cusp solvers are used
-    paramsH->PPE_Max_Iter = 2000;  // This is the max number of iteration for cusp solvers
-
-    paramsH->Max_Pressure = 1e20;
-    paramsH->PPE_relaxation = 0.4;         // Increasing this to 0.5 causes instability, only used in iterative solvers
-    paramsH->IncompressibilityFactor = 1;  // Increasing this causes lager compressibility, but let for larger dt
-    paramsH->ClampPressure = true;         // If the negative pressure should be clamped to zero or not
-    paramsH->Adaptive_time_stepping = false;  // This let you use large time steps when possible
-    paramsH->Co_number = 0.8;                 // 0.2 works well for most cases
-    paramsH->dT_Max = 0.01;       // This is problem dependent should set by the user based on characteristic time step
-    paramsH->Apply_BC_U = false;  // You should go to custom_math.h all the way to end of file and set your function
-
+    paramsH->Conservative_Form = false;
+    paramsH->USE_LinearSolver = true;                 ///< IISPH parameter: whether or not use linear solvers
+    paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
+    paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
+    paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
+    paramsH->LinearSolver_Rel_Tol = 0;      ///< relative res, is used in the matrix free solver and linear solvers
+    paramsH->LinearSolver_Abs_Tol = 1e-8;   ///< absolute error, applied when linear solvers are used
+    paramsH->LinearSolver_Max_Iter = 2000;  ///< max number of iteration for linear solvers
+    paramsH->PPE_relaxation = 0.3;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
     paramsH->dT = 5e-4;
-    paramsH->dT_Flex = paramsH->dT / 10;
+    paramsH->dT_Flex = 5e-5;
+    paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
+    paramsH->Co_number = 0.3;                ///< 0.2 works well for most cases
+    paramsH->dT_Max = 0.01;  ///< This is problem dependent should set by the user based on characteristic time step
+
+    /// Experimental parameters
+    paramsH->Max_Pressure = 1e20;
+    paramsH->IncompressibilityFactor = 1;  ///< to tune the compression
+    paramsH->ClampPressure = true;         ///< If the negative pressure should be clamped to zero or not
+
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;  // I don't know what is kdT

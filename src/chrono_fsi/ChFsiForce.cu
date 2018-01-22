@@ -18,7 +18,7 @@
 #include "chrono_fsi/ChDeviceUtils.cuh"
 #include "chrono_fsi/ChFsiForce.cuh"
 #include "chrono_fsi/ChSphGeneral.cuh"
-#include "chrono_fsi/solver6x6.cuh"
+#include "chrono_fsi/ExactLinearSolvers.cuh"
 
 #include <thrust/extrema.h>
 #include <thrust/sort.h>
@@ -420,7 +420,7 @@ void ChFsiForce::Finalize() {
     cudaMemcpyToSymbolAsync(numObjectsD, numObjectsH, sizeof(NumberOfObjects));
     printf("in finalize forcesystem numAllMarkers=%d\n", numObjectsH->numAllMarkers);
     vel_XSPH_Sorted_D.resize(numObjectsH->numAllMarkers);
-    vel_IISPH_Sorted_D.resize(numObjectsH->numAllMarkers);
+    vel_vis_Sorted_D.resize(numObjectsH->numAllMarkers);
     derivVelRhoD_Sorted_D.resize(numObjectsH->numAllMarkers);
     fsiCollisionSystem->Finalize();
 }

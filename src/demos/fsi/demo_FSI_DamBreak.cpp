@@ -220,20 +220,29 @@ int main(int argc, char* argv[]) {
         SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, 0, mTime);
 
     Real time = 0;
-    Real Global_max_dT = paramsH->dT;
+    Real Global_max_dT = paramsH->dT_Max;
 
-    int next_frame = 1;
     for (int tStep = 0; tStep < stepEnd + 1; tStep++) {
-        printf("step : %d, time= : %f (s) \n", tStep, time);
-        double frame_time = 1.0 / out_fps;
-        myFsiSystem.DoStepDynamics_FSI_Implicit();
-        time += paramsH->dT;
+        //        if (tStep % 2 == 0)
+        //            paramsH->dT = paramsH->dT / 2;
+        //        else
+        //            paramsH->dT = paramsH->dT * 2;
 
-        if (std::abs(time - (double)next_frame * frame_time) < 1e-5 && save_output) {
-            double time = paramsH->dT * tStep;
-            SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, next_frame, time);
-            next_frame = next_frame + 1;
-        }
+        printf("\nstep : %d, time= : %f (s) \n", tStep, time);
+        double frame_time = 1.0 / out_fps;
+        int next_frame = std::floor((time + 1e-6) / frame_time) + 1;
+        double next_frame_time = next_frame * frame_time;
+        double max_allowable_dt = next_frame_time - time;
+        if (max_allowable_dt > 1e-6)
+            paramsH->dT_Max = std::min(Global_max_dT, max_allowable_dt);
+        else
+            paramsH->dT_Max = Global_max_dT;
+
+        printf("next_frame is:%d,  max dt is set to %f\n", next_frame, paramsH->dT_Max);
+        myFsiSystem.DoStepDynamics_FSI_Implicit();
+
+        time += paramsH->dT;
+        SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, next_frame, time);
     }
 
     return 0;
@@ -319,12 +328,15 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
     static double exec_time;
     int out_steps = std::ceil((1.0 / paramsH->dT) / out_fps);
     static int out_frame = 0;
-    chrono::fsi::utils::PrintToFile(
-        myFsiSystem.GetDataManager()->sphMarkersD2.posRadD, myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
-        myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
-        myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray, thrust::host_vector<int4>(), demo_dir, true);
-    cout << "\n------------ Output frame:   " << next_frame << endl;
-    cout << "\n---------------------------------------" << endl;
-
-    out_frame++;
+    double frame_time = 1.0 / out_fps;
+    if (save_output && std::abs(mTime - (next_frame)*frame_time) < 0.00001) {
+        chrono::fsi::utils::PrintToFile(myFsiSystem.GetDataManager()->sphMarkersD2.posRadD,
+                                        myFsiSystem.GetDataManager()->fsiGeneralData.vis_vel_SPH_D,
+                                        myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
+                                        myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
+                                        thrust::host_vector<int4>(), demo_dir, true);
+        cout << "\n------------ Output frame:   " << next_frame << endl;
+        cout << "\n---------------------------------------" << endl;
+        out_frame++;
+    }
 }

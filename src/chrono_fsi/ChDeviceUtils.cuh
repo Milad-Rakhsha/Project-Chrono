@@ -86,7 +86,8 @@ typedef unsigned int uint;
 #define INVPI 0.3183098861837906715377675267450287240689192914809128f
 #define EPSILON 1e-8
 
-#define RESOLUTION_LENGTH_MULT 2
+#define RESOLUTION_LENGTH_MULT 2.0
+//#define RESOLUTION_LENGTH_MULT 3.0
 
 // ----------------------------------------------------------------------------
 // cutilSafeCall
@@ -178,6 +179,12 @@ class CH_FSI_API ChDeviceUtils {
     static void ResizeU1(thrust::device_vector<uint>& mThrustVec, int size);
 
     static void Sync_CheckError(bool* isErrorH, bool* isErrorD, std::string carshReport);
+
+    //    template <class DATATYPE>
+    //    static void CopyD2H(thrust::device_vector<DATATYPE>& DevVec, thrust::host_vector<DATATYPE>& HostVec);
+
+    //    template <class DATATYPE>
+    static void CopyD2H(thrust::device_vector<Real4>& DevVec, thrust::host_vector<Real4>& HostVec);
 
   private:
 };

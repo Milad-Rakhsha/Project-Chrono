@@ -24,26 +24,7 @@
 //==========================================================================================================================================
 namespace chrono {
 namespace fsi {
-// extern __constant__ SimParams paramsD;
-// extern __constant__ NumberOfObjects numObjectsD;
 
-struct compare_Real3_mag {
-    __host__ __device__ bool operator()(Real3 lhs, Real3 rhs) { return length(lhs) < length(rhs); }
-};
-
-// double precision atomic add function
-__device__ inline double datomicAdd(double* address, double val) {
-    unsigned long long int* address_as_ull = (unsigned long long int*)address;
-
-    unsigned long long int old = *address_as_ull, assumed;
-
-    do {
-        assumed = old;
-        old = atomicCAS(address_as_ull, assumed, __double_as_longlong(val + __longlong_as_double(assumed)));
-    } while (assumed != old);
-
-    return __longlong_as_double(old);
-}
 //==========================================================================================================================================
 __global__ void calculate_pressure(Real4* sortedRhoPreMu, const int numAllMarkers, volatile bool* isErrorD) {
     uint i_idx = blockIdx.x * blockDim.x + threadIdx.x;

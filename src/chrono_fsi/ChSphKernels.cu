@@ -25,7 +25,7 @@
 #include <thrust/sort.h>
 #include "chrono_fsi/ChParams.cuh"
 #include "chrono_fsi/ChSphGeneral.cuh"
-#include "chrono_fsi/solver6x6.cuh"
+#include "chrono_fsi/ExactLinearSolvers.cuh"
 
 namespace chrono {
 namespace fsi {}  // namespace fsi

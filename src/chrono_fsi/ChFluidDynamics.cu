@@ -112,7 +112,7 @@ __global__ void ApplyInletBoundaryXKernel(Real4* posRadD, Real3* VelMassD, Real4
         return;
     }
     Real4 rhoPresMu = rhoPresMuD[index];
-    if (fabs(rhoPresMu.w) < .1) {
+    if (rhoPresMu.w > 0.0) {
         return;
     }  // no need to do anything if it is a boundary particle
     Real3 posRad = mR3(posRadD[index]);
@@ -121,22 +121,20 @@ __global__ void ApplyInletBoundaryXKernel(Real4* posRadD, Real3* VelMassD, Real4
     if (posRad.x > paramsD.cMax.x) {
         posRad.x -= (paramsD.cMax.x - paramsD.cMin.x);
         posRadD[index] = mR4(posRad, h);
-        if (rhoPresMu.w < -.1) {
+        if (rhoPresMu.w <= 0.0) {
             rhoPresMu.y = rhoPresMu.y + paramsD.deltaPress.x;
             rhoPresMuD[index] = rhoPresMu;
         }
-        return;
     }
     if (posRad.x < paramsD.cMin.x) {
         posRad.x += (paramsD.cMax.x - paramsD.cMin.x);
         posRadD[index] = mR4(posRad, h);
-        VelMassD[index] = mR3(paramsD.V_in, 0, 0);
+        VelMassD[index] = mR3(paramsD.V_in.x, 0, 0);
 
-        if (rhoPresMu.w < -.1) {
+        if (rhoPresMu.w <= -.1) {
             rhoPresMu.y = rhoPresMu.y - paramsD.deltaPress.x;
             rhoPresMuD[index] = rhoPresMu;
         }
-        return;
     }
 
     if (posRad.x > -paramsD.x_in)
@@ -144,7 +142,7 @@ __global__ void ApplyInletBoundaryXKernel(Real4* posRadD, Real3* VelMassD, Real4
 
     if (posRad.x < paramsD.x_in) {
         //        Real vel = paramsD.V_in * 4 * (posRadD[index].z) * (0.41 - posRadD[index].z) / (0.41 * 0.41);
-        VelMassD[index] = mR3(paramsD.V_in, 0, 0);
+        VelMassD[index] = mR3(paramsD.V_in.x, 0, 0);
     }
 }
 
@@ -458,6 +456,13 @@ ChFluidDynamics::ChFluidDynamics(ChBce* otherBceWorker,
             printf("Created an IISPH frame work.\n");
             break;
 
+        case ChFluidDynamics::Integrator::iSPH:
+            forceSystem =
+                new ChFsiForceiSPH(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
+                                   &(fsiData->fsiGeneralData), paramsH, numObjectsH);
+            printf("Created an IISPH frame work.\n");
+            break;
+
         case ChFluidDynamics::Integrator::XSPH:
             forceSystem =
                 new ChFsiForceXSPH(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
@@ -509,6 +514,10 @@ void ChFluidDynamics::IntegrateIISPH(SphMarkerDataD* sphMarkersD, FsiBodiesDataD
 
     this->ApplyBoundarySPH_Markers(sphMarkersD);
     //    this->ApplyModifiedBoundarySPH_Markers(sphMarkersD);
+    //    Real3 n = mR3(sphMarkersD->velMasD.back());
+    //    Real4 t = mR4(sphMarkersD->rhoPresMuD.back());
+    //    printf("last n= %f,%f,%f", n.x, n.y, n.z);
+    //    printf("last n= %f,%f,%f,%f", t.x, t.y, t.z, t.w);
 }
 
 // -----------------------------------------------------------------------------
@@ -548,15 +557,14 @@ void ChFluidDynamics::UpdateFluid(SphMarkerDataD* sphMarkersD, Real dT) {
 void ChFluidDynamics::UpdateFluid_Implicit(SphMarkerDataD* sphMarkersD) {
     uint numThreads, numBlocks;
     computeGridSize(numObjectsH->numAllMarkers, 256, numBlocks, numThreads);
-    std::cout << "dT in UpdateFluid_Implicit: " << paramsH->dT << "\n";
 
     int haveGhost = (numObjectsH->numGhostMarkers > 0) ? 1 : 0;
     int haveHelper = (numObjectsH->numHelperMarkers > 0) ? 1 : 0;
 
     int4 updatePortion = mI4(fsiData->fsiGeneralData.referenceArray[haveHelper].x,
                              fsiData->fsiGeneralData.referenceArray[haveHelper + haveGhost].y, 0, 0);
-    std::cout << "Skipping the markers greater than "
-              << fsiData->fsiGeneralData.referenceArray[haveHelper + haveGhost].y << " in position update\n";
+    //    std::cout << "Skipping the markers greater than "
+    //              << fsiData->fsiGeneralData.referenceArray[haveHelper + haveGhost].y << " in position update\n";
 
     bool *isErrorH, *isErrorD;
     isErrorH = (bool*)malloc(sizeof(bool));
@@ -564,7 +572,7 @@ void ChFluidDynamics::UpdateFluid_Implicit(SphMarkerDataD* sphMarkersD) {
     *isErrorH = false;
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
     Update_Fluid_State<<<numBlocks, numThreads>>>(
-        mR3CAST(fsiData->fsiGeneralData.vel_XSPH_D), mR3CAST(fsiData->fsiGeneralData.vel_IISPH_D),
+        mR3CAST(fsiData->fsiGeneralData.vel_XSPH_D), mR3CAST(fsiData->fsiGeneralData.vis_vel_SPH_D),
         mR4CAST(sphMarkersD->posRadD), mR3CAST(sphMarkersD->velMasD), mR4CAST(sphMarkersD->rhoPresMuD), updatePortion,
         numObjectsH->numAllMarkers, paramsH->dT, isErrorD);
     cudaThreadSynchronize();

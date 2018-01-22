@@ -25,7 +25,7 @@
 #include "chrono_fsi/ChParams.cuh"
 #include "chrono_fsi/ChSphKernels.cu"
 #include "chrono_fsi/custom_math.h"
-#include "chrono_fsi/solver6x6.cuh"
+#include "chrono_fsi/ExactLinearSolvers.cuh"
 
 // #include <cstdio>
 
@@ -35,7 +35,14 @@ namespace fsi {
 __constant__ SimParams paramsD;
 __constant__ NumberOfObjects numObjectsD;
 void CopyParams_NumberOfObjects(SimParams* paramsH, NumberOfObjects* numObjectsH);
-
+#define W3 W3_Spline
+//#define W2 W2_Spline
+#define GradW GradW_Spline
+//
+//#define W3h W3H_KERNEL
+//#define GradWh W3H_GRADW
+#define W3h W3h_Spline
+#define GradWh GradWh_Spline
 //--------------------------------------------------------------------------------------------------------------------------------
 // 3D SPH kernel function, W3_SplineA
 __device__ inline Real W3_Spline(Real d) {  // d is positive. h is the sph particle radius (i.e. h in
@@ -63,6 +70,39 @@ __device__ inline Real W3h_Spline(Real d, Real h) {  // d is positive. h is the 
     }
     return 0;
 }
+
+//// 3D SPH kernel function, W3_SplineA
+__device__ inline Real W3H_KERNEL(Real d, Real h) {  // d is positive. h is the sph particle radius (i.e. h in
+                                                     // the document) d is the distance of 2 particles
+    Real q = fabs(d) / h;
+    if (q < 1) {
+        return (3.0 / (359 * PI * h * h * h) *
+                (pow(3 - q, Real(5)) - 6 * pow(2 - q, Real(5)) + 15 * pow(1 - q, Real(5))));
+    }
+    if (q < 2) {
+        return (3.0 / (359 * PI * h * h * h) * (pow(3 - q, Real(5)) - 6 * pow(2 - q, Real(5))));
+    }
+    if (q < 3) {
+        return (3.0 / (359 * PI * h * h * h) * (pow(3 - q, Real(5))));
+    }
+    return 0;
+}
+__device__ inline Real3 W3H_GRADW(Real3 d, Real h) {  // d is positive. h is the sph particle radius (i.e. h in
+                                                      // the document) d is the distance of 2 particles
+    Real q = length(d) / h;
+    if (q < 1) {
+        return (-15.0 / (359 * PI * h * h * h * h * h) * d *
+                (pow(3 - q, Real(4)) - 6 * pow(2 - q, Real(4)) + 15 * pow(1 - q, Real(4))));
+    }
+    if (q < 2) {
+        return (-15.0 / (359 * PI * h * h * h * h * h) * d * (pow(3 - q, Real(4)) - 6 * pow(2 - q, Real(4))));
+    }
+    if (q < 3) {
+        return (-15.0 / (359 * PI * h * h * h * h * h) * d * (pow(3 - q, Real(4))));
+    }
+    return mR3(0);
+}
+
 ////--------------------------------------------------------------------------------------------------------------------------------
 ////2D SPH kernel function, W2_SplineA
 //__device__ inline Real W2_Spline(Real d) { // d is positive. h is the sph
@@ -150,12 +190,6 @@ __device__ inline Real3 GradWh_Spline(Real3 d, Real h) {  // d is positive. r is
 //	return mR3(0);
 //}
 //--------------------------------------------------------------------------------------------------------------------------------
-#define W3 W3_Spline
-#define W3h W3h_Spline
-
-//#define W2 W2_Spline
-#define GradW GradW_Spline
-#define GradWh GradWh_Spline
 
 //--------------------------------------------------------------------------------------------------------------------------------
 // Eos is also defined in SDKCollisionSystem.cu
@@ -419,6 +453,9 @@ inline __device__ void BCE_Vel_Acc(int i_idx,
             V_prescribed =
                 NA * vel_fsi_fea_D_nA + NB * vel_fsi_fea_D_nB + NC * vel_fsi_fea_D_nC + ND * vel_fsi_fea_D_nD;
             myAcc = NA * acc_fsi_fea_D_nA + NB * acc_fsi_fea_D_nB + NC * acc_fsi_fea_D_nC + ND * acc_fsi_fea_D_nD;
+            //            printf("i_idx=%d, myAcc:(%f,%f,%f) V_prescribed:(%f,%f,%f) \n", i_idx, myAcc.x, myAcc.y,
+            //            myAcc.z,
+            //                   V_prescribed.x, V_prescribed.y, V_prescribed.z);
         }
     } else {
         printf("i_idx=%d, Original_idx:%d was not found \n\n", i_idx, Original_idx);
@@ -589,7 +626,7 @@ __global__ void calcNormalizedRho_kernel(Real4* sortedPosRad,  // input: sorted 
                                          Real4* sortedRhoPreMu,
                                          Real* sumWij_inv,
                                          Real* G_i,
-                                         Real* dxi_over_Vi,
+                                         Real3* normals,
                                          Real* Color,
                                          uint* cellStart,
                                          uint* cellEnd,
@@ -622,6 +659,30 @@ __global__ void Function_Gradient_Laplacian_Operator(Real4* sortedPosRad,  // in
                                                      uint* numContacts,
                                                      const int numAllMarkers,
                                                      volatile bool* isErrorD);
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void Jacobi_SOR_Iter(Real4* sortedRhoPreMu,
+                                Real* A_Matrix,
+                                Real3* V_old,
+                                Real3* V_new,
+                                Real3* b3vec,
+                                Real* q_old,  // q=p^(n+1)-p^n
+                                Real* q_new,  // q=p^(n+1)-p^n
+                                Real* b1vec,
+                                const uint* csrColInd,
+                                const uint* numContacts,
+                                int numAllMarkers,
+                                bool _3dvector,
+                                volatile bool* isErrorD);
+//--------------------------------------------------------------------------------------------------------------------------------
+__global__ void Update_AND_Calc_Res(Real4* sortedRhoPreMu,
+                                    Real3* V_old,
+                                    Real3* V_new,
+                                    Real* q_old,
+                                    Real* q_new,
+                                    Real* Residuals,
+                                    const int numAllMarkers,
+                                    bool _3dvector,
+                                    volatile bool* isErrorD);
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Initialize_Variables(Real4* sortedRhoPreMu,
                                      Real* p_old,
@@ -656,13 +717,14 @@ __global__ void Calc_Splits_and_Merges(Real4* sortedPosRad,
                                        Real4* sortedRhoPreMu,
                                        Real3* sortedVelMas,
                                        Real3* helpers_normal,
-                                       Real* sumWij_inv,
-                                       Real* G_i,
+                                       Real* A_L,   /// Laplacian Operator matrix
+                                       Real3* A_G,  /// Gradient Operator matrix
+                                       Real* A_f,   /// Function Operator matrix
+                                       const uint* csrColInd,
+                                       const uint* numContacts,
                                        uint* splitMe,
                                        uint* MergeMe,
                                        int* myType,
-                                       uint* cellStart,
-                                       uint* cellEnd,
                                        uint* gridMarkerIndexD,
                                        Real fineResolution,
                                        Real coarseResolution,
@@ -675,14 +737,14 @@ __global__ void Split(Real4* sortedPosRad,
                       Real4* sortedRhoPreMu,
                       Real3* sortedVelMas,
                       Real3* helpers_normal,
-                      Real* sumWij_inv,
-                      Real* G_i,
-                      Real* L_i,
+                      Real* A_L,   /// Laplacian Operator matrix
+                      Real3* A_G,  /// Gradient Operator matrix
+                      Real* A_f,   /// Function Operator matrix
+                      const uint* csrColInd,
+                      const uint* numContacts,
                       uint* splitMe,
                       uint* MergeMe,
                       int* myType,
-                      uint* cellStart,
-                      uint* cellEnd,
                       uint* gridMarkerIndexD,
                       Real fineResolution,
                       Real coarseResolution,

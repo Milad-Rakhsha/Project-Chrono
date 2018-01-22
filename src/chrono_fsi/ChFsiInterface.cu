@@ -17,22 +17,20 @@
 
 #include "chrono_fsi/ChFsiInterface.cuh"
 #include "chrono_fsi/ChFsiTypeConvert.h"
-#include "chrono_fea/ChMesh.h"
-#include "chrono_fea/ChNodeFEAxyzD.h"
+
+#ifdef CHRONO_FEA
 #include "chrono_fea/ChElementCableANCF.h"
 #include "chrono_fea/ChElementShellANCF.h"
+#include "chrono_fea/ChMesh.h"
+#include "chrono_fea/ChNodeFEAxyzD.h"
+#endif
 
 namespace chrono {
 namespace fsi {
 //------------------------------------------------------------------------------------
 ChFsiInterface::ChFsiInterface(FsiBodiesDataH* other_fsiBodiesH,
-                               FsiMeshDataH* other_fsiMeshH,
                                chrono::ChSystem* other_mphysicalSystem,
                                std::vector<std::shared_ptr<chrono::ChBody>>* other_fsiBodeisPtr,
-                               std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* other_fsiNodesPtr,
-                               std::vector<std::shared_ptr<chrono::fea::ChElementCableANCF>>* other_fsiCablesPtr,
-                               std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* other_fsiShellsPtr,
-                               std::shared_ptr<chrono::fea::ChMesh> other_fsiMesh,
                                thrust::host_vector<int2>* other_CableElementsNodesH,
                                thrust::device_vector<int2>* other_CableElementsNodes,
                                thrust::host_vector<int4>* other_ShellElementsNodesH,
@@ -43,34 +41,19 @@ ChFsiInterface::ChFsiInterface(FsiBodiesDataH* other_fsiBodiesH,
     : mphysicalSystem(other_mphysicalSystem),
       fsiBodeisPtr(other_fsiBodeisPtr),
       fsiBodiesH(other_fsiBodiesH),
-      fsiMeshH(other_fsiMeshH),
-      fsi_mesh(other_fsiMesh),
-      fsiNodesPtr(other_fsiNodesPtr),
-      fsiCablesPtr(other_fsiCablesPtr),
-      fsiShellsPtr(other_fsiShellsPtr),
-      rigid_FSI_ForcesD(other_rigid_FSI_ForcesD),
-      rigid_FSI_TorquesD(other_rigid_FSI_TorquesD),
       CableElementsNodesH(other_CableElementsNodesH),
       CableElementsNodes(other_CableElementsNodes),
       ShellElementsNodesH(other_ShellElementsNodesH),
       ShellElementsNodes(other_ShellElementsNodes),
+      rigid_FSI_ForcesD(other_rigid_FSI_ForcesD),
+      rigid_FSI_TorquesD(other_rigid_FSI_TorquesD),
       Flex_FSI_ForcesD(other_Flex_FSI_ForcesD) {
     int numBodies = mphysicalSystem->Get_bodylist()->size();
-    int numShells = 0;
-    int numCables = 0;
-
-    int numNodes = 0;
-
-    if (mphysicalSystem->Get_otherphysicslist()->size())
-        numShells =
-            std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0))->GetNelements();
-
-    if (mphysicalSystem->Get_otherphysicslist()->size())
-        numNodes = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0))->GetNnodes();
-
     chronoRigidBackup = new ChronoBodiesDataH(numBodies);
-    chronoFlexMeshBackup = new ChronoMeshDataH(numNodes);
 
+#ifndef CHRONO_FEA
+    chronoFlexMeshBackup = new ChronoMeshDataH(0);
+#endif
     printf("** size other_fsiBodiesH %d \n ", other_fsiBodiesH->posRigid_fsiBodies_H.size());
     printf("** size chronoRigidBackup %d \n ", chronoRigidBackup->pos_ChSystemH.size());
 }
@@ -132,8 +115,8 @@ void ChFsiInterface::Add_Rigid_ForceTorques_To_ChSystem() {
             bodyPtr->AddForce(hydroTorque);
         }
 
-        thrust::device_vector<Real3> rigidFD=*(rigid_FSI_ForcesD);
-        chrono::ChVector<> mforce = chrono::ChVector<> (0);//ChFsiTypeConvert::Real3ToChVector(rigidFD[i]);
+        thrust::device_vector<Real3> rigidFD = *(rigid_FSI_ForcesD);
+        chrono::ChVector<> mforce = chrono::ChVector<>(0);  // ChFsiTypeConvert::Real3ToChVector(rigidFD[i]);
         chrono::ChVector<> mtorque = ChFsiTypeConvert::Real3ToChVector((*(rigid_FSI_TorquesD))[i]);
 
         hydroForce->SetVpoint(bodyPtr->GetPos());
@@ -145,26 +128,6 @@ void ChFsiInterface::Add_Rigid_ForceTorques_To_ChSystem() {
         mtorque.Normalize();
         hydroTorque->SetDir(mtorque);
     }
-}
-
-void ChFsiInterface::Add_Flex_Forces_To_ChSystem() {
-    int numShells = 0;
-    int numNodes_ChSystem = 0;
-
-    int numNodes = fsiNodesPtr->size();
-    chrono::ChVector<> total_force(0, 0, 0);
-    for (int i = 0; i < numNodes; i++) {
-        chrono::ChVector<> mforce = ChFsiTypeConvert::Real3ToChVector((*Flex_FSI_ForcesD)[i]);
-        // if (mforce.Length() != 0.0)
-        //      printf("Added the force of %f,%f,%f to the flex nodes %d\n", mforce.x, mforce.y, mforce.z, i);
-        auto node = std::dynamic_pointer_cast<fea::ChNodeFEAxyzD>(fsi_mesh->GetNode(i));
-        //    ChVector<> OldForce = node->GetForce();
-        node->SetForce(-mforce);
-
-        total_force += mforce;
-    }
-
-    printf("Total Force from the fluid to the solid = (%f,%f,%f)\n", total_force.x(), total_force.y(), total_force.z());
 }
 
 //------------------------------------------------------------------------------------
@@ -222,6 +185,7 @@ void ChFsiInterface::Copy_ChSystem_to_External() {
         chronoRigidBackup->omegaAccGRF_ChSystemH[i] = ChFsiTypeConvert::ChVectorToReal3(mBody->GetWacc_par());
     }
 
+#ifdef CHRONO_FEA
     int numNodes = fsi_mesh->GetNnodes();
 
     //  int numCables = 0;
@@ -242,6 +206,7 @@ void ChFsiInterface::Copy_ChSystem_to_External() {
         chronoFlexMeshBackup->velFlex_ChSystemH_H[i] = ChFsiTypeConvert::ChVectorToReal3(node->GetPos_dt());
         chronoFlexMeshBackup->accFlex_ChSystemH_H[i] = ChFsiTypeConvert::ChVectorToReal3(node->GetPos_dtdt());
     }
+#endif
 }
 //------------------------------------------------------------------------------------
 // FSI_Bodies_Index_H[i] is the the index of the i_th sph represented rigid body
@@ -268,6 +233,82 @@ void ChFsiInterface::Copy_fsiBodies_ChSystem_to_FluidSystem(FsiBodiesDataD* fsiB
     fsiBodiesD->CopyFromH(*fsiBodiesH);
 }
 
+//------------------------------------------------------------------------------------
+void ChFsiInterface::ResizeChronoBodiesData() {
+    int numBodies = mphysicalSystem->Get_bodylist()->size();
+    chronoRigidBackup->resize(numBodies);
+}
+
+    //------------------------------------------------------------------------------------
+    //------------------------------------------------------------------------------------
+    //-----------------------Chrono FEA Specifics------------------------------------------
+    //------------------------------------------------------------------------------------
+
+#ifdef CHRONO_FEA
+ChFsiInterface::ChFsiInterface(FsiBodiesDataH* other_fsiBodiesH,
+                               FsiMeshDataH* other_fsiMeshH,
+                               chrono::ChSystem* other_mphysicalSystem,
+                               std::vector<std::shared_ptr<chrono::ChBody>>* other_fsiBodeisPtr,
+                               std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* other_fsiNodesPtr,
+                               std::vector<std::shared_ptr<chrono::fea::ChElementCableANCF>>* other_fsiCablesPtr,
+                               std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* other_fsiShellsPtr,
+                               std::shared_ptr<chrono::fea::ChMesh> other_fsiMesh,
+                               thrust::host_vector<int2>* other_CableElementsNodesH,
+                               thrust::device_vector<int2>* other_CableElementsNodes,
+                               thrust::host_vector<int4>* other_ShellElementsNodesH,
+                               thrust::device_vector<int4>* other_ShellElementsNodes,
+                               thrust::device_vector<Real3>* other_rigid_FSI_ForcesD,
+                               thrust::device_vector<Real3>* other_rigid_FSI_TorquesD,
+                               thrust::device_vector<Real3>* other_Flex_FSI_ForcesD)
+    : ChFsiInterface(other_fsiBodiesH,
+                     other_mphysicalSystem,
+                     other_fsiBodeisPtr,
+                     other_CableElementsNodesH,
+                     other_CableElementsNodes,
+                     other_ShellElementsNodesH,
+                     other_ShellElementsNodes,
+                     other_rigid_FSI_ForcesD,
+                     other_rigid_FSI_TorquesD,
+                     other_Flex_FSI_ForcesD) {
+    fsiMeshH = other_fsiMeshH;
+    fsi_mesh = other_fsiMesh;
+    fsiNodesPtr = other_fsiNodesPtr;
+    fsiCablesPtr = other_fsiCablesPtr;
+    fsiShellsPtr = other_fsiShellsPtr;
+    int numShells = 0;
+    int numCables = 0;
+    int numNodes = 0;
+    if (mphysicalSystem->Get_otherphysicslist()->size())
+        numShells =
+            std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0))->GetNelements();
+    if (mphysicalSystem->Get_otherphysicslist()->size())
+        numNodes = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0))->GetNnodes();
+
+    printf("ChFsiInterface::ChFsiInterface numShells=%d \n ", numShells);
+    printf("ChFsiInterface::ChFsiInterface numNodes=%d \n ", numNodes);
+    chronoFlexMeshBackup = new ChronoMeshDataH(numNodes);
+}
+//------------------------------------------------------------------------------------
+void ChFsiInterface::Add_Flex_Forces_To_ChSystem() {
+    int numShells = 0;
+    int numNodes_ChSystem = 0;
+
+    int numNodes = fsiNodesPtr->size();
+    chrono::ChVector<> total_force(0, 0, 0);
+    for (int i = 0; i < numNodes; i++) {
+        chrono::ChVector<> mforce = ChFsiTypeConvert::Real3ToChVector((*Flex_FSI_ForcesD)[i]);
+        // if (mforce.Length() != 0.0)
+        auto node = std::dynamic_pointer_cast<fea::ChNodeFEAxyzD>(fsi_mesh->GetNode(i));
+        //    ChVector<> OldForce = node->GetForce();
+        //        node->SetForce(-mforce);
+
+        total_force += mforce;
+    }
+
+    printf("Total Force from the fluid to the solid = (%f,%f,%f)\n", total_force.x(), total_force.y(), total_force.z());
+}
+//------------------------------------------------------------------------------------
+
 void ChFsiInterface::Copy_fsiNodes_ChSystem_to_FluidSystem(FsiMeshDataD* FsiMeshD) {
     int num_fsiNodes_Felx = fsiNodesPtr->size();
 
@@ -279,12 +320,7 @@ void ChFsiInterface::Copy_fsiNodes_ChSystem_to_FluidSystem(FsiMeshDataD* FsiMesh
     }
     FsiMeshD->CopyFromH(*fsiMeshH);
 }
-
 //------------------------------------------------------------------------------------
-void ChFsiInterface::ResizeChronoBodiesData() {
-    int numBodies = mphysicalSystem->Get_bodylist()->size();
-    chronoRigidBackup->resize(numBodies);
-}
 
 void ChFsiInterface::ResizeChronoNodesData() {
     int numNodes = 0;
@@ -296,8 +332,8 @@ void ChFsiInterface::ResizeChronoNodesData() {
     printf("numNodes in ResizeChronNodesData  %d\n", numNodes);
     chronoFlexMeshBackup->resize(numNodes);
 }
-//------------------------------------------------------------------------------------
 
+//------------------------------------------------------------------------------------
 void ChFsiInterface::ResizeChronoFEANodesData() {
     int numNodes = 0;
     auto my_mesh = std::make_shared<fea::ChMesh>();
@@ -385,7 +421,7 @@ void ChFsiInterface::ResizeChronoShellsData(std::vector<std::vector<int>> ShellE
     //  thrust::copy(ShellelementsNodes_H.begin(), ShellelementsNodes_H.end(), (*ShellElementsNodes).begin());
 }
 
-//------------------------------------------------------------------------------------
+#endif
 
 }  // end namespace fsi
 }  // end namespace chrono

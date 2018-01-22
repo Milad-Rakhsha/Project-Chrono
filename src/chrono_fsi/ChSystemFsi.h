@@ -22,10 +22,7 @@
 
 #include "chrono/ChConfig.h"
 #include "chrono/physics/ChSystem.h"
-#include "chrono_fea/ChElementCableANCF.h"
-#include "chrono_fea/ChElementShellANCF.h"
-#include "chrono_fea/ChMesh.h"
-#include "chrono_fea/ChNodeFEAxyzD.h"
+
 #include "chrono_fsi/ChBce.cuh"
 #include "chrono_fsi/ChFluidDynamics.cuh"
 #include "chrono_fsi/ChFsiDataManager.cuh"
@@ -33,6 +30,16 @@
 #include "chrono_fsi/ChFsiInterface.cuh"
 
 namespace chrono {
+
+#ifdef CHRONO_FEA
+// Forward declaration
+namespace fea {
+class ChNodeFEAxyzD;
+class ChMesh;
+class ChElementCableANCF;
+class ChElementShellANCF;
+}  // namespace fea
+#endif
 namespace fsi {
 
 /// @addtogroup fsi_physics
@@ -51,7 +58,9 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
     /// This class constructor instantiates all the member objects. Wherever relevant, the
     /// instantiation is handled by sending a pointer to other objects or data.
     /// Therefore, the sub-classes have pointers to the same data.
-    ChSystemFsi(ChSystem* other_physicalSystem, bool other_haveFluid, ChFluidDynamics::Integrator type);
+    ChSystemFsi(ChSystem* other_physicalSystem,
+                bool other_haveFluid,
+                ChFluidDynamics::Integrator type = ChFluidDynamics::Integrator::IISPH);
 
     /// Destructor for the FSI system.
     ~ChSystemFsi();
@@ -88,6 +97,12 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
     /// fsi bodies are the ones seen by the fluid dynamics system.
     /// These ChBodies are stored in a std::vector using their shared pointers.
     std::vector<std::shared_ptr<ChBody>>* GetFsiBodiesPtr() { return &fsiBodeisPtr; }
+
+    /// Finzalize data by calling FinalizeData function and finalize fluid and bce
+    /// and also finalizes the fluid and bce objects if the system have fluid.
+    virtual void Finalize();
+
+#ifdef CHRONO_FEA
     std::vector<std::shared_ptr<chrono::fea::ChElementCableANCF>>* GetFsiCablesPtr() { return &fsiCablesPtr; }
     std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>* GetFsiShellsPtr() { return &fsiShellsPtr; }
     std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>>* GetFsiNodesPtr() { return &fsiNodesPtr; }
@@ -98,7 +113,6 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
         int test = fsiData->fsiGeneralData.CableElementsNodes.size();
         std::cout << "numObjects.numFlexNodes" << test << std::endl;
     }
-
     void SetShellElementsNodes(std::vector<std::vector<int>> elementsNodes) {
         ShellElementsNodes = elementsNodes;
         int test = fsiData->fsiGeneralData.ShellElementsNodes.size();
@@ -111,10 +125,7 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
     }
 
     std::shared_ptr<chrono::fea::ChMesh> GetFsiMesh() { return fsi_mesh; }
-
-    /// Finzalize data by calling FinalizeData function and finalize fluid and bce
-    /// and also finalizes the fluid and bce objects if the system have fluid.
-    virtual void Finalize();
+#endif
 
   private:
     /// Integrate the chrono system based on an explicit Euler scheme.
@@ -124,24 +135,22 @@ class CH_FSI_API ChSystemFsi : public ChFsiGeneral {
     std::vector<std::shared_ptr<ChBody>> fsiBodeisPtr;  ///< vector of a pointers to fsi bodies. fsi bodies
                                                         /// are those that interact with fluid
 
-    std::vector<std::vector<int>> ShellElementsNodes;  ///< These are the indices of nodes of each Element
-    std::vector<std::vector<int>> CableElementsNodes;  ///< These are the indices of nodes of each Element
-
+#ifdef CHRONO_FEA
     std::vector<std::shared_ptr<chrono::fea::ChElementCableANCF>>
         fsiCablesPtr;  ///< vector of ChElementShellANCF pointers
     std::vector<std::shared_ptr<chrono::fea::ChElementShellANCF>>
         fsiShellsPtr;                                                      ///< vector of ChElementShellANCF pointers
     std::vector<std::shared_ptr<chrono::fea::ChNodeFEAxyzD>> fsiNodesPtr;  ///< vector of ChNodeFEAxyzD nodes
     std::shared_ptr<chrono::fea::ChMesh> fsi_mesh;                         ///< ChMesh Pointer
-
-    ChFluidDynamics* fluidDynamics;               ///< pointer to the fluid system
-    ChFluidDynamics::Integrator fluidIntegrator;  ///< IISPH by default
-    ChFsiInterface* fsiInterface;                 ///< pointer to the fsi interface system
-    ChBce* bceWorker;                             ///< pointer to the bce workers
-
-    chrono::ChSystem* mphysicalSystem;  ///< pointer to the multibody system
-
-    SimParams* paramsH;            ///< pointer to the simulation parameters
+#endif
+    std::vector<std::vector<int>> ShellElementsNodes;  ///< These are the indices of nodes of each Element
+    std::vector<std::vector<int>> CableElementsNodes;  ///< These are the indices of nodes of each Element
+    ChFluidDynamics* fluidDynamics;                    ///< pointer to the fluid system
+    ChFluidDynamics::Integrator fluidIntegrator;       ///< IISPH by default
+    ChFsiInterface* fsiInterface;                      ///< pointer to the fsi interface system
+    ChBce* bceWorker;                                  ///< pointer to the bce workers
+    chrono::ChSystem* mphysicalSystem;                 ///< pointer to the multibody system
+    SimParams* paramsH;                                ///< pointer to the simulation parameters
     NumberOfObjects* numObjectsH;  ///< pointer to the number of objects, fluid, bce, and boundary markers
 
     double mTime;    ///< current real time of the simulation

@@ -20,12 +20,20 @@
 
 #include <thrust/host_vector.h>
 #include <string>
-#include "chrono_fea/ChElementCableANCF.h"
-#include "chrono_fea/ChElementShellANCF.h"
+#include "chrono/ChConfig.h"
 #include "chrono_fsi/ChParams.cuh"
 #include "chrono_fsi/custom_math.h"
 
 namespace chrono {
+
+#ifdef CHRONO_FEA
+// Forward declaration
+namespace fea {
+class ChElementCableANCF;
+class ChElementShellANCF;
+}  // namespace fea
+#endif
+
 namespace fsi {
 namespace utils {
 // =============================================================================
@@ -45,6 +53,14 @@ void CreateBCE_On_surface_of_Cylinder(thrust::host_vector<Real4>& posRadBCE,
                                       Real spacing);
 
 void CreateBCE_On_Box(thrust::host_vector<Real4>& posRadBCE, const Real3& hsize, int face, SimParams* paramsH);
+
+void LoadBCE_fromFile(thrust::host_vector<Real4>& posRadBCE,  // do not set the
+                                                              // size here since
+                                                              // you are using
+                                                              // push back later
+                      std::string fileName);
+
+#ifdef CHRONO_FEA
 
 void CreateBCE_On_shell(thrust::host_vector<Real4>& posRadBCE,
                         SimParams* paramsH,
@@ -68,12 +84,7 @@ void CreateBCE_On_ChElementShellANCF(thrust::host_vector<Real4>& posRadBCE,
                                      bool multiLayer = true,
                                      bool removeMiddleLayer = false,
                                      int SIDE = -2);
-
-void LoadBCE_fromFile(thrust::host_vector<Real4>& posRadBCE,  // do not set the
-                                                              // size here since
-                                                              // you are using
-                                                              // push back later
-                      std::string fileName);
+#endif
 
 }  // end namespace utils
 }  // end namespace fsi
