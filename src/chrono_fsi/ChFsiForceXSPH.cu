@@ -265,6 +265,7 @@ __global__ void Boundary_Conditions(Real4* sortedPosRad,
 __global__ void Update_Vel_XSPH(Real4* sortedPosRad,
                                 Real4* sortedRhoPreMu,
                                 Real3* sortedVelMas,
+                                Real3* vis_vel,
 
                                 const uint* csrColInd,
                                 const uint* numContacts,
@@ -298,8 +299,12 @@ __global__ void Update_Vel_XSPH(Real4* sortedPosRad,
             Real h_ij = 0.5 * (h_j + h_i);
             Real W3 = W3h(length(rij), h_ij);
             deltaV += 2.0f * m_j / (rho_i + sortedRhoPreMu[j].x) * (sortedVelMas[j] - vel_i) * W3;
+            if (sortedRhoPreMu[j].w == -1.0)
+                vis_vel[i_idx] += m_j / sortedRhoPreMu[j].x * (sortedVelMas[j]) * W3;
         }
-        sortedVelMas[i_idx] += paramsD.EPS_XSPH * deltaV;
+        //        sortedVelMas[i_idx] += paramsD.EPS_XSPH * deltaV;
+        //        sortedVelMas[i_idx] = (1 - paramsD.EPS_XSPH) * sortedVelMas[i_idx] + paramsD.EPS_XSPH *
+        //        vis_vel[i_idx];
     }
 }
 //==========================================================================================================================================
@@ -411,7 +416,8 @@ void ChFsiForceXSPH::ForceSPH(SphMarkerDataD* otherSphMarkersD,
     thrust::fill(csrValLaplacian.begin(), csrValLaplacian.end(), 0.0);
     thrust::fill(csrValFunciton.begin(), csrValFunciton.end(), 0.0);
     thrust::fill(csrColInd.begin(), csrColInd.end(), 0.0);
-
+    thrust::device_vector<Real3> vel_vis(numAllMarkers);
+    thrust::fill(vel_vis.begin(), vel_vis.end(), mR3(0.0));
     //============================================================================================================
     calcNormalizedRho_Gi_fillInMatrixIndices<<<numBlocks, numThreads>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
@@ -455,9 +461,10 @@ void ChFsiForceXSPH::ForceSPH(SphMarkerDataD* otherSphMarkersD,
     calculate_pressure<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->rhoPresMuD), numAllMarkers, isErrorD);
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "calculate_pressure-1");
     //============================================================================================================
-    Update_Vel_XSPH<<<numBlocks, numThreads>>>(
-        mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
-        mR3CAST(sortedSphMarkersD->velMasD), U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, isErrorD);
+    Update_Vel_XSPH<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->posRadD),
+                                               mR4CAST(sortedSphMarkersD->rhoPresMuD),
+                                               mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(vel_vis), U1CAST(csrColInd),
+                                               U1CAST(Contact_i), numAllMarkers, isErrorD);
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Update_Vel_XSPH-1");
 
     // consider boundary condition
@@ -542,9 +549,10 @@ void ChFsiForceXSPH::ForceSPH(SphMarkerDataD* otherSphMarkersD,
     // calculate_pressure<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->rhoPresMuD), numAllMarkers, isErrorD);
     // ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "calculate_pressure-2");
     //============================================================================================================
-    Update_Vel_XSPH<<<numBlocks, numThreads>>>(
-        mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
-        mR3CAST(sortedSphMarkersD->velMasD), U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, isErrorD);
+    Update_Vel_XSPH<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->posRadD),
+                                               mR4CAST(sortedSphMarkersD->rhoPresMuD),
+                                               mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(vel_vis), U1CAST(csrColInd),
+                                               U1CAST(Contact_i), numAllMarkers, isErrorD);
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Update_Vel_XSPH-2");
     // consider boundary condition
     //============================================================================================================
@@ -642,8 +650,6 @@ void ChFsiForceXSPH::ForceSPH(SphMarkerDataD* otherSphMarkersD,
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Gradient_Laplacian_Operator-3");
 
     //============================================================================================================
-    thrust::device_vector<Real3> vel_vis(numAllMarkers);
-    thrust::fill(vel_vis.begin(), vel_vis.end(), mR3(0.0));
     Shifting_r<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
                                           mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(vel_vis), R1CAST(csrValFunciton),
                                           mR3CAST(csrValGradient), U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers,

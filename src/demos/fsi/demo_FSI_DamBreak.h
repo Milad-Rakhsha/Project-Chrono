@@ -35,7 +35,7 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;
-    paramsH->HSML = 0.05;
+    paramsH->HSML = 0.05 / 1.0;
     paramsH->MULT_INITSPACE = 1.0;
     paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
@@ -48,21 +48,19 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->rho0 = 1000;
     paramsH->BASEPRES = 0.0;  // paramsH->rho0 * length(paramsH->gravity) * fzDim;
 
-    paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
     paramsH->mu0 = 0.001;
 
-    paramsH->EPS_XSPH = .5f;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
     paramsH->kappa = 0.0;
 
     paramsH->ApplyInFlowOutFlow = false;
     paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
-    paramsH->dT = 1e-3;
+    paramsH->dT = 2e-3;
     paramsH->dT_Max = 0.1;
     paramsH->Co_number = 0.2;  ///< 0.2 works well for most cases
     paramsH->EPS_XSPH = 0.5;   // Note that increasing this coefficient stabilizes the simulation but adds dissipation
-    paramsH->beta_shifting = 0.001;  // increasing this factor decreases the Lagrangian nature of the model
-    paramsH->v_Max = 1000.0;
+    paramsH->beta_shifting = 0.002;  // increasing this factor decreases the Lagrangian nature of the model
+    paramsH->v_Max = 500.0;
     paramsH->L_Characteristic = fzDim;
 
     paramsH->Conservative_Form = true;

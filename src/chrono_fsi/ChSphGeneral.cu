@@ -672,7 +672,7 @@ __global__ void Function_Gradient_Laplacian_Operator(Real4* sortedPosRad,  // in
 
         Real V_j = sumWij_inv[j];
         A_f[count] = V_j * W3;
-        if (paramsD.Conservative_Form || abs(rhoi - RHO_0) > 0.2 * RHO_0) {
+        if (paramsD.Conservative_Form || abs(rhoi - RHO_0) > 0.2 * RHO_0 || 1) {
             //            Real3 comm = 1 / V_i * (V_j * V_j + V_i * V_i) / (rhoi + sortedRhoPreMu[j].x) * grad_i_wij;
             //            A_G[count] = rhoi * comm;
             //            A_G[csrStartIdx] += sortedRhoPreMu[j].x * comm;
@@ -712,7 +712,8 @@ __global__ void Function_Gradient_Laplacian_Operator(Real4* sortedPosRad,  // in
         Real W3 = W3h(d, h_ij);
         Real3 grad_ij = GradWh(rij, h_ij);
         Real V_j = sumWij_inv[j];
-        //
+        if (d < EPSILON)
+            continue;
         if (paramsD.Conservative_Form || abs(rhoi - RHO_0) > 0.2 * RHO_0) {
             Real comm = 2 / V_i * (V_j * V_j + V_i * V_i) * dot(rij, grad_ij) /
                         (d * d + h_ij * h_ij * paramsD.epsMinMarkersDis);
