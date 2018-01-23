@@ -157,7 +157,8 @@ __global__ void Shifting_r(Real4* sortedPosRad,  // output to sortedPosRad
             summation += m_j * dot((sortedVelMas[i_idx] - sortedVelMas[j]), grad_i_wij);
         }
         r0 /= (csrEndIdx - csrStartIdx - 1);
-        shift_r = 0.5 * r0 * r0 * length(MaxVel) * paramsD.dT / mi_bar * inner_sum;
+        mi_bar /= (csrEndIdx - csrStartIdx);
+        shift_r = paramsD.beta_shifting * r0 * r0 * length(MaxVel) * paramsD.dT / mi_bar * inner_sum;
         sortedRhoPreMu[i_idx].x += paramsD.dT * summation;
         sortedRhoPreMu[i_idx].y = Eos(sortedRhoPreMu[i_idx].x, sortedRhoPreMu[i_idx].w);
 
@@ -227,10 +228,9 @@ __global__ void Boundary_Conditions(Real4* sortedPosRad,
     Real3 posRadA = mR3(sortedPosRad[i_idx]);
     Real3 myAcc = mR3(0);
     Real3 V_prescribed = mR3(0);
-       BCE_Vel_Acc(i_idx, myAcc, V_prescribed, sortedPosRad, updatePortion, gridMarkerIndexD,
-       velMassRigid_fsiBodies_D,
-                   accRigid_fsiBodies_D, rigidIdentifierD, pos_fsi_fea_D, vel_fsi_fea_D, acc_fsi_fea_D,
-                   FlexIdentifierD, numFlex1D, CableElementsNodes, ShellelementsNodes);
+    BCE_Vel_Acc(i_idx, myAcc, V_prescribed, sortedPosRad, updatePortion, gridMarkerIndexD, velMassRigid_fsiBodies_D,
+                accRigid_fsiBodies_D, rigidIdentifierD, pos_fsi_fea_D, vel_fsi_fea_D, acc_fsi_fea_D, FlexIdentifierD,
+                numFlex1D, CableElementsNodes, ShellelementsNodes);
     Real pRHS1 = 0.0;
     Real pRHS2 = 0.0;
 
@@ -593,7 +593,7 @@ void ChFsiForceXSPH::ForceSPH(SphMarkerDataD* otherSphMarkersD,
     Real MaxVel = length(*iter);
 
     fsiCollisionSystem->ArrangeData(otherSphMarkersD);
-    //3rd call
+    // 3rd call
     //============================================================================================================
     calcRho_kernel<<<numBlocks, numThreads>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),
@@ -650,7 +650,7 @@ void ChFsiForceXSPH::ForceSPH(SphMarkerDataD* otherSphMarkersD,
                                           MaxVel, isErrorD);
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Shifting_r");
 
-    CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vel_XSPH_D, vel_vis, markersProximityD->gridMarkerIndexD);
+    CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vis_vel_SPH_D, vel_vis, markersProximityD->gridMarkerIndexD);
     CopySortedToOriginal_NonInvasive_R3(otherSphMarkersD->velMasD, sortedSphMarkersD->velMasD,
                                         markersProximityD->gridMarkerIndexD);
     CopySortedToOriginal_NonInvasive_R4(otherSphMarkersD->rhoPresMuD, sortedSphMarkersD->rhoPresMuD,
