@@ -98,7 +98,7 @@ bool save_output = true;
 std::vector<std::vector<int>> NodeNeighborElementMesh;
 
 bool povray_output = true;
-int out_fps = 1000;
+int out_fps = 100;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -114,7 +114,7 @@ Real fzDim = 0.0035;
 
 // For displacement driven method
 double Indentor_R = 0.0032;
-double Indentaiton_rate = -500.0 * 1e-6;
+double Indentaiton_rate = -10.0 * 1e-6;
 double x0 = bzDim;
 
 // For force-driven method
@@ -189,7 +189,7 @@ int main(int argc, char* argv[]) {
     time(&rawtime);
     timeinfo = localtime(&rawtime);
     std::cout << "Starting device 1 on" << std::endl;
-    cudaSetDevice(0);
+    cudaSetDevice(1);
 
     if (ChFileutils::MakeDirectory(out_dir.c_str()) < 0) {
         cout << "Error creating directory " << out_dir << endl;
@@ -217,7 +217,7 @@ int main(int argc, char* argv[]) {
 
     // ************* Create Fluid *************************
     ChSystemSMC mphysicalSystem;
-    chrono::fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::IISPH);
+    chrono::fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
     chrono::ChVector<> CameraLocation = chrono::ChVector<>(0, -10, 0);
     chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
 

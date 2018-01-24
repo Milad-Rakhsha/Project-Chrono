@@ -55,19 +55,19 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->deltaPress = mR3(0.0, 0, 0.0);
     paramsH->multViscosity_FSI = 1;
     paramsH->gravity = mR3(0.0, 0, 0.0);
-    paramsH->bodyForce3 = mR3(0.005, 0, 0);
+    paramsH->bodyForce3 = mR3(0.05, 0, 0);
     paramsH->V_in = mR3(0.0, 0, 0.0);
     paramsH->x_in = -bxDim / 2 + 3 * initSpace;
 
     paramsH->dT = 1e-3;
-    paramsH->dT_Max = 0.2;
+    paramsH->dT_Max = 0.5;
     paramsH->Co_number = 0.3;  ///< 0.2 works well for most cases
     paramsH->rho0 = 1;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
     paramsH->mu0 = 0.002;
     paramsH->kappa = 0.0;     ///< surface tension parameter, experimental
     paramsH->v_Max = 0.0;     // Arman, I changed it to 0.1 for vehicle. Check this
-    paramsH->EPS_XSPH = 0.0;  // Note that increasing this coefficient stabilizes the simulation but adds dissipation
+    paramsH->EPS_XSPH = 0.1;  // Note that increasing this coefficient stabilizes the simulation but adds dissipation
     paramsH->beta_shifting = 0.1;  // increasing this factor decreases the Lagrangian nature of the model
     paramsH->L_Characteristic = bzDim;
 

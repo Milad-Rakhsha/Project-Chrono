@@ -361,8 +361,14 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
+                                               Real4* sortedPosRad_old,
+
                                                Real4* sortedRhoPreMu,
+                                               Real4* sortedRhoPreMu_old,
+
                                                Real3* sortedVelMas,
+                                               Real3* sortedVelMas_old,
+
                                                Real3* sortedVisVel,
                                                Real3* Vstar,
                                                Real* q_i,  // q=p^(n+1)-p^n
@@ -378,7 +384,8 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
     if (i_idx >= numAllMarkers) {
         return;
     }
-
+    // Note that every variable that is used inside the for loops should not be overwritten later otherwise there would
+    // be a race condition. For such variables one must use the old values.
     uint csrStartIdx = numContacts[i_idx];
     uint csrEndIdx = numContacts[i_idx + 1];
     Real3 grad_q_i = mR3(0.0);
@@ -390,18 +397,18 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
         uint j = csrColInd[count];
         grad_q_i += A_G[count] * q_i[j];
         divV_star += dot(A_G[count], Vstar[j]);
-        grad_p_nPlus1 += A_G[count] * (sortedRhoPreMu[j].y + q_i[j]);
-        Real3 rij = Distance(mR3(sortedPosRad[i_idx]), mR3(sortedPosRad[j]));
+        grad_p_nPlus1 += A_G[count] * (sortedRhoPreMu_old[j].y + q_i[j]);
+        Real3 rij = Distance(mR3(sortedPosRad_old[i_idx]), mR3(sortedPosRad_old[j]));
         Real d = length(rij);
         if (count == csrStartIdx)
             continue;
-        Real m_j = pow(sortedPosRad[j].w * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
+        Real m_j = pow(sortedPosRad_old[j].w * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
         mi_bar += m_j;
         r0 += d;
         inner_sum += m_j * rij / (d * d * d);
     }
 
-    if (sortedRhoPreMu[i_idx].w == -1.0) {
+    if (sortedRhoPreMu_old[i_idx].w == -1.0) {
         r0 /= (csrEndIdx - csrStartIdx);
         mi_bar /= (csrEndIdx - csrStartIdx);
     }
@@ -431,11 +438,11 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
     //
     //    for (int count = csrStartIdx; count < csrEndIdx; count++) {
     //        uint j = csrColInd[count];
-    //        grad_p += A_G[count] * sortedRhoPreMu[i_idx].y;
-    //        grad_rho += A_G[count] * sortedRhoPreMu[i_idx].x;
-    //        grad_ux += A_G[count] * sortedVelMas[i_idx].x;
-    //        grad_uy += A_G[count] * sortedVelMas[i_idx].y;
-    //        grad_uz += A_G[count] * sortedVelMas[i_idx].z;
+    //        grad_p += A_G[count] * sortedRhoPreMu_old[i_idx].y;
+    //        grad_rho += A_G[count] * sortedRhoPreMu_old[i_idx].x;
+    //        grad_ux += A_G[count] * sortedVelMas_old[i_idx].x;
+    //        grad_uy += A_G[count] * sortedVelMas_old[i_idx].y;
+    //        grad_uz += A_G[count] * sortedVelMas_old[i_idx].z;
     //    }
     //
     //    if (sortedRhoPreMu[i_idx].w == -1.0) {
@@ -451,7 +458,7 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
     //
     //    for (int count = csrStartIdx; count < csrEndIdx; count++) {
     //        uint j = csrColInd[count];
-    //        vis_vel += A_f[count] * (sortedVelMas[j]);
+    //        vis_vel += A_f[count] * (sortedVelMas_old[j]);
     //    }
 
     //    sortedVisVel[i_idx] = vis_vel;
@@ -459,8 +466,11 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Shifting(Real4* sortedPosRad,
+                         Real4* sortedPosRad_old,
                          Real4* sortedRhoPreMu,
+                         Real4* sortedRhoPreMu_old,
                          Real3* sortedVelMas,
+                         Real3* sortedVelMas_old,
                          Real3* sortedVisVel,
                          const Real* A_f,
                          const Real3* A_G,
@@ -482,20 +492,20 @@ __global__ void Shifting(Real4* sortedPosRad,
 
     for (int count = csrStartIdx; count < csrEndIdx; count++) {
         uint j = csrColInd[count];
-        Real3 rij = Distance(mR3(sortedPosRad[i_idx]), mR3(sortedPosRad[j]));
+        Real3 rij = Distance(mR3(sortedPosRad_old[i_idx]), mR3(sortedPosRad_old[j]));
         Real d = length(rij);
         if (count == csrStartIdx)
             continue;
 
-        v_bar += length(A_f[count] * (sortedVelMas[j]));
-        Real m_j = pow(sortedPosRad[j].w * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
+        v_bar += length(A_f[count] * (sortedVelMas_old[j]));
+        Real m_j = pow(sortedPosRad_old[j].w * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
         mi_bar += m_j;
         r0 += d;
         //        inner_sum += rij / (d * d * d);
         inner_sum += m_j * rij / (d * d * d);
     }
 
-    if (sortedRhoPreMu[i_idx].w == -1.0) {
+    if (sortedRhoPreMu_old[i_idx].w == -1.0) {
         r0 /= (csrEndIdx - csrStartIdx);
         mi_bar /= (csrEndIdx - csrStartIdx);
     }
@@ -511,11 +521,11 @@ __global__ void Shifting(Real4* sortedPosRad,
 
     for (int count = csrStartIdx; count < csrEndIdx; count++) {
         uint j = csrColInd[count];
-        grad_p += A_G[count] * sortedRhoPreMu[i_idx].y;
-        grad_rho += A_G[count] * sortedRhoPreMu[i_idx].x;
-        grad_ux += A_G[count] * sortedVelMas[i_idx].x;
-        grad_uy += A_G[count] * sortedVelMas[i_idx].y;
-        grad_uz += A_G[count] * sortedVelMas[i_idx].z;
+        grad_p += A_G[count] * sortedRhoPreMu_old[i_idx].y;
+        grad_rho += A_G[count] * sortedRhoPreMu_old[i_idx].x;
+        grad_ux += A_G[count] * sortedVelMas_old[i_idx].x;
+        grad_uy += A_G[count] * sortedVelMas_old[i_idx].y;
+        grad_uz += A_G[count] * sortedVelMas_old[i_idx].z;
     }
 
     if (sortedRhoPreMu[i_idx].w == -1.0) {
@@ -531,8 +541,8 @@ __global__ void Shifting(Real4* sortedPosRad,
 
     for (int count = csrStartIdx; count < csrEndIdx; count++) {
         uint j = csrColInd[count];
-        if (sortedRhoPreMu[j].w == -1.0)
-            vis_vel += A_f[count] * (sortedVelMas[j]);
+        //        if (sortedRhoPreMu_old[j].w == -1.0)
+        vis_vel += A_f[count] * (sortedVelMas_old[j]);
     }
 
     sortedVisVel[i_idx] = vis_vel;
@@ -849,12 +859,16 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
            Iteration);
     //==================================Velocity_Correction_and_update============================================
     double updateClock = clock();
+    thrust::device_vector<Real4> rhoPresMuD_old = sortedSphMarkersD->rhoPresMuD;
+    thrust::device_vector<Real4> posRadD_old = sortedSphMarkersD->posRadD;
+    thrust::device_vector<Real3> velMasD_old = sortedSphMarkersD->velMasD;
+
     thrust::fill(vel_vis_Sorted_D.begin(), vel_vis_Sorted_D.end(), mR3(0.0));
     Velocity_Correction_and_update<<<numBlocks, numThreads>>>(
-        mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
-        mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(vel_vis_Sorted_D), mR3CAST(V_star_new), R1CAST(q_new),
-        R1CAST(csrValFunciton), mR3CAST(csrValGradient), U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, MaxVel,
-        paramsH->dT, isErrorD);
+        mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(posRadD_old), mR4CAST(sortedSphMarkersD->rhoPresMuD),
+        mR4CAST(rhoPresMuD_old), mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(velMasD_old), mR3CAST(vel_vis_Sorted_D),
+        mR3CAST(V_star_new), R1CAST(q_new), R1CAST(csrValFunciton), mR3CAST(csrValGradient), U1CAST(csrColInd),
+        U1CAST(Contact_i), numAllMarkers, MaxVel, paramsH->dT, isErrorD);
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Velocity_Correction_and_update");
 
     thrust::device_vector<uint> SplitMe(numAllMarkers);
@@ -912,10 +926,15 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
 
     fsiCollisionSystem->ArrangeData(sphMarkersD);
     ChFsiForceI2SPH::PreProcessor(sortedSphMarkersD, false, false);
-    Shifting<<<numBlocks, numThreads>>>(mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(sortedSphMarkersD->rhoPresMuD),
-                                        mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(vel_vis_Sorted_D),
-                                        R1CAST(csrValFunciton), mR3CAST(csrValGradient), U1CAST(csrColInd),
-                                        U1CAST(Contact_i), numAllMarkers, MaxVel, paramsH->dT, isErrorD);
+
+    rhoPresMuD_old = sortedSphMarkersD->rhoPresMuD;
+    posRadD_old = sortedSphMarkersD->posRadD;
+    velMasD_old = sortedSphMarkersD->velMasD;
+    Shifting<<<numBlocks, numThreads>>>(
+        mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(posRadD_old), mR4CAST(sortedSphMarkersD->rhoPresMuD),
+        mR4CAST(rhoPresMuD_old), mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(velMasD_old), mR3CAST(vel_vis_Sorted_D),
+        R1CAST(csrValFunciton), mR3CAST(csrValGradient), U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, MaxVel,
+        paramsH->dT, isErrorD);
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Shifting");
     Real4_x unary_op(paramsH->rho0);
     thrust::plus<Real> binary_op;

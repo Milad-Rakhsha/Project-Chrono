@@ -58,42 +58,41 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 0.05;
     paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->EPS_XSPH = .5f;
 
     paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
     paramsH->dT = 1e-3;
     paramsH->dT_Flex = paramsH->dT / 5;
-    paramsH->dT_Max = 0.2;
+    paramsH->dT_Max = 1.0;
     paramsH->Co_number = 0.2;  ///< 0.2 works well for most cases
     paramsH->EPS_XSPH = 0.0;   // Note that increasing this coefficient stabilizes the simulation but adds dissipation
     paramsH->beta_shifting = 0.0;  // increasing this factor decreases the Lagrangian nature of the model
 
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 0.1;
+    paramsH->mu0 = 0.05;
     paramsH->kappa = 0.000;  ///< surface tension parameter, experimental
     paramsH->v_Max = 0.0;    // Arman, I changed it to 0.1 for vehicle. Check this
 
     paramsH->L_Characteristic = bzDim;
-    paramsH->USE_LinearSolver = true;  ///< IISPH parameter: whether or not use linear solvers
+    paramsH->USE_LinearSolver = false;  ///< IISPH parameter: whether or not use linear solvers
     paramsH->USE_Iterative_solver = false;
     paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
     paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
     paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
-    paramsH->LinearSolver_Rel_Tol = 1e-8;  ///< relative res, is used in the matrix free solver and linear solvers
-    paramsH->LinearSolver_Abs_Tol = 1e-5;  ///< absolute error, applied when linear solvers are used
-    paramsH->LinearSolver_Max_Iter = 500;  ///< max number of iteration for linear solvers
-    paramsH->PPE_relaxation = 0.5;         ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
+    paramsH->LinearSolver_Rel_Tol = 1e-8;   ///< relative res, is used in the matrix free solver and linear solvers
+    paramsH->LinearSolver_Abs_Tol = 1e-8;   ///< absolute error, applied when linear solvers are used
+    paramsH->LinearSolver_Max_Iter = 2000;  ///< max number of iteration for linear solvers
+    paramsH->PPE_relaxation = 0.99;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
     /// Experimental parameters
     paramsH->Max_Pressure = 1e5;
     paramsH->IncompressibilityFactor = 1;  ///< to tune the compression
     paramsH->ClampPressure = false;        ///< If the negative pressure should be clamped to zero or not
     paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 
-    paramsH->Conservative_Form = true;
-    paramsH->USE_NonIncrementalProjection = false;
+    paramsH->Conservative_Form = false;
+    paramsH->USE_NonIncrementalProjection = true;
     paramsH->ApplyInFlowOutFlow = false;
 
     paramsH->tFinal = 2;
@@ -107,7 +106,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->enableAggressiveTweak = 0;
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
-    paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
+    paramsH->bceType = mORIGINAL;  // ADAMI, mORIGINAL
     paramsH->cMin = mR3(-bxDim, -byDim, -bzDim) - 1.35 * paramsH->HSML;
     paramsH->cMax = mR3(bxDim, byDim, 2 * bzDim) + 3.25 * paramsH->HSML;
 
