@@ -204,34 +204,31 @@ void CreateBCE_On_Box(thrust::host_vector<Real4>& posRadBCE, const Real3& hsize,
 }
 // =============================================================================
 
-void LoadBCE_fromFile(thrust::host_vector<Real4>& posRadBCE,  // do not set the
-                                                              // size here since
-                                                              // you are using
-                                                              // push back later
-                      std::string fileName) {
+void LoadBCE_fromFile(thrust::host_vector<Real4>& posRadBCE, std::string fileName, double scale) {
     std::string ddSt;
     char buff[256];
     int numBce = 0;
-    const int cols = 3;
+    const int cols = 4;
     std::cout << "  reading BCE data from: " << fileName << " ...\n";
     std::ifstream inMarker;
     inMarker.open(fileName);
     if (!inMarker) {
-        std::cout << "   Error! Unable to open file: " << fileName << std::endl;
+        std::cerr << "   Error! Unable to open file: " << fileName << std::endl;
     }
     getline(inMarker, ddSt);
     Real q[cols];
     while (getline(inMarker, ddSt)) {
         std::stringstream linestream(ddSt);
         for (int i = 0; i < cols; i++) {
-            linestream.getline(buff, 50, ',');
+            linestream.getline(buff, 500, ',');
             q[i] = atof(buff);
         }
-        posRadBCE.push_back(mR4(q[0], q[1], q[2], q[3]));
+        posRadBCE.push_back(mR4(q[0] * scale, q[1] * scale, q[2] * scale, q[3]));
+        //        printf("loading particles from file %f,%f,%f,%f\n", q[0], q[1], q[2], q[3]);
         numBce++;
     }
 
-    std::cout << "  Loaded BCE data from: " << fileName << std::endl;
+    std::cout << "  Loaded " << numBce << " BCE data from: " << fileName << std::endl;
 }
 
 #ifdef CHRONO_FEA
@@ -369,8 +366,14 @@ void CreateBCE_On_ChElementShellANCF(thrust::host_vector<Real4>& posRadBCE,
                                      std::vector<int> remove,
                                      bool multiLayer,
                                      bool removeMiddleLayer,
-                                     int SIDE) {
-    Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
+                                     int SIDE,
+                                     double kernel_h) {
+    Real initSpace0;
+    if (kernel_h == 0)
+        initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
+    else
+        initSpace0 = paramsH->MULT_INITSPACE * kernel_h;
+
     double dx = shell->GetLengthX() / 2;
     double dy = shell->GetLengthY() / 2;
     printf("CreateBCE_On_ChElementShellANCF: dx,dy=%f,%f\n", dx, dy);
@@ -431,7 +434,7 @@ void CreateBCE_On_ChElementShellANCF(thrust::host_vector<Real4>& posRadBCE,
                 if (con1 || con2 || con3 || con4)
                     continue;
 
-                posRadBCE.push_back(mR4(relMarkerPos, paramsH->HSML));
+                posRadBCE.push_back(mR4(relMarkerPos, (kernel_h == 0) ? paramsH->HSML : kernel_h));
             }
         }
     }

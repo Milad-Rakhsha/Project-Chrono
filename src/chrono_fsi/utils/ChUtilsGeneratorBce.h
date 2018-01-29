@@ -54,11 +54,7 @@ void CreateBCE_On_surface_of_Cylinder(thrust::host_vector<Real4>& posRadBCE,
 
 void CreateBCE_On_Box(thrust::host_vector<Real4>& posRadBCE, const Real3& hsize, int face, SimParams* paramsH);
 
-void LoadBCE_fromFile(thrust::host_vector<Real4>& posRadBCE,  // do not set the
-                                                              // size here since
-                                                              // you are using
-                                                              // push back later
-                      std::string fileName);
+void LoadBCE_fromFile(thrust::host_vector<Real4>& posRadBCE, std::string fileName, double scale = 1);
 
 #ifdef CHRONO_FEA
 
@@ -83,7 +79,8 @@ void CreateBCE_On_ChElementShellANCF(thrust::host_vector<Real4>& posRadBCE,
                                      std::vector<int> remove,
                                      bool multiLayer = true,
                                      bool removeMiddleLayer = false,
-                                     int SIDE = -2);
+                                     int SIDE = -2,
+                                     double kernel_h = 0);
 #endif
 
 }  // end namespace utils

@@ -60,9 +60,10 @@
 #include "chrono_fea/ChLinkDirFrame.h"
 #include "chrono_fea/ChLinkPointFrame.h"
 #include "chrono_fea/ChMesh.h"
+#include "chrono_fea/ChMeshFileLoader.h"
 
 // FSI Interface Includes
-#include "demos/fsi/demo_FSI_Flexible_fin.h"
+#include "demos/fsi/demo_FSI_Fish.h"
 
 #define haveFluid 1
 
@@ -77,7 +78,7 @@ std::ofstream simParams;
 std::string delim = ",";
 
 //****************************************************************************************
-const std::string out_dir = GetChronoOutputPath() + "FSI_Flexible_fin";
+const std::string out_dir = GetChronoOutputPath() + "FSI_Fish";
 const std::string data_folder = out_dir + "/Paraview/";
 std::string MESH_CONNECTIVITY = data_folder + "Flex_MESH.vtk";
 // Save data as csv files, turn it on to be able to see the results off-line using paraview
@@ -85,24 +86,24 @@ bool pv_output = true;
 
 std::vector<std::vector<int>> NodeNeighborElementMesh;
 
-int out_fps = 200;
+int out_fps = 1000;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 // Dimension of the domain
-Real bxDim = 1.0;
+Real bxDim = 0.5;
 Real byDim = 1.0;
-Real bzDim = 1.0;
+Real bzDim = 0.5;
 
 // Dimension of the fluid domain
 Real fxDim = bxDim;
 Real fyDim = byDim;
-Real fzDim = 0.4;
+Real fzDim = 0.01;
 Real cyl_length;
 Real RADIUS = 0.1;
 
-std::string saveAsObj = data_folder + "LegObjConectivity.vtk";
+std::string saveAsObj = data_folder + "bodyObjConectivity.vtk";
 std::vector<std::vector<double>> vCoor;
 std::vector<std::vector<int>> faces;
 
@@ -140,7 +141,7 @@ int main(int argc, char* argv[]) {
     timeinfo = localtime(&rawtime);
     // You can set your cuda device, if you have multiple of them
     // If not this should be set to 0 or not specified at all
-    cudaSetDevice(1);
+    cudaSetDevice(0);
 
     if (ChFileutils::MakeDirectory(out_dir.c_str()) < 0) {
         cout << "Error creating directory " << out_dir << endl;
@@ -266,11 +267,7 @@ int main(int argc, char* argv[]) {
 
         printf("next_frame is:%d,  max dt is set to %f\n", next_frame, paramsH->dT_Max);
 
-#if haveFluid
         myFsiSystem.DoStepDynamics_FSI_Implicit();
-#else
-        myFsiSystem.DoStepDynamics_ChronoRK2();
-#endif
         time += paramsH->dT;
         SaveParaViewFiles(myFsiSystem, mphysicalSystem, Cylinder, my_mesh, NodeNeighborElementMesh, paramsH, next_frame,
                           time);
@@ -284,7 +281,7 @@ int main(int argc, char* argv[]) {
 // bce representation are created and added to the systems
 //------------------------------------------------------------------
 void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, chrono::fsi::SimParams* paramsH) {
-    mphysicalSystem.Set_G_acc(ChVector<>(0, 0, -0.001));
+    mphysicalSystem.Set_G_acc(ChVector<>(0, 0, -0.000010));
     auto mysurfmaterial = std::make_shared<ChMaterialSurfaceSMC>();
 
     // Set common material Properties
@@ -319,198 +316,243 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
     // MBD representation of walls
     chrono::utils::AddBoxGeometry(ground.get(), sizeBottom, posBot, chrono::QUNIT, true);
-    //    chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xp, chrono::QUNIT, true);
-    //    chrono::utils::AddBoxGeometry(ground.get(), size_YZ, pos_xn, chrono::QUNIT, true);
-    //    chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yp, chrono::QUNIT, true);
-    //    chrono::utils::AddBoxGeometry(ground.get(), size_XZ, pos_yn, chrono::QUNIT, true);
+
     mphysicalSystem.AddBody(ground);
 
-#if haveFluid
-    // Fluid representation of walls
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posBot, chrono::QUNIT, sizeBottom, 12);
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT, sizeBottom, 12);
-//    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_xp, chrono::QUNIT, size_YZ, 23);
-//    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_xn, chrono::QUNIT, size_YZ, 23);
-//    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yp, chrono::QUNIT, size_XZ, 13);
-//    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_yn, chrono::QUNIT, size_XZ, 13);
-#endif
 
     // ******************************* Flexible bodies ***********************************
     // Create a mesh, that is a container for groups of elements and their referenced nodes.
-    auto joint = std::make_shared<ChBodyEasySphere>(0.01, 1000);
-    ChVector<> CENTER_JOINT(-fxDim / 2 * 0.5 + initSpace0 * 5, 0.0, bzDim / 2 + initSpace0 * 0);
+    auto Fish = std::make_shared<ChBodyEasySphere>(0.01, 1000);
+    ChVector<> CENTER_JOINT(0.0, 0.0, bzDim / 2 + initSpace0 * 0);
     printf("CENTER_JOINT=%f,%f,%f", CENTER_JOINT.x(), CENTER_JOINT.y(), CENTER_JOINT.z());
     Real THETA_MAX = 3.1415 / 2;
     cyl_length = initSpace0 * 20;
-    joint->SetPos(CENTER_JOINT);
-    ChQuaternion<double> RelRotation = Q_from_AngZ(-CH_C_PI / 4);
+    Fish->SetPos(CENTER_JOINT);
+    ChQuaternion<double> RelRotation = Q_from_AngZ(CH_C_PI / 2);
 
-    joint->SetMaterialSurface(mysurfmaterial);
+    Fish->SetMaterialSurface(mysurfmaterial);
 
-    joint->SetBodyFixed(false);
-    joint->SetCollide(true);
+    Fish->SetBodyFixed(false);
+    Fish->SetCollide(true);
 
     double volume = utils::CalcCylinderVolume(RADIUS, cyl_length);
     ChVector<> gyration = utils::CalcCylinderGyration(RADIUS, cyl_length).Get_Diag();
     double density = paramsH->rho0 * 10;
     double mass = density * volume;
-    joint->SetMass(mass);
-    joint->SetInertiaXX(mass * gyration);
-    joint->GetCollisionModel()->ClearModel();
-    joint->GetCollisionModel()->SetSafeMargin(0.2);
-    joint->SetCollide(true);
-    utils::AddCylinderGeometry(joint.get(), 0.03, cyl_length, CENTER_JOINT, RelRotation);
+    Fish->SetMass(mass);
+    Fish->SetInertiaXX(mass * gyration);
+    Fish->GetCollisionModel()->ClearModel();
+    Fish->GetCollisionModel()->SetSafeMargin(0.2);
+    Fish->SetCollide(true);
+    utils::AddCylinderGeometry(Fish.get(), 0.03, cyl_length, CENTER_JOINT, RelRotation);
 
-    joint->GetCollisionModel()->BuildModel();
+    Fish->GetCollisionModel()->BuildModel();
     int numRigidObjects = mphysicalSystem.Get_bodylist()->size();
     std::vector<std::shared_ptr<ChBody>>* fsiBodeisPtr = myFsiSystem.GetFsiBodiesPtr();
-    fsiBodeisPtr->push_back(joint);
-    //    chrono::fsi::utils::AddCylinderBce(myFsiSystem.GetDataManager(), paramsH, joint, ChVector<>(0, 0, 0),
-    //                                       Q_from_AngX(CH_C_PI / 2), RADIUS, cyl_length, paramsH->HSML, false);
+    fsiBodeisPtr->push_back(Fish);
+    Fish->SetMaterialSurface(mysurfmaterial);
+    auto mobjmesh = std::make_shared<ChObjShapeFile>();
+    mobjmesh->SetFilename(GetChronoDataFile("fsi/Fish_body.obj"));
 
-    chrono::fsi::utils::AddBCE_FromFile(myFsiSystem.GetDataManager(), paramsH, joint,
-                                        GetChronoDataFile("fsi/fin_rigid.txt").c_str(), ChVector<>(0), RelRotation);
+    chrono::fsi::utils::AddBCE_FromFile(myFsiSystem.GetDataManager(), paramsH, Fish,
+                                        GetChronoDataFile("fsi/Fish_body.sph").c_str(), ChVector<>(0), RelRotation);
 
-    ReadOBJConnectivity(GetChronoDataFile("fsi/duckLeg.obj").c_str(), saveAsObj, vCoor, faces);
+    ReadOBJConnectivity(GetChronoDataFile("fsi/Fish_body.obj").c_str(), saveAsObj, vCoor, faces);
 
-    mphysicalSystem.Add(joint);
+    mphysicalSystem.Add(Fish);
 
     auto MarkerGround = std::make_shared<ChMarker>();
     auto MarkerIndentor = std::make_shared<ChMarker>();
     ground->AddMarker(MarkerGround);
-    joint->AddMarker(MarkerIndentor);
+    Fish->AddMarker(MarkerIndentor);
 
     auto my_link = std::make_shared<ChLinkLockLock>();
     my_link->Initialize(MarkerIndentor, MarkerGround);
     mphysicalSystem.AddLink(my_link);
     //
-    impose_motion(my_link, CENTER_JOINT, 0.1, 10.0, 0);
+    impose_motion(my_link, CENTER_JOINT, 0.00, 10.0, 0);
 
     auto my_mesh = std::make_shared<fea::ChMesh>();
-
-    int numFlexBody = 1;
-    // Geometry of the plate
-    double plate_lenght_x = 0.32;
-    double plate_lenght_y = 0.12;
-    double plate_lenght_z = 0.005;
-    // Specification of the mesh
-    int numDiv_x = 8;
-    int numDiv_y = 3;
-    int numDiv_z = 1;
-    int N_x = numDiv_x + 1;
-    int N_y = numDiv_y + 1;
-    int N_z = numDiv_z + 1;
-    // Number of elements in the z direction is considered as 1
-    int TotalNumElements = numDiv_x * numDiv_y;
-    int TotalNumNodes = (numDiv_x + 1) * (numDiv_y + 1);
-    // For uniform mesh
-    double dx = plate_lenght_x / numDiv_x;
-    double dy = plate_lenght_y / numDiv_y;
-    double dz = plate_lenght_z / numDiv_z;
-    std::vector<std::vector<int>> elementsNodes_mesh;
-    std::vector<std::vector<int>> NodeNeighborElement_mesh;
-    elementsNodes_mesh.resize(TotalNumElements);
-    NodeNeighborElement_mesh.resize(TotalNumNodes);
-
-    // Create and add the nodes
-    for (int i = 0; i < TotalNumNodes; i++) {
-        // Node location
-        double loc_x = (i % (numDiv_x + 1)) * dx + CENTER_JOINT.x();
-        double loc_y = (i / (numDiv_x + 1)) % (numDiv_y + 1) * dy + CENTER_JOINT.y() - plate_lenght_y / 2;
-        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + CENTER_JOINT.z() - plate_lenght_z / 2;
-
-        double theta_x = loc_y / plate_lenght_y * THETA_MAX;
-        loc_x += (RADIUS)*cos(theta_x);
-        loc_y += (RADIUS / 2) * (loc_x - CENTER_JOINT.x()) / plate_lenght_x * theta_x;
-
-        // Node direction
-        double dir_x = 0;
-        double dir_y = 0;
-        double dir_z = 1;
-
-        // Create the node
-        auto node = std::make_shared<ChNodeFEAxyzD>(ChVector<>(loc_x, loc_y, loc_z), ChVector<>(dir_x, dir_y, dir_z));
-
-        node->SetMass(0);
-        // Fix all nodes along the axis X=0
-
-        if (i % (numDiv_x + 1) == 0) {
-            //            node->SetFixed(true);
-
-            auto NodePos = std::make_shared<ChLinkPointFrame>();
-            auto NodeDir = std::make_shared<ChLinkDirFrame>();
-            printf("indentation is applied to node %d pos=(%f, %f, %f)\n", i, node->GetPos().x(), node->GetPos().y(),
-                   node->GetPos().z());
-
-            NodePos->Initialize(node, joint);
-            mphysicalSystem.Add(NodePos);
-
-            NodeDir->Initialize(node, joint);
-            NodeDir->SetDirectionInAbsoluteCoords(node->D);
-            mphysicalSystem.Add(NodeDir);
-
-            std::cout << node->GetIndex() << delim << 2 << delim << node->GetPos().x() << delim << node->GetPos().y()
-                      << delim << node->GetPos().z() << std::endl;
-        }
-        // Add node to mesh
-        my_mesh->AddNode(node);
-    }
-    // Get a handle to the tip node.
-    auto nodetip = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(TotalNumNodes - 1));
-
-    // Create an isotropic material.
-    // All layers for all elements share the same material.
+    std::vector<double> NODE_AVE_AREA;
+    std::vector<int> BC_NODES;
     double rho = 1000;
-    double E = 5e9;
+    double E = 5e6;
     double nu = 0.3;
     auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
-    // Create the elements
-    for (int i = 0; i < TotalNumElements; i++) {
-        // Adjacent nodes
-        int node0 = (i / (numDiv_x)) * (N_x) + i % numDiv_x;
-        int node1 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + 1;
-        int node2 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + 1 + N_x;
-        int node3 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + N_x;
-        elementsNodes_mesh[i].push_back(node0);
-        elementsNodes_mesh[i].push_back(node1);
-        elementsNodes_mesh[i].push_back(node2);
-        elementsNodes_mesh[i].push_back(node3);
-        NodeNeighborElement_mesh[node0].push_back(i);
-        NodeNeighborElement_mesh[node1].push_back(i);
-        NodeNeighborElement_mesh[node2].push_back(i);
-        NodeNeighborElement_mesh[node3].push_back(i);
-        // Create the element and set its nodes.
-        auto element = std::make_shared<ChElementShellANCF>();
-        element->SetNodes(std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node0)),
-                          std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node1)),
-                          std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node2)),
-                          std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node3)));
+    std::vector<std::vector<int>> elementsNodes_mesh;
+    std::vector<std::vector<int>> NodeNeighborElement_mesh;
 
-        ChVector<> n1p = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node0))->GetPos();
-        ChVector<> n2p = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node1))->GetPos();
-        ChVector<> n3p = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node2))->GetPos();
-        ChVector<> n4p = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node3))->GetPos();
-
-        double dx = 0.5 * ((n2p - n1p).Length() + (n4p - n3p).Length());
-        double dy = 0.5 * ((n3p - n2p).Length() + (n4p - n1p).Length());
-
-        // Set element dimensions
-        element->SetDimensions(dx, dy);
-
-        // Add a single layers with a fiber angle of 0 degrees.
-        element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, mat);
-
-        // Set other element properties
-        element->SetAlphaDamp(0.2);    // Structural damping for this element
-        element->SetGravityOn(false);  // turn internal gravitational force calculation off
-
-        // Add element to mesh
-        my_mesh->AddElement(element);
-        ChVector<> center = 0.25 * (element->GetNodeA()->GetPos() + element->GetNodeB()->GetPos() +
-                                    element->GetNodeC()->GetPos() + element->GetNodeD()->GetPos());
-        cout << "Adding element" << i << "  with center:  " << center.x() << " " << center.y() << " " << center.z()
-             << "dx,dy= " << dx << ", " << dy << endl;
+    //
+    try {
+        ChMeshFileLoader::ANCFShellFromGMFFile(my_mesh, GetChronoDataFile("fsi/Mesh_tail.mesh").c_str(), mat,
+                                               NODE_AVE_AREA, BC_NODES, elementsNodes_mesh, NodeNeighborElement_mesh,
+                                               CENTER_JOINT - ChVector<>(0, -0.245, 0), Q_from_AngZ(-CH_C_PI / 2), 50.0,
+                                               true, true);
+    } catch (ChException myerr) {
+        GetLog() << myerr.what();
+        return;
     }
+
+    for (int node = 0; node < my_mesh->GetNnodes(); node++) {
+        auto ConstrainedNode = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node));
+
+        if (ConstrainedNode->GetPos().y() > 0.18)
+            continue;
+        //        ConstrainedNode->SetFixed(true);
+
+        auto NodePos = std::make_shared<ChLinkPointFrame>();
+        auto NodeDir = std::make_shared<ChLinkDirFrame>();
+        printf("indentation is applied to node %d pos=(%f, %f, %f)\n", node, ConstrainedNode->GetPos().x(),
+               ConstrainedNode->GetPos().y(), ConstrainedNode->GetPos().z());
+
+        NodePos->Initialize(ConstrainedNode, Fish);
+        mphysicalSystem.Add(NodePos);
+
+        NodeDir->Initialize(ConstrainedNode, Fish);
+        NodeDir->SetDirectionInAbsoluteCoords(ConstrainedNode->D);
+        mphysicalSystem.Add(NodeDir);
+
+        std::cout << ConstrainedNode->GetIndex() << delim << 2 << delim << ConstrainedNode->GetPos().x() << delim
+                  << ConstrainedNode->GetPos().y() << delim << ConstrainedNode->GetPos().z() << std::endl;
+    }
+
+    //        if (i % (numDiv_x + 1) == 0) {
+    //            //            node->SetFixed(true);
+    //
+
+    //        }
+
+    printf("num nodes=%d, num elem=%d\n", my_mesh->GetNnodes(), my_mesh->GetNelements());
+
+    //    int numFlexBody = 1;
+    //    // Geometry of the plate
+    //    double plate_lenght_x = 0.32;
+    //    double plate_lenght_y = 0.12;
+    //    double plate_lenght_z = 0.005;
+    //    // Specification of the mesh
+    //    int numDiv_x = 8;
+    //    int numDiv_y = 3;
+    //    int numDiv_z = 1;
+    //    int N_x = numDiv_x + 1;
+    //    int N_y = numDiv_y + 1;
+    //    int N_z = numDiv_z + 1;
+    //    // Number of elements in the z direction is considered as 1
+    //    int TotalNumElements = numDiv_x * numDiv_y;
+    //    int TotalNumNodes = (numDiv_x + 1) * (numDiv_y + 1);
+    //    // For uniform mesh
+    //    double dx = plate_lenght_x / numDiv_x;
+    //    double dy = plate_lenght_y / numDiv_y;
+    //    double dz = plate_lenght_z / numDiv_z;
+    //    std::vector<std::vector<int>> elementsNodes_mesh;
+    //    std::vector<std::vector<int>> NodeNeighborElement_mesh;
+    //    elementsNodes_mesh.resize(TotalNumElements);
+    //    NodeNeighborElement_mesh.resize(TotalNumNodes);
+    //
+    //    // Create and add the nodes
+    //    for (int i = 0; i < TotalNumNodes; i++) {
+    //        // Node location
+    //        double loc_x = (i % (numDiv_x + 1)) * dx + CENTER_JOINT.x();
+    //        double loc_y = (i / (numDiv_x + 1)) % (numDiv_y + 1) * dy + CENTER_JOINT.y() - plate_lenght_y / 2;
+    //        double loc_z = (i) / ((numDiv_x + 1) * (numDiv_y + 1)) * dz + CENTER_JOINT.z() - plate_lenght_z / 2;
+    //
+    //        double theta_x = loc_y / plate_lenght_y * THETA_MAX;
+    //        loc_x += (RADIUS)*cos(theta_x);
+    //        loc_y += (RADIUS / 2) * (loc_x - CENTER_JOINT.x()) / plate_lenght_x * theta_x;
+    //
+    //        // Node direction
+    //        double dir_x = 0;
+    //        double dir_y = 0;
+    //        double dir_z = 1;
+    //
+    //        // Create the node
+    //        auto node = std::make_shared<ChNodeFEAxyzD>(ChVector<>(loc_x, loc_y, loc_z), ChVector<>(dir_x, dir_y,
+    //        dir_z));
+    //
+    //        node->SetMass(0);
+    //        // Fix all nodes along the axis X=0
+    //
+    //        if (i % (numDiv_x + 1) == 0) {
+    //            //            node->SetFixed(true);
+    //
+    //            auto NodePos = std::make_shared<ChLinkPointFrame>();
+    //            auto NodeDir = std::make_shared<ChLinkDirFrame>();
+    //            printf("indentation is applied to node %d pos=(%f, %f, %f)\n", i, node->GetPos().x(),
+    //            node->GetPos().y(),
+    //                   node->GetPos().z());
+    //
+    //            NodePos->Initialize(node, Fish);
+    //            mphysicalSystem.Add(NodePos);
+    //
+    //            NodeDir->Initialize(node, Fish);
+    //            NodeDir->SetDirectionInAbsoluteCoords(node->D);
+    //            mphysicalSystem.Add(NodeDir);
+    //
+    //            std::cout << node->GetIndex() << delim << 2 << delim << node->GetPos().x() << delim <<
+    //            node->GetPos().y()
+    //                      << delim << node->GetPos().z() << std::endl;
+    //        }
+    //        // Add node to mesh
+    //        my_mesh->AddNode(node);
+    //    }
+    //    // Get a handle to the tip node.
+    //    auto nodetip = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(TotalNumNodes - 1));
+    //
+    //    // Create an isotropic material.
+    //    // All layers for all elements share the same material.
+    //    double rho = 1000;
+    //    double E = 5e9;
+    //    double nu = 0.3;
+    //    auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
+    //    // Create the elements
+    //    for (int i = 0; i < TotalNumElements; i++) {
+    //        // Adjacent nodes
+    //        int node0 = (i / (numDiv_x)) * (N_x) + i % numDiv_x;
+    //        int node1 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + 1;
+    //        int node2 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + 1 + N_x;
+    //        int node3 = (i / (numDiv_x)) * (N_x) + i % numDiv_x + N_x;
+    //        elementsNodes_mesh[i].push_back(node0);
+    //        elementsNodes_mesh[i].push_back(node1);
+    //        elementsNodes_mesh[i].push_back(node2);
+    //        elementsNodes_mesh[i].push_back(node3);
+    //        NodeNeighborElement_mesh[node0].push_back(i);
+    //        NodeNeighborElement_mesh[node1].push_back(i);
+    //        NodeNeighborElement_mesh[node2].push_back(i);
+    //        NodeNeighborElement_mesh[node3].push_back(i);
+    //        // Create the element and set its nodes.
+    //        auto element = std::make_shared<ChElementShellANCF>();
+    //        element->SetNodes(std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node0)),
+    //                          std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node1)),
+    //                          std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node2)),
+    //                          std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node3)));
+    //
+    //        ChVector<> n1p = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node0))->GetPos();
+    //        ChVector<> n2p = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node1))->GetPos();
+    //        ChVector<> n3p = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node2))->GetPos();
+    //        ChVector<> n4p = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(node3))->GetPos();
+    //
+    //        double dx = 0.5 * ((n2p - n1p).Length() + (n4p - n3p).Length());
+    //        double dy = 0.5 * ((n3p - n2p).Length() + (n4p - n1p).Length());
+    //
+    //        // Set element dimensions
+    //        element->SetDimensions(dx, dy);
+    //
+    //        // Add a single layers with a fiber angle of 0 degrees.
+    //        element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, mat);
+    //
+    //        // Set other element properties
+    //        element->SetAlphaDamp(0.2);    // Structural damping for this element
+    //        element->SetGravityOn(false);  // turn internal gravitational force calculation off
+    //
+    //        // Add element to mesh
+    //        my_mesh->AddElement(element);
+    //        ChVector<> center = 0.25 * (element->GetNodeA()->GetPos() + element->GetNodeB()->GetPos() +
+    //                                    element->GetNodeC()->GetPos() + element->GetNodeD()->GetPos());
+    //        cout << "Adding element" << i << "  with center:  " << center.x() << " " << center.y() << " " <<
+    //        center.z()
+    //             << "dx,dy= " << dx << ", " << dy << endl;
+    //    }
 
     // Add the mesh to the system
     mphysicalSystem.Add(my_mesh);
@@ -526,8 +568,9 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     std::vector<std::vector<int>> _1D_elementsNodes_mesh;
     chrono::fsi::utils::AddBCE_FromMesh(myFsiSystem.GetDataManager(), paramsH, my_mesh, FSI_Nodes, FSI_Cables,
                                         FSI_Shells, NodeNeighborElement_mesh, _1D_elementsNodes_mesh,
-                                        elementsNodes_mesh, add1DElem, add2DElem, multilayer, removeMiddleLayer, 0, 0);
-
+                                        elementsNodes_mesh, add1DElem, add2DElem, multilayer, removeMiddleLayer, 0, 0,
+                                        paramsH->HSML / 2);
+    printf("done");
     myFsiSystem.SetShellElementsNodes(elementsNodes_mesh);
     myFsiSystem.SetFsiMesh(my_mesh);
     writeMesh(my_mesh, MESH_CONNECTIVITY, NodeNeighborElementMesh);
@@ -537,7 +580,7 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 //------------------------------------------------------------------
 void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
                        ChSystemSMC& mphysicalSystem,
-                       std::shared_ptr<ChBody> DuckLeg,
+                       std::shared_ptr<ChBody> Fish,
                        std::shared_ptr<fea::ChMesh> my_mesh,
                        std::vector<std::vector<int>> NodeNeighborElementMesh,
                        chrono::fsi::SimParams* paramsH,
@@ -564,9 +607,9 @@ void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
         char SaveAsBufferObjVTK[256];  // The filename buffer.
 
         snprintf(MeshFileBufferObj, sizeof(char) * 256, ("%s"), saveAsObj.c_str());
-        snprintf(SaveAsBufferObjVTK, sizeof(char) * 256, (data_folder + "/Leg.%d.vtk").c_str(), out_frame);
+        snprintf(SaveAsBufferObjVTK, sizeof(char) * 256, (data_folder + "/body.%d.vtk").c_str(), out_frame);
 
-        WriteRigidBodyVTK(DuckLeg, vCoor, SaveAsBufferObjVTK, MeshFileBufferObj);
+        WriteRigidBodyVTK(Fish, vCoor, SaveAsBufferObjVTK, MeshFileBufferObj);
 
         RigidCounter++;
 
@@ -575,7 +618,7 @@ void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
         cout << "---------------------------------------------" << endl;
 
         char SaveAsBuffer[256];  // The filename buffer.
-        snprintf(SaveAsBuffer, sizeof(char) * 256, (data_folder + "/flex_body.%d.vtk").c_str(), next_frame);
+        snprintf(SaveAsBuffer, sizeof(char) * 256, (data_folder + "/tail.%d.vtk").c_str(), next_frame);
         char MeshFileBuffer[256];  // The filename buffer.
         snprintf(MeshFileBuffer, sizeof(char) * 256, ("%s"), MESH_CONNECTIVITY.c_str());
         writeFrame(my_mesh, SaveAsBuffer, MeshFileBuffer, NodeNeighborElementMesh);
@@ -589,6 +632,7 @@ void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
 void writeMesh(std::shared_ptr<ChMesh> my_mesh,
                std::string SaveAs,
                std::vector<std::vector<int>>& NodeNeighborElement) {
+    printf("writeMesh...\n");
     utils::CSV_writer MESH(" ");
     NodeNeighborElement.resize(my_mesh->GetNnodes());
     MESH.stream().setf(std::ios::scientific | std::ios::showpos);
@@ -658,23 +702,23 @@ void impose_motion(std::shared_ptr<ChLinkLockLock> my_link,
             return (y);
         }
     };
-    class z_motion : public ChFunction {
+    class sin_motion : public ChFunction {
       public:
-        double z0;
+        double x0;
         double R;
         double theta0;
         double omega;
-        z_motion(double mz0, double mR, double momega, double mtheta0) {
-            z0 = mz0;
+        sin_motion(double mx0, double mR, double momega, double mtheta0) {
+            x0 = mx0;
             R = mR;
             theta0 = mtheta0;
             omega = momega;
         }
-        virtual z_motion* Clone() const override { return new z_motion(z0, R, omega, theta0); }
+        virtual sin_motion* Clone() const override { return new sin_motion(x0, R, omega, theta0); }
 
         virtual double Get_y(double x) const override {
             double y;
-            y = -R * (1 - cos(omega * x + theta0)) + z0;
+            y = -R * (1 - cos(omega * x + theta0)) + x0;
 
             return (y);
         }
@@ -683,12 +727,13 @@ void impose_motion(std::shared_ptr<ChLinkLockLock> my_link,
     // printf("\n\n\n\n\n Applying motion_Z with rate: %f\n\n", Indentaiton_rate);
     //    z_motion* mymotion_z = new z_motion(center.z(), Rin, omegain, theta0in);
     //    x_motion* mymotion_x = new x_motion(center.x(), Rin, omegain, theta0in);
-    std::shared_ptr<x_motion> mymotion_x = std::make_shared<x_motion>(center.x(), Rin, omegain, theta0in);
-    std::shared_ptr<z_motion> mymotion_z = std::make_shared<z_motion>(center.z(), Rin, omegain, theta0in);
+    //    std::shared_ptr<x_motion> mymotion_x = std::make_shared<x_motion>(center.x(), Rin, omegain, theta0in);
+    std::shared_ptr<sin_motion> mymotion_sin = std::make_shared<sin_motion>(center.x(), Rin, omegain, theta0in);
+    std::shared_ptr<x_motion> mymotion_x = std::make_shared<x_motion>(center.x(), 0, 0, theta0in);
 
-    my_link->SetMotion_X(mymotion_x);
+    my_link->SetMotion_X(mymotion_sin);
     my_link->SetMotion_Y(std::make_shared<ChFunction_Const>(0));
-    my_link->SetMotion_Z(mymotion_z);
+    my_link->SetMotion_Z(mymotion_x);
 }
 
 //------------------------------------------------------------------
@@ -947,7 +992,7 @@ void WriteRigidBodyVTK(std::shared_ptr<ChBody> Body,
 
     ChVector<> position = Body->GetPos();
     ChMatrix33<> Rotation = Body->GetRot();
-    ChMatrix33<> RelRotation(Q_from_AngZ(-CH_C_PI / 4));
+    ChMatrix33<> RelRotation(Q_from_AngZ(0.0));
 
     Rotation = Rotation * RelRotation;
     std::vector<ChVector<double>> writeV;

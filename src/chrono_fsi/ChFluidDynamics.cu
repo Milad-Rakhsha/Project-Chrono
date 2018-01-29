@@ -447,9 +447,9 @@ ChFluidDynamics::ChFluidDynamics(ChBce* otherBceWorker,
                 new ChFsiForceI2SPH(otherBceWorker, &(fsiData->sortedSphMarkersD), &(fsiData->markersProximityD),
                                     &(fsiData->fsiGeneralData), paramsH, numObjectsH);
             printf("Created an I2SPH frame work.\n");
-            if (paramsD.bceType == ADAMI && paramsD.USE_NonIncrementalProjection)
+            if (paramsH->bceType == ADAMI && paramsH->USE_NonIncrementalProjection)
                 std::cerr << "ADAMI boundary condition is only applicable to incremental Projection method. Please "
-                             "revise the BC scheme or use non-incremental\n";
+                             "revise the BC scheme or set USE_NonIncrementalProjection to false.\n";
 
             break;
 

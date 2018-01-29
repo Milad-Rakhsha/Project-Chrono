@@ -114,7 +114,7 @@ Real fzDim = 0.0035;
 
 // For displacement driven method
 double Indentor_R = 0.0032;
-double Indentaiton_rate = -10.0 * 1e-6;
+double Indentaiton_rate = -21.0 * 1e-6;
 double x0 = bzDim;
 
 // For force-driven method
@@ -224,7 +224,7 @@ int main(int argc, char* argv[]) {
     chrono::fsi::SimParams* paramsH = myFsiSystem.GetSimParams();
 
     SetupParamsH(paramsH, bxDim, byDim, bzDim, fxDim, fyDim, fzDim);
-#if haveFluid
+
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
     utils::GridSampler<> sampler(initSpace0);
 
@@ -313,7 +313,6 @@ int main(int argc, char* argv[]) {
         myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray.push_back(
             mI4(numFluidPart, numFluidPart, 0, 0));  // Arman : delete later
     }
-#endif
 
     // ********************** Create Rigid ******************************
 

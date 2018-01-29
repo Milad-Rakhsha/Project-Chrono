@@ -27,7 +27,7 @@ ds=np.array(c1);
 Ff=np.array(c2);
 Fi=np.array(c3);
 rho=np.array(c4);
-Indentation_rate=(ds[2]-ds[1])/(t[2]-t[1])
+Indentation_rate=(ds[1]-ds[0])/(t[1]-t[0])
 fig = plt.figure(num=None, figsize=(8, 6), dpi=120, facecolor='w', edgecolor='k')
 ax1 = fig.add_subplot(211)
 ax1.set_title("Indentation rate ={} $\mu m/s$".format(Indentation_rate*1e6))    

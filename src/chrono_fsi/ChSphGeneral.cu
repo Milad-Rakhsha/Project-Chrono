@@ -438,7 +438,7 @@ __global__ void calcNormalizedRho_kernel(Real4* sortedPosRad,  // input: sorted 
     //    sortedRhoPreMu[i_idx].x = (sum_mW / sum_W_sumWij_inv - RHO_0) * IncompressibilityFactor + RHO_0;
 
     //    if (sortedRhoPreMu[i_idx].x < EPSILON)
-    if ((sortedRhoPreMu[i_idx].x > 5 * RHO_0 || sortedRhoPreMu[i_idx].x < RHO_0 / 5) && sortedRhoPreMu[i_idx].w > -2)
+    if ((sortedRhoPreMu[i_idx].x > 5 * RHO_0 || sortedRhoPreMu[i_idx].x < RHO_0 / 5) && sortedRhoPreMu[i_idx].w == -1)
         printf(
             "calcNormalizedRho_kernel-- sortedRhoPreMu[i_idx].w=%f, h=%f, sum_mW=%f, "
             "sum_W_sumWij_inv=%.4e, sortedRhoPreMu[i_idx].x=%.4e\n",
@@ -896,9 +896,10 @@ __global__ void UpdateDensity(Real3* vis_vel,
             }
         }
     }
-    if (abs(normalizedV_d) > 1e-5) {
+    if (abs(normalizedV_d) > EPSILON) {
         vis_vel[i_idx] = normalizedV_n / normalizedV_d;
-        new_vel[i_idx] = paramsD.EPS_XSPH * vis_vel[i_idx] + (1 - paramsD.EPS_XSPH) * new_vel[i_idx];
+        //        new_vel[i_idx] = paramsD.EPS_XSPH * vis_vel[i_idx] + (1 - paramsD.EPS_XSPH) * new_vel[i_idx]; //race
+        //        condition
     }
 
     sortedRhoPreMu[i_idx].x += rho_plus * dT;

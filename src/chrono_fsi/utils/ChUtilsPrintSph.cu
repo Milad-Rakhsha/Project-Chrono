@@ -118,7 +118,7 @@ void PrintToFile(const thrust::device_vector<Real4>& posRadD,
     fileNameFluidBoundaries << ssFluidBoundaryParticles.str();
     fileNameFluidBoundaries.close();
     //*****************************************************
-    const std::string nameBCE = out_dir + std::string("/BCE") + std::string(fileCounter) + std::string(".csv");
+    const std::string nameBCE = out_dir + std::string("/BCE_Rigid") + std::string(fileCounter) + std::string(".csv");
 
     std::ofstream fileNameBCE;
     fileNameBCE.open(nameBCE);
@@ -129,15 +129,17 @@ void PrintToFile(const thrust::device_vector<Real4>& posRadD,
 
     int refSize = referenceArray.size();
     if (refSize > 2) {
-        for (int i = referenceArray[startFluid + 2].x; i < referenceArray[startFluid + 2].y; i++) {
+        for (int i = referenceArray[haveHelper + haveGhost + 2].x; i < referenceArray[refSize - 1].y; i++) {
+            //            if (referenceArray[haveHelper + haveGhost + 2].w)
             Real4 pos = posRadH[i];
             Real3 vel = velMasH[i] + mR3(1e-20);
             Real4 rP = rhoPresMuH[i];
             Real velMag = length(vel);
 
-            ssBCE << pos.x << ", " << pos.y << ", " << pos.z << ", " << pos.w << ", " << vel.x + eps << ", "
-                  << vel.y + eps << ", " << vel.z + eps << ", " << velMag + eps << ", " << rP.x << ", " << rP.y + eps
-                  << ", " << rP.z << ", " << rP.w << std::endl;
+            if (rP.w == 1.0)
+                ssBCE << pos.x << ", " << pos.y << ", " << pos.z << ", " << pos.w << ", " << vel.x + eps << ", "
+                      << vel.y + eps << ", " << vel.z + eps << ", " << velMag + eps << ", " << rP.x << ", "
+                      << rP.y + eps << ", " << rP.z << ", " << rP.w << std::endl;
         }
     }
     fileNameBCE << ssBCE.str();

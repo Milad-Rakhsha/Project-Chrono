@@ -65,7 +65,7 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
     if (i_idx >= numAllMarkers) {
         return;
     }
-    Real CN = 0.5;
+    Real CN = 1.0;
 
     uint csrStartIdx = numContacts[i_idx];
     uint csrEndIdx = numContacts[i_idx + 1];
@@ -254,15 +254,15 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
         Bi[i_idx] = div_vi_star / delta_t;
 
         //======================== Free-Surface =====================
-        //        if (sortedRhoPreMu[i_idx].x < 0.95 * paramsD.rho0) {
-        //            clearRow(i_idx, csrStartIdx, csrEndIdx, A_Matrix, Bi);
-        //            //            for (int count = csrStartIdx; count < csrEndIdx; count++) {
-        //            //                uint j = csrColInd[count];
-        //            //                A_Matrix[count] = A_f[count];
-        //            //            }
-        //            A_Matrix[csrStartIdx] += 1.0;
-        //            Bi[i_idx] = -sortedRhoPreMu[i_idx].y * !paramsD.USE_NonIncrementalProjection;
-        //        }
+        if (sortedRhoPreMu[i_idx].x < 0.95 * paramsD.rho0) {
+            clearRow(i_idx, csrStartIdx, csrEndIdx, A_Matrix, Bi);
+            //            for (int count = csrStartIdx; count < csrEndIdx; count++) {
+            //                uint j = csrColInd[count];
+            //                A_Matrix[count] = A_f[count];
+            //            }
+            A_Matrix[csrStartIdx] += 1.0;
+            Bi[i_idx] = -sortedRhoPreMu[i_idx].y * !paramsD.USE_NonIncrementalProjection;
+        }
 
         //======================== Inflow/outflow =====================
         if (paramsD.ApplyInFlowOutFlow) {
@@ -353,7 +353,7 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
     }
 
     if (paramsD.USE_NonIncrementalProjection)
-        q_old[i_idx] = sortedRhoPreMu[i_idx].y;
+        q_old[i_idx] = 0.0;  // sortedRhoPreMu[i_idx].y;
 
     if (abs(A_Matrix[csrStartIdx]) < EPSILON)
         printf("Pressure_Equation %d A_Matrix[csrStartIdx]= %f, type=%f \n", i_idx, A_Matrix[csrStartIdx],
@@ -370,6 +370,8 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
                                                Real3* sortedVelMas_old,
 
                                                Real3* sortedVisVel,
+                                               Real4* derivVelRho,
+
                                                Real3* Vstar,
                                                Real* q_i,  // q=p^(n+1)-p^n
                                                const Real* A_f,
@@ -416,6 +418,14 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
     shift_r = paramsD.beta_shifting * r0 * r0 * length(MaxVel) * delta_t * inner_sum / mi_bar;
 
     Real3 V_new = Vstar[i_idx] - delta_t / sortedRhoPreMu[i_idx].x * grad_q_i;
+
+    Real m_i = pow(sortedPosRad[i_idx].w * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
+
+    Real3 m_dv_dt = m_i * (V_new - sortedVelMas_old[i_idx]) / delta_t;
+
+    if (length(m_dv_dt) > EPSILON)
+        printf("%f\n", length(m_dv_dt));
+    derivVelRho[i_idx] = mR4(m_dv_dt, 0.0);
 
     Real4 x_new = sortedPosRad[i_idx] + mR4(delta_t / 2 * (V_new + sortedVelMas[i_idx]), 0.0);
 
@@ -688,7 +698,8 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
 
     if (paramsH->Adaptive_time_stepping) {
         Real dt_CFL = paramsH->Co_number * paramsH->HSML / MaxVel;
-        Real dt_nu = 0.125 * paramsH->HSML * paramsH->HSML / (paramsH->mu0 / paramsH->rho0);
+        Real dt_nu = 0.125 * paramsH->HSML * paramsH->HSML / (paramsH->mu0 / paramsH->rho0) *
+                     2000;  // since viscosity is treated implicitly
         Real dt_body = 0.125 * std::sqrt(paramsH->HSML / length(paramsH->bodyForce3 + paramsH->gravity));
         Real dt = std::min(dt_body, std::min(dt_CFL, dt_nu));
         if (dt / paramsH->dT_Max > 0.7 && dt / paramsH->dT_Max < 1)
@@ -864,11 +875,13 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     thrust::device_vector<Real3> velMasD_old = sortedSphMarkersD->velMasD;
 
     thrust::fill(vel_vis_Sorted_D.begin(), vel_vis_Sorted_D.end(), mR3(0.0));
+    thrust::fill(derivVelRhoD_Sorted_D.begin(), derivVelRhoD_Sorted_D.end(), mR4(0.0));
+
     Velocity_Correction_and_update<<<numBlocks, numThreads>>>(
         mR4CAST(sortedSphMarkersD->posRadD), mR4CAST(posRadD_old), mR4CAST(sortedSphMarkersD->rhoPresMuD),
         mR4CAST(rhoPresMuD_old), mR3CAST(sortedSphMarkersD->velMasD), mR3CAST(velMasD_old), mR3CAST(vel_vis_Sorted_D),
-        mR3CAST(V_star_new), R1CAST(q_new), R1CAST(csrValFunciton), mR3CAST(csrValGradient), U1CAST(csrColInd),
-        U1CAST(Contact_i), numAllMarkers, MaxVel, paramsH->dT, isErrorD);
+        mR4CAST(derivVelRhoD_Sorted_D), mR3CAST(V_star_new), R1CAST(q_new), R1CAST(csrValFunciton),
+        mR3CAST(csrValGradient), U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, MaxVel, paramsH->dT, isErrorD);
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Velocity_Correction_and_update");
 
     thrust::device_vector<uint> SplitMe(numAllMarkers);
@@ -916,6 +929,8 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     printf("Spliting : %f \n", (clock() - SPLIT_MERGE) / (double)CLOCKS_PER_SEC);
     //
     CopySortedToOriginal_NonInvasive_R3(fsiGeneralData->vis_vel_SPH_D, vel_vis_Sorted_D,
+                                        markersProximityD->gridMarkerIndexD);
+    CopySortedToOriginal_NonInvasive_R4(fsiGeneralData->derivVelRhoD, derivVelRhoD_Sorted_D,
                                         markersProximityD->gridMarkerIndexD);
     CopySortedToOriginal_NonInvasive_R3(sphMarkersD->velMasD, sortedSphMarkersD->velMasD,
                                         markersProximityD->gridMarkerIndexD);

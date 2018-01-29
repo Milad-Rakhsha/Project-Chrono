@@ -35,7 +35,7 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.02;
+    paramsH->HSML = 0.01;
     paramsH->MULT_INITSPACE = 1.0;
     paramsH->MULT_INITSPACE_Shells = 1.0;
     paramsH->epsMinMarkersDis = .001;
@@ -45,7 +45,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->LARGE_PRES = 0;
     paramsH->deltaPress;
     paramsH->multViscosity_FSI = 1;
-    paramsH->gravity = mR3(0, 0, -9.8);
+    paramsH->gravity = mR3(0, 0, -9.7);
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
@@ -67,13 +67,13 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->dT = 2e-3;
     paramsH->dT_Flex = 5e-5;
     paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
-    paramsH->Co_number = 0.2;                ///< 0.2 works well for most cases
+    paramsH->Co_number = 0.1;                ///< 0.2 works well for most cases
     paramsH->dT_Max = 0.01;  ///< This is problem dependent should set by the user based on characteristic time step
 
     /// Experimental parameters
     paramsH->Max_Pressure = 1e20;
     paramsH->IncompressibilityFactor = 1;  ///< to tune the compression
-    paramsH->ClampPressure = true;         ///< If the negative pressure should be clamped to zero or not
+    paramsH->ClampPressure = false;        ///< If the negative pressure should be clamped to zero or not
 
     paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 

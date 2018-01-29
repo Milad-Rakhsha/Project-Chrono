@@ -57,18 +57,20 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = .01;
+    paramsH->mu0 = .001;
     paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
     paramsH->L_Characteristic = bzDim;
 
+    paramsH->Conservative_Form = true;
+    paramsH->USE_NonIncrementalProjection = true;
     paramsH->ApplyInFlowOutFlow = false;
 
     paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
     paramsH->dT = 1e-3;
-    paramsH->dT_Max = 0.2;
+    paramsH->dT_Max = 0.5;
     paramsH->Co_number = 0.2;  ///< 0.2 works well for most cases
     paramsH->EPS_XSPH = 0.5;   // Note that increasing this coefficient stabilizes the simulation but adds dissipation
-    paramsH->beta_shifting = 0.1;  // increasing this factor decreases the Lagrangian nature of the model
+    paramsH->beta_shifting = 0.01;  // increasing this factor decreases the Lagrangian nature of the model
 
     paramsH->USE_LinearSolver = false;  ///< IISPH parameter: whether or not use linear solvers
     paramsH->USE_Iterative_solver = true;
@@ -78,7 +80,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->LinearSolver_Rel_Tol = 1e-10;  ///< relative res, is used in the matrix free solver and linear solvers
     paramsH->LinearSolver_Abs_Tol = 1e-10;  ///< absolute error, applied when linear solvers are used
     paramsH->LinearSolver_Max_Iter = 5000;  ///< max number of iteration for linear solvers
-    paramsH->PPE_relaxation = 0.8;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
+    paramsH->PPE_relaxation = 0.95;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
     /// Experimental parameters
     paramsH->Max_Pressure = 1e5;
     paramsH->IncompressibilityFactor = 1;  ///< to tune the compression
@@ -97,8 +99,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
     paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
-    paramsH->cMin = mR3(-bxDim / 2, -byDim / 2, 0.0) - mR3(paramsH->HSML * 5);
-    paramsH->cMax = mR3(bxDim / 2, byDim / 2, bzDim) + mR3(paramsH->HSML * 5);
+    paramsH->cMin = mR3(-bxDim / 2, -byDim / 2, 0.0) - mR3(paramsH->HSML * 20);
+    paramsH->cMax = mR3(bxDim / 2, byDim / 2, bzDim) + mR3(paramsH->HSML * 10);
 
     //****************************************************************************************
     // printf("a1  paramsH->cMax.x, y, z %f %f %f,  binSize %f\n",

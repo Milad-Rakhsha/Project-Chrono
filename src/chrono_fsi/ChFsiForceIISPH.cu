@@ -808,7 +808,7 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
     csrColIndA[csrStartIdx - 1] = i_idx;
     GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
 
-    if (sortedRhoPreMu[i_idx].x < 0.99 * paramsD.rho0) {
+    if (sortedRhoPreMu[i_idx].x < 0.999 * paramsD.rho0) {
         csrValA[csrStartIdx - 1] = a_ii[i_idx];
         for (int myIdx = csrStartIdx; myIdx < csrEndIdx; myIdx++) {
             csrValA[myIdx] = 0.0;
@@ -1170,6 +1170,7 @@ __global__ void CalcForces(Real3* new_vel,  // Write
                            Real3* sortedVelMas,  // Read
                            Real4* sortedRhoPreMu,
                            Real* sumWij_inv,
+                           Real* p_old,
                            Real* G_tensor,
                            Real* L_tensor,
                            Real3* r_shift,
@@ -1203,7 +1204,13 @@ __global__ void CalcForces(Real3* new_vel,  // Write
     Real epsilon = paramsD.epsMinMarkersDis;
     Real3 posi = mR3(sortedPosRad[i_idx]);
     Real3 Veli = sortedVelMas[i_idx];
-    Real p_i = sortedRhoPreMu[i_idx].y;
+
+    Real p_i;
+    //    if (sortedRhoPreMu[i_idx].w == -1)
+    p_i = sortedRhoPreMu[i_idx].y;
+    //    else
+    //        p_i = p_old[i_idx];
+
     Real rho_i = sortedRhoPreMu[i_idx].x;
     Real3 F_i_mu = mR3(0);
     Real3 F_i_surface_tension = mR3(0);
@@ -1246,6 +1253,7 @@ __global__ void CalcForces(Real3* new_vel,  // Write
                     Real d = length(rij);
                     if (d > RESOLUTION_LENGTH_MULT * h_i || sortedRhoPreMu[j].w <= -2 || i_idx == j)
                         continue;
+
                     Real3 eij = rij / d;
                     Real h_j = sortedPosRad[j].w;
                     Real m_j = h_j * h_j * h_j * paramsD.rho0;
@@ -1265,7 +1273,7 @@ __global__ void CalcForces(Real3* new_vel,  // Write
 
                     Real3 V_ij = (Veli - Velj);
                     // Only Consider (fluid-fluid + fluid-solid) or Solid-Fluid Interaction
-                    if (sortedRhoPreMu[i_idx].w < 0 || (sortedRhoPreMu[i_idx].w > 0 && sortedRhoPreMu[j].w < 0))
+                    if (sortedRhoPreMu[i_idx].w < 0 || (sortedRhoPreMu[i_idx].w >= 0 && sortedRhoPreMu[j].w < 0))
                         F_i_p += -m_j * ((p_i / (rho_i * rho_i)) + (p_j / (rho_j * rho_j))) * grad_ij;
 
                     Real Rho_bar = (rho_j + rho_i) * 0.5;
@@ -1274,13 +1282,15 @@ __global__ void CalcForces(Real3* new_vel,  // Write
                     Real3 muNumerator = 2 * mu_0 * dot(rij, grad_ij) * V_ij;
                     Real muDenominator = (Rho_bar * Rho_bar) * (d * d + paramsD.HSML * paramsD.HSML * epsilon);
                     // Only Consider (fluid-fluid + fluid-solid) or Solid-Fluid Interaction
-                    if (sortedRhoPreMu[i_idx].w < 0 || (sortedRhoPreMu[i_idx].w > 0 && sortedRhoPreMu[j].w < 0))
+                    if (sortedRhoPreMu[i_idx].w < 0 || (sortedRhoPreMu[i_idx].w >= 0 && sortedRhoPreMu[j].w < 0))
                         F_i_mu += m_j * muNumerator / muDenominator;
                     if (!isfinite(length(F_i_mu))) {
                         printf("F_i_np in CalcForces returns Nan or Inf");
                     }
 
                     F_i_surface_tension += m_j * Wd * rij;
+                    if (d < EPSILON)
+                        continue;
 
                     Real Vj = sumWij_inv[j];
                     Real commonterm =
@@ -1320,7 +1330,7 @@ __global__ void CalcForces(Real3* new_vel,  // Write
 
     if ((int)sortedRhoPreMu[i_idx].w == -1) {
         new_vel[i_idx] = Veli + dT * mR3(derivVelRhoD[i_idx]) / m_i + r_shift[i_idx] / dT;
-        sortedVelMas[i_idx] = new_vel[i_idx];
+        //        sortedVelMas[i_idx] = new_vel[i_idx]; //race condition
     }
 }
 
@@ -1370,6 +1380,9 @@ __global__ void FinalizePressure(Real4* sortedPosRad,  // Read
     if (sortedRhoPreMu[i_idx].y > paramsD.Max_Pressure)
         sortedRhoPreMu[i_idx].y = paramsD.Max_Pressure;
 
+    if (sortedRhoPreMu[i_idx].w == -1)
+        return;
+
     //  // get address in grid
     int3 gridPos = calcGridPos(posi);
     for (int z = -1; z <= 1; z++) {
@@ -1385,7 +1398,7 @@ __global__ void FinalizePressure(Real4* sortedPosRad,  // Read
                     Real3 posJ = mR3(sortedPosRad[j]);
                     Real3 dist3 = Distance(posi, posJ);
                     Real d = length(dist3);
-                    if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML)
+                    if (d > RESOLUTION_LENGTH_MULT * paramsD.HSML || sortedRhoPreMu[j].w != -1)
                         continue;
                     //                    Real3 grad_i_wij = GradW(dist3);
                     Real h_j = sortedPosRad[j].w;
@@ -1405,8 +1418,8 @@ __global__ void FinalizePressure(Real4* sortedPosRad,  // Read
             }
         }
     }
-    //    if (abs(p_smooth_den) < EPSILON)
-    //        sortedRhoPreMu[i_idx].y = p_smooth_num / p_smooth_den;
+    if (abs(p_smooth_den) < EPSILON)
+        p_old[i_idx] = p_smooth_num / p_smooth_den;
 
     //  F_p[i_idx] = my_F_p;
 
@@ -1447,6 +1460,7 @@ void ChFsiForceIISPH::calcPressureIISPH(thrust::device_vector<Real4> velMassRigi
                                         thrust::device_vector<Real3> vel_fsi_fea_D,
                                         thrust::device_vector<Real3> acc_fsi_fea_D,
                                         thrust::device_vector<Real> sumWij_inv,
+                                        thrust::device_vector<Real>& p_old,
                                         thrust::device_vector<Real3> Normals,
                                         thrust::device_vector<Real>& G_i,
                                         thrust::device_vector<Real>& L_i,
@@ -1506,7 +1520,6 @@ void ChFsiForceIISPH::calcPressureIISPH(thrust::device_vector<Real4> velMassRigi
 
     thrust::device_vector<Real> a_ii(numAllMarkers);
     thrust::device_vector<Real> rho_np(numAllMarkers);
-    thrust::device_vector<Real> p_old(numAllMarkers);
     thrust::fill(a_ii.begin(), a_ii.end(), 0.0);
     thrust::fill(rho_np.begin(), rho_np.end(), 0.0);
     thrust::fill(p_old.begin(), p_old.end(), 0.0);
@@ -2017,9 +2030,10 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     //        throw std::runtime_error("Error! program crashed after calcRho_kernel!\n");
     //    }
 
+    thrust::device_vector<Real> p_old(numAllMarkers, 0.0);
     calcPressureIISPH(otherFsiBodiesD->velMassRigid_fsiBodies_D, otherFsiBodiesD->accRigid_fsiBodies_D,
                       otherFsiMeshD->pos_fsi_fea_D, otherFsiMeshD->vel_fsi_fea_D, otherFsiMeshD->acc_fsi_fea_D,
-                      _sumWij_inv, Normals, G_i, L_i, Color);
+                      _sumWij_inv, p_old, Normals, G_i, L_i, Color);
 
     //------------------------------------------------------------------------
     // thread per particle
@@ -2032,11 +2046,11 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     thrust::device_vector<Real3> dr_shift(numAllMarkers);
     thrust::fill(dr_shift.begin(), dr_shift.end(), mR3(0.0));
 
-    CalcForces<<<numBlocks, numThreads>>>(mR3CAST(vel_XSPH_Sorted_D), mR4CAST(derivVelRhoD_Sorted_D),
-                                          mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
-                                          mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv), R1CAST(G_i),
-                                          R1CAST(L_i), mR3CAST(dr_shift), U1CAST(markersProximityD->cellStartD),
-                                          U1CAST(markersProximityD->cellEndD), paramsH->dT, numAllMarkers, isErrorD);
+    CalcForces<<<numBlocks, numThreads>>>(
+        mR3CAST(vel_XSPH_Sorted_D), mR4CAST(derivVelRhoD_Sorted_D), mR4CAST(sortedSphMarkersD->posRadD),
+        mR3CAST(sortedSphMarkersD->velMasD), mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv), R1CAST(p_old),
+        R1CAST(G_i), R1CAST(L_i), mR3CAST(dr_shift), U1CAST(markersProximityD->cellStartD),
+        U1CAST(markersProximityD->cellEndD), paramsH->dT, numAllMarkers, isErrorD);
     cudaThreadSynchronize();
     cudaCheckError();
 

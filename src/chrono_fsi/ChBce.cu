@@ -136,15 +136,15 @@ __global__ void Populate_FlexSPH_MeshPos_LRF_kernel(Real3* FlexSPH_MeshPos_LRF_D
         //        Real3 Normal = normalize(cross(x_dir, y_dir));
         //        Real3 y_dir = cross(Normal, x_dir);
 
-        Real3 physic_to_natural = mR3(1 / Shell_x, 1 / Shell_y, 1);
-        Real3 pos_physical = dist3;
-        Real3 pos_natural = mR3(pos_physical.x * physic_to_natural.x, pos_physical.y * physic_to_natural.y,
-                                pos_physical.z * physic_to_natural.z);
+        //        Real3 physic_to_natural = mR3(1 / Shell_x, 1 / Shell_y, 1);
+        //        Real3 pos_physical = dist3;
+        //        Real3 pos_natural = mR3(pos_physical.x * physic_to_natural.x, pos_physical.y * physic_to_natural.y,
+        //                                pos_physical.z * physic_to_natural.z);
 
         //        Real4 N_shell = Shells_ShapeFunctions(pos_natural.x, pos_natural.y);
 
-        //        Real dx = dot(dist3, x_dir);
-        //        Real dy = dot(dist3, y_dir);
+        Real dx = dot(dist3, x_dir);
+        Real dy = dot(dist3, y_dir);
         //        Real2 eta = mR2(0.), zeta = mR2(0.);
         //        Real2 p = mR2(dx, dy);
         //        Real2 p1 = mR2(dot(pos_fsi_fea_D_nA - Shell_center, x_dir), dot(pos_fsi_fea_D_nA - Shell_center,
@@ -163,9 +163,9 @@ __global__ void Populate_FlexSPH_MeshPos_LRF_kernel(Real3* FlexSPH_MeshPos_LRF_D
         //               Shell_center.x, Shell_center.y, Shell_center.z, dist3.x, dist3.y, dist3.z, Normal.x, Normal.y,
         //               Normal.z, zSide);
 
-        //        FlexSPH_MeshPos_LRF_D[index] = mR3(dx / Shell_x, dy / Shell_y, zSide);
+        FlexSPH_MeshPos_LRF_D[index] = mR3(dx / Shell_x, dy / Shell_y, zSide);
         //        FlexSPH_MeshPos_LRF_D[index] = mR3(eta.x, zeta.y, zSide);
-        FlexSPH_MeshPos_LRF_D[index] = mR3(pos_natural.x, pos_natural.y, zSide);
+        //        FlexSPH_MeshPos_LRF_D[index] = mR3(pos_natural.x, pos_natural.y, zSide);
 
         //        printf("FlexIndex=%d FlexMarkerIndex:%d FlexSPH_MeshPos_LRF_D[index]=%f,%f,%f\n", FlexIndex,
         //        FlexMarkerIndex,

@@ -142,16 +142,16 @@ void ChSystemFsi::DoStepDynamics_FSI_Implicit() {
     fsiInterface->Copy_ChSystem_to_External();
     printf("IntegrateIISPH\n");
     fluidDynamics->IntegrateIISPH(&(fsiData->sphMarkersD2), &(fsiData->fsiBodiesD2), &(fsiData->fsiMeshD));
-    printf("Calc nodal forces\n");
+    printf("Fluid-structure forces\n");
     bceWorker->Rigid_Forces_Torques(&(fsiData->sphMarkersD2), &(fsiData->fsiBodiesD2));
+    fsiInterface->Add_Rigid_ForceTorques_To_ChSystem();
+
 #ifdef CHRONO_FEA
     bceWorker->Flex_Forces(&(fsiData->sphMarkersD2), &(fsiData->fsiMeshD));
-    printf("DataTransfer...(Nodal force from device to host)\n");
     // Note that because of applying forces to the nodal coordinates using SetForce() no other external forces can be
     // applied, or if any thing has been applied will be rewritten by Add_Flex_Forces_To_ChSystem();
     fsiInterface->Add_Flex_Forces_To_ChSystem();
 #endif
-    fsiInterface->Add_Rigid_ForceTorques_To_ChSystem();
 
     paramsH->dT_Flex = paramsH->dT;
 
@@ -166,15 +166,13 @@ void ChSystemFsi::DoStepDynamics_FSI_Implicit() {
         mphysicalSystem->DoStepDynamics(paramsH->dT / sync);
     }
 
-    printf("DataTransfer...(Rigid pos-vel-acc from host to device)\n");
-    fsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem(&(fsiData->fsiBodiesD2));
     printf("Update Rigid Marker\n");
+    fsiInterface->Copy_fsiBodies_ChSystem_to_FluidSystem(&(fsiData->fsiBodiesD2));
     bceWorker->UpdateRigidMarkersPositionVelocity(&(fsiData->sphMarkersD2), &(fsiData->fsiBodiesD2));
 
 #ifdef CHRONO_FEA
-    printf("DataTransfer...(Flexible pos-vel-acc from host to device)\n");
-    fsiInterface->Copy_fsiNodes_ChSystem_to_FluidSystem(&(fsiData->fsiMeshD));
     printf("Update Flexible Marker\n");
+    fsiInterface->Copy_fsiNodes_ChSystem_to_FluidSystem(&(fsiData->fsiMeshD));
     bceWorker->UpdateFlexMarkersPositionVelocity(&(fsiData->sphMarkersD2), &(fsiData->fsiMeshD));
 #endif
     printf("=================================================================================================\n");

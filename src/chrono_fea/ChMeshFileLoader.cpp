@@ -14,22 +14,22 @@
 // Utilities for loading meshes from file
 // =============================================================================
 
+#include <algorithm>
+#include <fstream>
+#include <functional>
 #include <iostream>
 #include <sstream>
-#include <fstream>
 #include <string>
-#include <algorithm>
-#include <functional>
 
 #include "chrono/core/ChMath.h"
-#include "chrono/physics/ChObject.h"
 #include "chrono/physics/ChLoad.h"
+#include "chrono/physics/ChObject.h"
 #include "chrono/physics/ChSystem.h"
 
+#include "chrono_fea/ChElementShellANCF.h"
+#include "chrono_fea/ChElementTetra_4.h"
 #include "chrono_fea/ChMeshFileLoader.h"
 #include "chrono_fea/ChNodeFEAxyz.h"
-#include "chrono_fea/ChElementTetra_4.h"
-#include "chrono_fea/ChElementShellANCF.h"
 
 using namespace std;
 
@@ -259,7 +259,8 @@ void ChMeshFileLoader::FromAbaqusFile(std::shared_ptr<ChMesh> mesh,
                     }
                     if (e_parse_section == E_PARSE_UNKNOWN) {
                         throw ChException("ERROR in .inp file, TYPE=" + s_ele_type +
-                                          " (only C3D10 or DC3D10 or C3D4 tetrahedrons supported) see: \n" + line + "\n");
+                                          " (only C3D10 or DC3D10 or C3D4 tetrahedrons supported) see: \n" + line +
+                                          "\n");
                     }
                 }
                 string::size_type nse = line.find("ELSET=");
@@ -346,8 +347,8 @@ void ChMeshFileLoader::FromAbaqusFile(std::shared_ptr<ChMesh> mesh,
             ++added_elements;
             if (e_parse_section == E_PARSE_TETS_10) {
                 if (ntoken != 11)
-                    throw ChException("ERROR in .inp file, tetrahedrons require ID and 10 node IDs, see line:\n" + line +
-                                      "\n");
+                    throw ChException("ERROR in .inp file, tetrahedrons require ID and 10 node IDs, see line:\n" +
+                                      line + "\n");
                 idelem = (int)tokenvals[0];
                 if (idelem != added_elements)
                     throw ChException("ERROR in .inp file. Element IDs must be sequential (1 2 3 ..): \n" + line +
@@ -357,8 +358,8 @@ void ChMeshFileLoader::FromAbaqusFile(std::shared_ptr<ChMesh> mesh,
                         throw ChException("ERROR in in .inp file, in parsing IDs of tetrahedron: \n" + line + "\n");
             } else if (e_parse_section == E_PARSE_TETS_4) {
                 if (ntoken != 5)
-                    throw ChException("ERROR in .inp file, tetrahedrons require ID and 10 node IDs, see line:\n" + line +
-                                      "\n");
+                    throw ChException("ERROR in .inp file, tetrahedrons require ID and 10 node IDs, see line:\n" +
+                                      line + "\n");
                 idelem = (int)tokenvals[0];
                 if (idelem != added_elements)
                     throw ChException("ERROR in .inp file. Element IDs must be sequential (1 2 3 ..): \n" + line +
@@ -496,8 +497,8 @@ void ChMeshFileLoader::ANCFShellFromGMFFile(std::shared_ptr<ChMesh> mesh,
                 loc_y = nodesXYZ(0, 1);
                 loc_z = nodesXYZ(0, 2);
                 dir_x = 1.0;
-                dir_y = 1.0;
-                dir_z = 1.0;
+                dir_y = 0.0;
+                dir_z = 0.0;
 
                 ChVector<> node_position(loc_x, loc_y, loc_z);
                 node_position = rot_transform * node_position;  // rotate/scale, if needed
@@ -577,39 +578,46 @@ void ChMeshFileLoader::ANCFShellFromGMFFile(std::shared_ptr<ChMesh> mesh,
                     ++ntoken;
                 }
 
+                elementsNode[ele][0] = elementsNode[ele][0] - 1;
+                elementsNode[ele][1] = elementsNode[ele][1] - 1;
+                elementsNode[ele][2] = elementsNode[ele][2] - 1;
+                elementsNode[ele][3] = elementsNode[ele][3] - 1;
+
                 // Calculating the true surface normals based on the nodal information
-                pos1 = nodesVector[elementsNode[ele][0] - 1]->GetPos();
-                pos2 = nodesVector[elementsNode[ele][1] - 1]->GetPos();
-                pos4 = nodesVector[elementsNode[ele][2] - 1]->GetPos();
-                pos3 = nodesVector[elementsNode[ele][3] - 1]->GetPos();
+                pos1 = nodesVector[elementsNode[ele][0]]->GetPos();
+                pos2 = nodesVector[elementsNode[ele][1]]->GetPos();
+                pos3 = nodesVector[elementsNode[ele][2]]->GetPos();
+                pos4 = nodesVector[elementsNode[ele][3]]->GetPos();
+
+                double dx = 0.5 * ((pos2 - pos1).Length() + (pos4 - pos3).Length());
+                double dy = 0.5 * ((pos3 - pos2).Length() + (pos4 - pos1).Length());
+
+                //                ChVector<> n1 = ((pos2 - pos1) % (pos3 - pos2)).Normalize();
+                //                ChVector<> n2 = ((pos3 - pos2) % (pos4 - pos3)).Normalize();
+                //                ChVector<> n3 = ((pos4 - pos3) % (pos1 - pos4)).Normalize();
+                //                ChVector<> n4 = ((pos1 - pos4) % (pos2 - pos1)).Normalize();
+                //                ChVector<> Normal = normalize(n1 + n2 + n3 + n4);
 
                 // For the first node
-                vec1 = (pos1 - pos2);
-                vec2 = (pos1 - pos3);
-                Normals[elementsNode[ele][0] - 1] += vec1 % vec2;
-                num_Normals[elementsNode[ele][0] - 1]++;
+                vec1 = (pos2 - pos1);
+                vec2 = (pos4 - pos1);
+                Normals[elementsNode[ele][0]] += vec1 % vec2;
+                num_Normals[elementsNode[ele][0]]++;
                 // For the second node
-                vec1 = (pos2 - pos4);
-                vec2 = (pos2 - pos1);
-                Normals[elementsNode[ele][1] - 1] += vec1 % vec2;
-                num_Normals[elementsNode[ele][1] - 1]++;
+                vec1 = (pos3 - pos2);
+                vec2 = (pos1 - pos2);
+                Normals[elementsNode[ele][1]] += vec1 % vec2;
+                num_Normals[elementsNode[ele][1]]++;
                 // For the third node
-                vec1 = (pos3 - pos1);
-                vec2 = (pos3 - pos4);
-                Normals[elementsNode[ele][2] - 1] += vec1 % vec2;
-                num_Normals[elementsNode[ele][2] - 1]++;
-                // For the forth node
                 vec1 = (pos4 - pos3);
-                vec2 = (pos4 - pos2);
-                Normals[elementsNode[ele][3] - 1] += vec1 % vec2;
-                num_Normals[elementsNode[ele][3] - 1]++;
-
-                vec1 = pos1 - pos2;
-                vec2 = pos3 - pos4;
-                dx = (vec1.Length() + vec2.Length()) / 2;
-                vec1 = pos1 - pos3;
-                vec2 = pos2 - pos4;
-                dy = (vec1.Length() + vec2.Length()) / 2;
+                vec2 = (pos2 - pos3);
+                Normals[elementsNode[ele][2]] += vec1 % vec2;
+                num_Normals[elementsNode[ele][2]]++;
+                // For the forth node
+                vec1 = (pos1 - pos4);
+                vec2 = (pos3 - pos4);
+                Normals[elementsNode[ele][3]] += vec1 % vec2;
+                num_Normals[elementsNode[ele][3]]++;
 
                 // Set element dimensions
                 elementsdxdy[ele][0] = dx;
@@ -650,13 +658,20 @@ void ChMeshFileLoader::ANCFShellFromGMFFile(std::shared_ptr<ChMesh> mesh,
     for (int ielem = 0; ielem < 0 + TotalNumElements; ielem++) {
         auto element = std::make_shared<ChElementShellANCF>();
         element->SetNodes(
-            std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(nodes_offset + elementsNode[ielem][0] - 1)),
-            std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(nodes_offset + elementsNode[ielem][1] - 1)),
-            std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(nodes_offset + elementsNode[ielem][2] - 1)),
-            std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(nodes_offset + elementsNode[ielem][3] - 1)));
+            std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(nodes_offset + elementsNode[ielem][0])),
+            std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(nodes_offset + elementsNode[ielem][1])),
+            std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(nodes_offset + elementsNode[ielem][2])),
+            std::dynamic_pointer_cast<ChNodeFEAxyzD>(mesh->GetNode(nodes_offset + elementsNode[ielem][3])));
         dx = elementsdxdy[ielem][0];
         dy = elementsdxdy[ielem][1];
         element->SetDimensions(dx, dy);
+        // Add a single layers with a fiber angle of 0 degrees.
+        element->AddLayer(0.001, 0 * CH_C_DEG_TO_RAD, my_material);
+
+        // Set other element properties
+        element->SetAlphaDamp(0.2);    // Structural damping for this element
+        element->SetGravityOn(false);  // turn internal gravitational force calculation off
+
         // Add element to mesh
         mesh->AddElement(element);
         if (printElements) {

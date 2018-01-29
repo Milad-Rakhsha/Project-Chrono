@@ -297,11 +297,14 @@ void CreateBceGlobalMarkersFromBceLocalPos_CableANCF(ChFsiDataManager* fsiData,
 void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
                                                      SimParams* paramsH,
                                                      const thrust::host_vector<Real4>& posRadBCE,
-                                                     std::shared_ptr<chrono::fea::ChElementShellANCF> shell) {
+                                                     std::shared_ptr<chrono::fea::ChElementShellANCF> shell,
+                                                     double kernel_h = 0) {
     int type = 3;
 
     chrono::ChMatrixNM<double, 8, 1> N;
     int posRadSizeModified = 0;
+
+    double my_h = (kernel_h == 0) ? paramsH->HSML : kernel_h;
 
     Real dx = shell->GetLengthX();
     Real dy = shell->GetLengthY();
@@ -334,7 +337,7 @@ void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
         //    printf("GetNormalized :%f,%f,%f\n", Normal.x, Normal.y, Normal.z);
 
         chrono::ChVector<> Correct_Pos = N(0) * nAp + N(2) * nBp + N(4) * nCp + N(6) * nDp +
-                                         Normal * pos_physical.z() * paramsH->HSML * paramsH->MULT_INITSPACE_Shells;
+                                         Normal * pos_physical.z() * my_h * paramsH->MULT_INITSPACE_Shells;
 
         if ((Correct_Pos.x() < paramsH->cMin.x || Correct_Pos.x() > paramsH->cMax.x) ||
             (Correct_Pos.y() < paramsH->cMin.y || Correct_Pos.y() > paramsH->cMax.y) ||
@@ -402,7 +405,6 @@ void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
     }
     numObjects = fsiData->fsiGeneralData.referenceArray.size();
     printf("numObjects : %d\n ", numObjects);
-    printf("numObjects.startFlexMarkers  : %d\n ", fsiData->numObjects.startFlexMarkers);
 }
 #endif
 
@@ -525,13 +527,16 @@ void AddBoxBce(ChFsiDataManager* fsiData,
 void AddBCE_FromFile(ChFsiDataManager* fsiData,
                      SimParams* paramsH,
                      std::shared_ptr<ChBody> body,
-                     std::string dataPath) {
+                     std::string dataPath,
+                     ChVector<> collisionShapeRelativePos,
+                     ChQuaternion<> collisionShapeRelativeRot,
+                     double scale) {
     //----------------------------
     //  chassis
     //----------------------------
     thrust::host_vector<Real4> posRadBCE;
 
-    LoadBCE_fromFile(posRadBCE, dataPath);
+    LoadBCE_fromFile(posRadBCE, dataPath, scale);
 
     //	if (fsiData->sphMarkersH.posRadH.size() !=
     // fsiData->numObjects.numAllMarkers) {
@@ -542,7 +547,8 @@ void AddBCE_FromFile(ChFsiDataManager* fsiData,
     //		std::cin.get();
     //	}
 
-    CreateBceGlobalMarkersFromBceLocalPos(fsiData, paramsH, posRadBCE, body);
+    CreateBceGlobalMarkersFromBceLocalPos(fsiData, paramsH, posRadBCE, body, collisionShapeRelativePos,
+                                          collisionShapeRelativeRot);
     posRadBCE.clear();
 }
 
@@ -748,7 +754,8 @@ void AddBCE_FromMesh(ChFsiDataManager* fsiData,
                      bool multiLayer,
                      bool removeMiddleLayer,
                      int SIDE,
-                     int SIDE2D) {
+                     int SIDE2D,
+                     double kernel_h) {
     thrust::host_vector<Real4> posRadBCE;
     int numElems = my_mesh->GetNelements();
     std::vector<int> remove2D;
@@ -865,8 +872,8 @@ void AddBCE_FromMesh(ChFsiDataManager* fsiData,
                 }
                 if (add2DElem) {
                     CreateBCE_On_ChElementShellANCF(posRadBCE, paramsH, thisShell, remove2D, multiLayer,
-                                                    removeMiddleLayer, SIDE2D);
-                    CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(fsiData, paramsH, posRadBCE, thisShell);
+                                                    removeMiddleLayer, SIDE2D, kernel_h);
+                    CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(fsiData, paramsH, posRadBCE, thisShell, kernel_h);
                 }
                 posRadBCE.clear();
             }

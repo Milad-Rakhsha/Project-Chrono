@@ -99,7 +99,10 @@ CH_FSI_API void AddBoxBce(ChFsiDataManager* fsiData,
 CH_FSI_API void AddBCE_FromFile(ChFsiDataManager* fsiData,
                                 SimParams* paramsH,
                                 std::shared_ptr<chrono::ChBody> body,
-                                std::string dataPath);
+                                std::string dataPath,
+                                chrono::ChVector<> collisionShapeRelativePos = chrono::ChVector<>(0),
+                                chrono::ChQuaternion<> collisionShapeRelativeRot = chrono::QUNIT,
+                                double scale = 1.);
 
 CH_FSI_API void CreateSphereFSI(ChFsiDataManager* fsiData,
                                 chrono::ChSystem& mphysicalSystem,
@@ -166,7 +169,8 @@ void AddBCE_FromMesh(ChFsiDataManager* fsiData,
                      bool multiLayer,
                      bool removeMiddleLayer,
                      int SIDE,
-                     int SIDE2D = 2);
+                     int SIDE2D = 2,
+                     double kernel_h = 0);
 
 #endif
 
