@@ -502,14 +502,16 @@ void ChFluidDynamics::IntegrateSPH(SphMarkerDataD* sphMarkersD2,
                                    FsiBodiesDataD* fsiBodiesD1,
                                    Real dT) {
     forceSystem->ForceSPH(sphMarkersD1, fsiBodiesD1);
-    this->UpdateFluid(sphMarkersD2, dT);
+    // this->UpdateFluid(sphMarkersD2, dT);
     this->ApplyBoundarySPH_Markers(sphMarkersD2);
 }
 // -----------------------------------------------------------------------------
 
 void ChFluidDynamics::IntegrateIISPH(SphMarkerDataD* sphMarkersD, FsiBodiesDataD* fsiBodiesD, FsiMeshDataD* fsiMeshD) {
-    forceSystem->ForceImplicitSPH(sphMarkersD, fsiBodiesD, fsiMeshD);
-    //    return;
+    if (GetIntegratorType() == ChFluidDynamics::Integrator::XSPH)
+        forceSystem->ForceSPH(sphMarkersD, fsiBodiesD, fsiMeshD);
+    else
+        forceSystem->ForceImplicitSPH(sphMarkersD, fsiBodiesD, fsiMeshD);
 
     if (myIntegrator == ChFluidDynamics::Integrator::IISPH)
         this->UpdateFluid_Implicit(sphMarkersD);

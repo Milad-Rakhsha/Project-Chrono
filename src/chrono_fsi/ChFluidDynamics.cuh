@@ -95,6 +95,7 @@ class CH_FSI_API ChFluidDynamics : public ChFsiGeneral {
     /// between device (GPU) and host (CPU).
     /// This function needs to be called once the host data are modified
     void Finalize();
+    ChFluidDynamics::Integrator GetIntegratorType() { return myIntegrator; }
 
   protected:
     ChFsiDataManager* fsiData;  ///< pointer to the fsi data. The values are maintained externally

@@ -65,7 +65,7 @@ Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 // Dimension of the domain
 Real bxDim = 3.5;
-Real byDim = 0.4;
+Real byDim = 0.2;
 Real bzDim = 1.8;
 
 // Dimension of the fluid domain
@@ -111,7 +111,7 @@ int main(int argc, char* argv[]) {
 
     // You can set your cuda device, if you have multiple of them
     // If not this should be set to 0 or not specified at all
-    ////cudaSetDevice(0);
+    cudaSetDevice(1);
 
     time(&rawtime);
     timeinfo = localtime(&rawtime);
@@ -137,7 +137,7 @@ int main(int argc, char* argv[]) {
     mHaveFluid = true;
 #endif
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::XSPH);
 
     chrono::fsi::SimParams* paramsH = myFsiSystem.GetSimParams();
 
