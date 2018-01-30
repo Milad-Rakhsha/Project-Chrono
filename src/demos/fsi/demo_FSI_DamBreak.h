@@ -57,10 +57,12 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
     paramsH->dT = 2e-3;
     paramsH->dT_Max = 0.1;
-    paramsH->Co_number = 0.2;  ///< 0.2 works well for most cases
+    paramsH->Co_number = 0.1;  ///< 0.2 works well for most cases
     paramsH->EPS_XSPH = 0.5;   // Note that increasing this coefficient stabilizes the simulation but adds dissipation
-    paramsH->beta_shifting = 0.002;  // increasing this factor decreases the Lagrangian nature of the model
-    paramsH->v_Max = 500.0;
+    paramsH->beta_shifting = 0.06;  // increasing this factor decreases the Lagrangian nature of the model
+    paramsH->v_Max = 1.0;
+    paramsH->Cs = 314.0;  // This will be multiplied by v_max in the EOS
+
     paramsH->L_Characteristic = fzDim;
 
     paramsH->Conservative_Form = true;

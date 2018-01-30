@@ -98,7 +98,7 @@ bool save_output = true;
 std::vector<std::vector<int>> NodeNeighborElementMesh;
 
 bool povray_output = true;
-int out_fps = 100;
+int out_fps = 20;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -114,7 +114,7 @@ Real fzDim = 0.0035;
 
 // For displacement driven method
 double Indentor_R = 0.0032;
-double Indentaiton_rate = -21.0 * 1e-6;
+double Indentaiton_rate = -20.0 * 1e-6;
 double x0 = bzDim;
 
 // For force-driven method
@@ -126,7 +126,7 @@ double K_SPRINGS = 200;  // 1000;
 double C_DAMPERS = 0.;
 double L0_t = 0.005;
 bool addSprings = false;
-bool addCable = true;
+bool addCable = false;
 bool refresh_FlexBodiesInsideFluid = true;
 
 int numCableNodes = 0;
@@ -222,7 +222,6 @@ int main(int argc, char* argv[]) {
     chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
 
     chrono::fsi::SimParams* paramsH = myFsiSystem.GetSimParams();
-
     SetupParamsH(paramsH, bxDim, byDim, bzDim, fxDim, fyDim, fzDim);
 
     Real initSpace0 = paramsH->MULT_INITSPACE * paramsH->HSML;
@@ -414,7 +413,7 @@ int main(int argc, char* argv[]) {
 
 #ifdef addPressure
         double pressure = applyRampPressure(time, t_ramp, p_max);
-        printf("The applied pressure is %f kPa. p_Max= %f, total Force= %f\n", pressure / 1000, p_max / 1000,
+        printf("The applied pressure is %.3e kPa. p_Max= %.3e, total Force= %.3e\n", pressure / 1000, p_max / 1000,
                pressure * bxDim * byDim);
         for (int i = 0; i < faceload_mesh.size(); i++) {
             faceload_mesh[i]->loader.SetPressure(pressure);
@@ -573,7 +572,7 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         double Fiber_Length = bzDim;
 
         double Area = 3.1415 * std::pow(Fiber_Diameter, 2) / 4;
-        double E = 50e7;
+        double E = 50e6;
         double nu = 0.3;
         auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
         /*================== Cable Elements =================*/
@@ -754,7 +753,7 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // All layers for all elements share the same material.
 
     double rho = 1000;
-    double E = 1.0e7;
+    double E = 1.0e6;
     double nu = 0.3;
     auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
 
@@ -919,7 +918,7 @@ void Calculator(fsi::ChSystemFsi& myFsiSystem,
     }
     p_Ave /= (referenceArray[0].y - referenceArray[0].x);
     Rho_ave /= (referenceArray[0].y - referenceArray[0].x);
-    ChVector<> mforces = fxDim * fxDim * p_Ave * 1000;
+    ChVector<> fluidforces = fxDim * fxDim * p_Ave;
 
     //    posRadH.clear();
     //    velMasH.clear();
@@ -929,6 +928,9 @@ void Calculator(fsi::ChSystemFsi& myFsiSystem,
     double delta_Ave;
     double delta_s = 0;
     // x0.resize(TotalNumNodes-numCableNodes);
+
+    ChVector<> shell_force(0);
+
     for (int iNode = numCableNodes; iNode < TotalNumNodes; iNode++) {
         auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(iNode));
         if (saveInitials) {
@@ -937,8 +939,8 @@ void Calculator(fsi::ChSystemFsi& myFsiSystem,
         ChVector<> x_i = x0[iNode - numCableNodes];
 
         // Only add the forces exerted to nodes at the surface
-        //        if (std::abs(Node->GetPos().z) > fzDim)
-        //        mforces += Node->GetForce() * 1000;
+        //        if (std::abs(Node->GetPos().z()) > fzDim)
+        shell_force += Node->GetForce();
 
         if (std::abs(Node->GetPos().x()) < 1e-6 && std::abs(Node->GetPos().y()) < 1e-6)
             delta_s = Node->GetPos().z() - x_i.z();
@@ -964,14 +966,17 @@ void Calculator(fsi::ChSystemFsi& myFsiSystem,
 
     for (int i = 0; i < rigidLinks.size(); i++) {
         auto frame = rigidLinks[i]->GetLinkAbsoluteCoords();
-        indentor_force += rigidLinks[i]->Get_react_force() * 1000 >> frame;
+        indentor_force += rigidLinks[i]->Get_react_force() >> frame;
     }
 
-    printf("delta_s(micro m)=%f, ave_compression%= %f, fN_fluid(mN)=(%f,%f,%f), fN_Indentor=(%f,%f,%f)\n",
-           delta_s * 1e6, (Rho_ave - 1000) / 10, mforces.x(), mforces.y(), mforces.z(), indentor_force.x(),
-           indentor_force.y(), indentor_force.z());
-    output << time << " " << delta_s << " " << mforces.z() / 1000 << " " << indentor_force.z() / 1000 << " " << Rho_ave
-           << std::endl;
+    printf(
+        "delta_s(micro m)=%.1e, ave_compression%= %.2e,\n fluid_F(mN)=(%.1e,%.1e,%.1e), shell_F(mN)=(%.1e,%.1e,%.1e), "
+        "indentor_F=(%.1e,%.1e,%.1e)\n",
+        delta_s * 1e6, (Rho_ave - 1000) / 10, fluidforces.x(), fluidforces.y(), fluidforces.z(), shell_force.x(),
+        shell_force.y(), shell_force.z(), indentor_force.x(), indentor_force.y(), indentor_force.z());
+
+    output << time << " " << delta_s << " " << fluidforces.z() << " " << shell_force.z() << " " << indentor_force.z()
+           << " " << Rho_ave << std::endl;
 #endif
 #endif
 
@@ -1248,6 +1253,13 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
 
             output << areaAve / myarea << "\n";
         }
+
+        output << "\nVECTORS velocity float\n";
+        for (unsigned int i = 0; i < nodeList.size(); i++) {
+            ChVector<> vel = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(nodeList[i]))->GetPos_dt();
+            output << vel.x() << " " << vel.y() << " " << vel.z() << "\n";
+        }
+
         std::vector<ChVector<>> MyResult;
         output << "\nVECTORS ep12_ratio float\n";
         for (unsigned int i = 0; i < nodeList.size(); i++) {

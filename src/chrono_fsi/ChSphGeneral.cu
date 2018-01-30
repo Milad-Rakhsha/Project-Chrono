@@ -581,11 +581,11 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
                 mGi[1] * mGi[5] * mGi[6] + mGi[2] * mGi[3] * mGi[7] - mGi[2] * mGi[4] * mGi[6]);
     if (abs(Det) < 1e-6 && sortedRhoPreMu[i_idx].w != -3) {
         printf("Gi,");
-        //        for (int i = 0; i < 9; i++)
-        //            G_i[i_idx * 9 + i] = 0.0;
-        G_i[i_idx * 9 + 0] = 1;
-        G_i[i_idx * 9 + 4] = 1;
-        G_i[i_idx * 9 + 8] = 1;
+        for (int i = 0; i < 9; i++)
+            G_i[i_idx * 9 + i] = 0.0;
+        //        G_i[i_idx * 9 + 0] = 1;
+        //        G_i[i_idx * 9 + 4] = 1;
+        //        G_i[i_idx * 9 + 8] = 1;
     } else {
         G_i[i_idx * 9 + 0] = (mGi[4] * mGi[8] - mGi[5] * mGi[7]) / Det;
         G_i[i_idx * 9 + 1] = -(mGi[1] * mGi[8] - mGi[2] * mGi[7]) / Det;

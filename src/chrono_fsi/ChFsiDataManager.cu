@@ -354,7 +354,7 @@ void ChFsiDataManager::CalcNumObjects() {
     for (int i = 0; i < rSize; i++) {
         ::int4 rComp4 = fsiGeneralData.referenceArray[i];
         int numMerkers = rComp4.y - rComp4.x;
-        std::cout << "rComp4.z=" << rComp4.z << " \n";
+        //        std::cout << "rComp4.z=" << rComp4.z << " \n";
 
         switch (rComp4.z) {
             case -3:

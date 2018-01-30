@@ -30,6 +30,12 @@
 namespace chrono {
 namespace fsi {
 
+struct compare_Real4_x {
+    __host__ __device__ bool operator()(Real4 lhs, Real4 rhs) { return lhs.x < rhs.x; }
+};
+struct compare_Real4_y {
+    __host__ __device__ bool operator()(Real4 lhs, Real4 rhs) { return lhs.y < rhs.y; }
+};
 struct compare_Real3_mag {
     __host__ __device__ bool operator()(Real3 lhs, Real3 rhs) { return length(lhs) < length(rhs); }
 };

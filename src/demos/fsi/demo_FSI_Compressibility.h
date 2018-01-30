@@ -70,7 +70,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->dT_Max = 0.5;
     paramsH->Co_number = 0.2;  ///< 0.2 works well for most cases
     paramsH->EPS_XSPH = 0.5;   // Note that increasing this coefficient stabilizes the simulation but adds dissipation
-    paramsH->beta_shifting = 0.01;  // increasing this factor decreases the Lagrangian nature of the model
+    paramsH->beta_shifting = 0.005;  // increasing this factor decreases the Lagrangian nature of the model
 
     paramsH->USE_LinearSolver = false;  ///< IISPH parameter: whether or not use linear solvers
     paramsH->USE_Iterative_solver = true;

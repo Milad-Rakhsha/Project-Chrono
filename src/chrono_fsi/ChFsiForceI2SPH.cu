@@ -65,7 +65,7 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
     if (i_idx >= numAllMarkers) {
         return;
     }
-    Real CN = 1.0;
+    Real CN = 0.5;
 
     uint csrStartIdx = numContacts[i_idx];
     uint csrEndIdx = numContacts[i_idx + 1];
@@ -160,6 +160,8 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
                     accRigid_fsiBodies_D, rigidIdentifierD, pos_fsi_fea_D, vel_fsi_fea_D, acc_fsi_fea_D,
                     FlexIdentifierD, numFlex1D, CableElementsNodes, ShellelementsNodes);
 
+        //        if (length(V_prescribed) > 18e-6)
+        //            printf("length(V_prescribed)=%f\n", length(V_prescribed));
         if (abs(den) < EPSILON) {
             A_Matrix[csrStartIdx] = 1.0;
             Bi[i_idx] = V_prescribed;
@@ -352,8 +354,14 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
         }
     }
 
+    //    if (sortedRhoPreMu[i_idx].w == 3.0) {
+    //        clearRow(i_idx, csrStartIdx, csrEndIdx, A_Matrix, Bi);
+    //        A_Matrix[csrStartIdx] = 1.0;
+    //        Bi[i_idx] = paramsD.BASEPRES;
+    //    }
+
     if (paramsD.USE_NonIncrementalProjection)
-        q_old[i_idx] = 0.0;  // sortedRhoPreMu[i_idx].y;
+        q_old[i_idx] = sortedRhoPreMu[i_idx].y;
 
     if (abs(A_Matrix[csrStartIdx]) < EPSILON)
         printf("Pressure_Equation %d A_Matrix[csrStartIdx]= %f, type=%f \n", i_idx, A_Matrix[csrStartIdx],
@@ -423,8 +431,6 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
 
     Real3 m_dv_dt = m_i * (V_new - sortedVelMas_old[i_idx]) / delta_t;
 
-    if (length(m_dv_dt) > EPSILON)
-        printf("%f\n", length(m_dv_dt));
     derivVelRho[i_idx] = mR4(m_dv_dt, 0.0);
 
     Real4 x_new = sortedPosRad[i_idx] + mR4(delta_t / 2 * (V_new + sortedVelMas[i_idx]), 0.0);
@@ -687,6 +693,12 @@ void ChFsiForceI2SPH::PreProcessor(SphMarkerDataD* sortedSphMarkersD, bool print
 void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
                                        FsiBodiesDataD* otherFsiBodiesD,
                                        FsiMeshDataD* otherFsiMeshD) {
+    if (paramsH->bceType == ADAMI && !paramsH->USE_NonIncrementalProjection) {
+        throw std::runtime_error(
+            "\nADAMI boundary condition is only applicable to non-incremental Projection method. Please "
+            "revise the BC scheme or set USE_NonIncrementalProjection to true.!\n");
+    }
+
     CopyParams_NumberOfObjects(paramsH, numObjectsH);
 
     sphMarkersD = otherSphMarkersD;
@@ -699,7 +711,7 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     if (paramsH->Adaptive_time_stepping) {
         Real dt_CFL = paramsH->Co_number * paramsH->HSML / MaxVel;
         Real dt_nu = 0.125 * paramsH->HSML * paramsH->HSML / (paramsH->mu0 / paramsH->rho0) *
-                     2000;  // since viscosity is treated implicitly
+                     1;  // since viscosity is treated implicitly
         Real dt_body = 0.125 * std::sqrt(paramsH->HSML / length(paramsH->bodyForce3 + paramsH->gravity));
         Real dt = std::min(dt_body, std::min(dt_CFL, dt_nu));
         if (dt / paramsH->dT_Max > 0.7 && dt / paramsH->dT_Max < 1)
@@ -953,8 +965,8 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Shifting");
     Real4_x unary_op(paramsH->rho0);
     thrust::plus<Real> binary_op;
-    Real Ave_density = thrust::transform_reduce(sphMarkersD->rhoPresMuD.begin(), sphMarkersD->rhoPresMuD.end(),
-                                                unary_op, 0.0, binary_op) /
+    Real Ave_density = thrust::transform_reduce(sortedSphMarkersD->rhoPresMuD.begin(),
+                                                sortedSphMarkersD->rhoPresMuD.end(), unary_op, 0.0, binary_op) /
                        (numObjectsH->numFluidMarkers * paramsH->rho0);
     double updateComputation = (clock() - updateClock) / (double)CLOCKS_PER_SEC;
     Real Re = paramsH->L_Characteristic * paramsH->rho0 * MaxVel / paramsH->mu0;

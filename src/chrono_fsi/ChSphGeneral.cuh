@@ -191,6 +191,18 @@ __device__ inline Real3 GradWh_Spline(Real3 d, Real h) {  // d is positive. r is
 //}
 //--------------------------------------------------------------------------------------------------------------------------------
 
+__device__ inline Real EOS_new(Real rho, Real V_max, Real Min_rho) {
+    if (rho < paramsD.rho0)
+        rho = paramsD.rho0;
+
+    Real gama = 7;
+    //    Real B = paramsD.Cs * paramsD.Cs * paramsD.rho0 * V_max * V_max / gama;
+    //    return B * (pow(rho / paramsD.rho0, gama) - 1) + paramsD.BASEPRES;
+
+    Real B = paramsD.Cs * paramsD.Cs * paramsD.rho0 / gama;
+    return paramsD.Cs * paramsD.Cs * (rho / paramsD.rho0 - 1);
+}
+
 //--------------------------------------------------------------------------------------------------------------------------------
 // Eos is also defined in SDKCollisionSystem.cu
 // fluid equation of state
@@ -205,7 +217,8 @@ __device__ inline Real Eos(Real rho, Real type) {
     //////else {
     //////	return 1e9;
     //////}
-
+    if (rho < paramsD.rho0)
+        rho = paramsD.rho0;
     //******************************
     Real gama = 7;
     Real B = 100 * paramsD.rho0 * paramsD.v_Max * paramsD.v_Max /
@@ -401,7 +414,7 @@ inline __device__ void BCE_Vel_Acc(int i_idx,
             Real3 acc_fsi_fea_D_nA = acc_fsi_fea_D[nA];
             Real3 acc_fsi_fea_D_nB = acc_fsi_fea_D[nB];
 
-            Real3 dist3 = mR3(sortedPosRad[Original_idx]) - pos_fsi_fea_D_nA;
+            Real3 dist3 = mR3(sortedPosRad[i_idx]) - pos_fsi_fea_D_nA;
             Real3 x_dir = (pos_fsi_fea_D_nB - pos_fsi_fea_D_nA);
             Real Cable_x = length(x_dir);
             x_dir = x_dir / length(x_dir);
@@ -436,12 +449,28 @@ inline __device__ void BCE_Vel_Acc(int i_idx,
             Real3 acc_fsi_fea_D_nD = acc_fsi_fea_D[nD];
 
             Real3 Shell_center = 0.25 * (pos_fsi_fea_D_nA + pos_fsi_fea_D_nB + pos_fsi_fea_D_nC + pos_fsi_fea_D_nD);
-            Real3 dist3 = mR3(sortedPosRad[Original_idx]) - Shell_center;
+
+            // Note that this must be the i_idx itself not the Original_idx
+            Real3 dist3 = mR3(sortedPosRad[i_idx]) - Shell_center;
+
             Real Shell_x =
-                0.25 * (length(pos_fsi_fea_D_nB - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nC));
+                0.25 * (length(pos_fsi_fea_D_nB - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nC - pos_fsi_fea_D_nD));
             Real Shell_y =
                 0.25 * (length(pos_fsi_fea_D_nD - pos_fsi_fea_D_nA) + length(pos_fsi_fea_D_nC - pos_fsi_fea_D_nB));
+
             Real2 FlexSPH_MeshPos_Natural = mR2(dist3.x / Shell_x, dist3.y / Shell_y);
+
+            if (FlexIndex == -1) {
+                printf("FlexIndex=%d, Original_idx=%d, dist3=%f,%f,%f, Shell_x,y=%f,%f\n", FlexIndex, Original_idx,
+                       dist3.x, dist3.y, dist3.z, Shell_x, Shell_y);
+
+                printf(
+                    "FlexIndex=%d, Original_idx=%d, ShellElementsNodes[FlexIndex]=%d,%d,%d,%d,Shell_center = %f, %f, "
+                    "%f, "
+                    "Ni = %f, %f\n",
+                    FlexIndex, Original_idx, nA, nB, nC, nD, Shell_center.x, Shell_center.y, Shell_center.z,
+                    FlexSPH_MeshPos_Natural.x, FlexSPH_MeshPos_Natural.y);
+            }
 
             Real4 N_shell = Shells_ShapeFunctions(FlexSPH_MeshPos_Natural.x, FlexSPH_MeshPos_Natural.y);
             Real NA = N_shell.x;
@@ -451,9 +480,15 @@ inline __device__ void BCE_Vel_Acc(int i_idx,
             V_prescribed =
                 NA * vel_fsi_fea_D_nA + NB * vel_fsi_fea_D_nB + NC * vel_fsi_fea_D_nC + ND * vel_fsi_fea_D_nD;
             myAcc = NA * acc_fsi_fea_D_nA + NB * acc_fsi_fea_D_nB + NC * acc_fsi_fea_D_nC + ND * acc_fsi_fea_D_nD;
-            //            printf("i_idx=%d, myAcc:(%f,%f,%f) V_prescribed:(%f,%f,%f) \n", i_idx, myAcc.x, myAcc.y,
-            //            myAcc.z,
-            //                   V_prescribed.x, V_prescribed.y, V_prescribed.z);
+
+            if (length(V_prescribed) > 18e-6) {
+                //                printf("i_idx=%d, myAcc:(%f,%f,%f) V_prescribed:(%f,%f,%f) \n", i_idx, myAcc.x,
+                //                myAcc.y, myAcc.z,
+                //                       V_prescribed.x, V_prescribed.y, V_prescribed.z);
+                //                printf("FlexIndex=%d  FlexSPH_MeshPos_LRF_D[index]=%f,%f, length(V_prescribed)=%f\n",
+                //                FlexIndex,
+                //                       FlexSPH_MeshPos_Natural.x, FlexSPH_MeshPos_Natural.y, length(V_prescribed));
+            }
         }
     } else {
         printf("i_idx=%d, Original_idx:%d was not found \n\n", i_idx, Original_idx);

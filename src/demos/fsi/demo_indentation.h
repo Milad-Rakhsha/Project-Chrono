@@ -50,29 +50,30 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
-    paramsH->BASEPRES = 0e3;
+    paramsH->BASEPRES = 0.0;
     paramsH->LARGE_PRES = 0.0;
     paramsH->deltaPress;
     paramsH->multViscosity_FSI = 1;
     paramsH->gravity = mR3(0, 0, 0.0);
     paramsH->bodyForce3 = mR3(0, 0, 0);
     paramsH->rho0 = 1000;
+    paramsH->mu0 = 0.04;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->v_Max = 1;  // Arman, I changed it to 0.1 for vehicle. Check this
+
+    paramsH->Conservative_Form = false;
+    paramsH->USE_NonIncrementalProjection = true;
+    paramsH->ApplyInFlowOutFlow = false;
 
     paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
     paramsH->dT = 1e-3;
     paramsH->dT_Flex = paramsH->dT / 5;
-    paramsH->dT_Max = 1.0;
+    paramsH->dT_Max = 1;
     paramsH->Co_number = 0.2;  ///< 0.2 works well for most cases
     paramsH->EPS_XSPH = 0.0;   // Note that increasing this coefficient stabilizes the simulation but adds dissipation
     paramsH->beta_shifting = 0.0001;  // increasing this factor decreases the Lagrangian nature of the model
-
-    paramsH->rho0 = 1000;
-    paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
-    paramsH->mu0 = 0.001;
-    paramsH->kappa = 0.000;  ///< surface tension parameter, experimental
-    paramsH->v_Max = 0.0;    // Arman, I changed it to 0.1 for vehicle. Check this
+    paramsH->v_Max = 0.0;             //
+    paramsH->Cs = 1;                  // This will be multiplied by v_max in the EOS
+    paramsH->kappa = 0.000;           ///< surface tension parameter, experimental
 
     paramsH->L_Characteristic = bzDim;
     paramsH->USE_LinearSolver = false;  ///< IISPH parameter: whether or not use linear solvers
@@ -90,10 +91,6 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->ClampPressure = false;        ///< If the negative pressure should be clamped to zero or not
     paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 
-    paramsH->Conservative_Form = false;
-    paramsH->USE_NonIncrementalProjection = true;
-    paramsH->ApplyInFlowOutFlow = false;
-
     paramsH->tFinal = 2;
     paramsH->timePause = 0;
     paramsH->kdT = 5;  // I don't know what is kdT
@@ -105,7 +102,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->enableAggressiveTweak = 0;
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
-    paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
+    paramsH->bceType = mORIGINAL;  // ADAMI, mORIGINAL
     paramsH->cMin = mR3(-bxDim, -byDim, -bzDim) - 5 * paramsH->HSML;
     paramsH->cMax = mR3(bxDim, byDim, 2 * bzDim) + 5 * paramsH->HSML;
 
