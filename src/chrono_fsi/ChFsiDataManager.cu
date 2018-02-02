@@ -532,6 +532,7 @@ void ChFsiDataManager::ResizeDataManager(int numNodes) {
     fsiGeneralData.rigidIdentifierD.resize(numObjects.numRigid_SphMarkers);
     fsiGeneralData.rigidSPH_MeshPos_LRF_D.resize(numObjects.numRigid_SphMarkers);
     fsiGeneralData.FlexSPH_MeshPos_LRF_D.resize(numObjects.numFlex_SphMarkers);
+    fsiGeneralData.FlexSPH_MeshPos_LRF_H.resize(numObjects.numFlex_SphMarkers);
 
     printf("fsiData->ResizeDataManager (Flex)...\n");
 

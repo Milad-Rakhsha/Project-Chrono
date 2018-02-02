@@ -98,7 +98,7 @@ bool save_output = true;
 std::vector<std::vector<int>> NodeNeighborElementMesh;
 
 bool povray_output = true;
-int out_fps = 20;
+int out_fps = 100;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -114,7 +114,7 @@ Real fzDim = 0.0035;
 
 // For displacement driven method
 double Indentor_R = 0.0032;
-double Indentaiton_rate = -20.0 * 1e-6;
+double Indentaiton_rate = -200.0 * 1e-6;
 double x0 = bzDim;
 
 // For force-driven method
@@ -126,7 +126,7 @@ double K_SPRINGS = 200;  // 1000;
 double C_DAMPERS = 0.;
 double L0_t = 0.005;
 bool addSprings = false;
-bool addCable = false;
+bool addCable = true;
 bool refresh_FlexBodiesInsideFluid = true;
 
 int numCableNodes = 0;
@@ -548,8 +548,8 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     double plate_lenght_y = byDim + 0 * initSpace0;
     double plate_lenght_z = 0.0005;
     // Specification of the mesh
-    int numDiv_x = 5;
-    int numDiv_y = 5;
+    int numDiv_x = 10;
+    int numDiv_y = 10;
     int numDiv_z = 1;
 
     calcSomeParams(numDiv_x, numDiv_y, numDiv_z, plate_lenght_x, plate_lenght_y, plate_lenght_z, N_x, N_y, N_z,
@@ -842,7 +842,7 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
 
     bool multilayer = true;
     bool removeMiddleLayer = false;
-    bool add1DElem = false;
+    bool add1DElem = true;
     bool add2DElem = true;
     chrono::fsi::utils::AddBCE_FromMesh(
         myFsiSystem.GetDataManager(), paramsH, my_mesh, FSI_Nodes, FSI_Cables, FSI_Shells, NodeNeighborElementMesh,
@@ -1071,13 +1071,11 @@ void writeMesh(std::shared_ptr<ChMesh> my_mesh,
                     auto nodeA = (element->GetNodeN(nodeOrder[myNodeN]));
                     std::vector<std::shared_ptr<ChNodeFEAbase>>::iterator it;
                     it = find(myvector.begin(), myvector.end(), nodeA);
-                    if (it == myvector.end()) {
-                        // name not in vector
-                    } else {
+                    if (it != myvector.end()) {
                         auto index = std::distance(myvector.begin(), it);
                         // This is because the index starts from 0
                         if (index > NUM_1D_NODES)
-                            NUM_1D_NODES = index + 1;
+                            NUM_1D_NODES = index;
                         MESH << (unsigned int)index << " ";
                         NodeNeighborElement[index].push_back(iele);
                     }
@@ -1106,11 +1104,9 @@ void writeMesh(std::shared_ptr<ChMesh> my_mesh,
                 auto nodeA = (element->GetNodeN(nodeOrder[myNodeN]));
                 std::vector<std::shared_ptr<ChNodeFEAbase>>::iterator it;
                 it = find(myvector.begin(), myvector.end(), nodeA);
-                if (it > myvector.end()) {
-                    // name not in vector
-                } else {
+                if (it != myvector.end()) {
                     auto index = std::distance(myvector.begin(), it);
-                    MESH << (unsigned int)(index - NUM_1D_NODES) << " ";
+                    MESH << (unsigned int)(index - NUM_1D_NODES - 1) << " ";
                     NodeNeighborElement[index].push_back(iele);
                 }
             }

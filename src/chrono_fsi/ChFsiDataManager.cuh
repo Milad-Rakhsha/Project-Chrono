@@ -349,6 +349,7 @@ class FsiGeneralData {
     // BCE
     thrust::device_vector<Real3> rigidSPH_MeshPos_LRF_D;  ///< Position of a marker attached to a rigid body in a local
     thrust::device_vector<Real3> FlexSPH_MeshPos_LRF_D;
+    thrust::host_vector<Real3> FlexSPH_MeshPos_LRF_H;
 
     thrust::device_vector<uint> rigidIdentifierD;  ///< Identifies which rigid body a marker belongs to
     thrust::device_vector<uint> FlexIdentifierD;

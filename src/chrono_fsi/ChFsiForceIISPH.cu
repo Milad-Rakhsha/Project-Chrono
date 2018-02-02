@@ -661,6 +661,10 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
         B_i[i_idx] = 0.0 * Scaling;
     }
 
+    //    clearRow(i_idx, csrStartIdx - 1, csrEndIdx, csrValA, B_i);
+    //    csrValA[csrStartIdx - 1] = 1;
+    //    B_i[i_idx] = paramsD.BASEPRES;
+
     sortedVelMas[i_idx] = V_new[i_idx];
 }  // namespace fsi
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -809,9 +813,21 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
     GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
 
     if (sortedRhoPreMu[i_idx].x < 0.999 * paramsD.rho0) {
-        csrValA[csrStartIdx - 1] = a_ii[i_idx];
-        for (int myIdx = csrStartIdx; myIdx < csrEndIdx; myIdx++) {
-            csrValA[myIdx] = 0.0;
+        clearRow(i_idx, csrStartIdx - 1, csrEndIdx, csrValA, B_i);
+
+        //        csrValA[csrStartIdx - 1] = a_ii[i_idx];
+        for (int myIdx = csrStartIdx - 1; myIdx < csrEndIdx; myIdx++) {
+            //            uint j = csrColIndA[myIdx];
+            //            if (j == i_idx)
+            //                continue;
+            //            Real h_j = sortedPosRad[j].w;
+            //            Real m_j = h_j * h_j * h_j * paramsD.rho0;
+            //            Real h_ji = 0.5 * (h_j + h_i);
+            //            Real3 pos_j = mR3(sortedPosRad[j]);
+            //            Real3 dist3 = Distance(pos_i, pos_j);
+            //            Real Wij = W3h(length(dist3), h_ji);
+            //            csrValA[myIdx] += m_j / sortedRhoPreMu[j].x * Wij;
+            csrValA[csrStartIdx - 1] = a_ii[i_idx];
             B_i[i_idx] = 0.0;
         }
     }

@@ -410,7 +410,6 @@ void CreateBCE_On_ChElementShellANCF(thrust::host_vector<Real4>& posRadBCE,
         for (int j = jBound.x; j <= jBound.y; j++) {
             for (int i = iBound.x; i <= iBound.y; i++) {
                 Real3 relMarkerPos = mR3(i * initSpaceX, j * initSpaceY, k);
-
                 if (k == 0 && SIDE == 0 && multiLayer && removeMiddleLayer) {
                     // skip the middle layer for this specific case
                     printf(

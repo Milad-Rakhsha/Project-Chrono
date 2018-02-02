@@ -177,7 +177,7 @@ set(ChronoEngine_FSI_UTILS_HEADERS
     utils/ChUtilsGeneratorFluid.h
     utils/ChUtilsGeneratorFsi.h
     utils/ChUtilsPrintStruct.h
-    utils/ChUtilsPrintSph.cuh
+    utils/ChUtilsPrintSph.cuh    
 )
 
 source_group(utils FILES

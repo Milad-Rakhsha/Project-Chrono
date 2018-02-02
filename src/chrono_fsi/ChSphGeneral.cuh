@@ -31,9 +31,9 @@
 
 namespace chrono {
 namespace fsi {
+__constant__ fsi::SimParams paramsD;
+__constant__ fsi::NumberOfObjects numObjectsD;
 
-__constant__ SimParams paramsD;
-__constant__ NumberOfObjects numObjectsD;
 void CopyParams_NumberOfObjects(SimParams* paramsH, NumberOfObjects* numObjectsH);
 #define W3 W3_Spline
 //#define W2 W2_Spline
