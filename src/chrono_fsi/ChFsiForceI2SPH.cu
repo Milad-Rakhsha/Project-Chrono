@@ -297,7 +297,6 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
         //======================= Boundary ===========================
     } else if (Boundary_Marker && paramsD.bceType != ADAMI) {
         Real3 my_normal = Normals[i_idx];
-        bool haveFluid = false;
         for (int count = csrStartIdx; count < csrEndIdx; count++) {
             uint j = csrColInd[count];
             if (sortedRhoPreMu[j].w == -1.0 || dot(my_normal, mR3(sortedPosRad[i_idx] - sortedPosRad[j])) > 0) {

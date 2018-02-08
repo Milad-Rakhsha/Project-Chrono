@@ -661,10 +661,6 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
         B_i[i_idx] = 0.0 * Scaling;
     }
 
-    //    clearRow(i_idx, csrStartIdx - 1, csrEndIdx, csrValA, B_i);
-    //    csrValA[csrStartIdx - 1] = 1;
-    //    B_i[i_idx] = paramsD.BASEPRES;
-
     sortedVelMas[i_idx] = V_new[i_idx];
 }  // namespace fsi
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -813,21 +809,9 @@ __device__ void Calc_fluid_aij_Bi(const uint i_idx,
     GlobalcsrColIndA[csrStartIdx - 1] = i_idx + numAllMarkers * i_idx;
 
     if (sortedRhoPreMu[i_idx].x < 0.999 * paramsD.rho0) {
-        clearRow(i_idx, csrStartIdx - 1, csrEndIdx, csrValA, B_i);
-
-        //        csrValA[csrStartIdx - 1] = a_ii[i_idx];
-        for (int myIdx = csrStartIdx - 1; myIdx < csrEndIdx; myIdx++) {
-            //            uint j = csrColIndA[myIdx];
-            //            if (j == i_idx)
-            //                continue;
-            //            Real h_j = sortedPosRad[j].w;
-            //            Real m_j = h_j * h_j * h_j * paramsD.rho0;
-            //            Real h_ji = 0.5 * (h_j + h_i);
-            //            Real3 pos_j = mR3(sortedPosRad[j]);
-            //            Real3 dist3 = Distance(pos_i, pos_j);
-            //            Real Wij = W3h(length(dist3), h_ji);
-            //            csrValA[myIdx] += m_j / sortedRhoPreMu[j].x * Wij;
-            csrValA[csrStartIdx - 1] = a_ii[i_idx];
+        csrValA[csrStartIdx - 1] = a_ii[i_idx];
+        for (int myIdx = csrStartIdx; myIdx < csrEndIdx; myIdx++) {
+            csrValA[myIdx] = 0.0;
             B_i[i_idx] = 0.0;
         }
     }
@@ -1326,11 +1310,13 @@ __global__ void CalcForces(Real3* new_vel,  // Write
             }
         }
     }
-
-    r0 /= Ni;
-    mi_bar /= Ni;
-
-    r_shift[i_idx] = paramsD.beta_shifting * r0 * r0 * paramsD.v_Max * dT / mi_bar * inner_sum;
+    // This is to make sure we are not deviding by zero
+    if (Ni != 0) {
+        r0 /= Ni;
+        mi_bar /= Ni;
+    }
+    if (mi_bar > EPSILON)
+        r_shift[i_idx] = paramsD.beta_shifting * r0 * r0 * paramsD.v_Max * dT / mi_bar * inner_sum;
 
     F_i_surface_tension = -F_i_surface_tension * paramsD.kappa / m_i;
     // Forces are per unit mass at this point.
@@ -1348,6 +1334,11 @@ __global__ void CalcForces(Real3* new_vel,  // Write
         new_vel[i_idx] = Veli + dT * mR3(derivVelRhoD[i_idx]) / m_i + r_shift[i_idx] / dT;
         //        sortedVelMas[i_idx] = new_vel[i_idx]; //race condition
     }
+
+    if (!isfinite(length(new_vel[i_idx])) || !isfinite(length(derivVelRhoD[i_idx])) ||
+        !isfinite(length(r_shift[i_idx])))
+        printf("%d= new_vel=%.2f,derivVelRhoD=%.2f,r_shift=%.2f\n", i_idx, length(new_vel[i_idx]),
+               length(derivVelRhoD[i_idx]), length(r_shift[i_idx]));
 }
 
 //--------------------------------------------------------------------------------------------------------------------------------

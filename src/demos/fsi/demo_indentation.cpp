@@ -277,10 +277,10 @@ int main(int argc, char* argv[]) {
     int numremove = 0;
     for (int i = 0; i < numPart; i++) {
         bool removeThis = false;
-        fsi::Real4 p = fsi::mR4(points[i].x(), points[i].y(), points[i].z(), initSpace0);
+        fsi::Real4 p = fsi::mR4(points[i].x(), points[i].y(), points[i].z(), paramsH->HSML);
         for (int remove = 0; remove < particles_position.size(); remove++) {
             double dist = length(particles_position[remove] - mR3(p));
-            if (dist < initSpace0 * 0.95) {
+            if (dist < initSpace0 * 0.98) {
                 removeThis = true;
                 break;
             }
@@ -429,7 +429,7 @@ int main(int argc, char* argv[]) {
         SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, my_fsi_mesh, NodeNeighborElementMesh, paramsH, next_frame,
                              time);
 
-        if (time > 100)
+        if (time * Indentaiton_rate > 200 * 1e4)
             break;
     }
 
@@ -517,7 +517,6 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posBottom, chrono::QUNIT, sizeBottom);
     //    chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, posTop, chrono::QUNIT,
     //    sizeBottom);
-
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_xp, chrono::QUNIT, size_YZ, 23);
 
     chrono::fsi::utils::AddBoxBce(myFsiSystem.GetDataManager(), paramsH, ground, pos_xn, chrono::QUNIT, size_YZ, 23);
@@ -548,8 +547,8 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     double plate_lenght_y = byDim + 0 * initSpace0;
     double plate_lenght_z = 0.0005;
     // Specification of the mesh
-    int numDiv_x = 10;
-    int numDiv_y = 10;
+    int numDiv_x = 5;
+    int numDiv_y = 5;
     int numDiv_z = 1;
 
     calcSomeParams(numDiv_x, numDiv_y, numDiv_z, plate_lenght_x, plate_lenght_y, plate_lenght_z, N_x, N_y, N_z,
@@ -601,7 +600,7 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
                     _1D_elementsNodes_mesh, NodeNeighborElementMesh);
 
                 auto Node = std::dynamic_pointer_cast<ChNodeFEAxyzD>(builder.GetLastBeamNodes().back());
-                Constraint_nodes_fibers.push_back(Node);
+                //                Constraint_nodes_fibers.push_back(Node);
                 Nodal_Constraint << Node->GetIndex() << delim << 2 << delim << Node->GetPos().x() << delim
                                  << Node->GetPos().y() << delim << Node->GetPos().z() << std::endl;
 
@@ -1106,7 +1105,7 @@ void writeMesh(std::shared_ptr<ChMesh> my_mesh,
                 it = find(myvector.begin(), myvector.end(), nodeA);
                 if (it != myvector.end()) {
                     auto index = std::distance(myvector.begin(), it);
-                    MESH << (unsigned int)(index - NUM_1D_NODES - 1) << " ";
+                    MESH << (unsigned int)(index - NUM_1D_NODES) << " ";
                     NodeNeighborElement[index].push_back(iele);
                 }
             }

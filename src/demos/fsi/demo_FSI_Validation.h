@@ -74,7 +74,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->dT = 5e-4;
     paramsH->dT_Flex = 5e-5;
     paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
-    paramsH->Co_number = 0.3;                ///< 0.2 works well for most cases
+    paramsH->Co_number = 0.2;                ///< 0.2 works well for most cases
     paramsH->dT_Max = 0.01;  ///< This is problem dependent should set by the user based on characteristic time step
 
     /// Experimental parameters

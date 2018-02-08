@@ -179,6 +179,7 @@ void CreateBceGlobalMarkersFromBceLocalPos_CableANCF(ChFsiDataManager* fsiData,
     //  printf(" new_z_axis element is = (%f,%f,%f)\n", new_z_axis.x, new_z_axis.y, new_z_axis.z);
 
     chrono::ChVector<> physic_to_natural(1 / dx, 1, 1);
+
     chrono::ChVector<> nAp = cable->GetNodeA()->GetPos();
     chrono::ChVector<> nBp = cable->GetNodeB()->GetPos();
 
@@ -194,6 +195,7 @@ void CreateBceGlobalMarkersFromBceLocalPos_CableANCF(ChFsiDataManager* fsiData,
     for (int i = 0; i < posRadBCE.size(); i++) {
         //    chrono::ChVector<> posGlob =
         chrono::ChVector<> pos_physical = ChFsiTypeConvert::Real3ToChVector(mR3(posRadBCE[i]));
+
         chrono::ChVector<> pos_natural = pos_physical * physic_to_natural;
 
         //    cable->ShapeFunctions(N, pos_natural.x);
@@ -251,6 +253,7 @@ void CreateBceGlobalMarkersFromBceLocalPos_CableANCF(ChFsiDataManager* fsiData,
 
         if (addthis) {
             fsiData->sphMarkersH.posRadH.push_back(mR4(ChFsiTypeConvert::ChVectorToReal3(Correct_Pos), posRadBCE[i].w));
+            fsiData->fsiGeneralData.FlexSPH_MeshPos_LRF_H.push_back(ChFsiTypeConvert::ChVectorToReal3(pos_physical));
             chrono::ChVector<> Correct_Vel = N(0) * nAv + N(2) * nBv + ChVector<double>(1e-20);
             Real3 v3 = ChFsiTypeConvert::ChVectorToReal3(Correct_Vel);
             fsiData->sphMarkersH.velMasH.push_back(v3);
@@ -329,7 +332,6 @@ void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
         chrono::ChVector<> pos_physical = ChFsiTypeConvert::Real3ToChVector(mR3(posRadBCE[i]));
         chrono::ChVector<> pos_natural = pos_physical * physic_to_natural;
         //        printf("pos_natural :%f,%f,%f\n", pos_natural.x(), pos_natural.y(), pos_natural.z());
-        fsiData->fsiGeneralData.FlexSPH_MeshPos_LRF_H.push_back(ChFsiTypeConvert::ChVectorToReal3(pos_natural));
 
         shell->ShapeFunctions(N, pos_natural.x(), pos_natural.y(), pos_natural.z());
         chrono::ChVector<> x_dir = (nBp - nAp + nCp - nDp);
@@ -365,6 +367,8 @@ void CreateBceGlobalMarkersFromBceLocalPos_ShellANCF(ChFsiDataManager* fsiData,
 
         if (addthis) {
             fsiData->sphMarkersH.posRadH.push_back(mR4(ChFsiTypeConvert::ChVectorToReal3(Correct_Pos), posRadBCE[i].w));
+            fsiData->fsiGeneralData.FlexSPH_MeshPos_LRF_H.push_back(ChFsiTypeConvert::ChVectorToReal3(pos_natural));
+
             chrono::ChVector<> Correct_Vel = N(0) * nAv + N(2) * nBv + N(4) * nCv + N(6) * nDv;
             Real3 v3 = ChFsiTypeConvert::ChVectorToReal3(Correct_Vel);
             fsiData->sphMarkersH.velMasH.push_back(v3);

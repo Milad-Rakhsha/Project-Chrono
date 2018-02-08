@@ -103,6 +103,7 @@ __global__ void Populate_FlexSPH_MeshPos_LRF_kernel(Real3* FlexSPH_MeshPos_LRF_D
         if (abs(dz) > 0)
             dz /= Spacing;
 
+        //        FlexSPH_MeshPos_LRF_D[index] = mR3(FlexSPH_MeshPos_LRF_H[index].x, dy, dz);
         FlexSPH_MeshPos_LRF_D[index] = mR3(dx / Cable_x, dy, dz);
 
         //    printf("FlexSPH_MeshPos_LRF_D[%d]=%f, %f, %f, Cable_x=%f, dx=%f\n", index, FlexSPH_MeshPos_LRF_D[index].x,
@@ -468,7 +469,7 @@ __global__ void UpdateFlexMarkersPositionVelocityAccD(Real4* posRadD,
         //    printf("CableElementsNodes[%d]=%d,%d\n", FlexIndex, CableNodes.x, CableNodes.y);
 
         Real3 x_dir = pos_fsi_fea_D_nB - pos_fsi_fea_D_nA;
-
+        Real L = length(x_dir);
         x_dir = x_dir / length(x_dir);
         Real3 y_dir = mR3(-x_dir.y, x_dir.x, 0) + mR3(-x_dir.z, 0, x_dir.x) + mR3(0, -x_dir.z, x_dir.y);
         y_dir = y_dir / length(y_dir);
@@ -481,10 +482,20 @@ __global__ void UpdateFlexMarkersPositionVelocityAccD(Real4* posRadD,
         Real3 vel_fsi_fea_D_nA = vel_fsi_fea_D[CableNodes.x];
         Real3 vel_fsi_fea_D_nB = vel_fsi_fea_D[CableNodes.y];
 
+        Real3 physic_to_natural = mR3(1 / L, 1, 1);
+        Real3 pos_natural = mR3(FlexSPH_MeshPos_LRF_D[index].x * physic_to_natural.x,
+                                FlexSPH_MeshPos_LRF_D[index].y * physic_to_natural.y,
+                                FlexSPH_MeshPos_LRF_D[index].z * physic_to_natural.z);
+
+        //        printf(" %d pos_natural= %f,%f,%f, length(x_dir)=%f\n", FlexMarkerIndex, pos_natural.x, pos_natural.y,
+        //               pos_natural.z, L);
+
+        Real2 Nnew = Cables_ShapeFunctions(FlexSPH_MeshPos_LRF_D[index].x);
         Real h = posRadD[FlexMarkerIndex].w;
-        Real3 tempPos = NA * pos_fsi_fea_D_nA + NB * pos_fsi_fea_D_nB +
+        Real3 tempPos = Nnew.x * pos_fsi_fea_D_nA + Nnew.y * pos_fsi_fea_D_nB +
                         FlexSPH_MeshPos_LRF_D[index].y * y_dir * Spacing +
                         FlexSPH_MeshPos_LRF_D[index].z * z_dir * Spacing;
+
         posRadD[FlexMarkerIndex] = mR4(tempPos, h);
         velMasD[FlexMarkerIndex] = NA * vel_fsi_fea_D_nA + NB * vel_fsi_fea_D_nB;
     }

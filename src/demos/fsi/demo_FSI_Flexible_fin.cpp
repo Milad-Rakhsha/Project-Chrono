@@ -461,7 +461,7 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // Create an isotropic material.
     // All layers for all elements share the same material.
     double rho = 1000;
-    double E = 5e9;
+    double E = 5e6;
     double nu = 0.3;
     auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
     // Create the elements

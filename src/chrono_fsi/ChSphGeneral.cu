@@ -865,6 +865,7 @@ __global__ void UpdateDensity(Real3* vis_vel,
 
     Real3 normalizedV_n = mR3(0);
     Real normalizedV_d = 0.0;
+    Real sumW = 0.0;
 
     for (int z = -1; z <= 1; z++) {
         for (int y = -1; y <= 1; y++) {
@@ -888,6 +889,7 @@ __global__ void UpdateDensity(Real3* vis_vel,
                     Real3 grad_i_wij = GradWh(dist3, h_ij);
                     rho_plus += m_j * dot((Vel_i - Vel_j), grad_i_wij) * sumWij_inv[j];
                     Real Wd = W3h(d, h_ij);
+                    sumW += Wd;
                     if (sortedRhoPreMu[j].w == -1) {
                         normalizedV_n += Vel_j * Wd * m_j / sortedRhoPreMu[j].x;
                         normalizedV_d += Wd * m_j / sortedRhoPreMu[j].x;
@@ -896,7 +898,7 @@ __global__ void UpdateDensity(Real3* vis_vel,
             }
         }
     }
-    if (abs(normalizedV_d) > EPSILON) {
+    if (abs(sumW) > EPSILON) {
         vis_vel[i_idx] = normalizedV_n / normalizedV_d;
         //        new_vel[i_idx] = paramsD.EPS_XSPH * vis_vel[i_idx] + (1 - paramsD.EPS_XSPH) * new_vel[i_idx]; //race
         //        condition

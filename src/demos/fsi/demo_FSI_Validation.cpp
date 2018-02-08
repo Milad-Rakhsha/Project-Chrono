@@ -83,7 +83,7 @@ bool povray_output = true;
 int out_fps = 100;
 
 typedef fsi::Real Real;
-Real contact_recovery_speed = 1;  ///< recovery speed for MBD
+std::shared_ptr<ChNodeFEAxyzD> tipnode;
 
 Real bxDim = 0.6;
 Real byDim = 0.1;
@@ -397,12 +397,15 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         if (i % (numDiv_x + 1) == numDiv_x)
             node->SetFixed(true);
 
+        if (abs(loc_y - byDim / 2) < 1e-8 && i % (numDiv_x + 1) == 0)
+            tipnode = node;
+
         // Add node to mesh
         my_mesh->AddNode(node);
     }
 
     // Get a handle to the tip node.
-    auto nodetip = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(TotalNumNodes - 1));
+    //    auto nodetip = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(TotalNumNodes - 1));
 
     // Create an orthotropic material.
     // All layers for all elements share the same material.
@@ -512,16 +515,14 @@ void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
                                         myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray,
                                         myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, data_folder,
                                         true);
-#ifdef AddCylinder
-        char SaveAsRigidObjVTK[256];  // The filename buffer.
-        static int RigidCounter = 0;
 
-        snprintf(SaveAsRigidObjVTK, sizeof(char) * 256, (data_folder + "/Cylinder.%d.vtk").c_str(), RigidCounter);
-        WriteCylinderVTK(Cylinder, cyl_radius, cyl_length, 100, SaveAsRigidObjVTK);
+        std::ofstream output;
+        output.open((out_dir + "/Analysis.txt").c_str(), std::ios::app);
 
-        RigidCounter++;
-#endif
+        output << mTime << " " << tipnode->GetPos().x() << " " << tipnode->GetPos().y() << " " << tipnode->GetPos().z()
+               << std::endl;
 
+        output.close();
         cout << "\n------------ Output frame:   " << next_frame << endl;
         cout << "             Sim frame:      " << next_frame << endl;
         cout << "             Time:           " << mTime << endl;
@@ -750,19 +751,4 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
     }
 
     output.close();
-}
-
-//------------------------------------------------------------------
-// function to set the solver setting for the
-//------------------------------------------------------------------
-
-void saveInputFile(std::string inputFile, std::string outAddress) {
-    std::ifstream inFile;
-    inFile.open(inputFile);
-    std::ofstream outFile;
-    outFile.open(outAddress);
-    outFile << inFile.rdbuf();
-    inFile.close();
-    outFile.close();
-    std::cout << inputFile << "	" << outAddress << "\n";
 }
