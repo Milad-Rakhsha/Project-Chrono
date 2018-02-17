@@ -65,7 +65,7 @@ Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
 // Dimension of the domain
 Real bxDim = 3.5;
-Real byDim = 0.2;
+Real byDim = 200;
 Real bzDim = 1.8;
 
 // Dimension of the fluid domain
@@ -111,7 +111,7 @@ int main(int argc, char* argv[]) {
 
     // You can set your cuda device, if you have multiple of them
     // If not this should be set to 0 or not specified at all
-    cudaSetDevice(1);
+    cudaSetDevice(0);
 
     time(&rawtime);
     timeinfo = localtime(&rawtime);
@@ -204,13 +204,8 @@ int main(int argc, char* argv[]) {
 
     double mTime = 0;
 
-#ifdef CHRONO_FSI_USE_DOUBLE
-    printf("Double Precision\n");
-#else
-    printf("Single Precision\n");
-#endif
     int stepEnd = int(paramsH->tFinal / paramsH->dT);
-    stepEnd = 1000000;
+    stepEnd = 50;
     std::vector<std::vector<double>> vCoor;
     std::vector<std::vector<int>> faces;
 
@@ -221,13 +216,9 @@ int main(int argc, char* argv[]) {
 
     Real time = 0;
     Real Global_max_dT = paramsH->dT_Max;
+    double TIMING = clock();
 
     for (int tStep = 0; tStep < stepEnd + 1; tStep++) {
-        //        if (tStep % 2 == 0)
-        //            paramsH->dT = paramsH->dT / 2;
-        //        else
-        //            paramsH->dT = paramsH->dT * 2;
-
         printf("\nstep : %d, time= : %f (s) \n", tStep, time);
         double frame_time = 1.0 / out_fps;
         int next_frame = std::floor((time + 1e-6) / frame_time) + 1;
@@ -244,6 +235,8 @@ int main(int argc, char* argv[]) {
         time += paramsH->dT;
         SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, next_frame, time);
     }
+    double test = (clock() - TIMING) / (double)CLOCKS_PER_SEC;
+    printf("Finished in %f\n", test);
 
     return 0;
 }

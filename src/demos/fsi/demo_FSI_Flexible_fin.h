@@ -88,7 +88,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->enableAggressiveTweak = 0;
     paramsH->tweakMultV = 0.1;
     paramsH->tweakMultRho = .002;
-    paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
+    paramsH->bceType = mORIGINAL;  // ADAMI, mORIGINAL
     paramsH->cMin = mR3(-bxDim / 2, -byDim / 2, -bzDim) - mR3(paramsH->HSML / 2);
     paramsH->cMax = mR3(bxDim / 2, byDim / 2, 1.2 * bzDim) + mR3(paramsH->HSML / 2);
 

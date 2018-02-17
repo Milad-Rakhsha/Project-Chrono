@@ -598,7 +598,7 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
         G_i[i_idx * 9 + 8] = (mGi[0] * mGi[4] - mGi[1] * mGi[3]) / Det;
     }
     //    sortedRhoPreMu[i_idx].x = sum_mW / sum_W_sumWij_inv;
-    sortedRhoPreMu[i_idx].x = sum_mW;
+    //    sortedRhoPreMu[i_idx].x = sum_mW;
 
     if ((sortedRhoPreMu[i_idx].x > 5 * RHO_0 || sortedRhoPreMu[i_idx].x < RHO_0 / 5) && sortedRhoPreMu[i_idx].w > -2)
         printf(
@@ -880,7 +880,7 @@ __global__ void UpdateDensity(Real3* vis_vel,
                     Real3 dist3 = Distance(posi, posj);
                     Real d = length(dist3);
                     if (d > RESOLUTION_LENGTH_MULT * h_i || sortedRhoPreMu[j].w <= -2 ||
-                        (sortedRhoPreMu[i_idx].w > 0 && sortedRhoPreMu[j].w > 0))
+                        (sortedRhoPreMu[i_idx].w >= 0 && sortedRhoPreMu[j].w >= 0))
                         continue;
                     Real3 Vel_j = new_vel[j];
                     Real h_j = sortedPosRad[j].w;
@@ -890,10 +890,12 @@ __global__ void UpdateDensity(Real3* vis_vel,
                     rho_plus += m_j * dot((Vel_i - Vel_j), grad_i_wij) * sumWij_inv[j];
                     Real Wd = W3h(d, h_ij);
                     sumW += Wd;
-                    if (sortedRhoPreMu[j].w == -1) {
-                        normalizedV_n += Vel_j * Wd * m_j / sortedRhoPreMu[j].x;
-                        normalizedV_d += Wd * m_j / sortedRhoPreMu[j].x;
-                    }
+
+                    if (sortedRhoPreMu[j].w != -1)
+                        Vel_j = mR3(0.0);
+
+                    normalizedV_n += Vel_j * Wd * m_j / sortedRhoPreMu[j].x;
+                    normalizedV_d += Wd * m_j / sortedRhoPreMu[j].x;
                 }
             }
         }

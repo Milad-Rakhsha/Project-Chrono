@@ -29,6 +29,7 @@ mark_as_advanced(CLEAR CUDA_TOOLKIT_ROOT_DIR)
     IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
       IF(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 4.9)
         SET(CUDA_SEPARABLE_COMPILATION OFF)
+        SET(CUDA_PROPAGATE_HOST_FLAGS OFF)
         SET(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std c++11")
         SET(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -Xcompiler -std=c++11")
       ENDIF()
@@ -117,7 +118,7 @@ install(FILES "${PROJECT_BINARY_DIR}/chrono_fsi/ChConfigFSI.h"
 # LIST THE FILES THAT MAKE THE FSI FLUID-SOLID INTERACTION LIBRARY
 
 SET(ChronoEngine_FSI_SOURCES
-    ChBce.cu    
+    ChBce.cu
     ChCollisionSystemFsi.cu
     ChDeviceUtils.cu
     ChFluidDynamics.cu
@@ -127,14 +128,14 @@ SET(ChronoEngine_FSI_SOURCES
     ChFsiForceI2SPH.cu
     ChFsiForceiSPH.cu
     ChFsiForce.cu
-#    ChSphKernels.cu   
+#    ChSphKernels.cu
     ChFsiGeneral.cu
-    ChSphGeneral.cu 
+    ChSphGeneral.cu
     ChFsiLinearSolver.cpp
     ChFsiInterface.cu
     ChSystemFsi.cpp
     ChFsiTypeConvert.cpp
-    
+
 )
 
 SET(ChronoEngine_FSI_HEADERS
@@ -148,9 +149,9 @@ SET(ChronoEngine_FSI_HEADERS
     ChFsiForceIISPH.cuh
     ChFsiForceI2SPH.cuh
     ChFsiForceiSPH.cuh
-    ChFsiForce.cuh 
+    ChFsiForce.cuh
     ChFsiGeneral.cuh
-    ChSphGeneral.cuh  
+    ChSphGeneral.cuh
     ExactLinearSolvers.cuh
     ChFsiLinearSolver.h
     ChFsiInterface.cuh
@@ -158,7 +159,7 @@ SET(ChronoEngine_FSI_HEADERS
     ChApiFsi.h
     ChFsiTypeConvert.h
     custom_math.h
-    
+
 )
 
 SOURCE_GROUP("" FILES
@@ -177,7 +178,7 @@ set(ChronoEngine_FSI_UTILS_HEADERS
     utils/ChUtilsGeneratorFluid.h
     utils/ChUtilsGeneratorFsi.h
     utils/ChUtilsPrintStruct.h
-    utils/ChUtilsPrintSph.cuh    
+    utils/ChUtilsPrintSph.cuh
 )
 
 source_group(utils FILES
@@ -221,7 +222,7 @@ SET_TARGET_PROPERTIES(ChronoEngine_fsi PROPERTIES
                       COMPILE_FLAGS "${CXX_FLAGS}"
                       LINK_FLAGS "${CH_LINKERFLAG_SHARED}"
                       COMPILE_DEFINITIONS "CH_API_COMPILE_FSI")
-                      
+
 
 
 

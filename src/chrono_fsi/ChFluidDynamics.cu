@@ -349,10 +349,10 @@ __global__ void Update_Fluid_State(Real3* new_vel,  // input: sorted velocities,
         return;
 
     //  sortedPosRad[i_idx] = new_Pos[i_idx];
-    velMas[i_idx] = vis_vel[i_idx];
+    velMas[i_idx] = paramsD.EPS_XSPH * vis_vel[i_idx] + (1 - paramsD.EPS_XSPH) * new_vel[i_idx];
     //    printf(" %d vel %f,%f,%f\n", i_idx, vis_vel[i_idx].x, vis_vel[i_idx].y, vis_vel[i_idx].z);
 
-    Real3 newpos = mR3(posRad[i_idx]) + dT * new_vel[i_idx];
+    Real3 newpos = mR3(posRad[i_idx]) + dT * velMas[i_idx];
     Real h = posRad[i_idx].w;
     posRad[i_idx] = mR4(newpos, h);
 
@@ -367,9 +367,9 @@ __global__ void Update_Fluid_State(Real3* new_vel,  // input: sorted velocities,
             i_idx, rhoPreMu[i_idx].x, rhoPreMu[i_idx].y, rhoPreMu[i_idx].z, rhoPreMu[i_idx].w);
     }
 
-    if (!(isfinite(new_vel[i_idx].x) && isfinite(new_vel[i_idx].y) && isfinite(new_vel[i_idx].z))) {
+    if (!(isfinite(velMas[i_idx].x) && isfinite(velMas[i_idx].y) && isfinite(velMas[i_idx].z))) {
         printf("Error! particle %d velocity is NAN: thrown from SDKCollisionSystem.cu, UpdateFluidDKernel !%f,%f,%f\n",
-               i_idx, new_vel[i_idx].x, new_vel[i_idx].y, new_vel[i_idx].z);
+               i_idx, velMas[i_idx].x, velMas[i_idx].y, velMas[i_idx].z);
     }
 }
 

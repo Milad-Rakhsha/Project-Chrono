@@ -227,7 +227,7 @@ int main(int argc, char* argv[]) {
 #endif
     // ************* Create Fluid *************************
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::IISPH);
     chrono::ChVector<> CameraLocation = chrono::ChVector<>(0, -10, 0);
     chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
 
@@ -301,7 +301,7 @@ int main(int argc, char* argv[]) {
     if (argc > 1) {
         fsi::Real3 this_particle;
 
-        std::fstream fin("BCE.csv");
+        std::fstream fin("BCE_Rigid0.csv");
         if (!fin.good())
             throw ChException("ERROR opening Mesh file: BCE.csv \n");
 
@@ -431,7 +431,7 @@ int main(int argc, char* argv[]) {
     system(rmCmd.c_str());
     SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, 0, mTime);
     const std::string copyInitials =
-        (std::string("cp ") + demo_dir + std::string("/BCE0.csv") + std::string(" ./BCE.csv "));
+        (std::string("cp ") + demo_dir + std::string("/BCE_Rigid0.csv") + std::string(" ./BCE_Rigid0.csv "));
     system(copyInitials.c_str());
     if (argc <= 1) {
         printf("now please run with an input argument\n");

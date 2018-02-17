@@ -61,7 +61,7 @@ const std::string out_dir = GetChronoOutputPath() + "FSI_FLOW_AROUND_CYLINDER_SI
 const std::string demo_dir = out_dir + "/FlowAroundCylinder_single_res";
 bool save_output = true;
 
-int out_fps = 20;
+int out_fps = 10;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -218,7 +218,7 @@ int main(int argc, char* argv[]) {
 #endif
     // ************* Create Fluid *************************
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::IISPH);
     chrono::ChVector<> CameraLocation = chrono::ChVector<>(0, -10, 0);
     chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
 
@@ -266,7 +266,7 @@ int main(int argc, char* argv[]) {
     if (argc > 1) {
         fsi::Real3 this_particle;
 
-        std::fstream fin("BCE.csv");
+        std::fstream fin("BCE_Rigid0.csv");
         if (!fin.good())
             throw ChException("ERROR opening Mesh file: BCE.csv \n");
 
@@ -296,7 +296,7 @@ int main(int argc, char* argv[]) {
         particles_position.push_back(fsi::ChFsiTypeConvert::ChVectorToReal3(points1[i]));
     }
 
-    std::cout << "Set Removal points from: BCE.csv" << std::endl;
+    std::cout << "Set Removal points from: BCE_Rigid.csv" << std::endl;
     std::cout << "Searching among " << particles_position.size() << "BCE points" << std::endl;
 
     int numremove = 0;
@@ -312,7 +312,7 @@ int main(int argc, char* argv[]) {
             }
         }
         if (!removeThis) {
-            myFsiSystem.GetDataManager()->AddSphMarker(p, paramsH->V_in,
+            myFsiSystem.GetDataManager()->AddSphMarker(p, paramsH->V_in * (1 - std::pow(points1[i].z() - fzDim / 2, 2)),
                                                        chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -1.0));
         } else
             numremove++;
@@ -369,7 +369,7 @@ int main(int argc, char* argv[]) {
     system(rmCmd.c_str());
     SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, 0, mTime);
     const std::string copyInitials =
-        (std::string("cp ") + demo_dir + std::string("/BCE0.csv") + std::string(" ./BCE.csv "));
+        (std::string("cp ") + demo_dir + std::string("/BCE_Rigid0.csv") + std::string(" ./BCE_Rigid0.csv "));
     system(copyInitials.c_str());
     if (argc <= 1) {
         printf("now please run with an input argument\n");

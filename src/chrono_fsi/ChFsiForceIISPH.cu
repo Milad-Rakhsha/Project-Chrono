@@ -83,7 +83,7 @@ __global__ void V_i_np__AND__d_ii_kernel(Real4* sortedPosRad,  // input: sorted 
     Real mu_0 = paramsD.mu0;
     Real epsilon = paramsD.epsMinMarkersDis;
     Real dT = delta_t;
-    Real3 gravity = paramsD.gravity;
+    Real3 source_term = paramsD.gravity + paramsD.bodyForce3;
     Real RHO_0 = paramsD.rho0;
     if (sortedRhoPreMu[i_idx].x < EPSILON) {
         printf("My density is %f,ref density= %f\n", sortedRhoPreMu[i_idx].x, RHO_0);
@@ -156,26 +156,29 @@ __global__ void V_i_np__AND__d_ii_kernel(Real4* sortedPosRad,  // input: sorted 
 
                         Real Vj = sumWij_inv[j];
                         Real commonterm =
-                            2 * Vj *
+                            2 / Vj * (Vj * Vj + sumWij_inv[i_idx] * sumWij_inv[i_idx]) *
                             (Li[0] * eij.x * grad_ij.x + Li[1] * eij.x * grad_ij.y + Li[2] * eij.x * grad_ij.z +
                              Li[1] * eij.y * grad_ij.x + Li[3] * eij.y * grad_ij.y + Li[4] * eij.y * grad_ij.z +
                              Li[2] * eij.z * grad_ij.x + Li[4] * eij.z * grad_ij.y + Li[5] * eij.z * grad_ij.z);
 
-                        LaplacainVi.x += commonterm * (V_ij.x / d - dot(eij, myGradvx));
-                        LaplacainVi.y += commonterm * (V_ij.y / d - dot(eij, myGradvy));
-                        LaplacainVi.z += commonterm * (V_ij.y / d - dot(eij, myGradvz));
+                        LaplacainVi.x +=
+                            commonterm * (V_ij.x / (d + h_ij * paramsD.epsMinMarkersDis) - dot(eij, myGradvx));
+                        LaplacainVi.y +=
+                            commonterm * (V_ij.y / (d + h_ij * paramsD.epsMinMarkersDis) - dot(eij, myGradvy));
+                        LaplacainVi.z +=
+                            commonterm * (V_ij.y / (d + h_ij * paramsD.epsMinMarkersDis) - dot(eij, myGradvz));
                     }
                 }
             }
         }
     }
 
-    if (!paramsD.Conservative_Form)
-        My_F_i_np = mu_0 * LaplacainVi;
+    //    if (!paramsD.Conservative_Form)
+    //        My_F_i_np = mu_0 * LaplacainVi;
 
     My_F_i_np *= m_i;
 
-    My_F_i_np += m_i * gravity;
+    My_F_i_np += m_i * source_term;
     d_ii[i_idx] = My_d_ii;
     V_i_np[i_idx] = (My_F_i_np * dT + Veli);  // This does not contain m_0?
 }
@@ -523,7 +526,7 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
     //    Real m_i = h_i * h_i * h_i * paramsD.rho0;
     Real3 my_normal = Normals[i_idx];
 
-    Real3 gravity = paramsD.gravity;
+    Real3 source_term = paramsD.gravity + paramsD.bodyForce3;
     //  if (bceIndex >= numObjectsD.numRigid_SphMarkers) {
     //    return;
     //  }
@@ -597,7 +600,7 @@ __device__ void Calc_BC_aij_Bi(const uint i_idx,
                                 continue;
                             numeratorv += Vel_j * Wd;
                             denumenator += Wd;
-                            pRHS += dot(gravity - myAcc, dist3) * sortedRhoPreMu[j].x * Wd;
+                            pRHS += dot(source_term - myAcc, dist3) * sortedRhoPreMu[j].x * Wd;
                             csrValA[counter + csrStartIdx] = -Wd;
                             csrColIndA[counter + csrStartIdx] = j;
                             GlobalcsrColIndA[counter + csrStartIdx] = j + numAllMarkers * i_idx;
@@ -991,7 +994,7 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
 
     Real RHO_0 = paramsD.rho0;
     Real dT = delta_t;
-    Real3 gravity = paramsD.gravity;
+    Real3 source_term = paramsD.gravity + paramsD.bodyForce3;
     bool ClampPressure = paramsD.ClampPressure;
 
     if (sortedRhoPreMu[i_idx].x < EPSILON) {
@@ -1100,7 +1103,7 @@ __global__ void Calc_Pressure(Real* a_ii,     // Read
                             Real h_ij = 0.5 * (h_j + h_i);
                             Real Wd = W3h(d, h_ij);
                             numeratorv += Vel_j * Wd;
-                            numeratorp += p_j * Wd + dot(gravity - myAcc, dist3) * sortedRhoPreMu[j].x * Wd;
+                            numeratorp += p_j * Wd + dot(source_term - myAcc, dist3) * sortedRhoPreMu[j].x * Wd;
                             denumenator += Wd;
                             Real3 TobeUsed = (F_i_p / m_i - F_j_p / m_j);
                             my_rho_p += (dT * dT) * m_j * dot(TobeUsed, GradWh(dist3, h_ij));
@@ -1200,7 +1203,7 @@ __global__ void CalcForces(Real3* new_vel,  // Write
     Real m_i = h_i * h_i * h_i * paramsD.rho0;
 
     Real dT = delta_t;
-    Real3 gravity = paramsD.gravity;
+    Real3 source_term = paramsD.gravity + paramsD.bodyForce3;
     Real epsilon = paramsD.epsMinMarkersDis;
     Real3 posi = mR3(sortedPosRad[i_idx]);
     Real3 Veli = sortedVelMas[i_idx];
@@ -1299,9 +1302,9 @@ __global__ void CalcForces(Real3* new_vel,  // Write
                          Li[1] * eij.y * grad_ij.x + Li[3] * eij.y * grad_ij.y + Li[4] * eij.y * grad_ij.z +
                          Li[2] * eij.z * grad_ij.x + Li[4] * eij.z * grad_ij.y + Li[5] * eij.z * grad_ij.z);
 
-                    LaplacainVi.x += commonterm * (V_ij.x / d - dot(eij, myGradvx));
-                    LaplacainVi.y += commonterm * (V_ij.y / d - dot(eij, myGradvy));
-                    LaplacainVi.z += commonterm * (V_ij.y / d - dot(eij, myGradvz));
+                    LaplacainVi.x += commonterm * (V_ij.x / (d + h_ij * paramsD.epsMinMarkersDis) - dot(eij, myGradvx));
+                    LaplacainVi.y += commonterm * (V_ij.y / (d + h_ij * paramsD.epsMinMarkersDis) - dot(eij, myGradvy));
+                    LaplacainVi.z += commonterm * (V_ij.y / (d + h_ij * paramsD.epsMinMarkersDis) - dot(eij, myGradvz));
 
                     if (!isfinite(length(LaplacainVi)) && !paramsD.Conservative_Form) {
                         printf("LaplacainVi in CalcForces returns Nan or Inf");
@@ -1321,25 +1324,25 @@ __global__ void CalcForces(Real3* new_vel,  // Write
     F_i_surface_tension = -F_i_surface_tension * paramsD.kappa / m_i;
     // Forces are per unit mass at this point.
 
-    if (paramsD.Conservative_Form)
-        derivVelRhoD[i_idx] = mR4((F_i_p + F_i_mu + F_i_surface_tension) * m_i);
-    else
-        derivVelRhoD[i_idx] = mR4((F_i_p + mu_0 * LaplacainVi + F_i_surface_tension) * m_i);
+    //    if (paramsD.Conservative_Form)
+    derivVelRhoD[i_idx] = mR4((F_i_p + F_i_mu + F_i_surface_tension) * m_i);
+    //    else
+    //        derivVelRhoD[i_idx] = mR4((F_i_p + mu_0 * LaplacainVi + F_i_surface_tension) * m_i);
 
-    // Add the gravity forces only to the fluid markers
+    // Add the source_term  only to the fluid markers
     if ((int)sortedRhoPreMu[i_idx].w == -1)
-        derivVelRhoD[i_idx] = derivVelRhoD[i_idx] + mR4(gravity) * m_i;
+        derivVelRhoD[i_idx] = derivVelRhoD[i_idx] + mR4(source_term) * m_i;
 
-    if ((int)sortedRhoPreMu[i_idx].w == -1) {
-        new_vel[i_idx] = Veli + dT * mR3(derivVelRhoD[i_idx]) / m_i + r_shift[i_idx] / dT;
-        //        sortedVelMas[i_idx] = new_vel[i_idx]; //race condition
-    }
+    //    if ((int)sortedRhoPreMu[i_idx].w == -1) {
+    new_vel[i_idx] = Veli + dT * mR3(derivVelRhoD[i_idx]) / m_i + r_shift[i_idx] / dT;
+    //        sortedVelMas[i_idx] = new_vel[i_idx]; //race condition
+    //}
 
     if (!isfinite(length(new_vel[i_idx])) || !isfinite(length(derivVelRhoD[i_idx])) ||
         !isfinite(length(r_shift[i_idx])))
-        printf("%d= new_vel=%.2f,derivVelRhoD=%.2f,r_shift=%.2f\n", i_idx, length(new_vel[i_idx]),
-               length(derivVelRhoD[i_idx]), length(r_shift[i_idx]));
-}
+        printf("%d= new_vel=%.2f,derivVelRhoD=%.2f,r_shift=%.2f, F_i_p=%f, F_i_mu=%f\n", i_idx, length(new_vel[i_idx]),
+               length(derivVelRhoD[i_idx]), length(r_shift[i_idx]), length(F_i_p), length(F_i_mu));
+}  // namespace fsi
 
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void FinalizePressure(Real4* sortedPosRad,  // Read
@@ -1469,8 +1472,8 @@ void ChFsiForceIISPH::calcPressureIISPH(thrust::device_vector<Real4> velMassRigi
                                         thrust::device_vector<Real> sumWij_inv,
                                         thrust::device_vector<Real>& p_old,
                                         thrust::device_vector<Real3> Normals,
-                                        thrust::device_vector<Real>& G_i,
-                                        thrust::device_vector<Real>& L_i,
+                                        thrust::device_vector<Real> G_i,
+                                        thrust::device_vector<Real> L_i,
                                         thrust::device_vector<Real>& Color) {
     //    Real RES = paramsH->PPE_res;
 
@@ -1674,7 +1677,7 @@ void ChFsiForceIISPH::calcPressureIISPH(thrust::device_vector<Real4> velMassRigi
         cudaCheckError();
     }
 
-    while ((MaxRes > paramsH->LinearSolver_Rel_Tol || Iteration < 3) && !paramsH->USE_LinearSolver &&
+    while ((MaxRes > paramsH->LinearSolver_Abs_Tol || Iteration < 3) && !paramsH->USE_LinearSolver &&
            Iteration < paramsH->LinearSolver_Max_Iter) {
         *isErrorH = false;
         cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
@@ -1850,7 +1853,7 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     if (paramsH->Adaptive_time_stepping) {
         Real dt_CFL = paramsH->Co_number * paramsH->HSML / MaxVel;
         Real dt_nu = 0.125 * paramsH->HSML * paramsH->HSML / (paramsH->mu0 / paramsH->rho0);
-        Real dt_body = 0.125 * std::sqrt(paramsH->HSML / length(paramsH->bodyForce3 + paramsH->gravity));
+        Real dt_body = 0.125 / 2 * std::sqrt(paramsH->HSML / length(paramsH->bodyForce3 + paramsH->gravity));
         Real dt = std::min(dt_body, std::min(dt_CFL, dt_nu));
         if (dt / paramsH->dT_Max > 0.7 && dt / paramsH->dT_Max < 1)
             paramsH->dT = paramsH->dT_Max * 0.5;
@@ -1889,6 +1892,7 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     thrust::device_vector<Real> L_i(numAllMarkers * 6);
     thrust::fill(L_i.begin(), L_i.end(), 0);
     *isErrorH = false;
+
     cudaMemcpy(isErrorD, isErrorH, sizeof(bool), cudaMemcpyHostToDevice);
 
     //    calcRho_kernel<<<numBlocks, numThreads>>>(
@@ -1985,57 +1989,58 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
 
     thrust::device_vector<Real3> Normals(numAllMarkers);
 
-    calcNormalizedRho_kernel<<<numBlocks, numThreads>>>(
-        mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
-        mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv), R1CAST(G_i), mR3CAST(Normals), R1CAST(Color),
-        U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
-    cudaThreadSynchronize();
-    cudaCheckError();
-    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
-    if (*isErrorH == true) {
-        throw std::runtime_error("Error! program crashed after calcNormalizedRho_kernel!\n");
+    if (paramsH->Conservative_Form) {
+        calcNormalizedRho_kernel<<<numBlocks, numThreads>>>(
+            mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
+            mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv), R1CAST(G_i), mR3CAST(Normals), R1CAST(Color),
+            U1CAST(markersProximityD->cellStartD), U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
+        cudaThreadSynchronize();
+        cudaCheckError();
+        cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+        if (*isErrorH == true) {
+            throw std::runtime_error("Error! program crashed after calcNormalizedRho_kernel!\n");
+        }
+    } else {
+        uint LastVal = Contact_i[numAllMarkers - 1];
+        thrust::exclusive_scan(Contact_i.begin(), Contact_i.end(), Contact_i.begin());
+        Contact_i.push_back(LastVal + Contact_i[numAllMarkers - 1]);
+        int NNZ = Contact_i[numAllMarkers];
+
+        thrust::device_vector<uint> csrColInd(NNZ);
+
+        calcNormalizedRho_Gi_fillInMatrixIndices<<<numBlocks, numThreads>>>(
+            mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
+            mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv), R1CAST(G_i), mR3CAST(Normals),
+            U1CAST(csrColInd), U1CAST(Contact_i), U1CAST(markersProximityD->cellStartD),
+            U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
+        cudaThreadSynchronize();
+        cudaCheckError();
+        cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+        if (*isErrorH == true) {
+            throw std::runtime_error("Error! program crashed after calcNormalizedRho_kernel!\n");
+        }
+        calc_A_tensor<<<numBlocks, numThreads>>>(R1CAST(A_i), R1CAST(G_i), mR4CAST(sortedSphMarkersD->posRadD),
+                                                 mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),
+                                                 U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, isErrorD);
+
+        cudaThreadSynchronize();
+        cudaCheckError();
+        cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+        if (*isErrorH == true) {
+            throw std::runtime_error("Error! program crashed after calcRho_kernel!\n");
+        }
+
+        calc_L_tensor<<<numBlocks, numThreads>>>(R1CAST(A_i), R1CAST(L_i), R1CAST(G_i),
+                                                 mR4CAST(sortedSphMarkersD->posRadD),
+                                                 mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),
+                                                 U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, isErrorD);
+        cudaThreadSynchronize();
+        cudaCheckError();
+        cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
+        if (*isErrorH == true) {
+            throw std::runtime_error("Error! program crashed after calcRho_kernel!\n");
+        }
     }
-
-    //    uint LastVal = Contact_i[numAllMarkers - 1];
-    //    thrust::exclusive_scan(Contact_i.begin(), Contact_i.end(), Contact_i.begin());
-    //    Contact_i.push_back(LastVal + Contact_i[numAllMarkers - 1]);
-    //    int NNZ = Contact_i[numAllMarkers];
-    //
-    //    thrust::device_vector<uint> csrColInd(NNZ);
-    //
-    //    calcNormalizedRho_Gi_fillInMatrixIndices<<<numBlocks, numThreads>>>(
-    //        mR4CAST(sortedSphMarkersD->posRadD), mR3CAST(sortedSphMarkersD->velMasD),
-    //        mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv), R1CAST(G_i), mR3CAST(Normals),
-    //        U1CAST(csrColInd), U1CAST(Contact_i), U1CAST(markersProximityD->cellStartD),
-    //        U1CAST(markersProximityD->cellEndD), numAllMarkers, isErrorD);
-    //    cudaThreadSynchronize();
-    //    cudaCheckError();
-    //    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
-    //    if (*isErrorH == true) {
-    //        throw std::runtime_error("Error! program crashed after calcNormalizedRho_kernel!\n");
-    //    }
-
-    //    calc_A_tensor<<<numBlocks, numThreads>>>(R1CAST(A_i), R1CAST(G_i), mR4CAST(sortedSphMarkersD->posRadD),
-    //                                             mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),
-    //                                             U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, isErrorD);
-    //
-    //    cudaThreadSynchronize();
-    //    cudaCheckError();
-    //    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
-    //    if (*isErrorH == true) {
-    //        throw std::runtime_error("Error! program crashed after calcRho_kernel!\n");
-    //    }
-
-    //    calc_L_tensor<<<numBlocks, numThreads>>>(R1CAST(A_i), R1CAST(L_i), R1CAST(G_i),
-    //    mR4CAST(sortedSphMarkersD->posRadD),
-    //                                             mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(_sumWij_inv),
-    //                                             U1CAST(csrColInd), U1CAST(Contact_i), numAllMarkers, isErrorD);
-    //    cudaThreadSynchronize();
-    //    cudaCheckError();
-    //    cudaMemcpy(isErrorH, isErrorD, sizeof(bool), cudaMemcpyDeviceToHost);
-    //    if (*isErrorH == true) {
-    //        throw std::runtime_error("Error! program crashed after calcRho_kernel!\n");
-    //    }
 
     thrust::device_vector<Real> p_old(numAllMarkers, 0.0);
     calcPressureIISPH(otherFsiBodiesD->velMassRigid_fsiBodies_D, otherFsiBodiesD->accRigid_fsiBodies_D,
@@ -2158,7 +2163,10 @@ void ChFsiForceIISPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     myType.clear();
     dr_shift.clear();
     Contact_i.clear();
-
+    G_i.clear();
+    A_i.clear();
+    L_i.clear();
+    _sumWij_inv.clear();
     //
 }
 

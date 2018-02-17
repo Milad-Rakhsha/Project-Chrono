@@ -573,9 +573,9 @@ inline __device__ void grad_vector(int i_idx,
     int3 gridPos = calcGridPos(posRadA);
 
     // This is the elements of inverse of G
-    Real mGi[9];
-    for (int n = 0; n < 9; n++)
-        mGi[n] = G_i[i_idx * 9 + n];
+    Real mGi[9] = {0.0};
+    for (int i = 0; i < 9; i++)
+        mGi[i] = G_i[i_idx * 9 + i];
 
     Real3 common_part = mR3(0.);
     Real3 grad_Vx = mR3(0.);

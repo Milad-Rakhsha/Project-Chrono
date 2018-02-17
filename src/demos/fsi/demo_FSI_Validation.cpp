@@ -123,6 +123,10 @@ int main(int argc, char* argv[]) {
     time(&rawtime);
     timeinfo = localtime(&rawtime);
     cudaSetDevice(1);
+
+    std::string rmCmd = (std::string("rm -rf ") + out_dir);
+    system(rmCmd.c_str());
+
     if (ChFileutils::MakeDirectory(out_dir.c_str()) < 0) {
         cout << "Error creating directory " << out_dir << endl;
         return 1;
@@ -132,9 +136,6 @@ int main(int argc, char* argv[]) {
         cout << "Error creating directory " << data_folder << endl;
         return 1;
     }
-
-    const std::string rmCmd = (std::string("rm ") + data_folder + std::string("/*"));
-    system(rmCmd.c_str());
 
     //****************************************************************************************
     const std::string simulationParams = out_dir + "/simulation_specific_parameters.txt";
@@ -410,7 +411,7 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     // Create an orthotropic material.
     // All layers for all elements share the same material.
     double rho = 1100;
-    double E = 5e6;
+    double E = 1e7;
     double nu = 0.4;
     //    ChVector<> E(1e5, 1e5, 1e5);
     //    ChVector<> nu(0.3, 0.3, 0.3);
@@ -448,7 +449,7 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         element->AddLayer(dz, 0 * CH_C_DEG_TO_RAD, mat);
 
         // Set other element properties
-        element->SetAlphaDamp(0.05);   // Structural damping for this element
+        element->SetAlphaDamp(0.02);   // Structural damping for this element
         element->SetGravityOn(false);  // turn internal gravitational force calculation off
 
         // Add element to mesh
@@ -516,13 +517,6 @@ void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
                                         myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray_FEA, data_folder,
                                         true);
 
-        std::ofstream output;
-        output.open((out_dir + "/Analysis.txt").c_str(), std::ios::app);
-
-        output << mTime << " " << tipnode->GetPos().x() << " " << tipnode->GetPos().y() << " " << tipnode->GetPos().z()
-               << std::endl;
-
-        output.close();
         cout << "\n------------ Output frame:   " << next_frame << endl;
         cout << "             Sim frame:      " << next_frame << endl;
         cout << "             Time:           " << mTime << endl;
@@ -536,7 +530,11 @@ void SaveParaViewFiles(fsi::ChSystemFsi& myFsiSystem,
         snprintf(MeshFileBuffer, sizeof(char) * 256, ("%s"), MESH_CONNECTIVITY.c_str());
         printf("%s from here\n", MeshFileBuffer);
         writeFrame(my_mesh, SaveAsBuffer, MeshFileBuffer, NodeNeighborElementMesh);
-
+        std::ofstream output;
+        output.open((out_dir + "/Analysis.txt").c_str(), std::ios::app);
+        output << mTime << " " << tipnode->GetPos().x() << " " << tipnode->GetPos().y() << " " << tipnode->GetPos().z()
+               << std::endl;
+        output.close();
         out_frame++;
     }
 }
