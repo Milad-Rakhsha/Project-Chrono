@@ -180,11 +180,10 @@ class CH_FSI_API ChDeviceUtils {
 
     static void Sync_CheckError(bool* isErrorH, bool* isErrorD, std::string carshReport);
 
-    //    template <class DATATYPE>
-    //    static void CopyD2H(thrust::device_vector<DATATYPE>& DevVec, thrust::host_vector<DATATYPE>& HostVec);
-
-    //    template <class DATATYPE>
-    static void CopyD2H(thrust::device_vector<Real4>& DevVec, thrust::host_vector<Real4>& HostVec);
+    template <class DATATYPE>
+    static void CopyD2H(thrust::device_vector<DATATYPE>& DevVec, thrust::host_vector<DATATYPE>& HostVec) {
+        thrust::copy(DevVec.begin(), DevVec.end(), HostVec.begin());
+    }
 
   private:
 };

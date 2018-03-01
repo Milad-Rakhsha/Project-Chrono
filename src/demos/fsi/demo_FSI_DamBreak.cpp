@@ -361,8 +361,8 @@ void Calculator(fsi::ChSystemFsi& myFsiSystem, double time) {
     chrono::fsi::ChDeviceUtils fsiUtils;
     fsiUtils.CopyD2H(myFsiSystem.GetDataManager()->sphMarkersD2.posRadD,
                      myFsiSystem.GetDataManager()->sphMarkersH.posRadH);
-    fsiUtils.CopyD2HR3(myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
-                       myFsiSystem.GetDataManager()->sphMarkersH.velMasH);
+    fsiUtils.CopyD2H(myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
+                     myFsiSystem.GetDataManager()->sphMarkersH.velMasH);
     // find the front pos
     thrust::host_vector<chrono::fsi::Real4> posRad = myFsiSystem.GetDataManager()->sphMarkersH.posRadH;
     thrust::host_vector<chrono::fsi::Real4>::iterator iter_pos =
