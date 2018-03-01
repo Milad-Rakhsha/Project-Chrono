@@ -579,13 +579,13 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
 
     Real Det = (mGi[0] * mGi[4] * mGi[8] - mGi[0] * mGi[5] * mGi[7] - mGi[1] * mGi[3] * mGi[8] +
                 mGi[1] * mGi[5] * mGi[6] + mGi[2] * mGi[3] * mGi[7] - mGi[2] * mGi[4] * mGi[6]);
-    if (abs(Det) < 1e-6 && sortedRhoPreMu[i_idx].w != -3) {
+    if (abs(Det) < EPSILON && sortedRhoPreMu[i_idx].w != -3) {
         printf("Gi,");
         for (int i = 0; i < 9; i++)
             G_i[i_idx * 9 + i] = 0.0;
-        //        G_i[i_idx * 9 + 0] = 1;
-        //        G_i[i_idx * 9 + 4] = 1;
-        //        G_i[i_idx * 9 + 8] = 1;
+        G_i[i_idx * 9 + 0] = 1;
+        G_i[i_idx * 9 + 4] = 1;
+        G_i[i_idx * 9 + 8] = 1;
     } else {
         G_i[i_idx * 9 + 0] = (mGi[4] * mGi[8] - mGi[5] * mGi[7]) / Det;
         G_i[i_idx * 9 + 1] = -(mGi[1] * mGi[8] - mGi[2] * mGi[7]) / Det;
@@ -672,7 +672,7 @@ __global__ void Function_Gradient_Laplacian_Operator(Real4* sortedPosRad,  // in
 
         Real V_j = sumWij_inv[j];
         A_f[count] = V_j * W3;
-        if (paramsD.Conservative_Form || abs(rhoi - RHO_0) > 0.2 * RHO_0) {
+        if (paramsD.Conservative_Form) {
             //            Real3 comm = 1 / V_i * (V_j * V_j + V_i * V_i) / (rhoi + sortedRhoPreMu[j].x) * grad_i_wij;
             //            A_G[count] = rhoi * comm;
             //            A_G[csrStartIdx] += sortedRhoPreMu[j].x * comm;
@@ -698,6 +698,10 @@ __global__ void Function_Gradient_Laplacian_Operator(Real4* sortedPosRad,  // in
             A_G[csrStartIdx].y -= Coeff * (grad_i_wij.x * mGi[3] + grad_i_wij.y * mGi[4] + grad_i_wij.z * mGi[5]);
             A_G[csrStartIdx].z -= Coeff * (grad_i_wij.x * mGi[6] + grad_i_wij.y * mGi[7] + grad_i_wij.z * mGi[8]);
         }
+
+        //        if (!(isfinite(A_G[count].x) && isfinite(A_G[count].y) && isfinite(A_G[count].z))) {
+        //            printf("Error! A_G ChSPHGeneral.cu !\n");
+        //        }
     }
 
     for (int count = csrStartIdx; count < csrEndIdx; count++) {
@@ -712,8 +716,9 @@ __global__ void Function_Gradient_Laplacian_Operator(Real4* sortedPosRad,  // in
         Real W3 = W3h(d, h_ij);
         Real3 grad_ij = GradWh(rij, h_ij);
         Real V_j = sumWij_inv[j];
-        //
-        if (paramsD.Conservative_Form || abs(rhoi - RHO_0) > 0.2 * RHO_0) {
+        if (d < EPSILON)
+            continue;
+        if (paramsD.Conservative_Form) {
             Real comm = 2 / V_i * (V_j * V_j + V_i * V_i) * dot(rij, grad_ij) /
                         (d * d + h_ij * h_ij * paramsD.epsMinMarkersDis);
             A_L[count] = -comm;        // j
@@ -736,6 +741,10 @@ __global__ void Function_Gradient_Laplacian_Operator(Real4* sortedPosRad,  // in
                 A_L[count_in] -= commonterm * dot(A_G[count_in], eij);  // k
             }
         }
+
+        //        if (!(isfinite(A_L[count]))) {
+        //            printf("Error! A_L ChSPHGeneral.cu !\n");
+        //        }
     }
 }
 //--------------------------------------------------------------------------------------------------------------------------------
@@ -865,7 +874,6 @@ __global__ void UpdateDensity(Real3* vis_vel,
 
     Real3 normalizedV_n = mR3(0);
     Real normalizedV_d = 0.0;
-    Real sumW = 0.0;
 
     for (int z = -1; z <= 1; z++) {
         for (int y = -1; y <= 1; y++) {
@@ -880,7 +888,7 @@ __global__ void UpdateDensity(Real3* vis_vel,
                     Real3 dist3 = Distance(posi, posj);
                     Real d = length(dist3);
                     if (d > RESOLUTION_LENGTH_MULT * h_i || sortedRhoPreMu[j].w <= -2 ||
-                        (sortedRhoPreMu[i_idx].w >= 0 && sortedRhoPreMu[j].w >= 0))
+                        (sortedRhoPreMu[i_idx].w > 0 && sortedRhoPreMu[j].w > 0))
                         continue;
                     Real3 Vel_j = new_vel[j];
                     Real h_j = sortedPosRad[j].w;
@@ -889,18 +897,15 @@ __global__ void UpdateDensity(Real3* vis_vel,
                     Real3 grad_i_wij = GradWh(dist3, h_ij);
                     rho_plus += m_j * dot((Vel_i - Vel_j), grad_i_wij) * sumWij_inv[j];
                     Real Wd = W3h(d, h_ij);
-                    sumW += Wd;
-
-                    if (sortedRhoPreMu[j].w != -1)
-                        Vel_j = mR3(0.0);
-
-                    normalizedV_n += Vel_j * Wd * m_j / sortedRhoPreMu[j].x;
-                    normalizedV_d += Wd * m_j / sortedRhoPreMu[j].x;
+                    if (sortedRhoPreMu[j].w == -1) {
+                        normalizedV_n += Vel_j * Wd * m_j / sortedRhoPreMu[j].x;
+                        normalizedV_d += Wd * m_j / sortedRhoPreMu[j].x;
+                    }
                 }
             }
         }
     }
-    if (abs(sumW) > EPSILON) {
+    if (abs(normalizedV_d) > EPSILON) {
         vis_vel[i_idx] = normalizedV_n / normalizedV_d;
         //        new_vel[i_idx] = paramsD.EPS_XSPH * vis_vel[i_idx] + (1 - paramsD.EPS_XSPH) * new_vel[i_idx]; //race
         //        condition

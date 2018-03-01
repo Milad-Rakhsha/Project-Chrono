@@ -46,6 +46,7 @@
 // FSI Interface Includes
 #include "demos/fsi/demo_FSI_flow_around_cylinder_singleRes.h"
 
+#define PRINT 1
 #define haveFluid 1
 #define AddCylinder 1
 // Chrono namespaces
@@ -61,7 +62,7 @@ const std::string out_dir = GetChronoOutputPath() + "FSI_FLOW_AROUND_CYLINDER_SI
 const std::string demo_dir = out_dir + "/FlowAroundCylinder_single_res";
 bool save_output = true;
 
-int out_fps = 10;
+int out_fps = 5;
 
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
@@ -218,7 +219,7 @@ int main(int argc, char* argv[]) {
 #endif
     // ************* Create Fluid *************************
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::IISPH);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
     chrono::ChVector<> CameraLocation = chrono::ChVector<>(0, -10, 0);
     chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
 
@@ -266,9 +267,9 @@ int main(int argc, char* argv[]) {
     if (argc > 1) {
         fsi::Real3 this_particle;
 
-        std::fstream fin("BCE_Rigid0.csv");
+        std::fstream fin("BCE_Rigid.csv");
         if (!fin.good())
-            throw ChException("ERROR opening Mesh file: BCE.csv \n");
+            throw ChException("ERROR opening Mesh file: BCE_Rigid.csv \n");
 
         std::string line;
         getline(fin, line);
@@ -312,7 +313,7 @@ int main(int argc, char* argv[]) {
             }
         }
         if (!removeThis) {
-            myFsiSystem.GetDataManager()->AddSphMarker(p, paramsH->V_in * (1 - std::pow(points1[i].z() - fzDim / 2, 2)),
+            myFsiSystem.GetDataManager()->AddSphMarker(p, paramsH->V_in,
                                                        chrono::fsi::mR4(paramsH->rho0, 1e-10, paramsH->mu0, -1.0));
         } else
             numremove++;
@@ -369,7 +370,7 @@ int main(int argc, char* argv[]) {
     system(rmCmd.c_str());
     SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, 0, mTime);
     const std::string copyInitials =
-        (std::string("cp ") + demo_dir + std::string("/BCE_Rigid0.csv") + std::string(" ./BCE_Rigid0.csv "));
+        (std::string("cp ") + demo_dir + std::string("/BCE_Rigid0.csv") + std::string(" ./BCE_Rigid.csv "));
     system(copyInitials.c_str());
     if (argc <= 1) {
         printf("now please run with an input argument\n");
@@ -382,7 +383,6 @@ int main(int argc, char* argv[]) {
         //            paramsH->dT = paramsH->dT / 2;
         //        else
         //            paramsH->dT = paramsH->dT * 2;
-
         printf("\nstep : %d, time= : %f (s) \n", tStep, time);
         double frame_time = 1.0 / out_fps;
         int next_frame = std::floor((time + 1e-6) / frame_time) + 1;
@@ -392,8 +392,8 @@ int main(int argc, char* argv[]) {
             paramsH->dT_Max = std::min(Global_max_dT, max_allowable_dt);
         else
             paramsH->dT_Max = Global_max_dT;
-
-        printf("next_frame is:%d,  max dt is set to %f\n", next_frame, paramsH->dT_Max);
+        if (PRINT)
+            printf("next_frame is:%d,  max dt is set to %f\n", next_frame, paramsH->dT_Max);
 #if haveFluid
         myFsiSystem.DoStepDynamics_FSI_Implicit();
 #else

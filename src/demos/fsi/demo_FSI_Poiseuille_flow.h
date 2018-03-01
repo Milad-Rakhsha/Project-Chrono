@@ -46,55 +46,47 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->sizeScale = 1;  // don't change it.
     paramsH->HSML = 0.01;
     paramsH->MULT_INITSPACE = 1.0;
-    paramsH->epsMinMarkersDis = .001;
+    paramsH->epsMinMarkersDis = .0001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
     paramsH->BASEPRES = 1;
     paramsH->LARGE_PRES = 0;
     paramsH->deltaPress;
     paramsH->multViscosity_FSI = 1;
-    paramsH->gravity = mR3(0.001, 0, 0.0);
-    paramsH->bodyForce3 = mR3(0, 0, 0);
+    paramsH->gravity = mR3(0, 0, 0);
+    paramsH->bodyForce3 = mR3(0.001, 0, 0);
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
     paramsH->mu0 = 0.1;
     paramsH->v_Max = 1;
-    paramsH->x_in = -bxDim / 2 + 3 * paramsH->HSML;
-    paramsH->V_in = mR3(0.01, 0, 0.0);
+    paramsH->x_in = -bxDim + 3 * paramsH->HSML;
+    paramsH->V_in = mR3(0.00, 0, 0.0);
 
-    paramsH->EPS_XSPH = .5f;
+    paramsH->EPS_XSPH = 0.05;
+    paramsH->beta_shifting = 0.1;            // increasing this factor decreases the Lagrangian nature of the model
+    paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
+    paramsH->Co_number = 0.1;                ///< 0.2 works well for most cases
+    paramsH->dT_Max = 1.0;  ///< This is problem dependent should set by the user based on characteristic time step
+    paramsH->dT = 1e-3;
+    paramsH->tFinal = 2;
 
-    paramsH->USE_LinearSolver = true;  ///< IISPH parameter: whether or not use linear solvers
-    paramsH->USE_Iterative_solver = true;
+    paramsH->Conservative_Form = false;
+    paramsH->USE_NonIncrementalProjection = true;
+    paramsH->USE_LinearSolver = false;                ///< IISPH parameter: whether or not use linear solvers
     paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
     paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
     paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
-    paramsH->LinearSolver_Rel_Tol = 1e-6;    ///< relative res, is used in the matrix free solver and linear solvers
-    paramsH->LinearSolver_Abs_Tol = 1e-5;    ///< absolute error, applied when linear solvers are used
-    paramsH->LinearSolver_Max_Iter = 10000;  ///< max number of iteration for linear solvers
-    paramsH->PPE_relaxation = 0.5;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
+    paramsH->LinearSolver_Rel_Tol = 1e-6;  ///< relative res, is used in the matrix free solver and linear solvers
+    paramsH->LinearSolver_Abs_Tol = 1e-5;  ///< absolute error, applied when linear solvers are used
+    paramsH->LinearSolver_Max_Iter = 100;  ///< max number of iteration for linear solvers
+    paramsH->PPE_relaxation = 0.99;        ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
     /// Experimental parameters
-    paramsH->Max_Pressure = 1e5;
-    paramsH->IncompressibilityFactor = 1;     ///< to tune the compression
-    paramsH->ClampPressure = false;           ///< If the negative pressure should be clamped to zero or not
-    paramsH->Adaptive_time_stepping = false;  ///< This let you use large time steps when possible
-    paramsH->Co_number = 0.8;                 ///< 0.2 works well for most cases
-    paramsH->dT_Max = 0.001;  ///< This is problem dependent should set by the user based on characteristic time step
-    paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 
-    paramsH->dT = 1e-3;
-    paramsH->tFinal = 2;
-    paramsH->timePause = 0;
-    paramsH->kdT = 5;  // I don't know what is kdT
-    paramsH->gammaBB = 0.5;
-    paramsH->binSize0;     // will be changed
-    paramsH->rigidRadius;  // will be changed
-    paramsH->densityReinit = 0;
-    paramsH->enableTweak = 1;
-    paramsH->enableAggressiveTweak = 0;
-    paramsH->tweakMultV = 0.1;
-    paramsH->tweakMultRho = .002;
-    paramsH->bceType = ADAMI;  // ADAMI, mORIGINAL
+    paramsH->Apply_BC_U = false;   ///< You should go to custom_math.h all the way to end of file and set your function
+    paramsH->bceType = mORIGINAL;  // ADAMI, mORIGINAL
+    paramsH->ApplyInFlowOutFlow = false;
+    paramsH->outflow = paramsH->cMax - mR3(paramsH->HSML * 25);
+    paramsH->inflow = paramsH->cMin + mR3(paramsH->HSML * 25);
     paramsH->cMin = mR3(-bxDim / 2 - paramsH->HSML / 2, -byDim / 2 - paramsH->HSML / 2, -bzDim * 4);
     paramsH->cMax = mR3(bxDim / 2 + paramsH->HSML / 2, byDim / 2 + paramsH->HSML / 2, bzDim * 2);
 

@@ -39,10 +39,15 @@
 #include "chrono_fsi/utils/ChUtilsGeneratorFsi.h"
 #include "chrono_fsi/utils/ChUtilsPrintSph.cuh"
 
+#include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
+#include "chrono_fsi/custom_math.h"
+
 // FSI Interface Includes
 #include "demos/fsi/demo_FSI_Compressibility.h"  //SetupParamsH()
 
 #define haveFluid 1
+#define PRINT false
 
 // Chrono namespaces
 using namespace chrono;
@@ -58,7 +63,7 @@ std::ofstream simParams;
 // output directories and settings
 //----------------------------
 const std::string out_dir = GetChronoOutputPath() + "FSI_COMPRESSIBILITY";
-const std::string demo_dir = out_dir + "/Compressibility";
+const std::string demo_dir = out_dir + "/Paraview";
 // Save data as csv files, turn it on to be able to see the results off-line using paraview
 bool save_output = true;
 
@@ -86,6 +91,7 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
                           chrono::fsi::SimParams* paramsH,
                           int tStep,
                           double mTime);
+void Calculator(fsi::ChSystemFsi& myFsiSystem, chrono::fsi::SimParams* paramsH, double time);
 
 //------------------------------------------------------------------
 // Create the objects of the MBD system. Rigid bodies, and if fsi, their
@@ -177,15 +183,11 @@ int main(int argc, char* argv[]) {
     timeinfo = localtime(&rawtime);
 
     //****************************************************************************************
-    // Arman take care of this block.
-    // Set path to ChronoVehicle data files
-    //  vehicle::SetDataPath(CHRONO_VEHICLE_DATA_DIR);
-    //  vehicle::SetDataPath("/home/arman/Repos/GitBeta/chrono/src/demos/data/");
-    //  SetChronoDataPath(CHRONO_DATA_DIR);
-
     // --------------------------
     // Create output directories.
     // --------------------------
+    const std::string rmCmd = (std::string("rm -r ") + out_dir);
+    system(rmCmd.c_str());
 
     if (ChFileutils::MakeDirectory(out_dir.c_str()) < 0) {
         cout << "Error creating directory " << out_dir << endl;
@@ -209,7 +211,7 @@ int main(int argc, char* argv[]) {
 #endif
     // ************* Create Fluid *************************
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::XSPH);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
     chrono::ChVector<> CameraLocation = chrono::ChVector<>(0, -10, 0);
     chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
 
@@ -282,19 +284,8 @@ int main(int argc, char* argv[]) {
 
     cout << " -- ChSystem size : " << mphysicalSystem.Get_bodylist()->size() << endl;
 
-    // ***************************** System Initialize
-    // ********************************************
-    const std::string rmCmd = (std::string("rm ") + demo_dir + std::string("/*"));
-    system(rmCmd.c_str());
     double mTime = 0;
-
-#ifdef CHRONO_FSI_USE_DOUBLE
-    printf("Double Precision\n");
-#else
-    printf("Single Precision\n");
-#endif
-    int stepEnd = int(paramsH->tFinal / paramsH->dT);
-    stepEnd = 5000000;
+    int stepEnd = 500000;
     std::vector<std::vector<double>> vCoor;
     std::vector<std::vector<int>> faces;
 
@@ -307,6 +298,7 @@ int main(int argc, char* argv[]) {
     Real Global_max_dT = paramsH->dT_Max;
     for (int tStep = 0; tStep < stepEnd + 1; tStep++) {
         printf("\nstep : %d, time= : %f (s) \n", tStep, time);
+        printf("%f ", time);
         double frame_time = 1.0 / out_fps;
         int next_frame = std::floor((time + 1e-6) / frame_time) + 1;
         double next_frame_time = next_frame * frame_time;
@@ -316,28 +308,11 @@ int main(int argc, char* argv[]) {
         else
             paramsH->dT_Max = Global_max_dT;
 
-#if haveFluid
+        double time_start = clock();
         myFsiSystem.DoStepDynamics_FSI_Implicit();
-#else
-        myFsiSystem.DoStepDynamics_ChronoRK2();
-#endif
-
-        thrust::host_vector<Real3> velMasH = myFsiSystem.GetDataManager()->sphMarkersH.velMasH;
-        thrust::host_vector<Real4> rhoPresMuH = myFsiSystem.GetDataManager()->sphMarkersH.rhoPresMuH;
-        std::ofstream output;
-        output.open((out_dir + "/Analysis.txt"), std::ios::app);
-
-        Real KE = 0;
-        Real Rho = 0;
-        int numFluidMarkers = myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray[0].y;
-        for (int i = 0; i < numFluidMarkers; i++) {
-            KE += 0.5 * (length(velMasH[i]));
-            Rho += rhoPresMuH[i].x;
-        }
-        output << time << " " << Rho / numFluidMarkers << " " << paramsH->markerMass * KE / numFluidMarkers << endl;
-        output.close();
+        Calculator(myFsiSystem, paramsH, time);
+        double time_elpased = (clock() - time_start) / (double)CLOCKS_PER_SEC;
         time += paramsH->dT;
-
         SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, next_frame, time);
 
         if (time > paramsH->tFinal)
@@ -396,11 +371,51 @@ void SaveParaViewFilesMBD(fsi::ChSystemFsi& myFsiSystem,
         char filename[100];
         sprintf(filename, "%s/data_%03d.dat", out_dir.c_str(), out_frame + 1);
         chrono::utils::WriteShapesPovray(&mphysicalSystem, filename);
-        cout << "-------------------------------------\n" << endl;
-        cout << "             Output frame:   " << next_frame << endl;
-        cout << "             Time:           " << mTime << endl;
-        cout << "-------------------------------------\n" << endl;
-
+        if (PRINT) {
+            cout << "-------------------------------------\n" << endl;
+            cout << "             Output frame:   " << next_frame << endl;
+            cout << "             Time:           " << mTime << endl;
+            cout << "-------------------------------------\n" << endl;
+        }
         out_frame++;
     }
+}
+// output file info
+void Calculator(fsi::ChSystemFsi& myFsiSystem, chrono::fsi::SimParams* paramsH, double time) {
+    std::ofstream output;
+    output.open((demo_dir + "/Analysis.txt").c_str(), std::ios::app);
+
+    //    thrust::host_vector<chrono::fsi::Real4> rhoPresMuH = myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD;
+    thrust::host_vector<int4> referenceArray = myFsiSystem.GetDataManager()->fsiGeneralData.referenceArray;
+    chrono::fsi::ChDeviceUtils fsiUtils;
+    fsiUtils.CopyD2H(myFsiSystem.GetDataManager()->sphMarkersD2.rhoPresMuD,
+                     myFsiSystem.GetDataManager()->sphMarkersH.rhoPresMuH);
+    // fsiUtils.CopyD2HR3(myFsiSystem.GetDataManager()->sphMarkersD2.velMasD,
+    //                    myFsiSystem.GetDataManager()->sphMarkersH.velMasH);
+    // find the front pos
+    thrust::host_vector<chrono::fsi::Real4> rhoPresMu = myFsiSystem.GetDataManager()->sphMarkersH.rhoPresMuH;
+    // thrust::host_vector<chrono::fsi::Real4>::iterator iter_pos =
+    //   thrust::max_element(posRad.begin(),posRad.begin() + referenceArray[0].y,chrono::fsi::compare_Real4_x());
+    // chrono::fsi::Real4 Front_pos = *iter_pos;
+
+    // thrust::host_vector<chrono::fsi::Real3> velMas = myFsiSystem.GetDataManager()->sphMarkersH.velMasH;
+    // thrust::host_vector<chrono::fsi::Real4> rhoPresMu = myFsiSystem.GetDataManager()->sphMarkersH.rhoPresMuH;
+    Real Rho_ave_err = 0;
+    Real rho_max = 0;
+
+    for (int i = referenceArray[0].x; i < referenceArray[0].y; i++) {
+        //    Real3 pos = posRadH[i];
+        if (rhoPresMu[i].x > rho_max)
+            rho_max = rhoPresMu[i].x;
+        Rho_ave_err += rhoPresMu[i].x;
+    }
+    // p_Ave /= (referenceArray[0].y - referenceArray[0].x);
+    Rho_ave_err /= (referenceArray[0].y - referenceArray[0].x) * paramsH->rho0;
+    output << time << " " << Rho_ave_err << std::endl;
+
+    //    posRadH.clear();
+    //    velMasH.clear();
+    rhoPresMu.clear();
+    // velMas.clear();
+    output.close();
 }
