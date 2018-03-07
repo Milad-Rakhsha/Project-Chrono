@@ -729,7 +729,7 @@ __global__ void Function_Gradient_Laplacian_Operator(Real4* sortedPosRad,  // in
             //            A_L[csrStartIdx] += comm;  // i
 
         } else {
-            Real commonterm = 2 / V_j * (V_j * V_j + V_i * V_i) *
+            Real commonterm = 2 * V_j *  // 1 / V_j * (V_j * V_j + V_i * V_i) *
                               (Li[0] * eij.x * grad_ij.x + Li[1] * eij.x * grad_ij.y + Li[2] * eij.x * grad_ij.z +
                                Li[1] * eij.y * grad_ij.x + Li[3] * eij.y * grad_ij.y + Li[4] * eij.y * grad_ij.z +
                                Li[2] * eij.z * grad_ij.x + Li[4] * eij.z * grad_ij.y + Li[5] * eij.z * grad_ij.z);

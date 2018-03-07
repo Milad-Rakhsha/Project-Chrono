@@ -168,7 +168,7 @@ __global__ void Shifting_r(Real4* sortedPosRad,
             Real3 grad_i_wij = GradWh(rij, h_ij);
             summation += m_j * dot((sortedVelMas_old[i_idx] - sortedVelMas_old[j]), grad_i_wij);
         }
-        r0 /= (csrEndIdx - csrStartIdx - 1);
+        r0 /= (csrEndIdx - csrStartIdx);
         mi_bar /= (csrEndIdx - csrStartIdx);
         shift_r = paramsD.beta_shifting * r0 * r0 * length(MaxVel) * delta_t / mi_bar * inner_sum;
         sortedRhoPreMu[i_idx].x += delta_t * summation;

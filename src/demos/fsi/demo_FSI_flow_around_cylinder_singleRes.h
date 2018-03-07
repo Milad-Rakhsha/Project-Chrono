@@ -55,19 +55,19 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->deltaPress = mR3(0.0, 0, 0.0);
     paramsH->multViscosity_FSI = 1;
     paramsH->gravity = mR3(0.0, 0, 0.0);
-    paramsH->bodyForce3 = mR3(0.005, 0, 0);
+    paramsH->bodyForce3 = mR3(0.001, 0, 0);
 
     paramsH->V_in = mR3(0.00, 0, 0.0);
     paramsH->x_in = -bxDim + 3 * initSpace;
 
     paramsH->Conservative_Form = false;
-    paramsH->USE_NonIncrementalProjection = false;
+    paramsH->USE_NonIncrementalProjection = true;
     paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
     paramsH->dT = 1e-3;
     paramsH->dT_Max = 1.0;
     paramsH->Co_number = 0.2;  ///< 0.2 works well for most cases
-    paramsH->EPS_XSPH = 0.1;   // Note that increasing this coefficient stabilizes the simulation but adds dissipation
-    paramsH->beta_shifting = 0.1;  // increasing this factor decreases the Lagrangian nature of the model
+    paramsH->EPS_XSPH = 0.0;   // Note that increasing this coefficient stabilizes the simulation but adds dissipation
+    paramsH->beta_shifting = 0.2;  // increasing this factor decreases the Lagrangian nature of the model
 
     paramsH->rho0 = 1000;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;

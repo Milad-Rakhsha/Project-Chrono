@@ -457,7 +457,7 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
     sortedVelMas[i_idx] = V_new;
 
     if (paramsD.USE_NonIncrementalProjection)
-        sortedRhoPreMu[i_idx].y += q_i[i_idx];
+        sortedRhoPreMu[i_idx].y = q_i[i_idx];
     else
         sortedRhoPreMu[i_idx].y += q_i[i_idx] + dot(grad_p_nPlus1, mR3(x_new - sortedPosRad[i_idx]));
 
@@ -540,8 +540,8 @@ __global__ void Shifting(Real4* sortedPosRad,
         //        inner_sum += rij / (d * d * d);
         inner_sum += m_j * rij / (d * d * d);
 
-        //        if (sortedRhoPreMu[j].w != -1)
-        //            continue;
+        if (sortedRhoPreMu[j].w != -1)
+            continue;
         Real h_ij = 0.5 * (sortedPosRad_old[j].w + sortedPosRad_old[i_idx].w);
         Real Wd = W3h(d, h_ij);
 
