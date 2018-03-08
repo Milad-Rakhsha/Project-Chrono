@@ -44,8 +44,8 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.05 / 0.9;
-    paramsH->MULT_INITSPACE = 0.9;
+    paramsH->HSML = 0.05 / 0.95;
+    paramsH->MULT_INITSPACE = 0.95;
     Real initSpace = paramsH->MULT_INITSPACE * paramsH->HSML;
     paramsH->epsMinMarkersDis = 1e-10;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
@@ -55,7 +55,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->deltaPress = mR3(0.0, 0, 0.0);
     paramsH->multViscosity_FSI = 1;
     paramsH->gravity = mR3(0.0, 0, 0.0);
-    paramsH->bodyForce3 = mR3(0.05, 0, 0);
+    paramsH->bodyForce3 = mR3(0.01, 0, 0);
     paramsH->V_in = mR3(0.0, 0, 0.0);
     paramsH->x_in = -bxDim / 2 + 3 * initSpace;
 
@@ -67,20 +67,21 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->mu0 = 0.002;
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
     paramsH->kappa = 0.0;     ///< surface tension parameter, experimental
-    paramsH->EPS_XSPH = 0.2;  // Note that increasing this coefficient stabilizes the simulation but adds dissipation
-    paramsH->beta_shifting = 0.1;  // increasing this factor decreases the Lagrangian nature of the model
+    paramsH->EPS_XSPH = 0.0;  // Note that increasing this coefficient stabilizes the simulation but adds dissipation
+    paramsH->beta_shifting = 0.04;  // (problem dependent) increasing this factor decreases the Lagrangian nature of SPH
+    //
     paramsH->L_Characteristic = bzDim;
 
     paramsH->Conservative_Form = false;
-    paramsH->USE_NonIncrementalProjection = false;
+    paramsH->USE_NonIncrementalProjection = true;
     paramsH->USE_LinearSolver = false;                ///< IISPH parameter: whether or not use linear solvers
     paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
     paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
     paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
     paramsH->LinearSolver_Rel_Tol = 1e-8;  ///< relative res, is used in the matrix free solver and linear solvers
     paramsH->LinearSolver_Abs_Tol = 1e-8;  ///< absolute error, applied when linear solvers are used
-    paramsH->LinearSolver_Max_Iter = 500;  ///< max number of iteration for linear solvers
-    paramsH->PPE_relaxation = 0.99;        ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
+    paramsH->LinearSolver_Max_Iter = 400;  ///< max number of iteration for linear solvers
+    paramsH->PPE_relaxation = 0.98;        ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
     paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
     paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 
