@@ -55,7 +55,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->deltaPress = mR3(0.0, 0, 0.0);
     paramsH->multViscosity_FSI = 1;
     paramsH->gravity = mR3(0.0, 0, 0.0);
-    paramsH->bodyForce3 = mR3(0.01, 0, 0);
+    paramsH->bodyForce3 = mR3(0.025, 0, 0);
     paramsH->V_in = mR3(0.0, 0, 0.0);
     paramsH->x_in = -bxDim / 2 + 3 * initSpace;
 
@@ -68,7 +68,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->markerMass = pow(paramsH->MULT_INITSPACE * paramsH->HSML, 3) * paramsH->rho0;
     paramsH->kappa = 0.0;     ///< surface tension parameter, experimental
     paramsH->EPS_XSPH = 0.0;  // Note that increasing this coefficient stabilizes the simulation but adds dissipation
-    paramsH->beta_shifting = 0.04;  // (problem dependent) increasing this factor decreases the Lagrangian nature of SPH
+    paramsH->beta_shifting = 0.2;  // (problem dependent) increasing this factor decreases the Lagrangian nature of SPH
     //
     paramsH->L_Characteristic = bzDim;
 

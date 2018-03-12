@@ -227,7 +227,7 @@ int main(int argc, char* argv[]) {
 #endif
     // ************* Create Fluid *************************
     ChSystemSMC mphysicalSystem;
-    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::IISPH);
+    fsi::ChSystemFsi myFsiSystem(&mphysicalSystem, mHaveFluid, fsi::ChFluidDynamics::Integrator::I2SPH);
     chrono::ChVector<> CameraLocation = chrono::ChVector<>(0, -10, 0);
     chrono::ChVector<> CameraLookAt = chrono::ChVector<>(0, 0, 0);
 
@@ -440,10 +440,10 @@ int main(int argc, char* argv[]) {
     Real time = 0;
     Real Global_max_dT = paramsH->dT_Max;
     for (int tStep = 0; tStep < stepEnd + 1; tStep++) {
-        //        if (tStep % 2 == 0)
-        //            paramsH->dT = paramsH->dT / 2;
+        //        if (tStep < 20)
+        //            paramsH->Adaptive_time_stepping = false;
         //        else
-        //            paramsH->dT = paramsH->dT * 2;
+        //            paramsH->Adaptive_time_stepping = true;
 
         printf("\nstep : %d, time= : %f (s) \n", tStep, time);
         double frame_time = 1.0 / out_fps;
@@ -456,11 +456,8 @@ int main(int argc, char* argv[]) {
             paramsH->dT_Max = Global_max_dT;
 
         printf("next_frame is:%d,  max dt is set to %f\n", next_frame, paramsH->dT_Max);
-#if haveFluid
         myFsiSystem.DoStepDynamics_FSI_Implicit();
-#else
-        myFsiSystem.DoStepDynamics_ChronoRK2();
-#endif
+
         time += paramsH->dT;
         SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, next_frame, time);
     }

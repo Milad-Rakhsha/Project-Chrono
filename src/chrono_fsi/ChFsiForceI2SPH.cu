@@ -422,9 +422,13 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
     Real divV_star = 0;
     Real3 inner_sum = mR3(0.0), shift_r = mR3(0.0);
     Real mi_bar = 0.0, r0 = 0.0;
+    Real rho = 0, p = 0;
+
     for (int count = csrStartIdx; count < csrEndIdx; count++) {
         uint j = csrColInd[count];
         grad_q_i += A_G[count] * q_i[j];
+        rho += A_f[count] * sortedRhoPreMu_old[j].x;
+        p += A_f[count] * sortedRhoPreMu_old[j].y;
         divV_star += dot(A_G[count], Vstar[j]);
         grad_p_nPlus1 += A_G[count] * (sortedRhoPreMu_old[j].y + q_i[j]);
         Real3 rij = Distance(mR3(sortedPosRad_old[i_idx]), mR3(sortedPosRad_old[j]));
@@ -454,6 +458,9 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
 
     Real4 x_new = sortedPosRad[i_idx] + mR4(delta_t / 2 * (V_new + sortedVelMas[i_idx]), 0.0);
 
+    sortedRhoPreMu[i_idx].x = rho;
+    //    sortedRhoPreMu[i_idx].y = p;
+
     sortedVelMas[i_idx] = V_new;
 
     if (paramsD.USE_NonIncrementalProjection)
@@ -464,40 +471,6 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
     if (sortedRhoPreMu[i_idx].w == -1.0) {
         sortedPosRad[i_idx] = x_new;
     }
-    //
-    //    Real3 grad_p = mR3(0.0);
-    //    Real3 grad_rho = mR3(0.0);
-    //    Real3 grad_ux = mR3(0.0);
-    //    Real3 grad_uy = mR3(0.0);
-    //    Real3 grad_uz = mR3(0.0);
-    //
-    //    for (int count = csrStartIdx; count < csrEndIdx; count++) {
-    //        uint j = csrColInd[count];
-    //        grad_p += A_G[count] * sortedRhoPreMu_old[i_idx].y;
-    //        grad_rho += A_G[count] * sortedRhoPreMu_old[i_idx].x;
-    //        grad_ux += A_G[count] * sortedVelMas_old[i_idx].x;
-    //        grad_uy += A_G[count] * sortedVelMas_old[i_idx].y;
-    //        grad_uz += A_G[count] * sortedVelMas_old[i_idx].z;
-    //    }
-    //
-    //    if (sortedRhoPreMu[i_idx].w == -1.0) {
-    //        sortedPosRad[i_idx] += mR4(shift_r, 0.0);
-    //        sortedRhoPreMu[i_idx].y += dot(shift_r, grad_p);
-    //        sortedRhoPreMu[i_idx].x += dot(shift_r, grad_rho);
-    //        sortedVelMas[i_idx].x += dot(shift_r, grad_ux);
-    //        sortedVelMas[i_idx].y += dot(shift_r, grad_uy);
-    //        sortedVelMas[i_idx].z += dot(shift_r, grad_uz);
-    //    }
-
-    //    Real3 vis_vel = mR3(0.0);
-    //
-    //    for (int count = csrStartIdx; count < csrEndIdx; count++) {
-    //        uint j = csrColInd[count];
-    //        vis_vel += A_f[count] * (sortedVelMas_old[j]);
-    //    }
-
-    //    sortedVisVel[i_idx] = vis_vel;
-    //    sortedVelMas[i_idx] = paramsD.EPS_XSPH * vis_vel + (1 - paramsD.EPS_XSPH) * sortedVelMas[i_idx];
 }
 //--------------------------------------------------------------------------------------------------------------------------------
 __global__ void Shifting(Real4* sortedPosRad,
@@ -583,7 +556,6 @@ __global__ void Shifting(Real4* sortedPosRad,
     sortedVelMas[i_idx] += paramsD.EPS_XSPH * xSPH_Sum;
 
     Real3 vis_vel = mR3(0.0);
-
     for (int count = csrStartIdx; count < csrEndIdx; count++) {
         uint j = csrColInd[count];
         //        if (sortedRhoPreMu_old[j].w == -1.0)
@@ -591,8 +563,6 @@ __global__ void Shifting(Real4* sortedPosRad,
     }
 
     sortedVisVel[i_idx] = vis_vel;
-
-    //    sortedVelMas[i_idx] = paramsD.EPS_XSPH * vis_vel + (1 - paramsD.EPS_XSPH) * sortedVelMas[i_idx];
 }
 //==========================================================================================================================================
 //==========================================================================================================================================
@@ -740,8 +710,8 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
 
     if (paramsH->Adaptive_time_stepping) {
         Real dt_CFL = paramsH->Co_number * paramsH->HSML / MaxVel;
-        Real dt_nu = 0.125 * paramsH->HSML * paramsH->HSML / (paramsH->mu0 / paramsH->rho0) *
-                     1;  // since viscosity is treated implicitly
+        Real dt_nu = 0.125 * paramsH->HSML * paramsH->HSML /
+                     (paramsH->mu0 / paramsH->rho0);  // since viscosity is treated implicitly
         Real dt_body = 0.125 * std::sqrt(paramsH->HSML / length(paramsH->bodyForce3 + paramsH->gravity));
         Real dt = std::min(dt_body, std::min(dt_CFL, dt_nu));
         if (dt / paramsH->dT_Max > 0.7 && dt / paramsH->dT_Max < 1)
@@ -876,13 +846,13 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
         cudaCheckError();
         MaxRes = myLS.GetResidual();
         Iteration = myLS.GetNumIterations();
-        //        if (myLS.GetSolverStatus()) {
-        //            std::cout << " Linear solver converged to " << myLS.GetResidual() << " tolerance";
-        //            std::cout << " after " << myLS.GetNumIterations() << " iterations" << std::endl;
-        //        } else {
-        //            std::cout << "Failed to converge after " << myLS.GetNumIterations() << " iterations";
-        //            std::cout << " (" << myLS.GetResidual() << " final residual)" << std::endl;
-        //        }
+        if (myLS.GetSolverStatus()) {
+            std::cout << " Linear solver converged to " << myLS.GetResidual() << " tolerance";
+            std::cout << " after " << myLS.GetNumIterations() << " iterations" << std::endl;
+        } else {
+            std::cout << "Failed to converge after " << myLS.GetNumIterations() << " iterations";
+            std::cout << " (" << myLS.GetResidual() << " final residual)" << std::endl;
+        }
     } else {
         thrust::fill(Residuals.begin(), Residuals.end(), 0.0);
         while ((MaxRes > paramsH->LinearSolver_Abs_Tol || Iteration < 3) &&

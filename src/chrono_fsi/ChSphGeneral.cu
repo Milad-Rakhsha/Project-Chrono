@@ -297,8 +297,8 @@ __global__ void calcRho_kernel(Real4* sortedPosRad,
                             mcon++;
                         Real h_j = sortedPosRad[j].w;
                         Real m_j = pow(h_j * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
-                        //                        Real W3 = W3h(d, 0.5 * (h_j + h_i));
-                        Real W3 = 0.5 * (W3h(d, h_i) + W3h(d, h_j));
+                        Real W3 = W3h(d, 0.5 * (h_j + h_i));
+                        //                        Real W3 = 0.5 * (W3h(d, h_i) + W3h(d, h_j));
                         sum_mW += m_j * W3;
                         sum_W += W3;
                     }
@@ -484,6 +484,8 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
     Real3 posRadA = mR3(sortedPosRad[i_idx]);
     Real h_i = sortedPosRad[i_idx].w;
     Real sum_mW = 0;
+    Real sum_W = 0;
+
     Real sum_W_sumWij_inv = 0;
     // get address in grid
     int3 gridPos = calcGridPos(posRadA);
@@ -521,10 +523,10 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
                         Real h_j = sortedPosRad[j].w;
                         Real m_j = pow(h_j * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
                         Real h_ij = 0.5 * (h_j + h_i);
-                        //                        Real W3 = W3h(d, h_ij);
-                        //                        Real3 grad_i_wij = GradWh(rij, h_ij);
-                        Real W3 = 0.5 * (W3h(d, h_i) + W3h(d, h_j));
-                        Real3 grad_i_wij = 0.5 * (GradWh(rij, h_i) + GradWh(rij, h_j));
+                        Real W3 = W3h(d, h_ij);
+                        Real3 grad_i_wij = GradWh(rij, h_ij);
+                        //                        Real W3 = 0.5 * (W3h(d, h_i) + W3h(d, h_j));
+                        //                        Real3 grad_i_wij = 0.5 * (GradWh(rij, h_i) + GradWh(rij, h_j));
 
                         Real V_j = sumWij_inv[j];
 
@@ -555,6 +557,8 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
                         mGi[6] -= rij.z * grad_i_wij.x * V_j;
                         mGi[7] -= rij.z * grad_i_wij.y * V_j;
                         mGi[8] -= rij.z * grad_i_wij.z * V_j;
+                        //                        sum_mW += sortedRhoPreMu[j].x * W3;
+                        //                        sum_W += W3;
                         //                        sum_mW += m_j * sumWij_inv[j];
                         sum_mW += sortedRhoPreMu[j].x * W3 * V_j;
                         //                        sum_W_sumWij_inv += W3 * sumWij_inv[j];
@@ -598,7 +602,8 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
         G_i[i_idx * 9 + 8] = (mGi[0] * mGi[4] - mGi[1] * mGi[3]) / Det;
     }
     //    sortedRhoPreMu[i_idx].x = sum_mW / sum_W_sumWij_inv;
-    //    sortedRhoPreMu[i_idx].x = sum_mW;
+    //    sortedRhoPreMu[i_idx].x = sum_mW / sum_W;
+    sortedRhoPreMu[i_idx].x = sum_mW;
 
     if ((sortedRhoPreMu[i_idx].x > 5 * RHO_0 || sortedRhoPreMu[i_idx].x < RHO_0 / 5) && sortedRhoPreMu[i_idx].w > -2)
         printf(
@@ -729,7 +734,7 @@ __global__ void Function_Gradient_Laplacian_Operator(Real4* sortedPosRad,  // in
             //            A_L[csrStartIdx] += comm;  // i
 
         } else {
-            Real commonterm = 2 * V_j *  // 1 / V_j * (V_j * V_j + V_i * V_i) *
+            Real commonterm = 1 / V_j * (V_j * V_j + V_i * V_i) *
                               (Li[0] * eij.x * grad_ij.x + Li[1] * eij.x * grad_ij.y + Li[2] * eij.x * grad_ij.z +
                                Li[1] * eij.y * grad_ij.x + Li[3] * eij.y * grad_ij.y + Li[4] * eij.y * grad_ij.z +
                                Li[2] * eij.z * grad_ij.x + Li[4] * eij.z * grad_ij.y + Li[5] * eij.z * grad_ij.z);
