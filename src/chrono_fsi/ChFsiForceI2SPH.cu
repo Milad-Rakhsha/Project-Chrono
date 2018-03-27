@@ -93,7 +93,7 @@ __global__ void V_star_Predictor(Real4* sortedPosRad,  // input: sorted position
         Real3 rhs = mR3(0.0);
         for (int count = csrStartIdx; count < csrEndIdx; count++) {
             int j = csrColInd[count];
-            A_Matrix[count] = -CN * paramsD.mu0 / rhoi * A_L[count];
+            A_Matrix[count] = -CN * paramsD.mu0 / rho0 * A_L[count];
             rhs += -1 / rhoi * A_G[count] * sortedRhoPreMu[j].y *
                        !paramsD.USE_NonIncrementalProjection +                    // Pressure Gradient
                    (1 - CN) * paramsD.mu0 / rhoi * A_L[count] * sortedVelMas[j];  // viscous term;
@@ -253,25 +253,27 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
     Real3 gravity = paramsD.gravity + paramsD.bodyForce3;
     Real3 grad_rho_i = mR3(0.0);
     Real div_vi_star = 0;
+    Real div_vi = 0;
 
     // Calculating the div.v* and grad(rho)
     for (int count = csrStartIdx; count < csrEndIdx; count++) {
         int j = csrColInd[count];
         div_vi_star += dot(A_G[count], Vstar[j]);
+        div_vi += dot(A_G[count], sortedVelMas[j]);
         grad_rho_i += A_G[count] * sortedRhoPreMu[j].x;
     }
 
     Real rhoi = sortedRhoPreMu[i_idx].x;
-    Real rhoi_star = rhoi - rhoi * div_vi_star * delta_t;
+    Real rhoi_star = rhoi - rhoi * div_vi * delta_t;
     //    Real rhoi_star = rhoi + dot(grad_rho_i, Vstar[i_idx] * delta_t);
 
     //======================== Interior ===========================
     if (Fluid_Marker) {
         for (int count = csrStartIdx; count < csrEndIdx; count++) {
-            A_Matrix[count] = 1 / rhoi * A_L[count] - 1.0 / (rhoi * rhoi) * dot(grad_rho_i, A_G[count]);
+            A_Matrix[count] = 1 / rhoi * A_L[count] - 0.0 / (rhoi * rhoi) * dot(grad_rho_i, A_G[count]);
         }
 
-        Bi[i_idx] = div_vi_star / delta_t + 0.0 * (paramsD.rho0 - rhoi_star) / paramsD.rho0 / (delta_t * delta_t);
+        Bi[i_idx] = div_vi_star / delta_t - 0. * (paramsD.rho0 - rhoi_star) / paramsD.rho0 / (delta_t * delta_t);
         //        Bi[i_idx] = div_vi_star / delta_t;
 
         //======================== Free-Surface =====================
@@ -316,7 +318,6 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
         //======================= Boundary ===========================
     } else if (Boundary_Marker && paramsD.bceType != ADAMI) {
         Real3 my_normal = Normals[i_idx];
-        bool haveFluid = false;
         for (int count = csrStartIdx; count < csrEndIdx; count++) {
             uint j = csrColInd[count];
             if (sortedRhoPreMu[j].w == -1.0 || dot(my_normal, mR3(sortedPosRad[i_idx] - sortedPosRad[j])) > 0) {
@@ -324,14 +325,22 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
                 A_Matrix[csrStartIdx] += +dot(A_G[count], my_normal);
             }
         }
+
+        //                printf("%f ,", A_Matrix[count] / A_Matrix[csrStartIdx]);
+
         Bi[i_idx] = 0;
-        if (abs(A_Matrix[csrStartIdx]) < 1e-6) {
+        if (abs(A_Matrix[csrStartIdx]) < EPSILON) {
             clearRow(i_idx, csrStartIdx, csrEndIdx, A_Matrix, Bi);
             for (int count = csrStartIdx; count < csrEndIdx; count++)
                 A_Matrix[count] = A_f[count];
             A_Matrix[csrStartIdx] -= 1.0;
             Bi[i_idx] = 0.0;
         }
+
+        //        Real Scale = A_Matrix[csrStartIdx];
+        //        if (abs(Scale) > EPSILON)
+        //            for (int count = csrStartIdx; count < csrEndIdx; count++)
+        //                A_Matrix[count] = A_Matrix[count] / Scale;
 
         //======================= Boundary Adami===========================
     } else if ((Boundary_Marker) && paramsD.bceType == ADAMI && paramsD.USE_NonIncrementalProjection) {
@@ -420,33 +429,13 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
     Real3 grad_q_i = mR3(0.0);
     Real3 grad_p_nPlus1 = mR3(0.0);
     Real divV_star = 0;
-    Real3 inner_sum = mR3(0.0), shift_r = mR3(0.0);
-    Real mi_bar = 0.0, r0 = 0.0;
-    Real rho = 0, p = 0;
 
     for (int count = csrStartIdx; count < csrEndIdx; count++) {
         uint j = csrColInd[count];
         grad_q_i += A_G[count] * q_i[j];
-        rho += A_f[count] * sortedRhoPreMu_old[j].x;
-        p += A_f[count] * sortedRhoPreMu_old[j].y;
         divV_star += dot(A_G[count], Vstar[j]);
         grad_p_nPlus1 += A_G[count] * (sortedRhoPreMu_old[j].y + q_i[j]);
-        Real3 rij = Distance(mR3(sortedPosRad_old[i_idx]), mR3(sortedPosRad_old[j]));
-        Real d = length(rij);
-        if (count == csrStartIdx)
-            continue;
-        Real m_j = pow(sortedPosRad_old[j].w * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
-        mi_bar += m_j;
-        r0 += d;
-        inner_sum += m_j * rij / (d * d * d);
     }
-
-    if (sortedRhoPreMu_old[i_idx].w == -1.0) {
-        r0 /= (csrEndIdx - csrStartIdx);
-        mi_bar /= (csrEndIdx - csrStartIdx);
-    }
-
-    shift_r = paramsD.beta_shifting * r0 * r0 * length(MaxVel) * delta_t * inner_sum / mi_bar;
 
     Real3 V_new = Vstar[i_idx] - delta_t / sortedRhoPreMu[i_idx].x * grad_q_i;
 
@@ -457,9 +446,6 @@ __global__ void Velocity_Correction_and_update(Real4* sortedPosRad,
     derivVelRho[i_idx] = mR4(m_dv_dt, 0.0);
 
     Real4 x_new = sortedPosRad[i_idx] + mR4(delta_t / 2 * (V_new + sortedVelMas[i_idx]), 0.0);
-
-    sortedRhoPreMu[i_idx].x = rho;
-    //    sortedRhoPreMu[i_idx].y = p;
 
     sortedVelMas[i_idx] = V_new;
 
@@ -535,6 +521,7 @@ __global__ void Shifting(Real4* sortedPosRad,
     Real3 grad_ux = mR3(0.0);
     Real3 grad_uy = mR3(0.0);
     Real3 grad_uz = mR3(0.0);
+    Real p_smooth = 0, rho_smooth = 0;
 
     for (int count = csrStartIdx; count < csrEndIdx; count++) {
         uint j = csrColInd[count];
@@ -543,6 +530,9 @@ __global__ void Shifting(Real4* sortedPosRad,
         grad_ux += A_G[count] * sortedVelMas_old[j].x;
         grad_uy += A_G[count] * sortedVelMas_old[j].y;
         grad_uz += A_G[count] * sortedVelMas_old[j].z;
+
+        p_smooth += A_f[count] * (sortedRhoPreMu_old[j].y);
+        rho_smooth += A_f[count] * (sortedRhoPreMu_old[j].x);
     }
 
     if (sortedRhoPreMu[i_idx].w == -1.0) {

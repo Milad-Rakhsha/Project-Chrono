@@ -65,7 +65,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
     paramsH->dT = 1e-3;
     paramsH->dT_Max = 1.0;
-    paramsH->Co_number = 0.2;  ///< 0.2 works well for most cases
+    paramsH->Co_number = 0.1;  ///< 0.2 works well for most cases
     paramsH->EPS_XSPH = 0.0;   // Note that increasing this coefficient stabilizes the simulation but adds dissipation
     paramsH->beta_shifting = 0.2;  // increasing this factor decreases the Lagrangian nature of the model
 
@@ -81,8 +81,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
     paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
     paramsH->LinearSolver_Rel_Tol = 1e-8;  ///< relative res, is used in the matrix free solver and linear solvers
-    paramsH->LinearSolver_Abs_Tol = 1e-5;  ///< absolute error, applied when linear solvers are used
-    paramsH->LinearSolver_Max_Iter = 100;  ///< max number of iteration for linear solvers
+    paramsH->LinearSolver_Abs_Tol = 1e-6;  ///< absolute error, applied when linear solvers are used
+    paramsH->LinearSolver_Max_Iter = 200;  ///< max number of iteration for linear solvers
     paramsH->PPE_relaxation = 0.98;        ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
 
     paramsH->Apply_BC_U = false;   ///< You should go to custom_math.h all the way to end of file and set your function

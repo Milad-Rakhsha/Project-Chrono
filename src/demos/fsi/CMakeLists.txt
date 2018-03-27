@@ -31,6 +31,7 @@ demo_AC_model
 demo_FSI_Flexible_Shell
 demo_FSI_Flexible_fin
 demo_FSI_Fish
+demo_MultiPhysics
 )
 
 #add fluid demos + chrono_fea + chrono_mkl that need to be built with nvcc
