@@ -28,7 +28,7 @@
 #include <cstdio>
 #include <vector>
 
-#include "chrono_parallel/physics/ChSystemParallel.h"
+#include "chrono/physics/ChSystemNSC.h"
 
 #include "chrono/ChConfig.h"
 #include "chrono/core/ChFileutils.h"
@@ -39,55 +39,22 @@
 #include "chrono/core/ChLinkedListMatrix.h"
 #include "chrono/physics/ChContactContainer.h"
 #include "chrono/physics/ChContactContainerNSC.h"
-#include "chrono_parallel/solver/ChSystemDescriptorParallel.h"
+#include "chrono/solver/ChSystemDescriptor.h"
 
 #ifdef CHRONO_OPENGL
 #include "chrono_opengl/ChOpenGLWindow.h"
 #endif
+int checknumcontact = 0;
 
 using namespace chrono;
 using namespace chrono::collision;
-
-static inline chrono::ChMatrixNM<double, 1, 3> ToMatrix(const real3& a) {
-    chrono::ChMatrixNM<double, 1, 3> mdf;
-    mdf.SetElement(0, 0, a.x);
-    mdf.SetElement(0, 0, a.y);
-    mdf.SetElement(0, 0, a.z);
-    return mdf;
-}
-
-int OutputVector(DynamicVector<real> src, std::string filename) {
-    const char* numformat = "%.16g";
-    ChStreamOutAsciiFile stream(filename.c_str());
-    stream.SetNumFormat(numformat);
-
-    for (int i = 0; i < src.size(); i++)
-        stream << src[i] << "\n";
-
-    return 0;
-}
-
-int OutputMatrix(CompressedMatrix<real> src, std::string filename) {
-    const char* numformat = "%.16g";
-    ChStreamOutAsciiFile stream(filename.c_str());
-    stream.SetNumFormat(numformat);
-
-    //    stream << src.rows() << " " << src.columns() << "\n";
-    for (int i = 0; i < src.rows(); ++i) {
-        for (CompressedMatrix<real>::Iterator it = src.begin(i); it != src.end(i); ++it) {
-            stream << i << " " << it->index() << " " << it->value() << "\n";
-        }
-    }
-
-    return 0;
-}
 
 // -----------------------------------------------------------------------------
 // Create a bin consisting of five boxes attached to the ground and a mixer
 // blade attached through a revolute joint to ground. The mixer is constrained
 // to rotate at constant angular velocity.
 // -----------------------------------------------------------------------------
-void AddContainer(ChSystemParallelNSC* sys) {
+void AddContainer(ChSystemNSC* sys) {
     // IDs for the two bodies
     int binId = -200;
     int mixerId = -201;
@@ -97,7 +64,7 @@ void AddContainer(ChSystemParallelNSC* sys) {
     mat->SetFriction(0.4f);
 
     // Create the containing bin (2 x 2 x 1)
-    auto bin = std::make_shared<ChBody>(std::make_shared<ChCollisionModelParallel>());
+    auto bin = std::make_shared<ChBody>(ChMaterialSurface::NSC);
     bin->SetMaterialSurface(mat);
     bin->SetIdentifier(binId);
     bin->SetMass(1);
@@ -126,7 +93,7 @@ void AddContainer(ChSystemParallelNSC* sys) {
     sys->AddBody(bin);
 
     // The rotating mixer body (1.6 x 0.2 x 0.4)
-    auto mixer = std::make_shared<ChBody>(std::make_shared<ChCollisionModelParallel>());
+    auto mixer = std::make_shared<ChBody>(ChMaterialSurface::NSC);
     mixer->SetMaterialSurface(mat);
     mixer->SetIdentifier(mixerId);
     mixer->SetMass(10.0);
@@ -158,7 +125,7 @@ void AddContainer(ChSystemParallelNSC* sys) {
 // -----------------------------------------------------------------------------
 // Create the falling spherical objects in a unfiorm rectangular grid.
 // -----------------------------------------------------------------------------
-void AddFallingBalls(ChSystemParallel* sys) {
+void AddFallingBalls(ChSystemNSC* sys) {
     // Common material
     auto ballMat = std::make_shared<ChMaterialSurfaceNSC>();
     ballMat->SetFriction(0.4f);
@@ -173,7 +140,7 @@ void AddFallingBalls(ChSystemParallel* sys) {
         for (int iy = -2; iy < 3; iy++) {
             ChVector<> pos(0.4 * ix, 0.4 * iy, 1);
 
-            auto ball = std::make_shared<ChBody>(std::make_shared<ChCollisionModelParallel>());
+            auto ball = std::make_shared<ChBody>(ChMaterialSurface::NSC);
             ball->SetMaterialSurface(ballMat);
 
             ball->SetIdentifier(ballId++);
@@ -212,12 +179,12 @@ int main(int argc, char* argv[]) {
     double out_fps = 50;
 
     uint max_iteration = 30;
-    real tolerance = 1e-3;
+    double tolerance = 1e-3;
 
     // Create system
     // -------------
 
-    ChSystemParallelNSC msystem;
+    ChSystemNSC msystem;
 
     // Set number of threads.
     int max_threads = CHOMPfunctions::GetNumProcs();
@@ -229,21 +196,6 @@ int main(int argc, char* argv[]) {
     // Set gravitational acceleration
     msystem.Set_G_acc(ChVector<>(0, 0, -gravity));
 
-    // Set solver parameters
-    msystem.GetSettings()->solver.solver_mode = SolverMode::SLIDING;
-    msystem.GetSettings()->solver.max_iteration_normal = max_iteration / 3;
-    msystem.GetSettings()->solver.max_iteration_sliding = max_iteration / 3;
-    msystem.GetSettings()->solver.max_iteration_spinning = 0;
-    msystem.GetSettings()->solver.max_iteration_bilateral = max_iteration / 3;
-    msystem.GetSettings()->solver.tolerance = tolerance;
-    msystem.GetSettings()->solver.alpha = 0;
-    msystem.GetSettings()->solver.contact_recovery_speed = 10000;
-    msystem.ChangeSolverType(SolverType::APGD);
-    msystem.GetSettings()->collision.narrowphase_algorithm = NarrowPhaseType::NARROWPHASE_HYBRID_MPR;
-
-    msystem.GetSettings()->collision.collision_envelope = 0.01;
-    msystem.GetSettings()->collision.bins_per_axis = vec3(10, 10, 10);
-
     // Create the fixed and moving bodies
     // ----------------------------------
 
@@ -253,104 +205,75 @@ int main(int argc, char* argv[]) {
     // Perform the simulation
     // ----------------------
 
-#ifdef CHRONO_OPENGL
-    opengl::ChOpenGLWindow& gl_window = opengl::ChOpenGLWindow::getInstance();
-    gl_window.Initialize(1280, 720, "mixerNSC", &msystem);
-    gl_window.SetCamera(ChVector<>(0, -3, 2), ChVector<>(0, 0, 0), ChVector<>(0, 0, 1));
-    gl_window.SetRenderMode(opengl::WIREFRAME);
-
-    // Uncomment the following two lines for the OpenGL manager to automatically
-    // run the simulation in an infinite loop.
-    // gl_window.StartDrawLoop(time_step);
-    // return 0;
-
-    while (true) {
-        if (gl_window.Active()) {
-            gl_window.DoStepDynamics(time_step);
-            gl_window.Render();
-        } else {
-            break;
-        }
-    }
-#else
     // Run simulation for specified time
     int num_steps = (int)std::ceil(time_end / time_step);
     double time = 0;
+    std::string fname = "_" + std::to_string(0) + "_";
 
     std::vector<std::shared_ptr<ChBody> > blist = *(msystem.Get_bodylist());
 
-    std::string OUT_DIR = "dumpDir/";
-    if (ChFileutils::MakeDirectory("dumpDir") < 0) {
+    if (ChFileutils::MakeDirectory("dumpDir_SER") < 0) {
         std::cout << "Error creating directory dumpDir\n";
         return 1;
     }
-    ChParallelDataManager* dm = msystem.data_manager;
+
+    std::shared_ptr<ChSystemDescriptor> sysd = msystem.GetSystemDescriptor();
+    std::shared_ptr<ChContactContainerNSC> iconcon =
+        std::dynamic_pointer_cast<ChContactContainerNSC>(msystem.GetContactContainer());
 
     for (int i = 0; i < num_steps; i++) {
         msystem.DoStepDynamics(time_step);
         time += time_step;
 
-        int Nct = dm->num_rigid_contacts;
+        int numContact = iconcon->GetNcontacts();
         int numBodies = msystem.Get_bodylist()->size();
-        std::cout << "numContact : " << Nct << "\n";
+
+        std::cout << "numContact : " << numContact << "\n";
         std::cout << "numBodies : " << numBodies << "\n";
+        std::cout << "checknumcontact : " << checknumcontact << "\n";
+
         std::cout << "\n Dumping Newton matrix components : " << i << "\n ";
-        chrono::ChMatrixDynamic<double> mdV(numBodies, 6);
 
-        chrono::ChMatrixDynamic<double> mCP(Nct, 6), mCF(Nct, 3), mCN(Nct, 3), mCdst(Nct, 1), mCrd(Nct, 7);
-        chrono::ChMatrixDynamic<int> mIdC(Nct, 2);
+        chrono::ChLinkedListMatrix mdM;
+        chrono::ChLinkedListMatrix mdCq;
+        chrono::ChLinkedListMatrix mdE;
+        chrono::ChMatrixDynamic<double> mdf;
+        chrono::ChMatrixDynamic<double> mdb;
+        chrono::ChMatrixDynamic<double> mdfric;
+        chrono::ChMatrixDynamic<double> mx;  // constraint data (q,l)
+        sysd->ConvertToMatrixForm(&mdCq, &mdM, &mdE, &mdf, &mdb, &mdfric);
+        sysd->FromVariablesToVector(mx);
 
-        for (int nc = 0; nc < Nct; nc++) {
-            vec2 cd_pair = dm->host_data.bids_rigid_rigid[nc];
-            mCP.PasteMatrix(ToMatrix(dm->host_data.cpta_rigid_rigid[nc] + dm->host_data.pos_rigid[cd_pair.x]), nc, 0);
-            mCP.PasteMatrix(ToMatrix(dm->host_data.cptb_rigid_rigid[nc] + dm->host_data.pos_rigid[cd_pair.y]), nc, 3);
-            mCN.PasteMatrix(ToMatrix(dm->host_data.norm_rigid_rigid[nc]), nc, 0);
-            mCF.SetElement(dm->host_data.Fc[nc], nc, 0);
-            mCdst.SetElement(nc, 0, dm->host_data.dpth_rigid_rigid[nc]);
-            mIdC.SetElement(nc, 0, (int)cd_pair.x);
-            mIdC.SetElement(nc, 1, (int)cd_pair.y);
-        }
+        std::string fname = "_" + std::to_string(i) + "_";
 
-        std::string fname = std::to_string(i) + "_";
+        std::string nameM = "dumpDir_SER/_" + fname + "dump_M_.dat";
+        chrono::ChStreamOutAsciiFile file_M(nameM.c_str());
+        mdM.StreamOUTsparseMatlabFormat(file_M);
 
-        std::string nameCP = OUT_DIR + fname + "dump_CP.dat";
-        chrono::ChStreamOutAsciiFile file_CP(nameCP.c_str());
-        mCP.StreamOUTdenseMatlabFormat(file_CP);
+        std::string nameC = "dumpDir_SER/_" + fname + "dump_Cq_.dat";
+        chrono::ChStreamOutAsciiFile file_Cq(nameC.c_str());
+        mdCq.StreamOUTsparseMatlabFormat(file_Cq);
 
-        std::string nameCN = OUT_DIR + fname + "dump_CN.dat";
-        chrono::ChStreamOutAsciiFile file_CN(nameCN.c_str());
-        mCN.StreamOUTdenseMatlabFormat(file_CN);
+        std::string nameE = "dumpDir_SER/_" + fname + "dump_E_.dat";
+        chrono::ChStreamOutAsciiFile file_E(nameE.c_str());
+        mdE.StreamOUTsparseMatlabFormat(file_E);
 
-        std::string nameCdst = OUT_DIR + fname + "dump_Cdst.dat";
-        chrono::ChStreamOutAsciiFile file_Cdst(nameCdst.c_str());
-        mCdst.StreamOUTdenseMatlabFormat(file_Cdst);
+        std::string namef = "dumpDir_SER/_" + fname + "dump_f_.dat";
+        chrono::ChStreamOutAsciiFile file_f(namef.c_str());
+        mdf.StreamOUTdenseMatlabFormat(file_f);
 
-        std::string nameIdC = OUT_DIR + fname + "dump_IdC.dat";
-        chrono::ChStreamOutAsciiFile file_IdC(nameIdC.c_str());
-        mIdC.StreamOUTdenseMatlabFormat(file_IdC);
+        std::string nameb = "dumpDir_SER/_" + fname + "dump_b_.dat";
+        chrono::ChStreamOutAsciiFile file_b(nameb.c_str());
+        mdb.StreamOUTdenseMatlabFormat(file_b);
 
-        std::string nameM = OUT_DIR + fname + "dump_Minv.dat";
-        std::string nameC = OUT_DIR + fname + "dump_Cq.dat";
-        std::string nameE = OUT_DIR + fname + "dump_E.dat";
-        std::string namef = OUT_DIR + fname + "dump_f.dat";
-        std::string nameb = OUT_DIR + fname + "dump_b.dat";
-        std::string namer = OUT_DIR + fname + "dump_fric.dat";
-        std::string namex = OUT_DIR + fname + "dump_x.dat";
-        std::string nameV = OUT_DIR + fname + "dump_V.dat";
+        std::string namer = "dumpDir_SER/_" + fname + "dump_fric_.dat";
+        chrono::ChStreamOutAsciiFile file_fric(namer.c_str());
+        mdfric.StreamOUTdenseMatlabFormat(file_fric);
 
-        OutputMatrix(dm->host_data.M_inv, nameM);
-        OutputMatrix(dm->host_data.D, nameC);
-        OutputVector(dm->host_data.E, nameE);
-        OutputVector(dm->host_data.Fc, namef);
-        OutputVector(dm->host_data.b, nameb);
-        OutputVector(dm->host_data.R, namer);
-        OutputVector(dm->host_data.gamma, namex);
-        OutputVector(dm->host_data.v, nameV);
-
-        // This is an alternative but only dumps certain matrices
-        // dm->ExportCurrentSystem("dumpDir/_SYS_" + std::to_string(i) + "_");
+        std::string namex = "dumpDir_SER/_" + fname + "dump_x_.dat";
+        chrono::ChStreamOutAsciiFile file_x(namex.c_str());
+        mx.StreamOUTdenseMatlabFormat(file_x);
     }
-#endif
 
     return 0;
 }

@@ -31,6 +31,8 @@ SET(DEMOS
     demo_PAR_fluidNSC
     demo_PAR_snowMPM
     demo_PAR_particlesNSC
+    demo_SER_mixerNSC
+    demo_PAR_mixerNSC_New
     demo_PAR_friction
 )
 
