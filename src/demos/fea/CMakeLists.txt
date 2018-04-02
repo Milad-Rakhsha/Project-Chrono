@@ -34,7 +34,7 @@ SET(FEA_DEMOS_IRR_MKL
     demo_FEA_cablesMKL
     demo_FEA_abaqus_wheel
     demo_FEA_shells
-    demo_FEA_ContactANCF
+#    demo_FEA_ContactANCF
     demo_FEA_Brick9
 #    Milad_AC-GaitCycle
 )
