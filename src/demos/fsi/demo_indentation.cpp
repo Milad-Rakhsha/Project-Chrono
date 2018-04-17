@@ -387,7 +387,7 @@ int main(int argc, char* argv[]) {
         ChVector<> ground_Force(0);
         ChVector<> ground_Xforce(0);
 
-        //        auto mBody = (std::shared_ptr<ChBody>)mphysicalSystem.Get_bodylist()->at(0);
+        //        auto mBody = (std::shared_ptr<ChBody>)mphysicalSystem.Get_bodylist().at(0);
         //        ground_Xforce = mBody->Get_Xforce() * 1000;
         //        std::vector<std::shared_ptr<ChForce>> body_forces = mBody->GetForceList();
         //        chrono::ChForce::ForceType mode = ChForce::FORCE;

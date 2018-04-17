@@ -207,7 +207,7 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
-    cout << " -- ChSystem size : " << mphysicalSystem.Get_bodylist()->size() << endl;
+    cout << " -- ChSystem size : " << mphysicalSystem.Get_bodylist().size() << endl;
 
     // ***************************** System Initialize
     // ********************************************

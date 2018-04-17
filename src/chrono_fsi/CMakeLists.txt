@@ -39,7 +39,7 @@ mark_as_advanced(CLEAR CUDA_TOOLKIT_ROOT_DIR)
     SET(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; --compiler-options -fPIC)
   ENDIF()
 
-  #SET(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -gencode=arch=compute_30,code=sm_30)
+  SET(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -gencode=arch=compute_30,code=sm_30)
 
   INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/FindCudaArch.cmake)
   SELECT_NVCC_ARCH_FLAGS(NVCC_FLAGS_EXTRA)

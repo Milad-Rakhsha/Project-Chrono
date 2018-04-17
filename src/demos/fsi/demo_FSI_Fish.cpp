@@ -349,7 +349,7 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     utils::AddCylinderGeometry(Fish.get(), 0.03, cyl_length, CENTER_JOINT, RelRotation);
 
     Fish->GetCollisionModel()->BuildModel();
-    int numRigidObjects = mphysicalSystem.Get_bodylist()->size();
+    int numRigidObjects = mphysicalSystem.Get_bodylist().size();
     std::vector<std::shared_ptr<ChBody>>* fsiBodeisPtr = myFsiSystem.GetFsiBodiesPtr();
     fsiBodeisPtr->push_back(Fish);
     Fish->SetMaterialSurface(mysurfmaterial);
