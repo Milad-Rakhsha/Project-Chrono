@@ -23,8 +23,8 @@
 
 #include "chrono/core/ChQuaternion.h"
 #include "chrono/core/ChVector.h"
-#include "chrono/physics/ChLinkSpringCB.h"
 #include "chrono/physics/ChLinkRotSpringCB.h"
+#include "chrono/physics/ChLinkSpringCB.h"
 
 #include "chrono_vehicle/ChApiVehicle.h"
 
@@ -101,25 +101,15 @@ struct WheelState {
 /// Vector of wheel state structures
 typedef std::vector<WheelState> WheelStates;
 
-/// Structure to communicate a set of generalized tire forces.
-struct TireForce {
+/// Structure to communicate a set of generalized terrain contact forces (tire or track shoe).
+struct TerrainForce {
     ChVector<> force;   ///< force vector, epxressed in the global frame
     ChVector<> point;   ///< global location of the force application point
     ChVector<> moment;  ///< moment vector, expressed in the global frame
 };
 
-/// Vector of tire force structures.
-typedef std::vector<TireForce> TireForces;
-
-/// Structure to communicate a set of generalized track shoe forces.
-struct TrackShoeForce {
-    ChVector<> force;   ///< force vector, epxressed in the global frame
-    ChVector<> point;   ///< global location of the force application point
-    ChVector<> moment;  ///< moment vector, expressed in the global frame
-};
-
-/// Vector of tire force structures.
-typedef std::vector<TrackShoeForce> TrackShoeForces;
+/// Vector of terrain conatct force structures.
+typedef std::vector<TerrainForce> TerrainForces;
 
 // -----------------------------------------------------------------------------
 // Utility functor classes for force elements
@@ -381,7 +371,8 @@ enum class TireModelType {
     ANCF,        ///< ANCF shell element-based tire
     REISSNER,    ///< Reissner 6-field shell element-based tire
     FEA,         ///< FEA co-rotational tire
-    PAC89        ///< Pacejka 89 (magic formula) tire
+    PAC89,       ///< Pacejka 89 (magic formula) tire
+    TMEASY       ///< Tire Model Made Easy tire (G. Rill)
 };
 
 /// Enum for available powertrain model templates.
@@ -398,7 +389,18 @@ enum class SuspensionType {
     SOLID_AXLE,               ///< solid axle
     MULTI_LINK,               ///< multi-link
     HENDRICKSON_PRIMAXX,      ///< Hendrickson PRIMAXX (walking beam)
-    MACPHERSON_STRUT          ///< MacPherson strut
+    MACPHERSON_STRUT,         ///< MacPherson strut
+    SEMI_TRAILING_ARM,        ///< semi trailing arm
+    THREE_LINK_IRS,           ///< three-link independent rear suspension
+    RIGID_PINNED,             ///< pinned rigid beam
+    RIGID_SUSPENSION          ///< rigid suspension
+};
+
+/// Enum for available wheeled-vehicle steering model templates.
+enum class SteeringType {
+    PITMAN_ARM,         ///< Pitman arm (input to revolute joint)
+    PITMAN_ARM_SHAFTS,  ///< Pitman arm with compliant column (input to steering wheel)
+    RACK_PINION         ///< rack-pinion (input to pinion)
 };
 
 /// Enum for drive types.
@@ -416,12 +418,14 @@ enum Enum {
     CHASSIS = 0,  ///< chassis collision family
     TIRES = 1     ///< collision family for tire systems
 };
-}
+}  // namespace WheeledCollisionFamily
 
 /// Enum for track shoe types.
 enum class TrackShoeType {
-    SINGLE_PIN,  ///< single-pin track shoe and sprocket
-    DOUBLE_PIN   ///< double-pin track shoe and sprocket
+    SINGLE_PIN,   ///< single-pin track shoe and sprocket
+    DOUBLE_PIN,   ///< double-pin track shoe and sprocket
+    BAND_BUSHING, ///< rigid tooth-rigid web continuous band track shoe and sprocket
+    BAND_ANCF     ///< rigid tooth-ANCF web continuous band track shoe and sprocket
 };
 
 /// Enum for guide pin (track shoe/roadwheel/idler).
@@ -448,7 +452,7 @@ enum Enum {
     ROLLERS_RIGHT = 1 << 10,
     ALL = 0xFFFF
 };
-}
+}  // namespace TrackedCollisionFlag
 
 /// Enumerations for tracked vehicle collision families.
 namespace TrackedCollisionFamily {
@@ -460,7 +464,7 @@ enum Enum {
     ROLLERS = 3,  ///< collision family for roller subsystems
     SHOES = 4     ///< collision family for track shoe subsystems
 };
-}
+}  // namespace TrackedCollisionFamily
 
 /// Flags for output (log/debug).
 /// These flags can be bit-wise ORed and used as a mask.

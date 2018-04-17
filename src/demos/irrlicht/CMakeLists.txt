@@ -43,6 +43,8 @@ SET(DEMOS
   demo_IRR_callbackNSC
   demo_IRR_callbackSMC
   demo_IRR_OpenSim_parser
+  demo_IRR_report_collisions
+  demo_IRR_Adams_parser
 )
 
 #--------------------------------------------------------------

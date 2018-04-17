@@ -70,8 +70,8 @@ class ChMatrix {
     // DATA
     //
 
-    int rows;
-    int columns;
+    int rows = 1;
+    int columns = 1;
     Real* address;
 
   public:
@@ -150,7 +150,7 @@ class ChMatrix {
     bool operator!=(const ChMatrix<Real>& other) { return !Equals(other); }
 
     /// Assignment operator
-    ChMatrix<Real>& operator=(const ChMatrix<Real>& matbis) {
+    virtual ChMatrix<Real>& operator=(const ChMatrix<Real>& matbis) {
         if (&matbis != this)
             CopyFromMatrix(matbis);
         return *this;
@@ -278,7 +278,7 @@ class ChMatrix {
     }
 
     /// Resets the matrix to zero  (warning: simply sets memory to 0 bytes!)
-    void Reset() {
+    virtual void Reset() {
         // SetZero(rows*columns); //memset(address, 0, sizeof(Real) * rows * columns);
         for (int i = 0; i < rows * columns; ++i)
             this->address[i] = 0;
@@ -354,13 +354,14 @@ class ChMatrix {
         marchive.VersionWrite(1);
 
         // stream out all member data
-        marchive << make_ChNameValue("rows", rows);
-        marchive << make_ChNameValue("columns", columns);
 
-        // custom output of matrix data as array
         if (ChArchiveAsciiDump* mascii = dynamic_cast<ChArchiveAsciiDump*>(&marchive)) {
             // CUSTOM row x col 'intuitive' table-like log when using ChArchiveAsciiDump:
-
+            mascii->indent();
+            mascii->GetStream()->operator<<(rows);
+            mascii->GetStream()->operator<<(" rows,  ");
+            mascii->GetStream()->operator<<(columns);
+            mascii->GetStream()->operator<<(" columns:\n");
             for (int i = 0; i < rows; i++) {
                 mascii->indent();
                 for (int j = 0; j < columns; j++) {
@@ -370,15 +371,19 @@ class ChMatrix {
                 mascii->GetStream()->operator<<("\n");
             }
         } else {
-            // NORMAL array-based serialization:
+      
+            marchive << make_ChNameValue("rows", rows);
+            marchive << make_ChNameValue("columns", columns);
 
+            // NORMAL array-based serialization:
             int tot_elements = GetRows() * GetColumns();
-            marchive.out_array_pre("data", tot_elements, typeid(Real).name());
+            ChValueSpecific< Real* > specVal(this->address, "data", 0);
+            marchive.out_array_pre(specVal, tot_elements);
             for (int i = 0; i < tot_elements; i++) {
                 marchive << CHNVP(ElementN(i), "");
-                marchive.out_array_between(tot_elements, typeid(Real).name());
+                marchive.out_array_between(tot_elements);
             }
-            marchive.out_array_end(tot_elements, typeid(Real).name());
+            marchive.out_array_end(tot_elements);
         }
     }
 
@@ -472,6 +477,12 @@ class ChMatrix {
             ElementN(nel) += (Real)matra.ElementN(nel);
     }
 
+    /// Increments this matrix by \p val, as [this]+=val
+    void MatrInc(Real val) {
+        for (int nel = 0; nel < rows * columns; ++nel)
+            ElementN(nel) += val;
+    }
+
     /// Decrements this matrix with another matrix A, as: [this]-=[A]
     template <class RealB>
     void MatrDec(const ChMatrix<RealB>& matra) {
@@ -485,7 +496,8 @@ class ChMatrix {
         for (int nel = 0; nel < rows * columns; ++nel)
             ElementN(nel) *= factor;
     }
-    /// Scales a matrix, multiplying all element by all oter elements of
+
+    /// Scales a matrix, multiplying all element by all other elements of
     /// matra (it is not the classical matrix multiplication!)
     template <class RealB>
     void MatrScale(const ChMatrix<RealB>& matra) {
@@ -500,7 +512,7 @@ class ChMatrix {
             ElementN(nel) /= factor;
     }
 
-    /// Scales a matrix, dividing all element by all oter elements of
+    /// Scales a matrix, dividing all element by all other elements of
     /// matra (it is not the classical matrix multiplication!)
     template <class RealB>
     void MatrDivScale(const ChMatrix<RealB>& matra) {
@@ -859,10 +871,10 @@ class ChMatrix {
     }
 
     /// Returns true if vector is identical to other matrix
-    bool Equals(const ChMatrix<Real>& other) { return Equals(other, 0.0); }
+    bool Equals(const ChMatrix<Real>& other) const { return Equals(other, 0.0); }
 
     /// Returns true if vector equals another vector, within a tolerance 'tol'
-    bool Equals(const ChMatrix<Real>& other, Real tol) {
+    bool Equals(const ChMatrix<Real>& other, Real tol) const {
         if ((other.GetColumns() != this->columns) || (other.GetRows() != this->rows))
             return false;
         for (int nel = 0; nel < rows * columns; ++nel)
@@ -940,7 +952,7 @@ class ChMatrix {
 
     /// Gets the norm infinite of the matrix, i.e. the max.
     /// of its elements in absolute value.
-    Real NormInf() {
+    Real NormInf() const {
         Real norm = 0;
         for (int nel = 0; nel < rows * columns; ++nel)
             if ((fabs(ElementN(nel))) > norm)
@@ -950,7 +962,7 @@ class ChMatrix {
 
     /// Gets the norm two of the matrix, i.e. the square root
     /// of the sum of the elements squared.
-    Real NormTwo() {
+    Real NormTwo() const {
         Real norm = 0;
         for (int nel = 0; nel < rows * columns; ++nel)
             norm += ElementN(nel) * ElementN(nel);
@@ -958,7 +970,7 @@ class ChMatrix {
     }
 
     /// Finds max value among the values of the matrix
-    Real Max() {
+    Real Max() const {
         Real mmax = GetElement(0, 0);
         for (int nel = 0; nel < rows * columns; ++nel)
             if (ElementN(nel) > mmax)
@@ -967,7 +979,7 @@ class ChMatrix {
     }
 
     /// Finds min value among the values of the matrix
-    Real Min() {
+    Real Min() const {
         Real mmin = GetElement(0, 0);
         for (int nel = 0; nel < rows * columns; ++nel)
             if (ElementN(nel) < mmin)
