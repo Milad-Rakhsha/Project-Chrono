@@ -42,13 +42,12 @@ struct SimParams {
      value = 2. */
     Real solidSurfaceAdjust; /* */
     Real BASEPRES;           /* Relative value of pressure applied to the whole domain. */
-    Real LARGE_PRES; /* Artificial pressure for boundary particles. Make sure fluid particles do not go through the
-     boundaries. Note that if time step is not small enough particles near the boundaries might build
-     up huge pressures and will make the simulation unstable. */
-    Real3
-        deltaPress; /* Change in Pressure. This is needed for periodic BC. The change in pressure of a particle when it
-   moves from end boundary to beginning.  */
-    Real3 V_in;     /* Inlet Velocity. This is needed for inlet BC.  */
+    Real LARGE_PRES;  /* Artificial pressure for boundary particles. Make sure fluid particles do not go through the
+      boundaries. Note that if time step is not small enough particles near the boundaries might build
+      up huge pressures and will make the simulation unstable. */
+    Real3 deltaPress; /* Change in Pressure. This is needed for periodic BC. The change in pressure of a particle when
+     it moves from end boundary to beginning.  */
+    Real3 V_in;       /* Inlet Velocity. This is needed for inlet BC.  */
     Real x_in;
 
     int nPeriod;      /* Only used in snake channel simulation. Tells you how long the channel will be. */
@@ -119,6 +118,7 @@ struct SimParams {
     bool USE_NonIncrementalProjection;
 
     bool USE_LinearSolver;
+    bool Pressure_Constraint;  // Whether the singularity of the pressure equation should be fixed
     bool USE_Iterative_solver;
     solverType LinearSolver;
     Real LinearSolver_Abs_Tol;  // Poisson Pressure Equation residual

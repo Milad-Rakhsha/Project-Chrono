@@ -47,6 +47,10 @@ struct Real4_x {
     }
 };
 
+struct Real4_y {
+    __host__ __device__ Real operator()(const Real4& input) const { return (input.w != -1.0) ? 0.0 : input.y; }
+};
+
 __device__ inline void clearRow(uint i_idx, uint csrStartIdx, uint csrEndIdx, Real* A_Matrix, Real* Bi) {
     for (int count = csrStartIdx; count < csrEndIdx; count++) {
         A_Matrix[count] = 0;

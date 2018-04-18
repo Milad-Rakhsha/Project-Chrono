@@ -42,7 +42,7 @@ __global__ void calc_A_tensor(Real* A_tensor,
     // elements of matrix B depends on tensor A
 
     uint csrStartIdx = numContacts[i_idx];
-    uint csrEndIdx = numContacts[i_idx + 1];
+    uint csrEndIdx = numContacts[i_idx + 1] - paramsD.Pressure_Constraint;
     Real3 posRadA = mR3(sortedPosRad[i_idx]);
     Real h_i = sortedPosRad[i_idx].w;
     Real m_i = pow(h_i * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
@@ -135,7 +135,7 @@ __global__ void calc_L_tensor(Real* A_tensor,
     // elements of matrix B depends on tensor A
 
     uint csrStartIdx = numContacts[i_idx];
-    uint csrEndIdx = numContacts[i_idx + 1];
+    uint csrEndIdx = numContacts[i_idx + 1] - paramsD.Pressure_Constraint;
     Real3 posRadA = mR3(sortedPosRad[i_idx]);
     Real h_i = sortedPosRad[i_idx].w;
     Real m_i = pow(h_i * paramsD.MULT_INITSPACE, 3) * paramsD.rho0;
@@ -306,7 +306,7 @@ __global__ void calcRho_kernel(Real4* sortedPosRad,
             }
         }
     }
-    mynumContact[i_idx] = mcon;
+    mynumContact[i_idx] = mcon + paramsD.Pressure_Constraint;  // on extra for handling constraints
     // Adding neighbor contribution is done!
     sumWij_inv[i_idx] = m_i / sum_mW;
     //    printf("%f, ", m_i / sum_mW);
@@ -480,7 +480,7 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
     }
     Real RHO_0 = paramsD.rho0;
     uint csrStartIdx = numContacts[i_idx] + 1;  // Reserve the starting index for the A_ii
-    uint csrEndIdx = numContacts[i_idx + 1];
+    uint csrEndIdx = numContacts[i_idx + 1] - paramsD.Pressure_Constraint;
     Real3 posRadA = mR3(sortedPosRad[i_idx]);
     Real h_i = sortedPosRad[i_idx].w;
     Real sum_mW = 0;
@@ -491,6 +491,8 @@ __global__ void calcNormalizedRho_Gi_fillInMatrixIndices(Real4* sortedPosRad,  /
     int3 gridPos = calcGridPos(posRadA);
 
     csrColInd[csrStartIdx - 1] = i_idx;
+    //    csrColInd[csrEndIdx + 1] = i_idx;
+
     uint nextCol = csrStartIdx;
 
     if (sortedRhoPreMu[i_idx].w == -2)
@@ -637,7 +639,7 @@ __global__ void Function_Gradient_Laplacian_Operator(Real4* sortedPosRad,  // in
 
     Real RHO_0 = paramsD.rho0;
     uint csrStartIdx = numContacts[i_idx];
-    uint csrEndIdx = numContacts[i_idx + 1];
+    uint csrEndIdx = numContacts[i_idx + 1] - paramsD.Pressure_Constraint;
     Real3 posRadA = mR3(sortedPosRad[i_idx]);
     Real h_i = sortedPosRad[i_idx].w;
     // get address in grid
@@ -648,6 +650,13 @@ __global__ void Function_Gradient_Laplacian_Operator(Real4* sortedPosRad,  // in
     Real3 LaplacainVi = mR3(0.0);
     Real NormGi = 0;
     Real NormLi = 0;
+
+    if (paramsD.Pressure_Constraint) {
+        csrColInd[csrEndIdx] = numAllMarkers;
+        A_G[csrEndIdx] = mR3(0.0);
+        A_L[csrEndIdx] = 0.0;
+        A_f[csrEndIdx] = 0.0;
+    }
 
     for (int i = 0; i < 9; i++) {
         mGi[i] = G_tensor[i_idx * 9 + i];
@@ -770,17 +779,19 @@ __global__ void Jacobi_SOR_Iter(Real4* sortedRhoPreMu,
     if (i_idx >= numAllMarkers) {
         return;
     }
+
     uint startIdx = numContacts[i_idx] + 1;  // Reserve the starting index for the A_ii
-    uint endIdx = numContacts[i_idx + 1];
+    uint endIdx = numContacts[i_idx + 1] - uint(_3dvector && paramsD.Pressure_Constraint);
 
     if (_3dvector) {
         Real3 aij_vj = mR3(0.0);
         for (int myIdx = startIdx; myIdx < endIdx; myIdx++) {
             aij_vj += A_Matrix[myIdx] * V_old[csrColInd[myIdx]];
         }
-        //        if (abs(A_Matrix[startIdx - 1]) < EPSILON)
-        //            printf(" %d A_Matrix[startIdx - 1]= %f, type=%f \n", i_idx, A_Matrix[startIdx - 1],
-        //                   sortedRhoPreMu[i_idx].w);
+        //        if (abs(A_Matrix[startIdx - 1]) < EPSILON || !isfinite(length(aij_vj)))
+        //            printf(" %d A_Matrix[startIdx - 1]= %f, type=%f, aij_vj=%f \n", i_idx, A_Matrix[startIdx - 1],
+        //                   sortedRhoPreMu[i_idx].w, length(aij_vj));
+
         V_new[i_idx] = (b3vec[i_idx] - aij_vj) / A_Matrix[startIdx - 1];
     } else {
         Real aij_pj = 0.0;
@@ -792,6 +803,16 @@ __global__ void Jacobi_SOR_Iter(Real4* sortedRhoPreMu,
         //                   sortedRhoPreMu[i_idx].w);
 
         q_new[i_idx] = (b1vec[i_idx] - aij_pj) / A_Matrix[startIdx - 1];
+
+        //        if (i_idx >= numAllMarkers) {
+        //            //            Real sum = 0.0;
+        //            //            for (int i = 0; i < numAllMarkers; i++)
+        //            //                sum = A_Matrix[startIdx + i] * q_old[i] * (sortedRhoPreMu[i].w == -1);
+        //            //            q_new[i_idx] = (b1vec[i_idx] - aij_pj + q_old[i_idx]);
+        //            printf("i_idx=%d, aij_pj=%f, b1vec[i_idx]=%f, q_new[i_idx] = %f, A_Matrix[startIdx - 1]=%f\n ",
+        //            i_idx,
+        //                   aij_pj, b1vec[i_idx], q_new[i_idx], A_Matrix[startIdx - 1]);
+        //        }
     }
 }
 //--------------------------------------------------------------------------------------------------------------------------------
