@@ -50,7 +50,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->epsMinMarkersDis = .001;
     paramsH->NUM_BOUNDARY_LAYERS = 3;
     paramsH->toleranceZone = paramsH->NUM_BOUNDARY_LAYERS * (paramsH->HSML * paramsH->MULT_INITSPACE);
-    paramsH->BASEPRES = 10.0;
+    paramsH->BASEPRES = 51.0;
     paramsH->LARGE_PRES = 0;
     paramsH->deltaPress = mR3(0.0, 0, 0.0);
     paramsH->multViscosity_FSI = 1;
@@ -64,6 +64,8 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->USE_NonIncrementalProjection = true;
     paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
     paramsH->dT = 1e-3;
+    paramsH->tFinal = 500;
+
     paramsH->dT_Max = 10.0;
     paramsH->Co_number = 0.1;  ///< 0.2 works well for most cases
     paramsH->EPS_XSPH = 0.0;   // Note that increasing this coefficient stabilizes the simulation but adds dissipation

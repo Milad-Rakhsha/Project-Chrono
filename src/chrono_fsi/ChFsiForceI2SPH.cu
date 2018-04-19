@@ -18,6 +18,7 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include "cublas_v2.h"
 
 #include "chrono_fsi/ChFsiForceI2SPH.cuh"
 
@@ -278,8 +279,9 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
             A_Matrix[count] = 1 / rhoi * A_L[count] - 0.0 / (rhoi * rhoi) * dot(grad_rho_i, A_G[count]);
         }
 
-        Bi[i_idx] = div_vi_star / delta_t - 0. * (paramsD.rho0 - rhoi_star) / paramsD.rho0 / (delta_t * delta_t);
-        //        Bi[i_idx] = div_vi_star / delta_t;
+        //        Bi[i_idx] = div_vi_star / delta_t - 0. * (paramsD.rho0 - rhoi_star) / paramsD.rho0 / (delta_t *
+        //        delta_t);
+        Bi[i_idx] = div_vi_star / delta_t;
 
         //======================== Free-Surface =====================
         //        if (sortedRhoPreMu[i_idx].x < 0.8 * paramsD.rho0) {
@@ -399,8 +401,8 @@ __global__ void Pressure_Equation(Real4* sortedPosRad,  // input: sorted positio
         A_Matrix[csrEndIdx] = (double)Fluid_Marker / (double)numFluidMarkers;
         csrColInd[csrEndIdx] = numAllMarkers;
         uint last_row_start = numContacts[numAllMarkers];
-        A_Matrix[last_row_start + i_idx + 1] = (double)Fluid_Marker / (double)numFluidMarkers;
-        csrColInd[last_row_start + i_idx + 1] = i_idx;
+        A_Matrix[last_row_start + i_idx] = (double)Fluid_Marker / (double)numFluidMarkers;
+        csrColInd[last_row_start + i_idx] = i_idx;
 
         //        if (Fluid_Marker && i_idx % 10000 == 0)
         //            printf("last_row_start + i_idx + 1=%d,  A_Matrix=%f, csrColInd=%d, b_last=%f\n", last_row_start +
@@ -672,7 +674,7 @@ void ChFsiForceI2SPH::PreProcessor(SphMarkerDataD* sortedSphMarkersD, bool print
     //============================================================================================================
     double A_L_Tensor_GradLaplacian = clock();
     if (print)
-        printf(" calc_A_tensor+");
+        printf("| calc_A_tensor+");
 
     if (calcLaplacianOperator) {
         calc_A_tensor<<<numBlocks, numThreads>>>(R1CAST(A_i), R1CAST(G_i), mR4CAST(sortedSphMarkersD->posRadD),
@@ -726,14 +728,14 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
                      (paramsH->mu0 / paramsH->rho0);  // since viscosity is treated implicitly
         Real dt_body = 0.125 * std::sqrt(paramsH->HSML / length(paramsH->bodyForce3 + paramsH->gravity));
         Real dt = std::min(dt_body, std::min(dt_CFL, dt_nu));
-        if (dt / paramsH->dT_Max > 0.7 && dt / paramsH->dT_Max < 1)
+        if (dt / paramsH->dT_Max > 0.85 && dt / paramsH->dT_Max < 1)
             paramsH->dT = paramsH->dT_Max * 0.5;
         else
             paramsH->dT = std::min(dt, paramsH->dT_Max);
 
         CopyParams_NumberOfObjects(paramsH, numObjectsH);
 
-        printf(" time step=%.3e, dt_Max=%.3e, dt_CFL=%.3e (CFL=%.2g), dt_nu=%.3e, dt_body=%.3e\n", paramsH->dT,
+        printf("| time step=%.3e, dt_Max=%.3e, dt_CFL=%.3e (CFL=%.2g), dt_nu=%.3e, dt_body=%.3e\n", paramsH->dT,
                paramsH->dT_Max, dt_CFL, paramsH->Co_number, dt_nu, dt_body);
     }
     int numHelperMarkers = numObjectsH->numHelperMarkers;
@@ -805,7 +807,7 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     //
     uint FixedMarker = 0;
     double V_star_Predictor = (clock() - LinearSystemClock_V) / (double)CLOCKS_PER_SEC;
-    printf(" V_star_Predictor Equation: %f (sec) - Final Residual=%.3e - #Iter=%d\n", V_star_Predictor, MaxRes,
+    printf("| V_star_Predictor Equation: %f (sec) - Final Residual=%.3e - #Iter=%d\n", V_star_Predictor, MaxRes,
            Iteration);
     //==================================================Pressure_Equation==============================================
     Iteration = 0;
@@ -820,9 +822,8 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
         q_old.resize(numAllMarkers + 1);
         q_new.resize(numAllMarkers + 1);
         int Contact_i_last = Contact_i[numAllMarkers + 1];
-
-        AMatrix[Contact_i[numAllMarkers]] = 0;
-        csrColInd[Contact_i[numAllMarkers]] = numAllMarkers;
+        AMatrix[Contact_i[numAllMarkers + 1] - 1] = 0;
+        csrColInd[Contact_i[numAllMarkers + 1] - 1] = numAllMarkers;
         //        printf(" NNZ=%d, NNZ_new=%d, Contact_i.size()=%d, csrColInd.size()=%d, Contact_i_last=%d\n", NNZ,
         //               AMatrix.size(), Contact_i.size(), csrColInd.size(), Contact_i_last);
     }
@@ -852,15 +853,15 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
     if (paramsH->Pressure_Constraint) {
         uint csrStartIdx = Contact_i[0];
         uint csrEndIdx = Contact_i[1] - 1;
-        b1Vector[numAllMarkers] = paramsH->BASEPRES;
+        // The average q should be zero for incremental projection method
+        b1Vector[numAllMarkers] = paramsH->BASEPRES * paramsH->USE_NonIncrementalProjection;
         int Start_last = Contact_i[numAllMarkers];
         for (int count = csrStartIdx; count < csrEndIdx; count++) {
             int j = csrColInd[count];
-            AMatrix[j + Start_last + 1] += AMatrix[count];
+            AMatrix[j + Start_last] += AMatrix[count];
         }
         b1Vector[numAllMarkers] += b1Vector[0];
         AMatrix[Start_last] = 1;
-        printf("...........\n");
     }
 
     if (paramsH->USE_LinearSolver) {
@@ -892,9 +893,20 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
             Jacobi_SOR_Iter<<<numBlocks, numThreads>>>(
                 mR4CAST(sortedSphMarkersD->rhoPresMuD), R1CAST(AMatrix), mR3CAST(V_star_old), mR3CAST(V_star_new),
                 mR3CAST(b3Vector), R1CAST(q_old), R1CAST(q_new), R1CAST(b1Vector), U1CAST(csrColInd), U1CAST(Contact_i),
-                numAllMarkers + uint(paramsH->Pressure_Constraint), false, isErrorD);
+                numAllMarkers, false, isErrorD);
             ChDeviceUtils::Sync_CheckError(isErrorH, isErrorD, "Jacobi_SOR_Iter");
 
+            if (paramsH->Pressure_Constraint) {
+                Real sum_last = 0;
+                cublasHandle_t cublasHandle = 0;
+                uint Start_last = Contact_i[numAllMarkers];
+                cublasDdot(cublasHandle, numAllMarkers, R1CAST(b1Vector), 1,
+                           (double*)thrust::raw_pointer_cast(&AMatrix[Start_last]), 1, &sum_last);
+                cudaThreadSynchronize();
+                b1Vector[numAllMarkers] += b1Vector[0];
+                q_new[numAllMarkers] = b1Vector[numAllMarkers] - sum_last -
+                                       q_new[numAllMarkers] * AMatrix[Contact_i[numAllMarkers + 1] - 1];
+            }
             Update_AND_Calc_Res<<<numBlocks, numThreads>>>(
                 mR4CAST(sortedSphMarkersD->rhoPresMuD), mR3CAST(V_star_old), mR3CAST(V_star_new), R1CAST(q_old),
                 R1CAST(q_new), R1CAST(Residuals), numAllMarkers + uint(paramsH->Pressure_Constraint), false, isErrorD);
@@ -915,7 +927,7 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
                         (numObjectsH->numFluidMarkers);
 
     double Pressure_Computation = (clock() - LinearSystemClock_p) / (double)CLOCKS_PER_SEC;
-    printf(" Pressure Poisson Equation: %f (sec) - Final Residual=%.3e - #Iter=%d, Ave_p=%.3e\n", Pressure_Computation,
+    printf("| Pressure Poisson Equation: %f (sec) - Final Residual=%.3e - #Iter=%d, Ave_p=%.3e\n", Pressure_Computation,
            MaxRes, Iteration, Ave_pressure);
     //==================================Velocity_Correction_and_update============================================
     double updateClock = clock();
@@ -1010,7 +1022,7 @@ void ChFsiForceI2SPH::ForceImplicitSPH(SphMarkerDataD* otherSphMarkersD,
 
     double updateComputation = (clock() - updateClock) / (double)CLOCKS_PER_SEC;
     Real Re = paramsH->L_Characteristic * paramsH->rho0 * MaxVel / paramsH->mu0;
-    printf(" Velocity_Correction_and_update: %f (sec), Ave_density_Err=%.3e, Re=%.1f\n", updateComputation,
+    printf("| Velocity_Correction_and_update: %f (sec), Ave_density_Err=%.3e, Re=%.1f\n", updateComputation,
            Ave_density_Err, Re);
 
     //============================================================================================================

@@ -55,13 +55,16 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->deltaPress = mR3(0.0, 0, 0.0);
     paramsH->multViscosity_FSI = 1;
     paramsH->gravity = mR3(0.0, 0, 0.0);
-    paramsH->bodyForce3 = mR3(0.025, 0, 0);
+    paramsH->bodyForce3 = mR3(0.02, 0, 0);
     paramsH->V_in = mR3(0.0, 0, 0.0);
     paramsH->x_in = -bxDim / 2 + 3 * initSpace;
 
-    paramsH->dT = 1e-3;
-    paramsH->dT_Max = 0.5;
-    paramsH->tFinal = 2;
+    paramsH->Conservative_Form = false;
+    paramsH->USE_NonIncrementalProjection = true;
+    paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
+    paramsH->dT = 1e-2;
+    paramsH->dT_Max = 1.0;
+    paramsH->tFinal = 500;
     paramsH->Co_number = 0.2;  ///< 0.2 works well for most cases
     paramsH->rho0 = 1;
     paramsH->mu0 = 0.002;
@@ -69,22 +72,19 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->kappa = 0.0;     ///< surface tension parameter, experimental
     paramsH->EPS_XSPH = 0.0;  // Note that increasing this coefficient stabilizes the simulation but adds dissipation
     paramsH->beta_shifting = 0.2;  // (problem dependent) increasing this factor decreases the Lagrangian nature of SPH
-    //
-    paramsH->L_Characteristic = bzDim;
 
-    paramsH->Conservative_Form = false;
-    paramsH->USE_NonIncrementalProjection = true;
+    paramsH->L_Characteristic = bzDim;
+    paramsH->Pressure_Constraint = true;
+    paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
     paramsH->USE_LinearSolver = false;                ///< IISPH parameter: whether or not use linear solvers
     paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
-    paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
     paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
     paramsH->LinearSolver_Rel_Tol = 1e-8;  ///< relative res, is used in the matrix free solver and linear solvers
-    paramsH->LinearSolver_Abs_Tol = 1e-8;  ///< absolute error, applied when linear solvers are used
-    paramsH->LinearSolver_Max_Iter = 400;  ///< max number of iteration for linear solvers
-    paramsH->PPE_relaxation = 0.98;        ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
-    paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
-    paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
+    paramsH->LinearSolver_Abs_Tol = 1e-6;  ///< absolute error, applied when linear solvers are used
+    paramsH->LinearSolver_Max_Iter = 500;  ///< max number of iteration for linear solvers
+    paramsH->PPE_relaxation = 0.995;       ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
 
+    paramsH->Apply_BC_U = false;   ///< You should go to custom_math.h all the way to end of file and set your function
     paramsH->bceType = mORIGINAL;  // ADAMI, mORIGINAL
     paramsH->ApplyInFlowOutFlow = false;
     paramsH->outflow = paramsH->cMax - mR3(initSpace * 25);

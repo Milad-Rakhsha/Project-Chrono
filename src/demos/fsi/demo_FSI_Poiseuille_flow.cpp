@@ -291,12 +291,8 @@ int main(int argc, char* argv[]) {
 
     Real time = 0;
     Real Global_max_dT = paramsH->dT_Max;
+    bool isAdaptive = false;
     for (int tStep = 0; tStep < stepEnd + 1; tStep++) {
-        //        if (tStep % 2 == 0)
-        //            paramsH->dT = paramsH->dT / 2;
-        //        else
-        //            paramsH->dT = paramsH->dT * 2;
-
         printf("\nstep : %d, time= : %f (s) \n", tStep, time);
         double frame_time = 1.0 / out_fps;
         int next_frame = std::floor((time + 1e-6) / frame_time) + 1;
@@ -309,13 +305,16 @@ int main(int argc, char* argv[]) {
 
         printf("next_frame is:%d,  max dt is set to %f\n", next_frame, paramsH->dT_Max);
 
-#if haveFluid
+        if (tStep < 3 && paramsH->Adaptive_time_stepping) {
+            paramsH->Adaptive_time_stepping = false;
+            isAdaptive = true;
+        }
         myFsiSystem.DoStepDynamics_FSI_Implicit();
-#else
-        myFsiSystem.DoStepDynamics_ChronoRK2();
-#endif
+        paramsH->Adaptive_time_stepping = isAdaptive;
         time += paramsH->dT;
         SaveParaViewFilesMBD(myFsiSystem, mphysicalSystem, paramsH, next_frame, time);
+        if (time > paramsH->tFinal)
+            break;
     }
 
     return 0;
