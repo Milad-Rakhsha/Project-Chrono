@@ -280,11 +280,11 @@ ChFsiInterface::ChFsiInterface(FsiBodiesDataH* other_fsiBodiesH,
     int numShells = 0;
     int numCables = 0;
     int numNodes = 0;
-    if (mphysicalSystem->Get_otherphysicslist()->size())
+    if (mphysicalSystem->Get_otherphysicslist().size())
         numShells =
-            std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0))->GetNelements();
-    if (mphysicalSystem->Get_otherphysicslist()->size())
-        numNodes = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0))->GetNnodes();
+            std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist().at(0))->GetNelements();
+    if (mphysicalSystem->Get_otherphysicslist().size())
+        numNodes = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist().at(0))->GetNnodes();
 
     printf("ChFsiInterface::ChFsiInterface numShells=%d \n ", numShells);
     printf("ChFsiInterface::ChFsiInterface numNodes=%d \n ", numNodes);
@@ -327,7 +327,7 @@ void ChFsiInterface::Copy_fsiNodes_ChSystem_to_FluidSystem(FsiMeshDataD* FsiMesh
 void ChFsiInterface::ResizeChronoNodesData() {
     int numNodes = 0;
     auto my_mesh = std::make_shared<fea::ChMesh>();
-    if (mphysicalSystem->Get_otherphysicslist()->size()) {
+    if (mphysicalSystem->Get_otherphysicslist().size()) {
         printf("fsi_mesh.size in ResizeChronNodesData  %d\n", numNodes);
     }
     numNodes = fsi_mesh->GetNnodes();
@@ -339,8 +339,8 @@ void ChFsiInterface::ResizeChronoNodesData() {
 void ChFsiInterface::ResizeChronoFEANodesData() {
     int numNodes = 0;
     auto my_mesh = std::make_shared<fea::ChMesh>();
-    if (mphysicalSystem->Get_otherphysicslist()->size()) {
-        my_mesh = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0));
+    if (mphysicalSystem->Get_otherphysicslist().size()) {
+        my_mesh = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist().at(0));
     }
     numNodes = fsi_mesh->GetNnodes();
     printf("fsi_mesh.size in ResizeChronoFEANodesData  %d\n", numNodes);
@@ -354,8 +354,8 @@ void ChFsiInterface::ResizeChronoFEANodesData() {
 void ChFsiInterface::ResizeChronoCablesData(std::vector<std::vector<int>> CableElementsNodesSTDVector,
                                             thrust::host_vector<int2>* CableElementsNodesH) {
     auto my_mesh = std::make_shared<fea::ChMesh>();
-    if (mphysicalSystem->Get_otherphysicslist()->size()) {
-        my_mesh = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0));
+    if (mphysicalSystem->Get_otherphysicslist().size()) {
+        my_mesh = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist().at(0));
     }
 
     int numCables = 0;
@@ -388,8 +388,8 @@ void ChFsiInterface::ResizeChronoCablesData(std::vector<std::vector<int>> CableE
 void ChFsiInterface::ResizeChronoShellsData(std::vector<std::vector<int>> ShellElementsNodesSTDVector,
                                             thrust::host_vector<int4>* ShellElementsNodesH) {
     auto my_mesh = std::make_shared<fea::ChMesh>();
-    if (mphysicalSystem->Get_otherphysicslist()->size()) {
-        my_mesh = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist()->at(0));
+    if (mphysicalSystem->Get_otherphysicslist().size()) {
+        my_mesh = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem->Get_otherphysicslist().at(0));
     }
 
     int numShells = 0;
