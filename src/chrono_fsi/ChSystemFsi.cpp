@@ -153,7 +153,7 @@ void ChSystemFsi::DoStepDynamics_FSI_Implicit() {
     fsiInterface->Add_Flex_Forces_To_ChSystem();
 #endif
 
-    paramsH->dT_Flex = paramsH->dT / 10;
+    //    paramsH->dT_Flex = paramsH->dT / 10;
 
     mTime += 1 * paramsH->dT;
     if (paramsH->dT_Flex == 0)

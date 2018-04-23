@@ -63,7 +63,6 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->Conservative_Form = false;
     paramsH->USE_NonIncrementalProjection = true;
     paramsH->ApplyInFlowOutFlow = false;
-
     paramsH->Adaptive_time_stepping = true;  ///< This let you use large time steps when possible
     paramsH->dT = 1e-3;
     paramsH->dT_Flex = paramsH->dT / 5;
@@ -76,22 +75,19 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->kappa = 0.000;           ///< surface tension parameter, experimental
 
     paramsH->L_Characteristic = bzDim;
-    paramsH->USE_LinearSolver = false;  ///< IISPH parameter: whether or not use linear solvers
-    paramsH->USE_Iterative_solver = false;
+    paramsH->Pressure_Constraint = true;
+    paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
+    paramsH->USE_LinearSolver = false;                ///< IISPH parameter: whether or not use linear solvers
     paramsH->LinearSolver = bicgstab;                 ///< IISPH parameter: gmres, cr, bicgstab, cg
     paramsH->PPE_Solution_type = FORM_SPARSE_MATRIX;  ///< MATRIX_FREE, FORM_SPARSE_MATRIX
-    paramsH->Verbose_monitoring = false;              ///< IISPH parameter: showing iter/residual
     paramsH->LinearSolver_Rel_Tol = 1e-8;   ///< relative res, is used in the matrix free solver and linear solvers
     paramsH->LinearSolver_Abs_Tol = 1e-8;   ///< absolute error, applied when linear solvers are used
     paramsH->LinearSolver_Max_Iter = 2000;  ///< max number of iteration for linear solvers
-    paramsH->PPE_relaxation = 0.99;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
-    /// Experimental parameters
-    paramsH->Max_Pressure = 1e5;
-    paramsH->IncompressibilityFactor = 1;  ///< to tune the compression
-    paramsH->ClampPressure = false;        ///< If the negative pressure should be clamped to zero or not
+    paramsH->PPE_relaxation = 0.98;  ///< Increasing this to 0.5 causes instability, only used in MATRIX_FREE form
+
     paramsH->Apply_BC_U = false;  ///< You should go to custom_math.h all the way to end of file and set your function
 
-    paramsH->tFinal = 2;
+    paramsH->tFinal = 5;
     paramsH->timePause = 0;
     paramsH->kdT = 5;  // I don't know what is kdT
     paramsH->gammaBB = 0.5;

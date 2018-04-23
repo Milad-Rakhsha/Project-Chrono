@@ -99,7 +99,7 @@ std::vector<std::vector<int>> NodeNeighborElementMesh;
 
 bool povray_output = true;
 int out_fps = 20;
-
+double EPS = 1e-10;
 typedef fsi::Real Real;
 Real contact_recovery_speed = 1;  ///< recovery speed for MBD
 
@@ -348,18 +348,18 @@ int main(int argc, char* argv[]) {
     // Set up integrator
     //    mphysicalSystem.SetTimestepperType(ChTimestepper::Type::EULER_IMPLICIT);
 
-    mphysicalSystem.SetTimestepperType(ChTimestepper::Type::HHT);
+    //    mphysicalSystem.SetTimestepperType(ChTimestepper::Type::HHT);
+    //
+    //    // if later you want to change integrator settings:
+    //    if (auto mystepper = std::dynamic_pointer_cast<ChTimestepperHHT>(mphysicalSystem.GetTimestepper())) {
+    //        mystepper->SetAlpha(-0.2);
+    //        mystepper->SetMaxiters(6);
+    //        mystepper->SetAbsTolerances(1e-12);
+    //        mystepper->SetVerbose(false);
+    //        mystepper->SetStepControl(false);
+    //    }
 
-    // if later you want to change integrator settings:
-    if (auto mystepper = std::dynamic_pointer_cast<ChTimestepperHHT>(mphysicalSystem.GetTimestepper())) {
-        mystepper->SetAlpha(-0.2);
-        mystepper->SetMaxiters(6);
-        mystepper->SetAbsTolerances(1e-12);
-        mystepper->SetVerbose(false);
-        mystepper->SetStepControl(false);
-    }
-
-    //    mphysicalSystem.SetTimestepperType(ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED);
+    mphysicalSystem.SetTimestepperType(ChTimestepper::Type::EULER_IMPLICIT_LINEARIZED);
 
     int stepEnd = int(paramsH->tFinal / paramsH->dT);
     stepEnd = 1000000;
@@ -535,14 +535,14 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
         double Fiber_Length = bzDim * 0.8;
 
         double Area = 3.1415 * std::pow(Fiber_Diameter, 2) / 4;
-        double E = 1e30;
+        double E = 1e2;
         double nu = 0.3;
         auto mat = std::make_shared<ChMaterialShellANCF>(rho, E, nu);
         /*================== Cable Elements =================*/
         auto msection_cable = std::make_shared<ChBeamSectionCable>();
         msection_cable->SetDiameter(Fiber_Diameter);
         msection_cable->SetYoungModulus(E);
-        msection_cable->SetBeamRaleyghDamping(0.001);
+        msection_cable->SetBeamRaleyghDamping(0.000);
         // Create material.
         //        type: 0:Fixed node- 1:Position Constrain- 2:Position+Dir Constraint
         //        std::ofstream fileName_1D_Fixed_nodes;
@@ -1152,7 +1152,7 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
         output << "\nVECTORS velocity float\n";
         for (unsigned int i = 0; i < nodeList.size(); i++) {
             ChVector<> vel = std::dynamic_pointer_cast<ChNodeFEAxyzD>(my_mesh->GetNode(nodeList[i]))->GetPos_dt();
-            output << vel.x() << " " << vel.y() << " " << vel.z() << "\n";
+            output << vel.x() + EPS << " " << vel.y() + EPS << " " << vel.z() + EPS << "\n";
         }
 
         output.close();
