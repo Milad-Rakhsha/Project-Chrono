@@ -180,8 +180,8 @@ int main(int argc, char* argv[]) {
 
     Create_MB_FE(mphysicalSystem, myFsiSystem, paramsH);
     auto my_mesh = std::make_shared<fea::ChMesh>();
-    if (mphysicalSystem.Get_otherphysicslist()->size()) {
-        my_mesh = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem.Get_otherphysicslist()->at(0));
+    if (mphysicalSystem.Get_otherphysicslist().size()) {
+        my_mesh = std::dynamic_pointer_cast<fea::ChMesh>(mphysicalSystem.Get_otherphysicslist().at(0));
     }
     myFsiSystem.Finalize();
     if (myFsiSystem.GetDataManager()->sphMarkersH.posRadH.size() !=

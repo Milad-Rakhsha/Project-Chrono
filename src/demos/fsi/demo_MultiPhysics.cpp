@@ -1134,13 +1134,12 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
         for (int i = 0; i < nodeList.size(); i++) {
             double areaAve = 0;
             ChVector<> StrainV;
-            ChMatrix<> disp;
             double myarea = 0;
             double dx;
             for (int j = 0; j < NodeNeighborElement[nodeList[i]].size(); j++) {
                 int myelemInx = NodeNeighborElement[nodeList[i]][j];
                 std::dynamic_pointer_cast<ChElementCableANCF>(my_mesh->GetElement(myelemInx))
-                    ->EvaluateSectionStrain(0.0, disp, StrainV);
+                    ->EvaluateSectionStrain(0.0, StrainV);
                 dx = std::dynamic_pointer_cast<ChElementCableANCF>(my_mesh->GetElement(myelemInx))->GetCurrLength();
                 myarea += dx / NodeNeighborElement[nodeList[i]].size();
                 areaAve += StrainV.x() * dx / NodeNeighborElement[nodeList[i]].size();

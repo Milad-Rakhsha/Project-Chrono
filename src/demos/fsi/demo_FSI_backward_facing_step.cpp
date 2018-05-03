@@ -321,7 +321,7 @@ int main(int argc, char* argv[]) {
     }
     //*** Add sph data to the physics system
 
-    cout << " -- ChSystem size : " << mphysicalSystem.Get_bodylist()->size() << endl;
+    cout << " -- ChSystem size : " << mphysicalSystem.Get_bodylist().size() << endl;
 
     // **************** System Initialize ***************************
 

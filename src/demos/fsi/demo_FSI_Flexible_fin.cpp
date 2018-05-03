@@ -362,7 +362,7 @@ void Create_MB_FE(ChSystemSMC& mphysicalSystem, fsi::ChSystemFsi& myFsiSystem, c
     utils::AddCylinderGeometry(joint.get(), 0.03, cyl_length, CENTER_JOINT, RelRotation);
 
     joint->GetCollisionModel()->BuildModel();
-    int numRigidObjects = mphysicalSystem.Get_bodylist()->size();
+    int numRigidObjects = mphysicalSystem.Get_bodylist().size();
     std::vector<std::shared_ptr<ChBody>>* fsiBodeisPtr = myFsiSystem.GetFsiBodiesPtr();
     fsiBodeisPtr->push_back(joint);
     //    chrono::fsi::utils::AddCylinderBce(myFsiSystem.GetDataManager(), paramsH, joint, ChVector<>(0, 0, 0),

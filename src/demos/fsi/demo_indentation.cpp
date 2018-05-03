@@ -387,7 +387,7 @@ int main(int argc, char* argv[]) {
         ChVector<> ground_Force(0);
         ChVector<> ground_Xforce(0);
 
-        //        auto mBody = (std::shared_ptr<ChBody>)mphysicalSystem.Get_bodylist()->at(0);
+        //        auto mBody = (std::shared_ptr<ChBody>)mphysicalSystem.Get_bodylist().at(0);
         //        ground_Xforce = mBody->Get_Xforce() * 1000;
         //        std::vector<std::shared_ptr<ChForce>> body_forces = mBody->GetForceList();
         //        chrono::ChForce::ForceType mode = ChForce::FORCE;
@@ -1176,7 +1176,7 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             for (int j = 0; j < NodeNeighborElement[nodeList[i]].size(); j++) {
                 int myelemInx = NodeNeighborElement[nodeList[i]][j];
                 std::dynamic_pointer_cast<ChElementCableANCF>(my_mesh->GetElement(myelemInx))
-                    ->EvaluateSectionStrain(0.0, disp, StrainV);
+                    ->EvaluateSectionStrain(0.0, StrainV);
                 dx = std::dynamic_pointer_cast<ChElementCableANCF>(my_mesh->GetElement(myelemInx))->GetCurrLength();
                 myarea += dx / NodeNeighborElement[nodeList[i]].size();
                 areaAve += StrainV.x() * dx / NodeNeighborElement[nodeList[i]].size();

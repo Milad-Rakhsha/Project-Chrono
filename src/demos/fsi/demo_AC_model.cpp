@@ -156,6 +156,7 @@ class MyLoadSpringDamper : public ChLoadCustomMultiple {
         }
         init_spring_def = init_sp_def;
     }
+    virtual MyLoadSpringDamper* Clone() const override { return new MyLoadSpringDamper(*this); }
 
     std::shared_ptr<ChBody> AttachBody;    // Body to attach springs and dampers
     std::vector<double> K_sp;              // Stiffness of springs
@@ -1083,7 +1084,7 @@ void writeFrame(std::shared_ptr<ChMesh> my_mesh,
             for (int j = 0; j < NodeNeighborElement[nodeList[i]].size(); j++) {
                 int myelemInx = NodeNeighborElement[nodeList[i]][j];
                 std::dynamic_pointer_cast<ChElementCableANCF>(my_mesh->GetElement(myelemInx))
-                    ->EvaluateSectionStrain(0.0, disp, StrainV);
+                    ->EvaluateSectionStrain(0.0, StrainV);
                 dx = std::dynamic_pointer_cast<ChElementCableANCF>(my_mesh->GetElement(myelemInx))->GetCurrLength();
                 myarea += dx / NodeNeighborElement[nodeList[i]].size();
                 areaAve += StrainV.x() * dx / NodeNeighborElement[nodeList[i]].size();

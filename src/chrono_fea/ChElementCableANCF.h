@@ -822,7 +822,6 @@ class ChElementCableANCF : public ChElementBeam, public ChLoadableU, public ChLo
     /// Note, 'displ' is the displ.state of 2 nodes, ex. get it as GetStateBlock()
     /// Results are not corotated.
     virtual void EvaluateSectionDisplacement(const double eta,
-                                             const ChMatrix<>& displ,
                                              ChVector<>& u_displ,
                                              ChVector<>& u_rotaz) override {
         ChMatrixNM<double, 1, 4> N;
@@ -841,7 +840,6 @@ class ChElementCableANCF : public ChElementBeam, public ChLoadableU, public ChLo
     /// Note, 'displ' is the displ.state of 2 nodes, ex. get it as GetStateBlock()
     /// Results are corotated (expressed in world reference)
     virtual void EvaluateSectionFrame(const double eta,
-                                      const ChMatrix<>& displ,
                                       ChVector<>& point,
                                       ChQuaternion<>& rot) override {
         ChVector<> u_displ;
@@ -890,7 +888,6 @@ class ChElementCableANCF : public ChElementBeam, public ChLoadableU, public ChLo
     /// This is not mandatory for the element to work, but it can be useful for plotting,
     /// showing results, etc.
     virtual void EvaluateSectionForceTorque(const double eta,
-                                            const ChMatrix<>& displ,
                                             ChVector<>& Fforce,
                                             ChVector<>& Mtorque) override {
         assert(section);
@@ -911,7 +908,7 @@ class ChElementCableANCF : public ChElementBeam, public ChLoadableU, public ChLo
     /// Results are not corotated, and are expressed in the reference system of beam.
     /// This is not mandatory for the element to work, but it can be useful for plotting,
     /// showing results, etc.
-    virtual void EvaluateSectionStrain(const double eta, const ChMatrix<>& displ, ChVector<>& StrainV) override {
+    virtual void EvaluateSectionStrain(const double eta, ChVector<>& StrainV) override {
         assert(section);
 
         ChMatrixNM<double, 1, 4> N;

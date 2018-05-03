@@ -44,7 +44,7 @@ namespace fsi {
  */
 void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real fxDim, Real fyDim, Real fzDim) {
     paramsH->sizeScale = 1;  // don't change it.
-    paramsH->HSML = 0.0005;
+    paramsH->HSML = 0.00025;
     paramsH->MULT_INITSPACE = 1.0;
     paramsH->MULT_INITSPACE_Shells = 1.0;
     paramsH->epsMinMarkersDis = .001;
@@ -63,7 +63,7 @@ void SetupParamsH(SimParams* paramsH, Real bxDim, Real byDim, Real bzDim, Real f
     paramsH->Conservative_Form = false;
     paramsH->USE_NonIncrementalProjection = true;
     paramsH->Adaptive_time_stepping = false;  ///< This let you use large time steps when possible
-    paramsH->dT = 1e-3;
+    paramsH->dT = 5e-4;
     paramsH->dT_Flex = paramsH->dT / 10;
     paramsH->dT_Max = 1;
     paramsH->tFinal = 50;

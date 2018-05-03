@@ -184,7 +184,7 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
     body->GetCollisionModel()->BuildModel();
     body->GetCollisionModel()->GetAABB(bbmin, bbmax);
 
-    int numRigidObjects = mphysicalSystem.Get_bodylist()->size();
+    int numRigidObjects = mphysicalSystem.Get_bodylist().size();
     mphysicalSystem.AddBody(body);
     printf("size of system %d, bbmin  GR= %f,%f,%f,bbmax  GR= %f,%f,%f\n\\n\n\n", numRigidObjects, bbmin.x(), bbmin.y(),
            bbmin.z(), bbmax.x(), bbmax.y(), bbmax.z());
@@ -309,7 +309,7 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
-    cout << " -- ChSystem size : " << mphysicalSystem.Get_bodylist()->size() << endl;
+    cout << " -- ChSystem size : " << mphysicalSystem.Get_bodylist().size() << endl;
 
     // ******************************* System Initialize ***********************************
     double mTime = 0;

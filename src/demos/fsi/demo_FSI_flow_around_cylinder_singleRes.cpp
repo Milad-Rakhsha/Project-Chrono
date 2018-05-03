@@ -163,7 +163,7 @@ void CreateMbdPhysicalSystemObjects(ChSystemSMC& mphysicalSystem,
     body->GetCollisionModel()->ClearModel();
     utils::AddSphereGeometry(body.get(), sphereRad);
     body->GetCollisionModel()->BuildModel();
-    int numRigidObjects = mphysicalSystem.Get_bodylist()->size();
+    int numRigidObjects = mphysicalSystem.Get_bodylist().size();
     mphysicalSystem.AddBody(body);
 
     std::vector<std::shared_ptr<ChBody>>* fsiBodeisPtr = myFsiSystem.GetFsiBodiesPtr();
@@ -357,7 +357,7 @@ int main(int argc, char* argv[]) {
     }
     //*** Add sph data to the physics system
 
-    cout << " -- ChSystem size : " << mphysicalSystem.Get_bodylist()->size() << endl;
+    cout << " -- ChSystem size : " << mphysicalSystem.Get_bodylist().size() << endl;
 
     // **************** System Initialize ***************************
 

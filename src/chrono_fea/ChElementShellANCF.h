@@ -222,20 +222,17 @@ class ChApiFea ChElementShellANCF : public ChElementShell, public ChLoadableUV, 
     ChVector<> EvaluateSectionStrains();
     virtual void EvaluateSectionDisplacement(const double u,
                                              const double v,
-                                             const ChMatrix<>& displ,
                                              ChVector<>& u_displ,
-                                             ChVector<>& u_rotaz) override;
+                                             ChVector<>& u_rotaz);
 
     virtual void EvaluateSectionFrame(const double u,
                                       const double v,
-                                      const ChMatrix<>& displ,
                                       ChVector<>& point,
-                                      ChQuaternion<>& rot) override;
+                                      ChQuaternion<>& rot);
 
     virtual void EvaluateSectionPoint(const double u,
                                       const double v,
-                                      const ChMatrix<>& displ,
-                                      ChVector<>& point) override;
+                                      ChVector<>& point);
 
     void EvaluateVonMisesStrain(double& strainvec) { strainvec = std::abs(strainXplot) + std::abs(strainYplot); };
     void EvaluateVonMisesStress(double& stressvec) { stressvec = 1 * (std::abs(strainXplot) + std::abs(strainYplot)); };
@@ -292,10 +289,6 @@ class ChApiFea ChElementShellANCF : public ChElementShell, public ChLoadableUV, 
     double strainYplot;
     static const double m_toleranceEAS;   ///< tolerance for nonlinear EAS solver (on residual)
     static const int m_maxIterationsEAS;  ///< maximum number of nonlinear EAS iterations
-
-  public:
-    // Interface to ChElementBase base class
-    // -------------------------------------
 
     /// Add contribution of element inertia to total nodal masses
     virtual void ComputeNodalMass() override;

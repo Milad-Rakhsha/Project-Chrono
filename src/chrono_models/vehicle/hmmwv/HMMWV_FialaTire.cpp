@@ -32,6 +32,9 @@ namespace hmmwv {
 
 const double HMMWV_FialaTire::m_normalDamping = 17513;
 
+const double HMMWV_FialaTire::m_mass = 37.6;
+const ChVector<> HMMWV_FialaTire::m_inertia(3.84, 6.69, 3.84);
+
 const std::string HMMWV_FialaTire::m_meshName = "hmmwv_tire_POV_geom";
 const std::string HMMWV_FialaTire::m_meshFile = "hmmwv/hmmwv_tire.obj";
 
@@ -117,6 +120,7 @@ void HMMWV_FialaTire::AddVisualizationAssets(VisualizationType vis) {
         m_trimesh_shape = std::make_shared<ChTriangleMeshShape>();
         m_trimesh_shape->SetMesh(trimesh);
         m_trimesh_shape->SetName(m_meshName);
+        m_trimesh_shape->SetStatic(true);
         m_wheel->AddAsset(m_trimesh_shape);
     }
     else {
